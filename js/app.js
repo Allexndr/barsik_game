@@ -1,6 +1,9 @@
 // ===== App Init =====
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   S = load();
+  if (typeof Cloud !== 'undefined') {
+    try { S = await Cloud.pull(S); save(S); } catch {}
+  }
   Sound.init();
   ScreenManager.init();
   initLoading();

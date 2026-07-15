@@ -145,21 +145,40 @@ function renderFriendDetail(f, has) {
 
 function renderRating(s) {
   const list = document.getElementById('rating-list');
-  list.innerHTML = '';
-  const data = [
-    {n:'Аня',s:850,a:'🦊'},{n:'Коля',s:720,a:'🐼'},
-    {n:s.name,s:s.stars,a:'🐱',me:true},
-    {n:'Лиза',s:480,a:'🦄'},{n:'Макс',s:350,a:'🐯'},
-    {n:'Соня',s:280,a:'🐰'},{n:'Артём',s:200,a:'🦁'},
-  ].sort((a,b) => b.s - a.s);
-  const medals = ['🥇','🥈','🥉'];
-  data.forEach((d, i) => {
-    const r = document.createElement('div');
-    r.className = 'rate-row' + (d.me ? ' me' : '');
-    r.innerHTML = `<div class="rate-pos">${medals[i]||(i+1)}</div><div class="rate-av">${d.a}</div><div><div class="rate-name">${d.n}</div><div class="rate-score">⭐ ${d.s}</div></div>`;
-    r.style.animationDelay = (i * 0.06) + 's';
-    list.appendChild(r);
-  });
+  list.innerHTML = '<div class="rate-row"><div class="rate-name">Загрузка...</div></div>';
+  const paint = (data) => {
+    list.innerHTML = '';
+    const medals = ['1','2','3'];
+    data.forEach((d, i) => {
+      const r = document.createElement('div');
+      r.className = 'rate-row' + (d.me ? ' me' : '');
+      r.innerHTML = `<div class="rate-pos">${medals[i] || (i + 1)}</div><div class="rate-av"><svg class="pill-ico"><use href="#ic-paw"/></svg></div><div><div class="rate-name">${d.n}</div><div class="rate-score"><svg class="pill-ico gold"><use href="#ic-star"/></svg> ${d.s}</div></div>`;
+      r.style.animationDelay = (i * 0.06) + 's';
+      list.appendChild(r);
+    });
+  };
+  const fallback = () => {
+    const data = [
+      { n: 'Аня', s: 850 }, { n: 'Коля', s: 720 },
+      { n: s.name, s: s.stars, me: true },
+      { n: 'Лиза', s: 480 }, { n: 'Макс', s: 350 },
+      { n: 'Соня', s: 280 }, { n: 'Артём', s: 200 },
+    ].sort((a, b) => b.s - a.s);
+    paint(data);
+  };
+  if (typeof Cloud === 'undefined') { fallback(); return; }
+  Cloud.leaderboard(20).then(rows => {
+    if (!rows || !rows.length) { fallback(); return; }
+    const data = rows.map(r => ({
+      n: r.name,
+      s: r.total_stars || r.stars || 0,
+      me: r.name === s.name,
+    }));
+    // Ensure current player is on the board.
+    if (!data.some(d => d.me)) data.push({ n: s.name, s: s.totalStars || s.stars, me: true });
+    data.sort((a, b) => b.s - a.s);
+    paint(data.slice(0, 20));
+  }).catch(fallback);
 }
 
 function openChest(s) {
