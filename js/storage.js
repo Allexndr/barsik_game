@@ -26,6 +26,7 @@ function load() {
 
 function save(s) {
   try { localStorage.setItem(KEY, JSON.stringify(s)); } catch {}
+  if (typeof Cloud !== 'undefined') Cloud.schedulePush(s);
 }
 
 function reset() { localStorage.removeItem(KEY); }

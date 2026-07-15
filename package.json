@@ -1,0 +1,11 @@
+{
+  "name": "barsik-game",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "upload-blob": "node scripts/upload-blob.mjs"
+  },
+  "devDependencies": {
+    "@vercel/blob": "^1.0.0"
+  }
+}
