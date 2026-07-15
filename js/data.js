@@ -1,11 +1,11 @@
 // ===== Game Data =====
 const WORLDS = [
-  { id:'fruit_forest', name:'Фруктовый лес', icon:'assets/icon_fruit_forest.png', bg:'assets/bg_fruit_forest.png', emoji:'🍓', color:'#00b894', levels:range(1,17), pos:{x:22,y:15} },
-  { id:'ice_valley', name:'Ледяная долина', icon:'assets/icon_ice_valley.png', bg:'assets/bg_ice_valley.png', emoji:'❄️', color:'#0984e3', levels:range(18,34), pos:{x:74,y:16} },
-  { id:'rainbow', name:'Радужная страна', icon:'assets/icon_rainbow.png', bg:'assets/bg_rainbow_country.png', emoji:'🌈', color:'#fd79a8', levels:range(35,50), pos:{x:80,y:42} },
-  { id:'mountains', name:'Горы Барсика', icon:'assets/icon_mountains.png', bg:'assets/bg_mountains.png', emoji:'🏔️', color:'#8d6e63', levels:range(51,67), pos:{x:17,y:45} },
-  { id:'cola_city', name:'Город Колы', icon:'assets/icon_cola_city.png', bg:'assets/bg_cola_city.png', emoji:'🥤', color:'#7e57c2', levels:range(68,83), pos:{x:21,y:76} },
-  { id:'friends_city', name:'Город Друзей', icon:'assets/icon_friends_city.png', bg:'assets/bg_friends_city.png', emoji:'🎉', color:'#fdcb6e', levels:range(84,100), pos:{x:73,y:84}, isFinal:true },
+  { id:'fruit_forest', name:'Фруктовый лес', icon:'assets/icon_fruit_forest.png', bg:'assets/bg_fruit_forest.png', emoji:'🍓', color:'#00b894', levels:range(1,17), pos:{x:22,y:15}, posDesk:{x:9,y:50} },
+  { id:'ice_valley', name:'Ледяная долина', icon:'assets/icon_ice_valley.png', bg:'assets/bg_ice_valley.png', emoji:'❄️', color:'#0984e3', levels:range(18,34), pos:{x:74,y:16}, posDesk:{x:25,y:26} },
+  { id:'rainbow', name:'Радужная страна', icon:'assets/icon_rainbow.png', bg:'assets/bg_rainbow_country.png', emoji:'🌈', color:'#fd79a8', levels:range(35,50), pos:{x:80,y:42}, posDesk:{x:50,y:32} },
+  { id:'mountains', name:'Горы Барсика', icon:'assets/icon_mountains.png', bg:'assets/bg_mountains.png', emoji:'🏔️', color:'#8d6e63', levels:range(51,67), pos:{x:17,y:45}, posDesk:{x:34,y:70} },
+  { id:'cola_city', name:'Город Колы', icon:'assets/icon_cola_city.png', bg:'assets/bg_cola_city.png', emoji:'🥤', color:'#7e57c2', levels:range(68,83), pos:{x:21,y:76}, posDesk:{x:70,y:52} },
+  { id:'friends_city', name:'Город Друзей', icon:'assets/icon_friends_city.png', bg:'assets/bg_friends_city.png', emoji:'🎉', color:'#fdcb6e', levels:range(84,100), pos:{x:73,y:84}, posDesk:{x:90,y:40}, isFinal:true },
 ];
 
 const DIFFS = [

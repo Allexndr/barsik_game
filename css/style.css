@@ -102,17 +102,38 @@ body::before {
     width: 100%;
   }
   .menu-buttons { max-width: 420px; }
+  /* Desktop map: full-bleed landscape */
+  #screen-map .screen-top {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    z-index: 5;
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(12px);
+  }
   .map-wrap {
-    justify-content: center;
-    align-items: center;
+    justify-content: stretch;
+    align-items: stretch;
     width: 100%;
+    height: 100%;
+    overflow: hidden;
+    padding: 0;
   }
   .map-canvas {
-    max-width: min(720px, 52vh);
-    width: min(720px, 52vh);
-    height: auto;
-    max-height: calc(100vh - 160px);
+    max-width: none !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: none !important;
+    aspect-ratio: auto !important;
+    margin: 0;
   }
+  .map-img-mobile { display: none; }
+  .map-img-desktop {
+    display: block;
+    object-fit: cover;
+    object-position: center;
+  }
+  .map-pin-disc { width: 78px; height: 78px; }
+  .map-pin-label { font-size: 13px; padding: 4px 12px; }
 }
 
 /* ===== Screens ===== */
@@ -568,6 +589,7 @@ body::before {
   object-fit: cover;
   display: block;
 }
+.map-img-desktop { display: none; }
 .map-pins { position: absolute; inset: 0; }
 .map-pin {
   position: absolute;
@@ -619,12 +641,9 @@ body::before {
 }
 .map-pin-prog { font-size: 10px; font-weight: 700; opacity: 0.85; }
 @media (min-width: 1200px) {
-  .map-canvas {
-    max-width: min(800px, 56vh);
-    width: min(800px, 56vh);
-  }
   .collection-grid { grid-template-columns: repeat(5, 1fr); max-width: 960px; }
   .levels-grid { grid-template-columns: repeat(6, 1fr); max-width: 640px; }
+  .map-pin-disc { width: 88px; height: 88px; }
 }
 
 /* ===== Levels ===== */
