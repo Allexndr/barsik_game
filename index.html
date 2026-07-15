@@ -13,40 +13,110 @@
 </head>
 <body>
   <div id="app">
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+        <symbol id="ic-play" viewBox="0 0 24 24"><path d="M8 5.14v13.72c0 .83.93 1.32 1.62.86l10.29-6.86a1.03 1.03 0 000-1.72L9.62 4.28C8.93 3.82 8 4.31 8 5.14z"/></symbol>
+        <symbol id="ic-city" viewBox="0 0 24 24"><path d="M3 21V9l6-4v3l6-4v6h6v11H3zm3-3h2v-2H6v2zm5 0h2v-2h-2v2zm5 0h2v-2h-2v2zm-10-4h2v-2H6v2zm5 0h2v-2h-2v2z"/></symbol>
+        <symbol id="ic-paw" viewBox="0 0 24 24"><path d="M8.5 5c1.1 0 2 1.34 2 3s-.9 3-2 3-2-1.34-2-3 .9-3 2-3zm7 0c1.1 0 2 1.34 2 3s-.9 3-2 3-2-1.34-2-3 .9-3 2-3zM4 12c1.1 0 2 1.12 2 2.5S5.1 17 4 17s-2-1.12-2-2.5S2.9 12 4 12zm16 0c1.1 0 2 1.12 2 2.5S21.1 17 20 17s-2-1.12-2-2.5.9-2.5 2-2.5zm-8 2c2.5 0 5 2.2 5 4.3 0 1.5-1.2 2.2-2.6 2.2-1 0-1.7-.4-2.4-.4s-1.4.4-2.4.4C7.2 20.5 6 19.8 6 18.3 6 16.2 8.5 14 12 14z"/></symbol>
+        <symbol id="ic-chest" viewBox="0 0 24 24"><path d="M4 9V6a2 2 0 012-2h12a2 2 0 012 2v3H4zm0 2h6v2h4v-2h6v8a1 1 0 01-1 1H5a1 1 0 01-1-1v-8zm7 0h2v2h-2v-2z"/></symbol>
+        <symbol id="ic-trophy" viewBox="0 0 24 24"><path d="M6 3h12v2h3v3a4 4 0 01-4 4c-.6 1.5-1.9 2.6-3 2.9V18h3v3H7v-3h3v-3.1c-1.1-.3-2.4-1.4-3-2.9a4 4 0 01-4-4V5h3V3zm0 4H5v1a2 2 0 002 2V7zm12 0v3a2 2 0 002-2V7h-1z"/></symbol>
+        <symbol id="ic-profile" viewBox="0 0 24 24"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></symbol>
+        <symbol id="ic-tasks" viewBox="0 0 24 24"><path d="M9 3h6a2 2 0 012 2h1a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2h1a2 2 0 012-2zm0 2v1h6V5H9zm-1 6.5l-1.4 1.4L9 15.3l4.3-4.3-1.4-1.4L9 12.5l-1-1z"/></symbol>
+        <symbol id="ic-games" viewBox="0 0 24 24"><path d="M7 8h10a5 5 0 015 5 4 4 0 01-7.2 2.4l-.3-.4H9.5l-.3.4A4 4 0 012 13a5 5 0 015-5zm0 3v2H5v2h2v2h2v-2h2v-2H9v-2H7zm9 0a1 1 0 100 2 1 1 0 000-2zm2 3a1 1 0 100 2 1 1 0 000-2z"/></symbol>
+        <symbol id="ic-invite" viewBox="0 0 24 24"><path d="M9 11a3 3 0 100-6 3 3 0 000 6zm7 0a3 3 0 100-6 3 3 0 000 6zm-7 2c-2.7 0-6 1.3-6 4v2h9v-2c0-1 .4-1.9 1.1-2.6C12.3 13.3 10.6 13 9 13zm7 0c-.5 0-1 0-1.6.1.9.8 1.6 1.8 1.6 2.9v2h6v-2c0-2.7-3.3-3-6-3z"/></symbol>
+        <symbol id="ic-star" viewBox="0 0 24 24"><path d="M12 2l2.9 6.3 6.9.7-5.1 4.6 1.4 6.8L12 17.6 5.9 20.4l1.4-6.8L2.2 9l6.9-.7L12 2z"/></symbol>
+        <symbol id="ic-gear" viewBox="0 0 24 24"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm9 4a7 7 0 00-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 00-2-1.2L14 2h-4l-.5 2.4a7 7 0 00-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 003 12a7 7 0 00.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 002 1.2L10 22h4l.5-2.4a7 7 0 002-1.2l2.4 1 2-3.4-2-1.6A7 7 0 0021 12z"/></symbol>
+      </defs>
+    </svg>
     <div id="screen-loading" class="screen active">
-      <div class="loading-orb"><div class="loading-orb-inner"></div></div>
+      <div class="splash-logo">
+        <div class="splash-orb">
+          <img src="assets/barsik_idle.png" alt="Барсик" class="splash-barsik">
+        </div>
+        <div class="splash-title">Путешествие<br>Барсика</div>
+      </div>
       <div class="loading-bar"><div class="loading-bar-fill" id="loading-fill"></div></div>
       <div class="loading-text" id="loading-text">Загрузка...</div>
+      <div class="loading-tip" id="loading-tip">Беги, прыгай и собирай звёзды!</div>
+    </div>
+
+    <div id="screen-login" class="screen">
+      <div class="login-bg"></div>
+      <div class="login-card">
+        <div class="login-barsik"><img src="assets/barsik_idle.png" alt="Барсик"></div>
+        <h2>Привет! Я Барсик!</h2>
+        <p class="login-sub">Как тебя зовут?</p>
+        <input type="text" id="login-name" maxlength="16" placeholder="Введи имя" autocomplete="off">
+        <button class="btn-primary btn-large" id="btn-login-start">Начать приключение!</button>
+      </div>
     </div>
 
     <div id="screen-menu" class="screen">
       <div class="menu-bg-layer"></div>
-      <div class="menu-overlay"></div>
+      <div class="menu-vignette"></div>
+      <div class="clouds">
+        <div class="cloud" style="top:12%;left:10%;animation-duration:18s"></div>
+        <div class="cloud" style="top:18%;left:55%;animation-duration:24s"></div>
+        <div class="cloud" style="top:8%;left:75%;animation-duration:20s"></div>
+      </div>
+      <div class="particles" id="menu-particles"></div>
       <div class="menu-top">
-        <div class="hud-pill"><span>⭐</span><span id="menu-stars">0</span></div>
-        <div class="hud-pill"><span>🐱</span><span id="menu-friends-count">0</span></div>
-        <button class="gear-btn" id="btn-settings">⚙️</button>
+        <div class="hud-pill"><svg class="pill-ico gold"><use href="#ic-star"/></svg><span id="menu-stars">0</span></div>
+        <div class="hud-pill"><svg class="pill-ico"><use href="#ic-paw"/></svg><span id="menu-friends-count">0</span></div>
+        <button class="gear-btn" id="btn-settings" aria-label="Настройки"><svg class="pill-ico"><use href="#ic-gear"/></svg></button>
       </div>
       <div class="menu-center">
-        <img src="assets/barsik_wave.png" alt="Барсик" class="menu-barsik" id="menu-barsik">
+        <div class="menu-barsik-wrap">
+          <img src="assets/barsik_wave.png" alt="Барсик" class="menu-barsik" id="menu-barsik">
+        </div>
         <h1 class="menu-title">Путешествие<br>Барсика</h1>
+        <div class="menu-progress" id="menu-progress" style="display:none">
+          <img src="assets/items/star.png" alt="">
+          <div class="menu-progress-txt">До награды:</div>
+          <div class="menu-progress-fill"><div id="menu-progress-bar" style="width:0%"></div></div>
+        </div>
         <div class="menu-buttons">
-          <button class="btn-primary" id="btn-play">▶ Играть</button>
+          <button class="btn-primary" id="btn-play"><svg class="btn-ico"><use href="#ic-play"/></svg><span>Играть</span></button>
           <div class="btn-row">
-            <button class="btn-secondary" id="btn-city">🏙️ Город</button>
-            <button class="btn-secondary" id="btn-collection">📖 Друзья</button>
+            <button class="btn-secondary" id="btn-city"><svg class="btn-ico"><use href="#ic-city"/></svg><span>Город</span></button>
+            <button class="btn-secondary" id="btn-collection"><svg class="btn-ico"><use href="#ic-paw"/></svg><span>Друзья</span></button>
           </div>
           <div class="btn-row">
-            <button class="btn-secondary" id="btn-qr">🎁 Сундук</button>
-            <button class="btn-secondary" id="btn-rating">🏆 Рейтинг</button>
+            <button class="btn-secondary" id="btn-qr"><svg class="btn-ico"><use href="#ic-chest"/></svg><span>Сундук</span></button>
+            <button class="btn-secondary" id="btn-rating"><svg class="btn-ico"><use href="#ic-trophy"/></svg><span>Рейтинг</span></button>
           </div>
           <div class="btn-row">
-            <button class="btn-secondary" id="btn-profile">👤 Профиль</button>
-            <button class="btn-secondary" id="btn-tasks">📋 Задания</button>
+            <button class="btn-secondary" id="btn-profile"><svg class="btn-ico"><use href="#ic-profile"/></svg><span>Профиль</span></button>
+            <button class="btn-secondary" id="btn-tasks"><svg class="btn-ico"><use href="#ic-tasks"/></svg><span>Миссии</span></button>
           </div>
-          <button class="btn-secondary" id="btn-invite">👥 Пригласить друзей</button>
+          <div class="btn-row">
+            <button class="btn-secondary" id="btn-minigames"><svg class="btn-ico"><use href="#ic-games"/></svg><span>Мини-игры</span></button>
+            <button class="btn-secondary" id="btn-invite"><svg class="btn-ico"><use href="#ic-invite"/></svg><span>Пригласить</span></button>
+          </div>
         </div>
       </div>
+      <nav class="bottom-nav" id="bottom-nav-menu">
+        <button class="nav-item active" data-nav="menu">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+          <span>Главная</span>
+        </button>
+        <button class="nav-item" data-nav="map">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M20.5 3l-6 1.5-5.5-1.5-6 1.5v15l6-1.5 5.5 1.5 6-1.5V3zM12 18.5V5.5l5 .5v13l-5-.5z"/></svg>
+          <span>Карта</span>
+        </button>
+        <button class="nav-item" data-nav="collection">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08s5.97 1.09 6 3.08c-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+          <span>Друзья</span>
+        </button>
+        <button class="nav-item" data-nav="tasks">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+          <span>Задания</span>
+        </button>
+        <button class="nav-item" data-nav="profile">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+          <span>Профиль</span>
+        </button>
+      </nav>
     </div>
 
     <div id="screen-difficulty" class="screen">
@@ -60,13 +130,22 @@
     <div id="screen-map" class="screen">
       <div class="screen-top">
         <button class="back-btn" data-back="menu">‹</button>
-        <div class="hud-pill small"><span>⭐</span><span id="map-stars">0</span></div>
-        <div class="hud-pill small"><span>🐱</span><span id="map-friends">0</span>/20</div>
+        <div class="hud-pill small"><svg class="pill-ico gold"><use href="#ic-star"/></svg><span id="map-stars">0</span></div>
+        <div class="hud-pill small"><svg class="pill-ico"><use href="#ic-paw"/></svg><span id="map-friends">0</span>/20</div>
       </div>
       <div class="map-wrap">
-        <img src="assets/map.png" alt="Карта" class="map-img">
-        <div class="map-pins" id="map-pins"></div>
+        <div class="map-canvas">
+          <img src="assets/map/travel_map.png" alt="Карта путешествия" class="map-img">
+          <div class="map-pins" id="map-pins"></div>
+        </div>
       </div>
+      <nav class="bottom-nav" id="bottom-nav-map">
+        <button class="nav-item" data-nav="menu"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>Главная</span></button>
+        <button class="nav-item active" data-nav="map"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M20.5 3l-6 1.5-5.5-1.5-6 1.5v15l6-1.5 5.5 1.5 6-1.5V3zM12 18.5V5.5l5 .5v13l-5-.5z"/></svg><span>Карта</span></button>
+        <button class="nav-item" data-nav="collection"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08s5.97 1.09 6 3.08c-1.29 1.94-3.5 3.22-6 3.22z"/></svg><span>Друзья</span></button>
+        <button class="nav-item" data-nav="tasks"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg><span>Задания</span></button>
+        <button class="nav-item" data-nav="profile"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span>Профиль</span></button>
+      </nav>
     </div>
 
     <div id="screen-levels" class="screen">
@@ -80,12 +159,12 @@
     <div id="screen-game" class="screen">
       <div class="game-hud">
         <div class="hud-left">
-          <button class="hud-btn" id="btn-pause">⏸</button>
+          <button class="hud-btn" id="btn-pause" aria-label="Пауза"><svg viewBox="0 0 24 24" class="hud-icon"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
           <span class="hud-text" id="hud-level">Ур. 1</span>
         </div>
         <div class="hud-progress"><div class="hud-progress-fill" id="hud-progress"></div></div>
         <div class="hud-right">
-          <span class="hud-text">⭐<span id="hud-stars">0</span></span>
+          <span class="hud-text"><img src="assets/items/star.png" alt="" class="inline-icon"><span id="hud-stars">0</span></span>
         </div>
       </div>
       <canvas id="canvas"></canvas>
@@ -105,7 +184,7 @@
     <div id="screen-city" class="screen">
       <div class="screen-top">
         <button class="back-btn" data-back="menu">‹</button>
-        <h2>🏙️ Город Друзей</h2>
+        <h2>Город Друзей</h2>
       </div>
       <div class="city-scene">
         <img src="assets/bg_friends_city.png" class="city-bg" alt="Город">
@@ -120,19 +199,34 @@
     <div id="screen-collection" class="screen">
       <div class="screen-top">
         <button class="back-btn" data-back="menu">‹</button>
-        <h2>📖 Друзья</h2>
+        <h2>Друзья</h2>
       </div>
       <div class="collection-grid" id="collection-grid"></div>
+      <nav class="bottom-nav" id="bottom-nav-collection">
+        <button class="nav-item" data-nav="menu"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>Главная</span></button>
+        <button class="nav-item" data-nav="map"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M20.5 3l-6 1.5-5.5-1.5-6 1.5v15l6-1.5 5.5 1.5 6-1.5V3zM12 18.5V5.5l5 .5v13l-5-.5z"/></svg><span>Карта</span></button>
+        <button class="nav-item active" data-nav="collection"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08s5.97 1.09 6 3.08c-1.29 1.94-3.5 3.22-6 3.22z"/></svg><span>Друзья</span></button>
+        <button class="nav-item" data-nav="tasks"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg><span>Задания</span></button>
+        <button class="nav-item" data-nav="profile"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span>Профиль</span></button>
+      </nav>
+    </div>
+
+    <div id="screen-friend-detail" class="screen">
+      <div class="screen-top">
+        <button class="back-btn" data-back="collection">‹</button>
+        <h2 id="friend-detail-title">Друг</h2>
+      </div>
+      <div class="friend-detail-content" id="friend-detail-content"></div>
     </div>
 
     <div id="screen-qr" class="screen">
       <div class="screen-top">
         <button class="back-btn" data-back="menu">‹</button>
-        <h2>🎁 Сундук</h2>
+        <h2>Сундук</h2>
       </div>
       <div class="qr-scene" id="qr-intro">
         <p class="qr-desc">Сканируй QR-код на упаковке BARSIK<br>и открой волшебный сундук!</p>
-        <img src="assets/chest.png" alt="Сундук" class="chest-img" id="chest-img">
+        <img src="assets/items/chest.png" alt="Сундук" class="chest-img" id="chest-img">
         <button class="btn-primary" id="btn-open-chest">Открыть сундук</button>
         <p class="qr-count">Открыто: <span id="qr-opened">0</span></p>
       </div>
@@ -148,24 +242,38 @@
     <div id="screen-profile" class="screen">
       <div class="screen-top">
         <button class="back-btn" data-back="menu">‹</button>
-        <h2>👤 Профиль</h2>
-        <div class="hud-pill small"><span>⭐</span><span id="prof-stars">0</span></div>
+        <h2>Профиль</h2>
+        <div class="hud-pill small"><svg class="pill-ico gold"><use href="#ic-star"/></svg><span id="prof-stars">0</span></div>
       </div>
       <div class="profile-scroll" id="profile-content"></div>
+      <nav class="bottom-nav" id="bottom-nav-profile">
+        <button class="nav-item" data-nav="menu"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>Главная</span></button>
+        <button class="nav-item" data-nav="map"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M20.5 3l-6 1.5-5.5-1.5-6 1.5v15l6-1.5 5.5 1.5 6-1.5V3zM12 18.5V5.5l5 .5v13l-5-.5z"/></svg><span>Карта</span></button>
+        <button class="nav-item" data-nav="collection"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08s5.97 1.09 6 3.08c-1.29 1.94-3.5 3.22-6 3.22z"/></svg><span>Друзья</span></button>
+        <button class="nav-item" data-nav="tasks"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg><span>Задания</span></button>
+        <button class="nav-item active" data-nav="profile"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span>Профиль</span></button>
+      </nav>
     </div>
 
     <div id="screen-tasks" class="screen">
       <div class="screen-top">
         <button class="back-btn" data-back="menu">‹</button>
-        <h2>📋 Задания</h2>
+        <h2>Задания</h2>
       </div>
       <div class="tasks-list" id="tasks-list"></div>
+      <nav class="bottom-nav" id="bottom-nav-tasks">
+        <button class="nav-item" data-nav="menu"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>Главная</span></button>
+        <button class="nav-item" data-nav="map"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M20.5 3l-6 1.5-5.5-1.5-6 1.5v15l6-1.5 5.5 1.5 6-1.5V3zM12 18.5V5.5l5 .5v13l-5-.5z"/></svg><span>Карта</span></button>
+        <button class="nav-item" data-nav="collection"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08s5.97 1.09 6 3.08c-1.29 1.94-3.5 3.22-6 3.22z"/></svg><span>Друзья</span></button>
+        <button class="nav-item active" data-nav="tasks"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg><span>Задания</span></button>
+        <button class="nav-item" data-nav="profile"><svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span>Профиль</span></button>
+      </nav>
     </div>
 
     <div id="screen-invite" class="screen">
       <div class="screen-top">
         <button class="back-btn" data-back="menu">‹</button>
-        <h2>👥 Друзья</h2>
+        <h2>Пригласить друзей</h2>
       </div>
       <div class="invite-content">
         <div class="invite-card">
@@ -187,7 +295,7 @@
     <div id="screen-rating" class="screen">
       <div class="screen-top">
         <button class="back-btn" data-back="menu">‹</button>
-        <h2>🏆 Рейтинг</h2>
+        <h2>Рейтинг</h2>
       </div>
       <div class="rating-tabs">
         <button class="rtab active" data-rtab="week">Неделя</button>
@@ -195,6 +303,42 @@
         <button class="rtab" data-rtab="explore">Исследователи</button>
       </div>
       <div class="rating-list" id="rating-list"></div>
+    </div>
+
+    <div id="screen-minigames" class="screen">
+      <div class="screen-top">
+        <button class="back-btn" data-back="menu">‹</button>
+        <h2>Мини-игры</h2>
+      </div>
+      <div class="minigames-list" id="minigames-list"></div>
+    </div>
+
+    <div id="screen-memory" class="screen">
+      <div class="screen-top">
+        <button class="back-btn" data-back="minigames">‹</button>
+        <h2>Память друзей</h2>
+        <div class="hud-pill small"><svg class="pill-ico gold"><use href="#ic-star"/></svg><span id="memory-stars">0</span></div>
+      </div>
+      <div class="memory-wrap">
+        <div class="memory-status" id="memory-status">Найди парные карточки!</div>
+        <div class="memory-grid" id="memory-grid"></div>
+        <button class="btn-primary" id="btn-memory-start">Играть</button>
+      </div>
+    </div>
+
+    <div id="screen-catch" class="screen">
+      <div class="screen-top">
+        <button class="back-btn" data-back="minigames">‹</button>
+        <h2>Лови звёзды</h2>
+        <div class="hud-pill small"><svg class="pill-ico gold"><use href="#ic-star"/></svg><span id="catch-stars">0</span></div>
+      </div>
+      <div class="catch-wrap">
+        <canvas id="catch-canvas" class="catch-canvas"></canvas>
+        <div class="catch-ui" id="catch-ui">
+          <div class="catch-status" id="catch-status">Лови звёздочки, уклоняйся от бомб!</div>
+          <button class="btn-primary" id="btn-catch-start">Играть</button>
+        </div>
+      </div>
     </div>
 
     <div id="screen-settings" class="screen overlay-screen">
@@ -211,8 +355,11 @@
   </div>
   <script src="js/data.js"></script>
   <script src="js/storage.js"></script>
+  <script src="js/sound.js"></script>
+  <script src="js/screens.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/game.js"></script>
+  <script src="js/minigames.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

@@ -10,9 +10,9 @@ function defaultState() {
     ownedEmotes: ['wave'], emote: 'wave',
     boosters: { shield: 0, magnet: 0, speed: 0 },
     invited: 0, inviteBonus: 0,
-    tasksDone: {}, tasksDate: null,
+    tasksDone: {}, tasksDate: null, achievementsDone: {},
     totalStars: 0, totalPlayed: 0, perfectLevels: 0,
-    cityDecor: [],
+    achievements: [], cityDecor: [], hasLoggedIn: false, referredBy: null,
   };
 }
 
@@ -44,6 +44,29 @@ function checkDaily(s) {
     return bonus;
   }
   return 0;
+}
+
+const MILESTONES = [
+  {id:'first_run', title:'Первый бег!', desc:'Пройди уровень', check:(s)=>s.completed.length>=1},
+  {id:'collector', title:'Собиратель', desc:'Собери 50 звёзд за раз', check:(s,r)=>r&&r.stars>=50},
+  {id:'perfect', title:'Безупречно', desc:'Пройди уровень без ошибок', check:(s,r)=>r&&r.hits===0},
+  {id:'combo_master', title:'Комбо-мастер', desc:'Собери 15 звёзд подряд', check:(s,r)=>r&&r.maxCombo>=15},
+  {id:'friend_5', title:'Компания', desc:'Найди 5 друзей', check:(s)=>s.friends.length>=5},
+  {id:'city_builder', title:'Градостроитель', desc:'Открой 5 украшений', check:(s)=>s.friends.length>=9},
+];
+
+function awardMilestone(s, id) {
+  if (s.achievements.includes(id)) return false;
+  const m = MILESTONES.find(x => x.id === id);
+  if (!m) return false;
+  s.achievements.push(id);
+  save(s);
+  if (typeof toast === 'function') setTimeout(() => toast(`Достижение: ${m.title}! ✨`, 'success'), 500);
+  return true;
+}
+
+function checkMilestones(s, r) {
+  MILESTONES.forEach(m => { if (m.check(s, r)) awardMilestone(s, m.id); });
 }
 
 function getReturnMessage(s) {

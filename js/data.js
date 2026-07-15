@@ -1,11 +1,11 @@
 // ===== Game Data =====
 const WORLDS = [
-  { id:'fruit_forest', name:'Фруктовый лес', icon:'assets/icon_fruit_forest.png', bg:'assets/bg_fruit_forest.png', emoji:'🍓', color:'#00b894', levels:range(1,17), pos:{x:18,y:58} },
-  { id:'ice_valley', name:'Ледяная долина', icon:'assets/icon_ice_valley.png', bg:'assets/bg_ice_valley.png', emoji:'❄️', color:'#0984e3', levels:range(18,34), pos:{x:36,y:28} },
-  { id:'rainbow', name:'Радужная страна', icon:'assets/icon_rainbow.png', bg:'assets/bg_rainbow_country.png', emoji:'🌈', color:'#fd79a8', levels:range(35,50), pos:{x:52,y:62} },
-  { id:'mountains', name:'Горы Барсика', icon:'assets/icon_mountains.png', bg:'assets/bg_mountains.png', emoji:'🏔️', color:'#8d6e63', levels:range(51,67), pos:{x:68,y:22} },
-  { id:'cola_city', name:'Город Колы', icon:'assets/icon_cola_city.png', bg:'assets/bg_cola_city.png', emoji:'🥤', color:'#7e57c2', levels:range(68,83), pos:{x:80,y:52} },
-  { id:'friends_city', name:'Город Друзей', icon:'assets/icon_friends_city.png', bg:'assets/bg_friends_city.png', emoji:'🎉', color:'#fdcb6e', levels:range(84,100), pos:{x:90,y:78}, isFinal:true },
+  { id:'fruit_forest', name:'Фруктовый лес', icon:'assets/icon_fruit_forest.png', bg:'assets/bg_fruit_forest.png', emoji:'🍓', color:'#00b894', levels:range(1,17), pos:{x:22,y:15} },
+  { id:'ice_valley', name:'Ледяная долина', icon:'assets/icon_ice_valley.png', bg:'assets/bg_ice_valley.png', emoji:'❄️', color:'#0984e3', levels:range(18,34), pos:{x:74,y:16} },
+  { id:'rainbow', name:'Радужная страна', icon:'assets/icon_rainbow.png', bg:'assets/bg_rainbow_country.png', emoji:'🌈', color:'#fd79a8', levels:range(35,50), pos:{x:80,y:42} },
+  { id:'mountains', name:'Горы Барсика', icon:'assets/icon_mountains.png', bg:'assets/bg_mountains.png', emoji:'🏔️', color:'#8d6e63', levels:range(51,67), pos:{x:17,y:45} },
+  { id:'cola_city', name:'Город Колы', icon:'assets/icon_cola_city.png', bg:'assets/bg_cola_city.png', emoji:'🥤', color:'#7e57c2', levels:range(68,83), pos:{x:21,y:76} },
+  { id:'friends_city', name:'Город Друзей', icon:'assets/icon_friends_city.png', bg:'assets/bg_friends_city.png', emoji:'🎉', color:'#fdcb6e', levels:range(84,100), pos:{x:73,y:84}, isFinal:true },
 ];
 
 const DIFFS = [
@@ -15,26 +15,26 @@ const DIFFS = [
 ];
 
 const FRIENDS = [
-  {id:1,name:'Маша',emoji:'🐱',rarity:'common',desc:'Рыжая кошечка, любит клубничку'},
-  {id:2,name:'Пушок',emoji:'🐰',rarity:'common',desc:'Белый зайчик, прыгает выше всех'},
-  {id:3,name:'Снежок',emoji:'🐻‍❄️',rarity:'common',desc:'Белый медвежонок, не боится холода'},
-  {id:4,name:'Лисёнок',emoji:'🦊',rarity:'common',desc:'Оранжевый лис, любит загадки'},
-  {id:5,name:'Радуга',emoji:'🦄',rarity:'rare',desc:'Единорог, исполняет желания'},
-  {id:6,name:'Пингвин',emoji:'🐧',rarity:'common',desc:'Ловкий пингвин, отлично скользит'},
-  {id:7,name:'Дракончик',emoji:'🐲',rarity:'rare',desc:'Маленький дракон, мыльные пузыри'},
-  {id:8,name:'Обезьянка',emoji:'🐵',rarity:'common',desc:'Весёлая мартышка, любит бананы'},
-  {id:9,name:'Панда',emoji:'🐼',rarity:'rare',desc:'Добрая панда, ест бамбук'},
-  {id:10,name:'Львёнок',emoji:'🦁',rarity:'rare',desc:'Храбрый львёнок, будущий король'},
-  {id:11,name:'Тигрёнок',emoji:'🐯',rarity:'rare',desc:'Полосатый тигр, быстрый как ветер'},
-  {id:12,name:'Коала',emoji:'🐨',rarity:'common',desc:'Сонная коала, обнимает деревья'},
-  {id:13,name:'Жираф',emoji:'🦒',rarity:'rare',desc:'Высокий жираф, видит далеко'},
-  {id:14,name:'Зебра',emoji:'🦓',rarity:'common',desc:'Полосатая зебра, любит бегать'},
-  {id:15,name:'Слонёнок',emoji:'🐘',rarity:'rare',desc:'Сильный слонёнок, добрый великан'},
-  {id:16,name:'Котёнок',emoji:'🐈',rarity:'common',desc:'Маленький котёнок, всегда рядом'},
-  {id:17,name:'Щенок',emoji:'🐕',rarity:'common',desc:'Верный щенок, лучший друг'},
-  {id:18,name:'Хомяк',emoji:'🐹',rarity:'common',desc:'Маленький хомяк, запасливый друг'},
-  {id:19,name:'Маг',emoji:'🧙',rarity:'legendary',desc:'Волшебник, знает все секреты'},
-  {id:20,name:'Фея',emoji:'🧚',rarity:'legendary',desc:'Лесная фея, дарит звёзды'},
+  {id:1,name:'Маша',emoji:'🐱',icon:'assets/friends/masha.png',rarity:'common',desc:'Рыжая кошечка, любит клубничку',level:5},
+  {id:2,name:'Пушок',emoji:'🐰',icon:'assets/friends/pushok.png',rarity:'common',desc:'Белый зайчик, прыгает выше всех',level:10},
+  {id:3,name:'Снежок',emoji:'🐻‍❄️',icon:'assets/friends/snezhok.png',rarity:'common',desc:'Белый медвежонок, не боится холода',level:15},
+  {id:4,name:'Лисёнок',emoji:'🦊',icon:'assets/friends/lis.png',rarity:'common',desc:'Оранжевый лис, любит загадки',level:20},
+  {id:5,name:'Радуга',emoji:'🦄',icon:'assets/friends/raduga.png',rarity:'rare',desc:'Единорог, исполняет желания',level:25},
+  {id:6,name:'Пингвин',emoji:'🐧',icon:'assets/friends/pingvin.png',rarity:'common',desc:'Ловкий пингвин, отлично скользит',level:30},
+  {id:7,name:'Дракончик',emoji:'🐲',icon:'assets/friends/drakon.png',rarity:'rare',desc:'Маленький дракон, мыльные пузыри',level:35},
+  {id:8,name:'Обезьянка',emoji:'🐵',icon:'assets/friends/obezyana.png',rarity:'common',desc:'Весёлая мартышка, любит бананы',level:40},
+  {id:9,name:'Панда',emoji:'🐼',icon:'assets/friends/panda.png',rarity:'rare',desc:'Добрая панда, ест бамбук',level:45},
+  {id:10,name:'Львёнок',emoji:'🦁',icon:'assets/friends/lvenok.png',rarity:'rare',desc:'Храбрый львёнок, будущий король',level:50},
+  {id:11,name:'Тигрёнок',emoji:'🐯',icon:'assets/friends/tigrenok.png',rarity:'rare',desc:'Полосатый тигр, быстрый как ветер',level:55},
+  {id:12,name:'Коала',emoji:'🐨',icon:'assets/friends/koala.png',rarity:'common',desc:'Сонная коала, обнимает деревья',level:60},
+  {id:13,name:'Жираф',emoji:'🦒',icon:'assets/friends/zhiraf.png',rarity:'rare',desc:'Высокий жираф, видит далеко',level:65},
+  {id:14,name:'Зебра',emoji:'🦓',icon:'assets/friends/zebra.png',rarity:'common',desc:'Полосатая зебра, любит бегать',level:70},
+  {id:15,name:'Слонёнок',emoji:'🐘',icon:'assets/friends/slon.png',rarity:'rare',desc:'Сильный слонёнок, добрый великан',level:75},
+  {id:16,name:'Котёнок',emoji:'🐈',icon:'assets/friends/kot.png',rarity:'common',desc:'Маленький котёнок, всегда рядом',level:80},
+  {id:17,name:'Щенок',emoji:'🐕',icon:'assets/friends/shchenok.png',rarity:'common',desc:'Верный щенок, лучший друг',level:85},
+  {id:18,name:'Хомяк',emoji:'🐹',icon:'assets/friends/homjak.png',rarity:'common',desc:'Маленький хомяк, запасливый друг',level:90},
+  {id:19,name:'Маг',emoji:'🧙',icon:'assets/friends/mag.png',rarity:'legendary',desc:'Волшебник, знает все секреты',level:95},
+  {id:20,name:'Фея',emoji:'🧚',icon:'assets/friends/feya.png',rarity:'legendary',desc:'Лесная фея, дарит звёзды',level:100},
 ];
 
 const QR_REWARDS = [
@@ -55,17 +55,24 @@ const PRIZES = [
 ];
 
 const CITY_OBJS = [
-  {thr:1,emoji:'🏠'},{thr:2,emoji:'🌳'},{thr:3,emoji:'🏞️'},{thr:5,emoji:'☕'},
-  {thr:7,emoji:'⛲'},{thr:9,emoji:'🎡'},{thr:12,emoji:'⚽'},{thr:15,emoji:'🏰'},{thr:20,emoji:'🎆'},
+  {thr:1,emoji:'🏠',icon:'assets/city/house.png'},
+  {thr:2,emoji:'🌳',icon:'assets/city/tree.png'},
+  {thr:3,emoji:'🏞️',icon:'assets/city/fountain.png'},
+  {thr:5,emoji:'☕',icon:'assets/city/cafe.png'},
+  {thr:7,emoji:'⛲',icon:'assets/city/shop.png'},
+  {thr:9,emoji:'🎡',icon:'assets/city/park.png'},
+  {thr:12,emoji:'⚽',icon:'assets/city/ball.png'},
+  {thr:15,emoji:'🏰',icon:'assets/city/castle.png'},
+  {thr:20,emoji:'🎆',icon:'assets/city/firework.png'},
 ];
 
 const COSTUMES = [
-  {id:'default',name:'Обычный',emoji:'🐱',price:0},
-  {id:'superhero',name:'Супергерой',emoji:'🦸',price:50},
-  {id:'wizard',name:'Волшебник',emoji:'🧙',price:80},
-  {id:'astronaut',name:'Космонавт',emoji:'👨‍🚀',price:120},
-  {id:'pirate',name:'Пират',emoji:'🏴‍☠️',price:100},
-  {id:'rainbow',name:'Радужный',emoji:'🌈',price:200},
+  {id:'default',name:'Обычный',emoji:'🐱',icon:'assets/barsik_idle.png',price:0},
+  {id:'superhero',name:'Супергерой',emoji:'🦸',icon:'assets/chars/barsik_superhero.png',price:50},
+  {id:'wizard',name:'Волшебник',emoji:'🧙',icon:'assets/chars/barsik_wizard.png',price:80},
+  {id:'astronaut',name:'Космонавт',emoji:'👨‍🚀',icon:'assets/chars/barsik_astronaut.png',price:120},
+  {id:'pirate',name:'Пират',emoji:'🏴‍☠️',icon:'assets/chars/barsik_pirate.png',price:100},
+  {id:'rainbow',name:'Радужный',emoji:'🌈',icon:'assets/chars/barsik_rainbow.png',price:200},
 ];
 
 const EMOTES = [
