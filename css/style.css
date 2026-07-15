@@ -102,37 +102,39 @@ body::before {
     width: 100%;
   }
   .menu-buttons { max-width: 420px; }
-  /* Desktop map: full-bleed landscape */
+  /* Desktop map: same portrait composition as mobile, centered — no stretch */
   #screen-map .screen-top {
-    position: absolute;
-    top: 0; left: 0; right: 0;
+    position: relative;
     z-index: 5;
-    background: rgba(255,255,255,0.88);
+    background: rgba(255,255,255,0.92);
     backdrop-filter: blur(12px);
   }
   .map-wrap {
-    justify-content: stretch;
-    align-items: stretch;
+    justify-content: center;
+    align-items: center;
     width: 100%;
-    height: 100%;
-    overflow: hidden;
-    padding: 0;
+    overflow: auto;
+    padding: 12px 24px 88px;
   }
   .map-canvas {
     max-width: none !important;
-    width: 100% !important;
-    height: 100% !important;
-    max-height: none !important;
-    aspect-ratio: auto !important;
-    margin: 0;
+    width: auto !important;
+    height: min(calc(100vh - 170px), 920px) !important;
+    max-height: calc(100vh - 170px) !important;
+    aspect-ratio: 2 / 3 !important;
+    margin: 0 auto;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.28);
   }
-  .map-img-mobile { display: none; }
-  .map-img-desktop {
+  /* Keep the phone map art — it's where paths and zones match the pins */
+  .map-img-mobile {
     display: block;
     object-fit: cover;
     object-position: center;
   }
-  .map-pin-disc { width: 78px; height: 78px; }
+  .map-img-desktop { display: none !important; }
+  .map-pin-disc { width: 72px; height: 72px; }
   .map-pin-label { font-size: 13px; padding: 4px 12px; }
 }
 
