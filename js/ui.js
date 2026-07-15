@@ -55,16 +55,18 @@ function renderMap(s) {
   document.getElementById('map-friends').textContent = s.friends.length;
   const pins = document.getElementById('map-pins');
   pins.innerHTML = '';
+  const desk = window.matchMedia('(min-width: 900px)').matches;
   WORLDS.forEach((w, idx) => {
     const first = w.levels[0];
     const unlocked = s.unlocked.includes(first);
     const doneCnt = w.levels.filter(l => s.completed.includes(l)).length;
     const allDone = doneCnt === w.levels.length;
     const isCur = unlocked && !allDone;
+    const pos = (desk && w.posDesk) ? w.posDesk : w.pos;
     const p = document.createElement('div');
     p.className = 'map-pin' + (!unlocked ? ' locked' : '') + (allDone ? ' done' : '') + (isCur ? ' current' : '');
-    p.style.left = w.pos.x + '%';
-    p.style.top = w.pos.y + '%';
+    p.style.left = pos.x + '%';
+    p.style.top = pos.y + '%';
     p.innerHTML = `
       <div class="map-pin-disc">
         <img class="map-pin-img" src="${w.icon}" alt="${w.name}">
@@ -79,6 +81,19 @@ function renderMap(s) {
     pins.appendChild(p);
   });
 }
+
+// Reposition pins when crossing the mobile/desktop breakpoint.
+window.addEventListener('resize', (() => {
+  let last = window.matchMedia('(min-width: 900px)').matches;
+  return () => {
+    const now = window.matchMedia('(min-width: 900px)').matches;
+    if (now === last) return;
+    last = now;
+    if (typeof S !== 'undefined' && S && document.getElementById('screen-map')?.classList.contains('active')) {
+      renderMap(S);
+    }
+  };
+})());
 
 function renderLevels(s, w) {
   document.getElementById('levels-title').innerHTML = `<img src="${w.icon}" alt="" class="inline-icon"> ${w.name}`;
