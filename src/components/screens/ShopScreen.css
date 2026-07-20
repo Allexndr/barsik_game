@@ -1,0 +1,23 @@
+.screen-shop {
+  display: flex;
+  flex-direction: column;
+}
+
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--spacing-lg);
+  flex: 1;
+}
+
+.shop-item-placeholder {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-2xl);
+  color: var(--text-light);
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-lg);
+  border: 2px dashed var(--border);
+}

@@ -1,0 +1,22 @@
+.sidebar-tips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.tips-header {
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 0.95rem;
+}
+
+.tip-bubble {
+  background: white;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--text-dark);
+  animation: slideUp 0.4s ease-out;
+}

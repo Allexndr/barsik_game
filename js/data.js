@@ -15,6 +15,7 @@ const DIFFS = [
 ];
 
 const FRIENDS = [
+  {id:'aya',name:'Айя',emoji:'🐆',icon:'assets/friends/masha.png',rarity:'rare',desc:'Застенчивая барсичка с ягодным шарфом. Чует запахи троп. Ждёт у ягодного фонаря.',level:0,story:true},
   {id:1,name:'Маша',emoji:'🐱',icon:'assets/friends/masha.png',rarity:'common',desc:'Рыжая кошечка, любит клубничку',level:5},
   {id:2,name:'Пушок',emoji:'🐰',icon:'assets/friends/pushok.png',rarity:'common',desc:'Белый зайчик, прыгает выше всех',level:10},
   {id:3,name:'Снежок',emoji:'🐻‍❄️',icon:'assets/friends/snezhok.png',rarity:'common',desc:'Белый медвежонок, не боится холода',level:15},
@@ -106,5 +107,9 @@ const SEASONS = [
 
 function range(a,b){ const r=[]; for(let i=a;i<=b;i++) r.push(i); return r; }
 function worldByLevel(l){ return WORLDS.find(w=>w.levels.includes(l)) || WORLDS[0]; }
-function friendAtLevel(l){ if(l%5!==0) return null; return FRIENDS[Math.floor(l/5)-1] || null; }
+function friendAtLevel(l){
+  if(l%5!==0) return null;
+  const legacy = FRIENDS.filter(f => typeof f.id === 'number');
+  return legacy[Math.floor(l/5)-1] || null;
+}
 function getCostume(id){ return COSTUMES.find(c=>c.id===id) || COSTUMES[0]; }

@@ -1,0 +1,287 @@
+.screen-episode {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.episode-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  border-bottom: 2px solid var(--border);
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.05), rgba(255, 118, 117, 0.05));
+}
+
+.btn-close-episode {
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: white;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-close-episode:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.episode-title h2 {
+  margin-bottom: var(--spacing-sm);
+}
+
+.episode-subtitle {
+  color: var(--text-light);
+  font-size: 0.95rem;
+}
+
+.episode-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(106, 190, 205, 0.08), rgba(255, 184, 82, 0.08));
+  position: relative;
+}
+
+.episode-scene {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.scene-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(108, 92, 231, 0.1), rgba(255, 118, 117, 0.1));
+  z-index: 0;
+}
+
+.scene-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2xl);
+  padding: var(--spacing-2xl);
+  max-width: 600px;
+}
+
+.dialogue-box {
+  background: white;
+  border: 3px solid var(--primary);
+  border-radius: var(--radius-2xl);
+  padding: var(--spacing-xl);
+  box-shadow: 0 8px 32px rgba(108, 92, 231, 0.15);
+  animation: slideUp 0.5s ease-out;
+}
+
+.dialogue-character {
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: var(--spacing-md);
+  font-size: 1.1rem;
+}
+
+.dialogue-text {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text-dark);
+  text-align: left;
+}
+
+.episode-interactivity {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-lg);
+}
+
+.interactivity-type {
+  padding: var(--spacing-md) var(--spacing-xl);
+  background: white;
+  border: 2px solid var(--accent-warm);
+  border-radius: var(--radius-xl);
+  font-weight: 600;
+  color: var(--accent-warm);
+  animation: pop 0.4s ease-out;
+}
+
+.progress-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: var(--spacing-lg);
+  background: rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  z-index: 2;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: 4px;
+  transition: width 0.1s linear;
+}
+
+.progress-time {
+  font-weight: 700;
+  color: white;
+  font-size: 0.95rem;
+  min-width: 40px;
+  text-align: right;
+}
+
+.episode-footer {
+  padding: var(--spacing-xl);
+  border-top: 2px solid var(--border);
+  background: white;
+}
+
+.reward-announcement {
+  text-align: center;
+  margin-bottom: var(--spacing-lg);
+  animation: slideUp 0.5s ease-out;
+}
+
+.reward-announcement h3 {
+  font-size: 1.3rem;
+  color: var(--success);
+  margin-bottom: var(--spacing-md);
+}
+
+.reward-items {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-lg);
+  flex-wrap: wrap;
+}
+
+.reward-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background: rgba(39, 174, 96, 0.1);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--success);
+  font-weight: 600;
+}
+
+.reward-icon {
+  font-size: 1.5rem;
+}
+
+.btn-continue {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  margin: 0 auto;
+  padding: var(--spacing-md) var(--spacing-xl);
+  background: linear-gradient(135deg, var(--success) 0%, #2ecc71 100%);
+  color: white;
+  border-radius: var(--radius-lg);
+  font-weight: 700;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.btn-continue:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(39, 174, 96, 0.4);
+}
+
+.episode-controls {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-lg);
+}
+
+.btn-skip {
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: rgba(0, 0, 0, 0.1);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-skip:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+@media (max-width: 768px) {
+  .episode-header {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  .episode-title h2 {
+    font-size: 1.3rem;
+  }
+
+  .scene-content {
+    padding: var(--spacing-lg);
+    gap: var(--spacing-lg);
+  }
+
+  .dialogue-box {
+    padding: var(--spacing-lg);
+  }
+
+  .progress-overlay {
+    padding: var(--spacing-md);
+  }
+
+  .btn-continue {
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .episode-header {
+    padding: var(--spacing-md);
+  }
+
+  .scene-content {
+    padding: var(--spacing-md);
+  }
+
+  .dialogue-box {
+    padding: var(--spacing-md);
+    border-width: 2px;
+  }
+
+  .episode-footer {
+    padding: var(--spacing-md);
+  }
+
+  .reward-items {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  .reward-item {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -1,0 +1,83 @@
+.soft-gate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(45, 27, 78, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-md);
+  backdrop-filter: blur(4px);
+}
+
+.soft-gate-card {
+  width: min(400px, 100%);
+  background: white;
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+}
+
+.soft-gate-emoji {
+  font-size: 2.5rem;
+  margin-bottom: var(--spacing-sm);
+}
+
+.soft-gate-card h2 {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  color: var(--primary);
+  margin-bottom: var(--spacing-sm);
+  line-height: 1.25;
+}
+
+.soft-gate-body {
+  color: var(--text-light);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  margin-bottom: var(--spacing-lg);
+}
+
+.soft-gate-input {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 1.05rem;
+  margin-bottom: var(--spacing-md);
+}
+
+.soft-gate-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.soft-gate-err {
+  color: #c0392b;
+  font-size: 0.88rem;
+  margin-bottom: var(--spacing-sm);
+}
+
+.soft-gate-save {
+  width: 100%;
+  padding: 0.95rem;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--primary), #a29bfe);
+  color: white;
+  font-weight: 800;
+  font-size: 1rem;
+  margin-bottom: var(--spacing-sm);
+}
+
+.soft-gate-skip {
+  width: 100%;
+  padding: 0.75rem;
+  color: var(--text-light);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.soft-gate-skip:hover {
+  color: var(--primary);
+}

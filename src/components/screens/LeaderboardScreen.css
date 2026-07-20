@@ -1,0 +1,20 @@
+.screen-leaderboard {
+  display: flex;
+  flex-direction: column;
+}
+
+.leaderboard-list {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xl);
+  color: var(--text-light);
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-lg);
+  border: 2px dashed var(--border);
+}
+
+.leaderboard-item-placeholder {
+  font-size: 1.1rem;
+}

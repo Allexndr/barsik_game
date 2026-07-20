@@ -13,6 +13,15 @@ function defaultState() {
     tasksDone: {}, tasksDate: null, achievementsDone: {},
     totalStars: 0, totalPlayed: 0, perfectLevels: 0,
     achievements: [], cityDecor: [], hasLoggedIn: false, referredBy: null,
+    // GDD v2 onboarding / story
+    gender: null,           // 'boy' | 'girl'
+    phone: '',
+    ageCategory: 'b',       // 'a' | 'b' | 'c'
+    lang: 'ru',             // 'ru' | 'kk'
+    accessories: { hat: false, glasses: false },
+    storyDone: [],          // episode ids
+    seasonId: 's1_first_friends',
+    snackDoneToday: false,
   };
 }
 

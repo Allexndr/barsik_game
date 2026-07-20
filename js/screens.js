@@ -6,7 +6,12 @@ const ScreenManager = {
   transitioning: false,
 
   show(id) {
-    if (this.transitioning || id === this.current) return;
+    if (id === this.current) return;
+    // Don't drop navigations during transition — finish instantly then show
+    if (this.transitioning) {
+      this.showInstant(id);
+      return;
+    }
     this.transitioning = true;
 
     const prev = document.getElementById('screen-' + this.current);
@@ -38,6 +43,16 @@ const ScreenManager = {
       b.onclick = () => {
         Sound.tap();
         const t = b.dataset.back;
+        if (t === 'menu' && typeof enterTown === 'function' && S && S.hasLoggedIn) {
+          // From city back goes to old menu intentionally; from others → town
+          if (this.current === 'city') {
+            this.show('menu');
+            updateMenu(S);
+            return;
+          }
+          enterTown();
+          return;
+        }
         this.show(t);
         if (t === 'menu') updateMenu(S);
         if (t === 'map') renderMap(S);
@@ -47,8 +62,21 @@ const ScreenManager = {
 
     // Bottom nav buttons
     const navHandlers = {
-      menu: () => { updateMenu(S); },
-      map: () => { renderMap(S); },
+      menu: () => {
+        if (window.Hub3D) window.Hub3D.stop();
+        if (window.Episode3D) window.Episode3D.unmount();
+        if (window.Level3D && window.Level3D !== window.Episode3D) window.Level3D.unmount();
+        // Home = Barsik Town
+        if (typeof enterTown === 'function' && S && S.hasLoggedIn) {
+          enterTown();
+        } else {
+          updateMenu(S);
+        }
+      },
+      map: () => {
+        if (window.Hub3D) window.Hub3D.stop();
+        renderMap(S);
+      },
       collection: () => { renderCollection(S); },
       tasks: () => { renderTasks(S); },
       profile: () => { renderProfile(S); },
@@ -57,6 +85,10 @@ const ScreenManager = {
       b.onclick = () => {
         Sound.click();
         const t = b.dataset.nav;
+        if (t === 'menu' && typeof enterTown === 'function' && S && S.hasLoggedIn) {
+          enterTown();
+          return;
+        }
         this.show(t);
         if (navHandlers[t]) navHandlers[t]();
       };

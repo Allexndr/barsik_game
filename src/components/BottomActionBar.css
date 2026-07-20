@@ -1,0 +1,126 @@
+.bottom-action-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-xl);
+  background: linear-gradient(to right, rgba(108, 92, 231, 0.05), rgba(255, 118, 117, 0.05));
+  border-top: 2px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.btn-play-level {
+  padding: var(--spacing-md) var(--spacing-xl);
+  background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+  color: white;
+  border-radius: var(--radius-lg);
+  font-weight: 700;
+  font-size: 1rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+  white-space: nowrap;
+}
+
+.btn-play-level:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(39, 174, 96, 0.3);
+}
+
+.difficulty-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  font-weight: 600;
+}
+
+.difficulty-btn {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: white;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.difficulty-btn:hover {
+  border-color: var(--primary);
+  background: rgba(108, 92, 231, 0.05);
+}
+
+.difficulty-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.btn-invite {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--accent-warm);
+  color: white;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  transition: transform 0.2s;
+}
+
+.btn-invite:hover {
+  transform: scale(1.05);
+}
+
+.progress-bar-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex: 1;
+  min-width: 200px;
+}
+
+.progress-bar {
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+  gap: 2px;
+  flex: 1;
+  background: white;
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.progress-dot {
+  width: 100%;
+  aspect-ratio: 1;
+  background: #ddd;
+  border-radius: 2px;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+
+.progress-dot:hover {
+  transform: scale(1.2);
+}
+
+.progress-dot.done {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+}
+
+.progress-text {
+  font-weight: 700;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .bottom-action-bar {
+    flex-direction: column;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+  }
+
+  .btn-play-level,
+  .difficulty-selector,
+  .btn-invite {
+    width: 100%;
+  }
+
+  .progress-bar-container {
+    width: 100%;
+  }
+}

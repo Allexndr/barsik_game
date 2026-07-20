@@ -1,0 +1,91 @@
+.screen-friends {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.friends-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+.friends-header h2 {
+  margin-bottom: 0;
+}
+
+.friends-count {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.friends-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.friend-card-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-2xl);
+  color: var(--text-light);
+  font-size: 1.05rem;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-lg);
+  border: 2px dashed var(--border);
+  text-align: center;
+}
+
+.friend-card {
+  background: white;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.friend-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(108, 92, 231, 0.15);
+}
+
+.friend-card.rarity-rare {
+  border-color: #74b9ff;
+  box-shadow: 0 0 0 2px rgba(116, 185, 255, 0.25);
+}
+
+.friend-card.rarity-legend {
+  border-color: #fdcb6e;
+  box-shadow: 0 0 16px rgba(253, 203, 110, 0.45);
+}
+
+.friend-avatar {
+  font-size: 2.4rem;
+  margin-bottom: var(--spacing-sm);
+}
+
+.friend-card h3 {
+  font-size: 1.05rem;
+  color: var(--text-dark);
+  margin-bottom: 4px;
+}
+
+.friend-role {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  margin-bottom: var(--spacing-sm);
+}
+
+.friend-rarity {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(108, 92, 231, 0.1);
+  color: var(--primary);
+}
