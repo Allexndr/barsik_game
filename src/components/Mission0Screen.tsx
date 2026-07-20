@@ -1,0 +1,238 @@
+import { useEffect, useRef, useState } from 'react';
+import { useUIStore } from '@/store/useUIStore';
+import { useGameStore } from '@/store/useGameStore';
+import { Mission0Scene, type L1Hud } from '@/three/scenes/Mission0Scene';
+import './Mission0Screen.css';
+
+const emptyHud: L1Hud = {
+  phase: 'intro',
+  speaker: 'Барсик',
+  line: '…',
+  objective: '',
+  bag: 0,
+  questFruits: 0,
+  questNeed: 3,
+  stars: 0,
+  canInteract: false,
+  showMoveHint: false,
+  showActionHint: false,
+  outro: false,
+};
+
+export function Mission0Screen() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sceneRef = useRef<Mission0Scene | null>(null);
+  const stickRef = useRef<HTMLDivElement>(null);
+  const [hud, setHud] = useState<L1Hud>(emptyHud);
+  const [loading, setLoading] = useState(true);
+  const lang = useUIStore((s) => s.lang);
+  const setScreen = useUIStore((s) => s.setScreen);
+  const player = useGameStore((s) => s.player);
+  const addStars = useGameStore((s) => s.addStars);
+  const addFriend = useGameStore((s) => s.addFriend);
+  const completeLevel = useGameStore((s) => s.completeLevel);
+
+  const finishToMap = () => {
+    try {
+      localStorage.setItem('barsik_mission0_done', '1');
+    } catch {
+      /* ignore */
+    }
+    addStars(Math.max(3, hud.stars || 3));
+    addFriend({
+      id: 'gardener_l1',
+      name: lang === 'kk' ? 'Бағбан' : 'Садовник',
+      description:
+        lang === 'kk' ? 'Алғашқы дос Фруктовом лесу' : 'Первый друг на поляне Фруктового леса',
+      rarity: 'common',
+      chapter: 1,
+      unlocked: true,
+      asset: '',
+    });
+    completeLevel(0, { stars: Math.max(1, hud.stars) });
+    setScreen('game');
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const scene = new Mission0Scene(canvas);
+    sceneRef.current = scene;
+    setLoading(true);
+    void scene.init(player?.nick || '', lang, setHud).then(() => setLoading(false));
+    return () => {
+      scene.dispose();
+      sceneRef.current = null;
+    };
+  }, [lang, player?.nick]);
+
+  useEffect(() => {
+    const el = stickRef.current;
+    if (!el) return;
+    let active = false;
+    let cx = 0;
+    let cy = 0;
+    const knob = el.querySelector('.m0-knob') as HTMLDivElement;
+
+    const setJoy = (x: number, y: number) => {
+      sceneRef.current?.setJoystick(x, y);
+      if (knob) knob.style.transform = `translate(${x * 28}px, ${y * 28}px)`;
+    };
+
+    const onStart = (e: PointerEvent) => {
+      active = true;
+      el.setPointerCapture(e.pointerId);
+      const r = el.getBoundingClientRect();
+      cx = r.left + r.width / 2;
+      cy = r.top + r.height / 2;
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!active) return;
+      const dx = e.clientX - cx;
+      const dy = e.clientY - cy;
+      const len = Math.hypot(dx, dy) || 1;
+      const cl = Math.min(1, len / 48);
+      setJoy((dx / len) * cl, (dy / len) * cl);
+    };
+    const onEnd = () => {
+      active = false;
+      setJoy(0, 0);
+    };
+
+    el.addEventListener('pointerdown', onStart);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onEnd);
+    el.addEventListener('pointercancel', onEnd);
+    return () => {
+      el.removeEventListener('pointerdown', onStart);
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onEnd);
+      el.removeEventListener('pointercancel', onEnd);
+    };
+  }, []);
+
+  const nick = player?.nick || '';
+  const showKeys = hud.showMoveHint;
+  const showStick = !hud.outro && hud.phase !== 'intro';
+  const fruitCount =
+    hud.phase === 'help_collect' || hud.phase === 'help_return' || hud.outro
+      ? `${hud.questFruits}/${hud.questNeed}`
+      : `${hud.bag}`;
+
+  return (
+    <div className="m0-screen">
+      <canvas ref={canvasRef} className="m0-canvas" />
+
+      {loading ? (
+        <div className="m0-loader">
+          <div className="m0-loader-spin" />
+          <span>{lang === 'kk' ? 'Жүктелуде...' : 'Загрузка...'}</span>
+        </div>
+      ) : null}
+
+      <div className="m0-top">
+        <div className="m0-title">
+          {lang === 'kk' ? 'Алғашқы таң' : 'Первое утро'}
+          {nick ? ` · ${nick}` : ''}
+        </div>
+        <div className="m0-stats">
+          <span className="m0-stat">🍎 {fruitCount}</span>
+          <span className="m0-stat m0-stat-star">⭐ {hud.stars}</span>
+        </div>
+      </div>
+
+      {!hud.outro ? (
+        <div className="m0-dialogue">
+          <div className="m0-speaker">{hud.speaker}</div>
+          <div className="m0-line">{hud.line}</div>
+          <div className="m0-objective">{hud.objective}</div>
+        </div>
+      ) : null}
+
+      {showKeys ? (
+        <div className="m0-keys" aria-hidden>
+          <kbd>W</kbd>
+          <div className="m0-keys-row">
+            <kbd>A</kbd>
+            <kbd>S</kbd>
+            <kbd>D</kbd>
+          </div>
+          <span className="m0-keys-or">{lang === 'kk' ? 'немесе' : 'или'}</span>
+          <div className="m0-keys-row">
+            <kbd>←</kbd>
+            <kbd>↑</kbd>
+            <kbd>↓</kbd>
+            <kbd>→</kbd>
+          </div>
+        </div>
+      ) : null}
+
+      {hud.showActionHint && !hud.outro ? (
+        <button
+          type="button"
+          className={`m0-action ${hud.canInteract ? 'is-ready' : ''}`}
+          onClick={() => sceneRef.current?.tryInteract()}
+          aria-label={lang === 'kk' ? 'Әрекет' : 'Действие'}
+        >
+          <span className="m0-action-paw">🐾</span>
+          <span className="m0-action-label">
+            {lang === 'kk' ? 'Басу' : 'Нажми'}
+            <small>E</small>
+          </span>
+        </button>
+      ) : null}
+
+      {showStick ? (
+        <div className="m0-stick" ref={stickRef} aria-label="Joystick">
+          <div className="m0-knob" />
+        </div>
+      ) : (
+        <div className="m0-stick m0-stick-hidden" ref={stickRef} aria-hidden>
+          <div className="m0-knob" />
+        </div>
+      )}
+
+      {hud.outro ? (
+        <div className="m0-outro">
+          <div className="m0-outro-card">
+            <div className="m0-outro-badge">{lang === 'kk' ? '1-деңгей' : 'Уровень 1'}</div>
+            <h2 className="m0-outro-title">
+              {lang === 'kk' ? 'Керемет!' : 'Отлично получилось!'}
+            </h2>
+            <p className="m0-outro-line">{hud.line}</p>
+            <div className="m0-outro-rewards">
+              <div className="m0-reward-pill">🍎 {hud.questFruits || 3}</div>
+              <div className="m0-reward-pill">⭐ {hud.stars}</div>
+            </div>
+            <div className="m0-progress">
+              <div className="m0-progress-label">
+                {lang === 'kk' ? 'Саяхат' : 'Путешествие'} · 1/8
+              </div>
+              <div className="m0-progress-track">
+                <div className="m0-progress-fill" style={{ width: '12.5%' }} />
+              </div>
+            </div>
+            <button type="button" className="m0-continue" onClick={finishToMap}>
+              {lang === 'kk' ? 'Саяхатты жалғастыру' : 'Продолжить путешествие'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="m0-skip"
+          onClick={() => {
+            try {
+              localStorage.setItem('barsik_mission0_done', '1');
+            } catch {
+              /* ignore */
+            }
+            setScreen('game');
+          }}
+        >
+          {lang === 'kk' ? 'Өткізу →' : 'Пропустить →'}
+        </button>
+      )}
+    </div>
+  );
+}

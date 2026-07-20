@@ -1,0 +1,15 @@
+---
+description: Barsik game memory — read PROJECT_MEMORY and keep Style Lock
+alwaysApply: true
+---
+
+# Barsik Game — persistent context
+
+Перед крупными изменениями читай:
+- `/Users/aleksandr/Project/other/job/docs/PROJECT_MEMORY.md`
+- `ART_DIRECTION.md` (Style Lock)
+
+После важных решений — дописывай строку в `docs/PROJECT_MEMORY.md` (workspace root).
+
+Не растягивать travel map на весь десктоп landscape — только centered portrait.
+Не возвращать catch-all rewrite в `vercel.json`.

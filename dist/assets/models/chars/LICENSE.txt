@@ -1,0 +1,8 @@
+hero_placeholder.glb = Fox from Khronos glTF-Sample-Models
+Source: https://github.com/KhronosGroup/glTF-Sample-Models/tree/master/2.0/Fox
+License: CC-BY 4.0 (Cesium) — attribution required: "Fox by Cesium, CC-BY 4.0"
+
+friend_placeholder.glb = Duck from Khronos glTF-Sample-Models
+License: see Khronos sample models licenses (for temporary NPC only)
+
+Replace both with BARSIK brand Tripo/Meshy GLB when ready.

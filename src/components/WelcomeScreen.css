@@ -1,0 +1,247 @@
+/* Адаптивный старт: фон cover на весь экран + UI кодом (не один JPEG с кнопками) */
+
+.welcome-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #7ec8f0;
+}
+
+.welcome-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 45%;
+  user-select: none;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.welcome-veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(126, 200, 240, 0.55) 0%, transparent 22%),
+    linear-gradient(0deg, rgba(40, 70, 50, 0.35) 0%, transparent 28%);
+}
+
+.welcome-ui {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding:
+    max(12px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  box-sizing: border-box;
+}
+
+.welcome-lang {
+  align-self: flex-end;
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.3rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 6px 18px rgba(45, 27, 78, 0.22);
+  border: 2px solid rgba(108, 92, 231, 0.25);
+  flex-shrink: 0;
+}
+
+.welcome-lang-btn {
+  min-width: 52px;
+  min-height: 44px;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  color: #3a2e7a;
+  background: transparent;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+
+.welcome-lang-btn:hover {
+  background: rgba(162, 155, 254, 0.25);
+}
+
+.welcome-lang-btn.active {
+  background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.4);
+  transform: scale(1.04);
+}
+
+.welcome-lang-btn:focus-visible {
+  outline: 3px solid rgba(253, 203, 110, 0.9);
+  outline-offset: 2px;
+}
+
+.welcome-titles {
+  text-align: center;
+  margin-top: clamp(0.25rem, 1.5vh, 0.75rem);
+  flex-shrink: 0;
+}
+
+.welcome-eyebrow {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(0.95rem, 2.6vw, 1.35rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow:
+    0 2px 0 #3b82c4,
+    0 0 12px rgba(59, 130, 196, 0.55),
+    -2px -2px 0 #3b82c4,
+    2px -2px 0 #3b82c4,
+    -2px 2px 0 #3b82c4,
+    2px 2px 0 #3b82c4;
+  margin-bottom: 0.15rem;
+}
+
+.welcome-logo {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(2.6rem, 11vw, 5.5rem);
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  color: #ffb020;
+  -webkit-text-stroke: 6px #1e3a8a;
+  paint-order: stroke fill;
+  text-shadow:
+    0 4px 0 #fff,
+    0 8px 18px rgba(30, 58, 138, 0.35);
+}
+
+.welcome-spacer {
+  flex: 1 1 auto;
+  min-height: 12vh;
+  width: 100%;
+  pointer-events: none;
+}
+
+.welcome-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.75rem, 3vw, 1.5rem);
+  width: min(520px, 100%);
+  padding-bottom: clamp(0.5rem, 2vh, 1.25rem);
+  flex-shrink: 0;
+}
+
+.welcome-btn-play {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 340px;
+  min-height: clamp(64px, 10vw, 78px);
+  padding: 0.85rem 1.5rem;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(1.35rem, 4.5vw, 1.85rem);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  background: linear-gradient(180deg, #7dffb0 0%, #2ecc71 45%, #1ea855 100%);
+  border: 4px solid #fff;
+  box-shadow:
+    0 6px 0 #148f45,
+    0 12px 28px rgba(20, 143, 69, 0.45),
+    inset 0 2px 0 rgba(255, 255, 255, 0.55);
+  animation: welcome-play-pulse 1.8s ease-in-out infinite;
+  transition: transform 0.12s;
+}
+
+.welcome-btn-play:hover {
+  transform: translateY(-2px);
+}
+
+.welcome-btn-play:active {
+  animation: none;
+  transform: translateY(3px);
+  box-shadow:
+    0 2px 0 #148f45,
+    0 6px 16px rgba(20, 143, 69, 0.35),
+    inset 0 2px 0 rgba(255, 255, 255, 0.4);
+}
+
+.welcome-btn-play:focus-visible {
+  outline: 3px solid #fdcb6e;
+  outline-offset: 3px;
+}
+
+.welcome-btn-side {
+  flex: 0 0 auto;
+  width: clamp(56px, 12vw, 68px);
+  height: clamp(56px, 12vw, 68px);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(180deg, #7ec8ff 0%, #3b82f6 55%, #2563eb 100%);
+  border: 4px solid #fff;
+  box-shadow:
+    0 5px 0 #1d4ed8,
+    0 10px 20px rgba(37, 99, 235, 0.4);
+  transition: transform 0.12s;
+}
+
+.welcome-btn-side:hover {
+  transform: translateY(-2px);
+}
+
+.welcome-btn-side:active {
+  transform: translateY(2px);
+  box-shadow:
+    0 2px 0 #1d4ed8,
+    0 6px 12px rgba(37, 99, 235, 0.35);
+}
+
+.welcome-btn-side:focus-visible {
+  outline: 3px solid #fdcb6e;
+  outline-offset: 3px;
+}
+
+@keyframes welcome-play-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.06);
+  }
+}
+
+/* Узкий портрет: персонажи чуть выше в кадре */
+@media (max-aspect-ratio: 3/4) {
+  .welcome-bg {
+    object-position: center 38%;
+  }
+
+  .welcome-logo {
+    font-size: clamp(2.4rem, 14vw, 3.6rem);
+  }
+}
+
+/* Широкий десктоп */
+@media (min-width: 1100px) {
+  .welcome-bg {
+    object-position: center 48%;
+  }
+
+  .welcome-actions {
+    width: min(560px, 42vw);
+  }
+}

@@ -100,17 +100,169 @@ function renderLevels(s, w) {
 }
 
 function renderCity(s) {
-  const o = document.getElementById('city-objects');
-  o.innerHTML = '';
-  CITY_OBJS.forEach(b => {
-    const e = document.createElement('div');
-    e.className = 'city-obj' + (s.friends.length >= b.thr ? '' : ' locked');
-    e.innerHTML = `<img src="${b.icon}" alt="">${s.friends.length < b.thr ? `<div class="city-obj-lock">${b.thr}</div>` : ''}`;
-    e.style.animationDelay = (CITY_OBJS.indexOf(b) * 0.1) + 's';
-    o.appendChild(e);
-  });
+  const starsEl = document.getElementById('city-stars');
+  if (starsEl) starsEl.textContent = s.stars;
   document.getElementById('city-friends').textContent = s.friends.length;
   document.getElementById('city-buildings').textContent = CITY_OBJS.filter(b => s.friends.length >= b.thr).length;
+  const storyEl = document.getElementById('town-story');
+  if (storyEl && typeof storyProgressLabel === 'function') storyEl.textContent = storyProgressLabel(s);
+  const seasonEl = document.getElementById('town-season');
+  if (seasonEl && typeof STORY !== 'undefined') seasonEl.textContent = STORY.seasonTitle;
+
+  const cont = document.getElementById('btn-continue-story');
+  if (cont) {
+    const next = typeof nextStoryEpisode === 'function' ? nextStoryEpisode(s) : null;
+    const label = cont.querySelector('.town-cta-txt') || cont;
+    if (!next && (s.friends || []).includes('aya')) {
+      label.textContent = 'Открыть сундук чудес';
+      cont.onclick = () => {
+        Sound.click();
+        show('qr');
+        document.getElementById('qr-intro').style.display = 'flex';
+        document.getElementById('qr-result').style.display = 'none';
+        document.getElementById('qr-opened').textContent = S.qrOpened;
+      };
+    } else {
+      label.textContent = 'Продолжить историю';
+      cont.onclick = () => { Sound.click(); playStoryEpisode(); };
+    }
+  }
+
+  const root = document.getElementById('hub3d-root');
+  if (!root) return;
+  root.innerHTML = '<div class="hub3d-loading">Ждём город…</div>';
+
+  const onHotspot = (id) => {
+    Sound.tap();
+    if (id === 'travel' || id === 'home') playStoryEpisode();
+    else if (id === 'friends') { show('collection'); renderCollection(S); }
+    else if (id === 'qr') {
+      show('qr');
+      document.getElementById('qr-intro').style.display = 'flex';
+      document.getElementById('qr-result').style.display = 'none';
+      document.getElementById('qr-opened').textContent = S.qrOpened;
+    }
+  };
+
+  const tryMount = (attempt) => {
+    if (window.Hub3D) {
+      window.Hub3D.mount(root, { state: s, onHotspot }).then(() => window.Hub3D.resize()).catch((e) => {
+        console.error('[barsik3d] hub mount', e);
+        root.innerHTML = '<div class="hub3d-loading">Ошибка хаба<br><small>' + (e.message || e) + '</small></div>';
+      });
+      return;
+    }
+    if (attempt > 80) {
+      root.innerHTML = '<div class="hub3d-loading">3D не поднялся<br><small>' + (window.__BARSIK3D_ERR || '') + '</small></div>';
+      return;
+    }
+    setTimeout(() => tryMount(attempt + 1), 100);
+  };
+  requestAnimationFrame(() => setTimeout(() => {
+    tryMount(0);
+    // second resize after dock/HUD layout
+    setTimeout(() => { if (window.Hub3D) window.Hub3D.resize(); }, 200);
+  }, 80));
+}
+
+async function playStoryEpisode() {
+  if (window.Hub3D) { window.Hub3D.stop(); window.Hub3D.unmount(); }
+  const epId = (typeof nextStoryEpisode === 'function' && nextStoryEpisode(S)) || 'ep2_apples';
+  const epMeta = typeof storyEp === 'function' ? storyEp(epId) : null;
+
+  if (typeof ScreenManager !== 'undefined' && ScreenManager.showInstant) ScreenManager.showInstant('game3d');
+  else show('game3d');
+
+  const root = document.getElementById('level3d-root');
+  const overlay = document.getElementById('overlay-3d-result');
+  const card = document.getElementById('result-3d-card');
+  const title = document.getElementById('hud3d-title');
+  const goalEl = document.getElementById('hud3d-goal');
+  overlay.style.display = 'none';
+  if (title) title.textContent = (epMeta && epMeta.title) || 'Фруктовый лес';
+  if (goalEl) goalEl.textContent = (epMeta && epMeta.goal) || 'Исследуй';
+  root.innerHTML = '<div class="hub3d-loading">Ждём 3D…</div>';
+
+  const ok = await new Promise((r) => {
+    const t0 = Date.now();
+    const t = setInterval(() => {
+      if (window.Episode3D) { clearInterval(t); r(true); }
+      else if (Date.now() - t0 > 12000) { clearInterval(t); r(false); }
+    }, 40);
+  });
+  if (!ok || !window.Episode3D) {
+    root.innerHTML = '<div class="hub3d-loading">3D не загрузился.<br><small>' + (window.__BARSIK3D_ERR || '') + '</small></div>';
+    return;
+  }
+
+  const showLine = (line) => {
+    const who = document.getElementById('ep-dialogue-who');
+    const text = document.getElementById('ep-dialogue-text');
+    const kk = document.getElementById('ep-dialogue-kk');
+    if (!text) return;
+    who.textContent = line.who || 'Барсик';
+    text.textContent = (S.lang === 'kk' && line.kk) ? line.kk : (line.ru || '');
+    if (kk) {
+      kk.textContent = (S.lang === 'ru' && line.kk) ? line.kk : ((S.lang === 'kk' && line.ru) ? line.ru : '');
+      kk.style.display = line.kk ? 'block' : 'none';
+    }
+  };
+
+  try {
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 50)));
+    await window.Episode3D.mount(root, {
+      episodeId: epId,
+      onHud: ({ goal }) => { if (goalEl) goalEl.textContent = goal; },
+      onLine: showLine,
+      onComplete: ({ episodeId, stars, unlockFriend }) => {
+        if (!S.storyDone) S.storyDone = [];
+        if (!S.storyDone.includes(episodeId)) S.storyDone.push(episodeId);
+        S.stars += (stars || 0);
+        S.totalStars = (S.totalStars || 0) + (stars || 0);
+        S.totalPlayed = (S.totalPlayed || 0) + 1;
+        if (unlockFriend && !S.friends.includes(unlockFriend)) {
+          S.friends.push(unlockFriend);
+          toast('Новый друг: Айя!', 'friend');
+        }
+        save(S);
+        if (typeof checkMilestones === 'function') checkMilestones(S, { stars, hits: 0 });
+
+        const next = nextStoryEpisode(S);
+        overlay.style.display = 'flex';
+        card.innerHTML = `
+          <h2>${unlockFriend ? 'Айя с тобой!' : 'Эпизод пройден!'}</h2>
+          <p>+${stars || 0} ⭐</p>
+          <p class="result-hint">${next ? 'Дальше в лесу ждёт новая сцена.' : 'Айя ждёт у фонаря. Загляни в сундук чудес!'}</p>
+          <button class="btn-primary" id="btn-3d-hub">В город</button>
+          ${next ? '<button class="btn-secondary" id="btn-3d-again">Дальше</button>' : '<button class="btn-secondary" id="btn-3d-qr">Сундук QR</button>'}
+        `;
+        document.getElementById('btn-3d-hub').onclick = () => {
+          Sound.click();
+          if (window.Episode3D) window.Episode3D.unmount();
+          enterTown();
+        };
+        const again = document.getElementById('btn-3d-again');
+        if (again) again.onclick = () => { Sound.click(); playStoryEpisode(); };
+        const qrBtn = document.getElementById('btn-3d-qr');
+        if (qrBtn) qrBtn.onclick = () => {
+          Sound.click();
+          if (window.Episode3D) window.Episode3D.unmount();
+          show('qr');
+          document.getElementById('qr-intro').style.display = 'flex';
+          document.getElementById('qr-result').style.display = 'none';
+        };
+        Sound.levelup();
+      },
+    });
+    window.Episode3D.resize();
+  } catch (e) {
+    console.error('[barsik3d] episode mount', e);
+    root.innerHTML = `<div class="hub3d-loading">Ошибка:<br>${(e && e.message) || e}</div>`;
+  }
+}
+
+async function playForest3D() {
+  return playStoryEpisode();
 }
 
 function renderCollection(s) {

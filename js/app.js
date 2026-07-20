@@ -18,24 +18,54 @@ document.addEventListener('DOMContentLoaded', async () => {
   startMenuParticles();
 });
 
-// ===== Login =====
+// ===== Login / Registration (16.07 canon) =====
+function enterTown() {
+  if (window.Hub3D) window.Hub3D.stop();
+  if (window.Episode3D) window.Episode3D.unmount();
+  show('city');
+  renderCity(S);
+}
+
 function initLogin() {
+  let gender = 'boy';
+  document.querySelectorAll('#login-gender .gender-btn').forEach((btn) => {
+    btn.onclick = () => {
+      Sound.click();
+      gender = btn.dataset.gender;
+      document.querySelectorAll('#login-gender .gender-btn').forEach((b) => b.classList.toggle('selected', b === btn));
+    };
+  });
+
   const btn = document.getElementById('btn-login-start');
   const inp = document.getElementById('login-name');
+  const phone = document.getElementById('login-phone');
   btn.onclick = () => {
     const name = inp.value.trim();
     if (!name) { inp.focus(); inp.style.borderColor = '#e74c3c'; Sound.hit(); return; }
+    const tel = (phone && phone.value || '').trim();
+    if (tel.length < 6) {
+      phone.focus();
+      phone.style.borderColor = '#e74c3c';
+      toast('Нужен телефон для сохранения прогресса', 'friend');
+      Sound.hit();
+      return;
+    }
     Sound.levelup();
     S.name = name;
+    S.gender = gender;
+    S.phone = tel;
+    S.ageCategory = document.getElementById('login-age').value || 'b';
+    S.lang = document.getElementById('login-lang').value || 'ru';
     S.hasLoggedIn = true;
+    if (!S.storyDone) S.storyDone = [];
     save(S);
-    ScreenManager.show('menu');
-    updateMenu(S);
+    enterTown();
     const bonus = checkDaily(S);
     trackTask(S, 'visit', 1);
-    if (bonus > 0) { setTimeout(() => { toast(`Ежедневный бонус: +${bonus} ⭐`, 'success'); Sound.daily(); }, 400); }
+    if (bonus > 0) setTimeout(() => { toast(`Ежедневный бонус: +${bonus} ⭐`, 'success'); Sound.daily(); }, 400);
     const ret = getReturnMessage(S);
     if (ret) setTimeout(() => toast(ret, 'friend'), 800);
+    setTimeout(() => toast('Добро пожаловать в Barsik Town!', 'success'), 200);
     save(S);
   };
   inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
@@ -46,18 +76,18 @@ function initLoading() {
   const txt = document.getElementById('loading-text');
   const tip = document.getElementById('loading-tip');
   const tips = [
-    'Беги, прыгай и собирай звёзды!',
-    'Меняй полосы свайпами вверх/вниз.',
-    'Нажми, чтобы прыгнуть через препятствие.',
-    'Собирай друзей на разных уровнях.',
-    'Украшай город и получай бонусы!'
+    'Найди друзей в мирах Барсика!',
+    'Город — это твоё главное меню.',
+    'Айя ждёт в Фруктовом лесу…',
+    'QR на упаковке — магический сундук!',
+    'Барсика можно наряжать как хочешь.',
   ];
   let tipIdx = 0;
   if (tip) {
     tip.textContent = tips[0];
     setInterval(() => { tipIdx = (tipIdx + 1) % tips.length; tip.textContent = tips[tipIdx]; }, 2200);
   }
-  const imgs = ['assets/barsik_run.png','assets/barsik_idle.png','assets/barsik_jump.png','assets/barsik_fall.png','assets/barsik_celebrate.png','assets/barsik_wave.png'];
+  const imgs = ['assets/barsik_run.png','assets/barsik_idle.png','assets/barsik_jump.png','assets/barsik_fall.png','assets/barsik_celebrate.png','assets/barsik_wave.png','assets/canon/barsik_youth_sign_redcap.png'];
   WORLDS.forEach(w => { imgs.push(w.icon); });
   const icons = ['assets/items/star.png','assets/items/heart.png','assets/items/shield.png','assets/items/magnet.png','assets/items/speed.png','assets/items/chest.png','assets/icons/items/question.svg','assets/icons/items/check.svg','assets/icons/items/lock.svg','assets/icons/items/clipboard.svg'];
   FRIENDS.forEach(f => icons.push(f.icon));
@@ -74,8 +104,7 @@ function initLoading() {
       if (S.hasLoggedIn) {
         const bonus = checkDaily(S);
         trackTask(S, 'visit', 1);
-        ScreenManager.show('menu');
-        updateMenu(S);
+        enterTown();
         if (bonus > 0) setTimeout(() => { toast(`Ежедневный бонус: +${bonus} ⭐`, 'success'); Sound.daily(); }, 400);
         const ret = getReturnMessage(S);
         if (ret) setTimeout(() => toast(ret, 'friend'), 800);
@@ -103,8 +132,8 @@ function initLoading() {
 
 function initNav() {
   const handlers = {
-    'btn-play': () => { Sound.click(); show('difficulty'); renderDiff(); },
-    'btn-city': () => { Sound.click(); show('city'); renderCity(S); },
+    'btn-play': () => { Sound.click(); enterTown(); },
+    'btn-city': () => { Sound.click(); enterTown(); },
     'btn-collection': () => { Sound.click(); show('collection'); renderCollection(S); },
     'btn-qr': () => {
       Sound.click(); show('qr');
@@ -117,12 +146,35 @@ function initNav() {
     'btn-tasks': () => { Sound.click(); show('tasks'); renderTasks(S); },
     'btn-minigames': () => { Sound.click(); show('minigames'); renderMinigamesList(); },
     'btn-invite': () => { Sound.click(); show('invite'); renderInvite(S); },
+    'btn-settings': () => {
+      Sound.click();
+      document.getElementById('set-name').value = S.name;
+      document.getElementById('set-sound').checked = S.sound;
+      show('settings');
+    },
   };
-  Object.entries(handlers).forEach(([id, fn]) => {
+  Object.keys(handlers).forEach((id) => {
     const el = document.getElementById(id);
-    if (el) el.onclick = fn;
+    if (el) el.onclick = handlers[id];
   });
 
+  const cont = document.getElementById('btn-continue-story');
+  if (cont) cont.onclick = () => { Sound.click(); playStoryEpisode(); };
+
+  // legacy hidden forest btn
+  const forest = document.getElementById('btn-play-3d-forest');
+  if (forest) forest.onclick = () => { Sound.click(); playStoryEpisode(); };
+
+  const quit3d = document.getElementById('btn-quit-3d');
+  if (quit3d) {
+    quit3d.onclick = () => {
+      Sound.click();
+      if (window.Episode3D) window.Episode3D.unmount();
+      enterTown();
+    };
+  }
+
+  // bottom nav handled in screens.js → enterTown
   document.querySelectorAll('.rtab').forEach(t => {
     t.onclick = () => {
       document.querySelectorAll('.rtab').forEach(x => x.classList.remove('active'));
@@ -137,6 +189,11 @@ function initGame() {
   document.getElementById('btn-resume').onclick = () => { document.getElementById('overlay-pause').classList.remove('show'); if (G) G.resume(); Sound.startMusic(); Sound.tap(); };
   document.getElementById('btn-restart').onclick = () => { document.getElementById('overlay-pause').classList.remove('show'); Sound.stopMusic(); if (G) { const l = G.level, w = G.world; G.destroy(); startGame(l, w); } };
   document.getElementById('btn-quit').onclick = () => { document.getElementById('overlay-pause').classList.remove('show'); Sound.stopMusic(); if (G) G.destroy(); Sound.tap(); show('map'); renderMap(S); };
+
+  window.addEventListener('resize', () => {
+    if (window.Hub3D) window.Hub3D.resize();
+    if (window.Episode3D) window.Episode3D.resize();
+  });
 }
 
 function initQR() {
@@ -165,15 +222,14 @@ function initSettings() {
     S.sound = document.getElementById('set-sound').checked;
     Sound.enabled = S.sound;
     save(S);
-    show('menu');
+    enterTown();
   };
   document.getElementById('btn-reset').onclick = () => {
     Sound.hit();
     if (confirm('Сбросить весь прогресс?')) {
       reset();
       S = load();
-      show('menu');
-      updateMenu(S);
+      show('login');
       toast('Прогресс сброшен');
     }
   };

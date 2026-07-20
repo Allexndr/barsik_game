@@ -1,0 +1,69 @@
+.screen-city {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  height: 100%;
+}
+
+.city-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.city-header h2 {
+  margin-bottom: 0;
+}
+
+.city-stage-badge {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: white;
+  border-radius: var(--radius-lg);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.city-hint {
+  color: var(--text-light);
+  font-size: 0.95rem;
+}
+
+.city-3d-viewer {
+  flex: 1;
+  min-height: 320px;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border);
+  overflow: hidden;
+  background: linear-gradient(180deg, #b8e0ff 0%, #d4f1c5 100%);
+  position: relative;
+}
+
+.city-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.city-friends-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.city-friend-chip {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: white;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .city-3d-viewer {
+    min-height: 260px;
+  }
+}

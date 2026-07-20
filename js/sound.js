@@ -39,13 +39,15 @@ const Sound = {
   },
 
   loadSamples() {
+    // Файлов audio пока нет — не спамим 404. Когда появятся mp3, поставь true.
+    if (!window.BARSIK_HAS_AUDIO) return;
     Object.entries(SFX_FILES).forEach(([name, url]) => {
       if (this.samples[name] !== undefined) return;
-      this.samples[name] = null; // mark as attempted
+      this.samples[name] = null;
       fetch(url).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
         .then(buf => this.ctx.decodeAudioData(buf))
         .then(decoded => { this.samples[name] = decoded; })
-        .catch(() => {}); // stays null -> oscillator fallback used
+        .catch(() => {});
     });
   },
 
