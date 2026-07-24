@@ -45,27 +45,57 @@
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
   text-align: center;
-  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: none;
 }
 
-.friend-card:hover {
-  transform: translateY(-3px);
+.friend-tilt-wrap {
+  width: 100%;
+}
+
+.friend-tilt-inner {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: center;
+}
+
+.friend-tilt-inner:focus-visible {
+  outline: 3px solid #fdcb6e;
+  outline-offset: 3px;
+  border-radius: var(--radius-lg);
+}
+
+.friend-face-front:hover {
   box-shadow: 0 8px 20px rgba(108, 92, 231, 0.15);
 }
 
-.friend-card.rarity-rare {
+.friend-card.rarity-rare,
+.friend-face-back.rarity-rare {
   border-color: #74b9ff;
   box-shadow: 0 0 0 2px rgba(116, 185, 255, 0.25);
 }
 
-.friend-card.rarity-legend {
+.friend-card.rarity-legend,
+.friend-face-back.rarity-legend {
   border-color: #fdcb6e;
   box-shadow: 0 0 16px rgba(253, 203, 110, 0.45);
 }
 
 .friend-avatar {
-  font-size: 2.4rem;
-  margin-bottom: var(--spacing-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto var(--spacing-sm);
+  border-radius: 50%;
+  color: var(--primary);
+  background: rgba(108, 92, 231, 0.1);
 }
 
 .friend-card h3 {

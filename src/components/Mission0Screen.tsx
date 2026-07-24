@@ -2,7 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useUIStore } from '@/store/useUIStore';
 import { useGameStore } from '@/store/useGameStore';
 import { Mission0Scene, type L1Hud } from '@/three/scenes/Mission0Scene';
+import { Chip } from '@/components/ui/Chip';
+import { StepDots } from '@/components/ui/ProgressBar';
+import { PlushButton } from '@/components/ui/PlushButton';
+import { ConfettiBurst } from '@/components/ui/ConfettiBurst';
+import { IconFruit, IconStar, IconPaw } from '@/components/ui/icons';
 import './Mission0Screen.css';
+
+/** Level 1 is the first of 5 story chapters shown as journey dots on the outro card. */
+const JOURNEY_TOTAL_CHAPTERS = 5;
 
 const emptyHud: L1Hud = {
   phase: 'intro',
@@ -136,8 +144,12 @@ export function Mission0Screen() {
           {nick ? ` · ${nick}` : ''}
         </div>
         <div className="m0-stats">
-          <span className="m0-stat">🍎 {fruitCount}</span>
-          <span className="m0-stat m0-stat-star">⭐ {hud.stars}</span>
+          <Chip icon={<IconFruit size={16} />} tone="fruit" className="m0-stat">
+            {fruitCount}
+          </Chip>
+          <Chip icon={<IconStar size={16} />} tone="star" className="m0-stat">
+            {hud.stars}
+          </Chip>
         </div>
       </div>
 
@@ -174,7 +186,9 @@ export function Mission0Screen() {
           onClick={() => sceneRef.current?.tryInteract()}
           aria-label={lang === 'kk' ? 'Әрекет' : 'Действие'}
         >
-          <span className="m0-action-paw">🐾</span>
+          <span className="m0-action-paw">
+            <IconPaw size={26} />
+          </span>
           <span className="m0-action-label">
             {lang === 'kk' ? 'Басу' : 'Нажми'}
             <small>E</small>
@@ -194,27 +208,30 @@ export function Mission0Screen() {
 
       {hud.outro ? (
         <div className="m0-outro">
-          <div className="m0-outro-card">
+          <ConfettiBurst active count={36} />
+          <div className="m0-outro-card reward-pop">
             <div className="m0-outro-badge">{lang === 'kk' ? '1-деңгей' : 'Уровень 1'}</div>
             <h2 className="m0-outro-title">
               {lang === 'kk' ? 'Керемет!' : 'Отлично получилось!'}
             </h2>
             <p className="m0-outro-line">{hud.line}</p>
             <div className="m0-outro-rewards">
-              <div className="m0-reward-pill">🍎 {hud.questFruits || 3}</div>
-              <div className="m0-reward-pill">⭐ {hud.stars}</div>
+              <Chip icon={<IconFruit size={18} />} tone="fruit" className="m0-reward-pill">
+                {hud.questFruits || 3}
+              </Chip>
+              <Chip icon={<IconStar size={18} />} tone="star" className="m0-reward-pill">
+                {hud.stars}
+              </Chip>
             </div>
             <div className="m0-progress">
               <div className="m0-progress-label">
-                {lang === 'kk' ? 'Саяхат' : 'Путешествие'} · 1/8
+                {lang === 'kk' ? 'Фрукттар орманы' : 'Фруктовый лес'}
               </div>
-              <div className="m0-progress-track">
-                <div className="m0-progress-fill" style={{ width: '12.5%' }} />
-              </div>
+              <StepDots total={JOURNEY_TOTAL_CHAPTERS} filled={1} />
             </div>
-            <button type="button" className="m0-continue" onClick={finishToMap}>
+            <PlushButton variant="primary" size="lg" className="m0-continue" onClick={finishToMap}>
               {lang === 'kk' ? 'Саяхатты жалғастыру' : 'Продолжить путешествие'}
-            </button>
+            </PlushButton>
           </div>
         </div>
       ) : (

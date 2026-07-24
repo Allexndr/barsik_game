@@ -5,9 +5,7 @@
 }
 
 .tips-header {
-  font-weight: 700;
-  color: var(--primary);
-  font-size: 0.95rem;
+  align-self: flex-start;
 }
 
 .tip-bubble {

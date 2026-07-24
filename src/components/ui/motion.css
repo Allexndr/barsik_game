@@ -1,0 +1,133 @@
+/* Lightweight motion primitives — no Tailwind / no framer-motion. */
+
+/* ---- Screen enter ---- */
+.screen-fade {
+  width: 100%;
+  height: 100%;
+  animation: screen-fade-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes screen-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-fade {
+    animation: none;
+  }
+}
+
+/* ---- Confetti ---- */
+.confetti-burst {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 5;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -12px;
+  border-radius: 3px;
+  opacity: 0.95;
+  animation-name: confetti-fall;
+  animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 0px), 110vh, 0) rotate(var(--spin, 360deg));
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confetti-burst {
+    display: none;
+  }
+}
+
+/* ---- Reward card bounce ---- */
+.reward-pop {
+  animation: reward-pop-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+}
+
+@keyframes reward-pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.82) translateY(18px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reward-pop {
+    animation: none;
+  }
+}
+
+/* ---- Friend tilt / flip ---- */
+.friend-tilt-wrap {
+  perspective: 900px;
+}
+
+.friend-tilt-inner {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.18s ease-out;
+  min-height: 168px;
+}
+
+.friend-tilt-inner.is-flipped {
+  transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.friend-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: var(--radius-lg);
+  background: white;
+  border: 2px solid var(--border);
+  padding: var(--spacing-lg);
+  text-align: center;
+}
+
+.friend-face-back {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: linear-gradient(160deg, #fff 0%, #f5f3ff 100%);
+}
+
+.friend-face-front .friend-avatar,
+.friend-face-back .friend-avatar {
+  /* keep existing avatar rules */
+}
+
+.friend-flip-hint {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-light);
+  margin-top: 0.35rem;
+}

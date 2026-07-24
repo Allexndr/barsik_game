@@ -54,12 +54,8 @@
 }
 
 .city-friend-chip {
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: white;
-  border: 2px solid var(--border);
-  border-radius: var(--radius-lg);
-  font-weight: 600;
   font-size: 0.9rem;
+  padding: 0.45rem 0.85rem;
 }
 
 @media (max-width: 768px) {

@@ -4,6 +4,8 @@ import { useUIStore } from '@/store/useUIStore';
 import type { Player } from '@/types';
 import { t } from '@/i18n';
 import { registerNick, validateNick } from '@/utils/nicks';
+import { PlushButton } from '@/components/ui/PlushButton';
+import { IconChevronLeft, IconCheck } from '@/components/ui/icons';
 import './QuickStartScreen.css';
 
 export function QuickStartScreen() {
@@ -52,7 +54,8 @@ export function QuickStartScreen() {
     <div className="quick-screen">
       <div className="quick-card animate-slide-up">
         <button type="button" className="quick-back" onClick={() => setScreen('welcome')}>
-          {t(lang, 'quick.back')}
+          <IconChevronLeft size={16} />
+          {t(lang, 'quick.back').replace('← ', '')}
         </button>
 
         <h1>{t(lang, 'quick.title')}</h1>
@@ -102,25 +105,64 @@ export function QuickStartScreen() {
           <div className="quick-gender">
             <button
               type="button"
-              className={gender === 'boy' ? 'active' : ''}
+              className={`quick-gender-card ${gender === 'boy' ? 'active' : ''}`}
               onClick={() => setGender('boy')}
+              aria-pressed={gender === 'boy'}
             >
-              {t(lang, 'quick.boy')}
+              <span className="quick-gender-face quick-gender-face-boy" aria-hidden>
+                <BarsikFace />
+              </span>
+              <span className="quick-gender-name">{t(lang, 'quick.boy')}</span>
+              {gender === 'boy' && (
+                <span className="quick-gender-check">
+                  <IconCheck size={14} />
+                </span>
+              )}
             </button>
             <button
               type="button"
-              className={gender === 'girl' ? 'active' : ''}
+              className={`quick-gender-card ${gender === 'girl' ? 'active' : ''}`}
               onClick={() => setGender('girl')}
+              aria-pressed={gender === 'girl'}
             >
-              {t(lang, 'quick.girl')}
+              <span className="quick-gender-face quick-gender-face-girl" aria-hidden>
+                <BarsikFace bow />
+              </span>
+              <span className="quick-gender-name">{t(lang, 'quick.girl')}</span>
+              {gender === 'girl' && (
+                <span className="quick-gender-check">
+                  <IconCheck size={14} />
+                </span>
+              )}
             </button>
           </div>
 
-          <button type="submit" className="quick-go">
+          <PlushButton type="submit" variant="primary" size="lg" className="quick-go">
             {t(lang, 'quick.go')}
-          </button>
+          </PlushButton>
         </form>
       </div>
     </div>
+  );
+}
+
+/** Minimal soft-3D cub silhouette placeholder — swap for real character art per DESIGN.md when ready. */
+function BarsikFace({ bow }: { bow?: boolean }) {
+  return (
+    <svg viewBox="0 0 64 64" width="100%" height="100%" aria-hidden>
+      <ellipse cx="32" cy="36" rx="22" ry="20" fill="#f4f1ff" />
+      <ellipse cx="16" cy="18" rx="8" ry="9" fill="#f4f1ff" />
+      <ellipse cx="48" cy="18" rx="8" ry="9" fill="#f4f1ff" />
+      <circle cx="24" cy="34" r="3.2" fill="#3a2e7a" />
+      <circle cx="40" cy="34" r="3.2" fill="#3a2e7a" />
+      <ellipse cx="32" cy="42" rx="4.5" ry="3.2" fill="#ff9f9e" />
+      {bow ? (
+        <path
+          d="M10 12l6 4-6 4-2-4z M6 12l-6 4 6 4 2-4z"
+          fill="#ff7675"
+          transform="translate(4 -6)"
+        />
+      ) : null}
+    </svg>
   );
 }

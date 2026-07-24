@@ -1,6 +1,9 @@
 import { useUIStore } from '@/store/useUIStore';
 import { useGameStore } from '@/store/useGameStore';
 import { t as translate, type Lang } from '@/i18n';
+import { useState } from 'react';
+import { SettingsModal } from '@/components/SettingsModal';
+import { ResponsivePicture } from '@/components/ui/ResponsivePicture';
 import './WelcomeScreen.css';
 
 /** Стартовый экран: фон cover + UI кодом (адаптив под любой экран). */
@@ -9,6 +12,8 @@ export function WelcomeScreen() {
   const lang = useUIStore((s) => s.lang);
   const setLang = useUIStore((s) => s.setLang);
   const patchPlayer = useGameStore((s) => s.patchPlayer);
+  const player = useGameStore((s) => s.player);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const pickLang = (next: Lang) => {
     if (next === lang) return;
@@ -18,12 +23,15 @@ export function WelcomeScreen() {
 
   return (
     <div className="welcome-screen">
-      <img
+      <ResponsivePicture
         className="welcome-bg"
-        src="/assets/landing/welcome_bg.png?v=1"
         alt=""
-        draggable={false}
-        aria-hidden
+        /* Desktop/tablet: wide hero. Phone: portrait hero. Same Barsik scene, different crop. */
+        sources={[
+          { media: '(min-width: 900px)', src: '/assets/landing/landing_hero_desktop.png' },
+          { media: '(min-width: 600px) and (orientation: landscape)', src: '/assets/landing/landing_hero_desktop.png' },
+        ]}
+        fallbackSrc="/assets/landing/landing_hero_mobile.png"
       />
       <div className="welcome-veil" aria-hidden />
 
@@ -63,6 +71,7 @@ export function WelcomeScreen() {
             className="welcome-btn-side welcome-btn-settings"
             aria-label={translate(lang, 'welcome.settings')}
             title={translate(lang, 'welcome.settings')}
+            onClick={() => setSettingsOpen(true)}
           >
             <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden>
               <path
@@ -83,18 +92,32 @@ export function WelcomeScreen() {
           <button
             type="button"
             className="welcome-btn-side welcome-btn-profile"
-            aria-label={translate(lang, 'welcome.profile')}
-            title={translate(lang, 'welcome.profile')}
+            aria-label={player ? (lang === 'kk' ? 'Жалғастыру' : 'Продолжить') : translate(lang, 'welcome.profile')}
+            title={player ? (lang === 'kk' ? 'Жалғастыру' : 'Продолжить') : translate(lang, 'welcome.profile')}
+            onClick={() => {
+              if (player) {
+                setScreen(localStorage.getItem('barsik_mission0_done') === '1' ? 'game' : 'mission0');
+              } else {
+                setScreen('quick');
+              }
+            }}
           >
-            <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden>
-              <path
-                fill="currentColor"
-                d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v1.2c0 .7.5 1.2 1.2 1.2h16.8c.7 0 1.2-.5 1.2-1.2v-1.2c0-3.2-6.4-4.8-9.6-4.8z"
-              />
-            </svg>
+            {player ? (
+              <span className="welcome-btn-continue" aria-hidden>
+                ▶
+              </span>
+            ) : (
+              <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden>
+                <path
+                  fill="currentColor"
+                  d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v1.2c0 .7.5 1.2 1.2 1.2h16.8c.7 0 1.2-.5 1.2-1.2v-1.2c0-3.2-6.4-4.8-9.6-4.8z"
+                />
+              </svg>
+            )}
           </button>
         </div>
       </div>
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

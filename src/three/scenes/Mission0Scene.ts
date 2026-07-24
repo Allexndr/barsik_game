@@ -37,6 +37,54 @@ export interface L1Hud {
 
 const CC0 = '/assets/models/cc0/';
 const CHARS = '/assets/models/chars/';
+const PLAYER_RADIUS = 0.45;
+
+type AabbCollider = { kind: 'aabb'; x: number; z: number; halfW: number; halfD: number };
+type CircleCollider = { kind: 'circle'; x: number; z: number; r: number };
+type Collider = AabbCollider | CircleCollider;
+
+/** Approximate x of the dirt path at world z (for keeping trees off the trail). */
+function pathCenterX(z: number) {
+  if (z > 6) return 0;
+  const i = (11 - z) / 0.95;
+  if (i <= 6) return 0;
+  return Math.sin((i - 6) * 0.28) * 2.2;
+}
+
+function pushAabb(nx: number, nz: number, c: AabbCollider) {
+  const dx = Math.abs(nx - c.x);
+  const dz = Math.abs(nz - c.z);
+  if (dx < c.halfW + PLAYER_RADIUS && dz < c.halfD + PLAYER_RADIUS) {
+    const pushX = c.halfW + PLAYER_RADIUS - dx;
+    const pushZ = c.halfD + PLAYER_RADIUS - dz;
+    if (pushX < pushZ) {
+      nx = nx < c.x ? c.x - c.halfW - PLAYER_RADIUS : c.x + c.halfW + PLAYER_RADIUS;
+    } else {
+      nz = nz < c.z ? c.z - c.halfD - PLAYER_RADIUS : c.z + c.halfD + PLAYER_RADIUS;
+    }
+  }
+  return { x: nx, z: nz };
+}
+
+function pushCircle(nx: number, nz: number, c: CircleCollider) {
+  const dx = nx - c.x;
+  const dz = nz - c.z;
+  const dist = Math.hypot(dx, dz);
+  const minDist = c.r + PLAYER_RADIUS;
+  if (dist >= minDist) return { x: nx, z: nz };
+  if (dist < 0.001) return { x: nx + minDist, z: nz };
+  const scale = minDist / dist;
+  return { x: c.x + dx * scale, z: c.z + dz * scale };
+}
+
+function resolveCollisions(nx: number, nz: number, colliders: Collider[]) {
+  for (const c of colliders) {
+    const p = c.kind === 'aabb' ? pushAabb(nx, nz, c) : pushCircle(nx, nz, c);
+    nx = p.x;
+    nz = p.z;
+  }
+  return { x: nx, z: nz };
+}
 
 const sharedFruitGeometry = new THREE.SphereGeometry(0.38, 16, 16);
 const sharedRingGeometry = new THREE.RingGeometry(0.5, 0.78, 28);
@@ -161,19 +209,28 @@ function pathArrow(x: number, z: number, rotY: number) {
   const mat = new THREE.MeshStandardMaterial({
     color: 0xffe066,
     emissive: 0xf1c40f,
-    emissiveIntensity: 0.7,
+    emissiveIntensity: 0.85,
     roughness: 0.4,
   });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.08, 0.9), mat);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.08, 1.0), mat);
   body.position.y = 0.12;
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.55, 3), mat);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.48, 0.65, 3), mat);
   tip.rotation.x = Math.PI / 2;
-  tip.position.set(0, 0.12, -0.65);
+  tip.position.set(0, 0.12, -0.7);
   body.castShadow = false;
   body.receiveShadow = false;
   tip.castShadow = false;
   tip.receiveShadow = false;
-  g.add(body, tip);
+  // Ground glow marker for readability from distance
+  const glow = new THREE.Mesh(
+    new THREE.RingGeometry(0.6, 0.85, 18),
+    new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = 0.02;
+  glow.castShadow = false;
+  glow.receiveShadow = false;
+  g.add(body, tip, glow);
   g.position.set(x, 0, z);
   g.rotation.y = rotY;
   g.userData.bob = Math.random() * Math.PI * 2;
@@ -214,6 +271,39 @@ function spawnPad(x: number, z: number) {
 }
 
 /** Wooden sign landmark. */
+/** Open wooden arch — walk through the middle; side posts block, not a floating interior door. */
+function forestArch(x: number, z: number, rotY = 0) {
+  const g = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
+  const leaf = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
+  const postL = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 3.4, 8), wood);
+  postL.position.set(-1.7, 1.7, 0);
+  postL.castShadow = true;
+  const postR = postL.clone();
+  postR.position.x = 1.7;
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.4, 0.4), wood);
+  beam.position.y = 3.35;
+  beam.castShadow = true;
+  for (const [px, py, pz] of [
+    [-1.7, 3.6, 0],
+    [1.7, 3.6, 0],
+    [0, 3.8, 0.3],
+  ] as const) {
+    const vine = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 8), leaf);
+    vine.position.set(px, py, pz);
+    vine.scale.set(1.2, 0.6, 1);
+    g.add(vine);
+  }
+  g.add(postL, postR, beam);
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+  g.userData.archPosts = [
+    { x: x - 1.7, z },
+    { x: x + 1.7, z },
+  ];
+  return g;
+}
+
 function woodSign(x: number, z: number, rotY: number, faceColor: number) {
   const g = new THREE.Group();
   const post = new THREE.Mesh(
@@ -556,7 +646,8 @@ function house(x: number, z: number, rotY: number) {
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xfdf6e3, roughness: 0.95 });
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 1 });
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x5d4037 });
-  const glassMat = new THREE.MeshStandardMaterial({ color: 0x81d4fa, emissive: 0x81d4fa, emissiveIntensity: 0.25 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0xffeb3b, emissive: 0xffc107, emissiveIntensity: 0.45 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.95 });
   const w = 4.6, d = 3.6, h = 2.6;
   const walls = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
   walls.position.y = h / 2;
@@ -567,18 +658,23 @@ function house(x: number, z: number, rotY: number) {
   roof.rotation.y = Math.PI / 4;
   roof.scale.set(1.15, 1, 1.15);
   roof.castShadow = true;
-  const door = new THREE.Mesh(new THREE.PlaneGeometry(1, 1.6), woodMat);
-  door.position.set(0, 0.8, -d / 2 - 0.01);
+
+  // Dark recessed doorway with warm light spilling from inside
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(1, 1.6), darkMat);
+  door.position.set(0, 0.8, -d / 2 - 0.02);
+  const doorLight = new THREE.PointLight(0xff9f43, 1.4, 9);
+  doorLight.position.set(0, 1.1, -d / 2 - 0.9);
+
   const winL = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.8), glassMat);
-  winL.position.set(-1.2, 1.5, -d / 2 - 0.01);
+  winL.position.set(-1.2, 1.5, -d / 2 - 0.02);
   const winR = winL.clone();
-  winR.position.set(1.2, 1.5, -d / 2 - 0.01);
+  winR.position.set(1.2, 1.5, -d / 2 - 0.02);
   const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.2, 0.45), woodMat);
   chimney.position.set(1.1, h + 1.2, 0.8);
   const step = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.15, 0.8), new THREE.MeshStandardMaterial({ color: 0x9e9e9e }));
   step.position.set(0, 0.075, -d / 2 - 0.45);
   step.receiveShadow = true;
-  g.add(walls, roof, door, winL, winR, chimney, step);
+  g.add(walls, roof, door, doorLight, winL, winR, chimney, step);
   g.position.set(x, 0, z);
   g.rotation.y = rotY;
   return g;
@@ -712,6 +808,51 @@ function well(x: number, z: number) {
   return g;
 }
 
+function catBowl(x: number, z: number) {
+  const g = new THREE.Group();
+  const bowl = new THREE.Mesh(
+    new THREE.SphereGeometry(0.22, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: 0xe17055 }),
+  );
+  bowl.rotation.x = Math.PI;
+  bowl.position.y = 0.1;
+  g.add(bowl);
+  g.position.set(x, 0, z);
+  return g;
+}
+
+function mailbox(x: number, z: number, label = '') {
+  const g = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({ color: 0x6d4c41 });
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.4, 8), wood);
+  post.position.y = 0.7;
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.8), new THREE.MeshStandardMaterial({ color: 0xfdf6e3 }));
+  box.position.y = 1.45;
+  const flag = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.3, 0.04), new THREE.MeshStandardMaterial({ color: 0xff4757 }));
+  flag.position.set(0.27, 1.55, 0.2);
+  g.add(post, box, flag);
+  if (label) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#fdf6e3';
+    ctx.fillRect(0, 0, 256, 64);
+    ctx.fillStyle = '#6d4c41';
+    ctx.font = 'bold 26px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, 128, 32);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.18), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+    sign.position.set(0, 1.5, 0.41);
+    g.add(sign);
+  }
+  g.position.set(x, 0, z);
+  return g;
+}
+
 export class Mission0Scene {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -746,10 +887,7 @@ export class Mission0Scene {
   private guideArrow: THREE.Group | null = null;
   private pathArrows: THREE.Group[] = [];
   private butterflies: THREE.Group[] = [];
-  private logColliders = [
-    { x: -0.4, z: -18.2, halfW: 2.25, halfD: 0.75 },
-    { x: -2.8, z: -28.5, halfW: 2.25, halfD: 0.75 },
-  ];
+  private colliders: Collider[] = [];
   private checkpoints = [
     new THREE.Vector3(0, 0, 6),
     new THREE.Vector3(0, 0, -2),
@@ -772,8 +910,9 @@ export class Mission0Scene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 300);
-    this.camera.position.set(0, 7, 14);
+    this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 300);
+    // Wide cinematic opening that frames both the house and the hero spawn
+    this.camera.position.set(-14, 8, 22);
     this.scene.background = new THREE.Color(0x87ceeb);
     this.scene.fog = new THREE.Fog(0x87ceeb, 70, 220);
 
@@ -870,11 +1009,22 @@ export class Mission0Scene {
       this.scene.add(a);
     }
 
-    this.scene.add(house(0, 15.5, 0));
+    // Home zone — west of the path so the camera never clips through it
+    this.scene.add(house(-9, 12, -Math.PI / 2));
     this.scene.add(spawnPad(0, 12));
-    this.scene.add(well(-3.5, 8.5));
-    this.scene.add(vegetableRow(2.5, 8.8, 1.4, 3.0, 0x2ecc71));
-    this.scene.add(woodSign(3.2, 7.5, -0.3, 0xffeaa7));
+    this.scene.add(well(-11, 13.5));
+    this.scene.add(vegetableRow(-7, 14, 1.4, 3.0, 0x2ecc71));
+    this.scene.add(catBowl(-8, 9.5));
+    this.scene.add(mailbox(-4.5, 13.5, this.nick || 'Барсик'));
+
+    // Home yard fence
+    this.scene.add(fenceSection(-13, 8, -5, 8));
+    this.scene.add(fenceSection(-5, 8, -5, 11, true));
+    this.scene.add(fenceSection(-5, 13, -5, 16));
+    this.scene.add(fenceSection(-5, 16, -13, 16));
+    this.scene.add(fenceSection(-13, 16, -13, 8));
+
+    this.scene.add(woodSign(-4.5, 8.5, 0.4, 0xffeaa7));
     this.scene.add(woodSign(-3.6, -2, 0.5, 0x81ecec));
     this.scene.add(woodSign(2.2, -18, -0.25, 0xff7675));
     this.scene.add(giantAppleLandmark(10, -12));
@@ -886,9 +1036,24 @@ export class Mission0Scene {
 
     const log1 = makeLogBarrier(-0.4, -18.2);
     const log2 = makeLogBarrier(-2.8, -28.5);
-    this.logColliders[0] = log1.userData.collider;
-    this.logColliders[1] = log2.userData.collider;
     this.scene.add(log1, log2);
+
+    const arch = forestArch(0.4, -1.5, 0);
+    this.scene.add(arch);
+    const archGlow = new THREE.PointLight(0xfdcb6e, 1.0, 12);
+    archGlow.position.set(0.4, 2.8, -1.5);
+    this.scene.add(archGlow);
+
+    this.colliders.push(
+      { kind: 'aabb', ...(log1.userData.collider as Omit<AabbCollider, 'kind'>) },
+      { kind: 'aabb', ...(log2.userData.collider as Omit<AabbCollider, 'kind'>) },
+      { kind: 'aabb', x: -9, z: 12, halfW: 4.2, halfD: 3.5 },
+      { kind: 'circle', x: -11, z: 13.5, r: 1.1 },
+      { kind: 'circle', x: 6, z: -25, r: 3.0 },
+      { kind: 'circle', x: 10, z: -12, r: 1.9 },
+      { kind: 'circle', x: 0.4 - 1.7, z: -1.5, r: 0.55 },
+      { kind: 'circle', x: 0.4 + 1.7, z: -1.5, r: 0.55 },
+    );
 
     // Mountains backdrop
     for (const [x, z, h, w] of [
@@ -1109,6 +1274,10 @@ export class Mission0Scene {
       t.rotation.y = Math.random() * Math.PI;
       groundY(t);
       this.scene.add(t);
+      const px = pathCenterX(t.position.z);
+      if (Math.abs(t.position.x - px) > 2.0) {
+        this.colliders.push({ kind: 'circle', x: t.position.x, z: t.position.z, r: 1.55 });
+      }
     }
     // Inner grove framing the garden
     for (let i = 0; i < 16; i++) {
@@ -1120,6 +1289,10 @@ export class Mission0Scene {
       if (Math.abs(t.position.x) < 4.5 && t.position.z > -38) continue;
       groundY(t);
       this.scene.add(t);
+      const px = pathCenterX(t.position.z);
+      if (Math.abs(t.position.x - px) > 2.0) {
+        this.colliders.push({ kind: 'circle', x: t.position.x, z: t.position.z, r: 1.45 });
+      }
     }
 
     const propFiles = [
@@ -1144,6 +1317,9 @@ export class Mission0Scene {
         if (Math.hypot(c.position.x, c.position.z - 11) < 3) continue;
         groundY(c);
         this.scene.add(c);
+        if (f.includes('rock_large')) {
+          this.colliders.push({ kind: 'circle', x: c.position.x, z: c.position.z, r: 1.15 });
+        }
       }
     }
 
@@ -1159,25 +1335,12 @@ export class Mission0Scene {
       }
     }
 
-    // Zone gate arch (Roblox “enter next area”)
-    const door = await loadGlb(loader, CC0 + 'doorway.glb');
-    if (door) {
-      fitHeight(door.scene, 4.2);
-      door.scene.position.set(0.5, 0, -3.5);
-      door.scene.rotation.y = 0;
-      groundY(door.scene);
-      this.scene.add(door.scene);
-      const archGlow = new THREE.PointLight(0xfdcb6e, 1.4, 14);
-      archGlow.position.set(0.5, 2.4, -3.5);
-      this.scene.add(archGlow);
-    }
-
-    // Home yard
+    // Home yard props
     for (const [f, x, z, h] of [
-      ['campfire_stones.glb', 2.2, 9.2, 0.7],
-      ['chair.glb', -2.2, 9.5, 0.9],
-      ['table.glb', 2.0, 9.8, 0.95],
-      ['lampRoundTable.glb', 1.2, 10.2, 0.75],
+      ['campfire_stones.glb', -9.0, 9.5, 0.7],
+      ['chair.glb', -10.5, 9.2, 0.9],
+      ['table.glb', -9.0, 9.8, 0.95],
+      ['lampRoundTable.glb', -8.2, 10.2, 0.75],
     ] as const) {
       const m = await loadGlb(loader, CC0 + f);
       if (!m) continue;
@@ -1453,23 +1616,6 @@ export class Mission0Scene {
     return v;
   }
 
-  /** Soft AABB push — Roblox-style walk-around obstacles, no damage. */
-  private resolveLogs(nx: number, nz: number) {
-    for (const c of this.logColliders) {
-      const dx = Math.abs(nx - c.x);
-      const dz = Math.abs(nz - c.z);
-      if (dx < c.halfW && dz < c.halfD) {
-        const pushX = c.halfW - dx;
-        const pushZ = c.halfD - dz;
-        if (pushX < pushZ) {
-          nx = nx < c.x ? c.x - c.halfW : c.x + c.halfW;
-        } else {
-          nz = nz < c.z ? c.z - c.halfD : c.z + c.halfD;
-        }
-      }
-    }
-    return { x: nx, z: nz };
-  }
 
   private nearestInteract(): THREE.Object3D | null {
     const hp = this.hero.position;
@@ -1537,7 +1683,7 @@ export class Mission0Scene {
       let nz = this.hero.position.z + d.y * speed * dt;
       nx = THREE.MathUtils.clamp(nx, -45, 45);
       nz = THREE.MathUtils.clamp(nz, -55, 18);
-      const fixed = this.resolveLogs(nx, nz);
+      const fixed = resolveCollisions(nx, nz, this.colliders);
       this.hero.position.x = fixed.x;
       this.hero.position.z = fixed.z;
       this.yaw = Math.atan2(d.x, d.y);
@@ -1699,9 +1845,22 @@ export class Mission0Scene {
 
     // Camera: Roblox-ish elevated third person
     if (this.phase === 'intro') {
-      const target = new THREE.Vector3(-1.2, 5.2, 12.5);
+      // Cinematic dolly from wide establishing shot to behind-the-hero
+      const idx = Math.min(this.introI, 2);
+      const introPos = [
+        new THREE.Vector3(-14, 8, 22),
+        new THREE.Vector3(-6, 6, 17),
+        new THREE.Vector3(-1.2, 5.5, 13.5),
+      ];
+      const introLook = [
+        new THREE.Vector3(-4, 1.8, 11),
+        new THREE.Vector3(-2, 1.5, 9),
+        new THREE.Vector3(0, 1.2, 8),
+      ];
+      const target = introPos[idx];
       this.camera.position.lerp(target, 1 - Math.pow(0.02, dt));
-      this.camera.lookAt(-1.8, 1.6, 8.2);
+      const look = new THREE.Vector3().copy(introLook[idx]);
+      this.camera.lookAt(look);
     } else {
       const back = this.phase.startsWith('help') || this.phase === 'outro' ? 11 : 9.5;
       const height = 6.2;

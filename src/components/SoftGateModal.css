@@ -19,9 +19,16 @@
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
 }
 
-.soft-gate-emoji {
-  font-size: 2.5rem;
-  margin-bottom: var(--spacing-sm);
+.soft-gate-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto var(--spacing-sm);
+  border-radius: 50%;
+  color: var(--primary);
+  background: rgba(108, 92, 231, 0.1);
 }
 
 .soft-gate-card h2 {
@@ -61,12 +68,6 @@
 
 .soft-gate-save {
   width: 100%;
-  padding: 0.95rem;
-  border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, var(--primary), #a29bfe);
-  color: white;
-  font-weight: 800;
-  font-size: 1rem;
   margin-bottom: var(--spacing-sm);
 }
 

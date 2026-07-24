@@ -5,6 +5,7 @@ import { WelcomeScreen } from '@/components/WelcomeScreen';
 import { QuickStartScreen } from '@/components/QuickStartScreen';
 import { Mission0Screen } from '@/components/Mission0Screen';
 import { GamePage } from '@/pages/GamePage';
+import { ScreenFade } from '@/components/ui/ScreenFade';
 import { readStoredLang, t, type Lang } from '@/i18n';
 import type { Player } from '@/types';
 import './App.css';
@@ -79,10 +80,12 @@ export function App() {
 
   return (
     <div className="app">
-      {currentScreen === 'welcome' && <WelcomeScreen />}
-      {currentScreen === 'quick' && <QuickStartScreen />}
-      {currentScreen === 'mission0' && <Mission0Screen />}
-      {currentScreen === 'game' && <GamePage />}
+      <ScreenFade screenKey={currentScreen}>
+        {currentScreen === 'welcome' && <WelcomeScreen />}
+        {currentScreen === 'quick' && <QuickStartScreen />}
+        {currentScreen === 'mission0' && <Mission0Screen />}
+        {currentScreen === 'game' && <GamePage />}
+      </ScreenFade>
     </div>
   );
 }

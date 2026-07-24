@@ -43,17 +43,8 @@
 }
 
 .m0-stat {
-  font-weight: 900;
   font-size: 1.05rem;
-  background: rgba(255, 255, 255, 0.92);
-  padding: 0.4rem 0.75rem;
-  border-radius: 999px;
-  border: 3px solid #fff;
-  color: #c0392b;
-}
-
-.m0-stat-star {
-  color: #d4a017;
+  padding: 0.45rem 0.8rem;
 }
 
 .m0-bubble {
@@ -69,8 +60,7 @@
   width: min(460px, 92vw);
   padding: 0.85rem 1.1rem 0.75rem;
   border-radius: 1.15rem;
-  background: rgba(255, 255, 255, 0.96);
-  border: 3px solid #fff;
+  background: rgba(255, 255, 255, 0.97);
   box-shadow: 0 12px 32px rgba(45, 27, 78, 0.28);
   pointer-events: none;
 }
@@ -215,7 +205,8 @@
 }
 
 .m0-action-paw {
-  font-size: 1.6rem;
+  display: flex;
+  color: #6d4c41;
   line-height: 1;
 }
 
@@ -250,9 +241,20 @@
   padding: 1.4rem 1.35rem 1.25rem;
   border-radius: 1.5rem;
   background: linear-gradient(180deg, #fffef8, #f8f1ff);
-  border: 4px solid #fff;
   box-shadow: 0 20px 48px rgba(45, 27, 78, 0.35);
   text-align: center;
+  animation: m0-outro-in 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+@keyframes m0-outro-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .m0-outro-badge {
@@ -289,49 +291,26 @@
 }
 
 .m0-reward-pill {
-  padding: 0.45rem 0.9rem;
-  border-radius: 999px;
-  background: #fff;
-  border: 3px solid #fdcb6e;
-  font-weight: 900;
   font-size: 1.1rem;
+  padding: 0.45rem 0.9rem;
 }
 
 .m0-progress {
   margin-bottom: 1.1rem;
-  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .m0-progress-label {
   font-weight: 800;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: #6c5ce7;
-  margin-bottom: 0.35rem;
-}
-
-.m0-progress-track {
-  height: 12px;
-  border-radius: 999px;
-  background: rgba(108, 92, 231, 0.15);
-  overflow: hidden;
-}
-
-.m0-progress-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #55efc4, #00b894);
 }
 
 .m0-continue {
   width: 100%;
-  padding: 0.9rem 1rem;
-  border-radius: 999px;
-  border: 4px solid #fff;
-  background: linear-gradient(180deg, #55efc4, #00b894);
-  color: #fff;
-  font-weight: 900;
-  font-size: 1.05rem;
-  box-shadow: 0 6px 0 #00896b;
 }
 
 @keyframes m0-action-pulse {

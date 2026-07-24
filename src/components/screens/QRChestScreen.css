@@ -25,8 +25,14 @@
 }
 
 .chest-visual {
-  font-size: 5rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  color: #e17055;
+  background: rgba(253, 203, 110, 0.25);
   animation: pop 0.4s ease-out;
 }
 
@@ -34,24 +40,16 @@
   animation: spin 1.2s linear infinite, pop 0.4s ease-out;
 }
 
-.btn-open-chest {
-  padding: var(--spacing-md) var(--spacing-xl);
-  background: linear-gradient(135deg, #fdcb6e, #e17055);
-  color: white;
-  border-radius: var(--radius-lg);
-  font-weight: 700;
-  font-size: 1.05rem;
-  box-shadow: 0 8px 20px rgba(225, 112, 85, 0.35);
-}
-
-.btn-open-chest:hover {
-  transform: translateY(-2px);
-}
-
 .chest-opening p,
 .chest-reward p {
   font-weight: 600;
   color: var(--text-dark);
+}
+
+.chest-reward-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .chest-reward h3 {

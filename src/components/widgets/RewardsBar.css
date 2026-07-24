@@ -17,6 +17,15 @@
   margin: -0.35rem 0 0.15rem;
 }
 
+.rewards-next {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  border-radius: var(--radius-lg);
+  background: rgba(108, 92, 231, 0.06);
+}
+
 .rewards-list {
   display: flex;
   flex-direction: column;
@@ -58,8 +67,8 @@
 
 .claimed-badge {
   position: absolute;
-  top: 4px;
+  top: 6px;
   right: 8px;
-  font-size: 1rem;
   color: #27ae60;
+  display: flex;
 }
