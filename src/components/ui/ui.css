@@ -1,0 +1,182 @@
+/* BARSIK shared UI kit — plush buttons, stat chips, progress.
+ * One visual language for every non-Welcome screen. Tokens mirror
+ * docs/design-systems/barsik/tokens.css (kept in sync manually).
+ */
+
+/* ---------- PlushButton ---------- */
+
+.plush-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.12s, filter 0.15s, box-shadow 0.12s;
+  color: #fff;
+  min-height: 52px;
+  padding: 0.7rem 1.4rem;
+}
+
+.plush-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  filter: none;
+  transform: none;
+}
+
+.plush-btn:active:not(:disabled) {
+  transform: translateY(3px);
+}
+
+.plush-btn:focus-visible {
+  outline: 3px solid #fdcb6e;
+  outline-offset: 2px;
+}
+
+.plush-btn-lg {
+  min-height: 60px;
+  font-size: 1.1rem;
+  padding: 0.85rem 1.8rem;
+}
+
+.plush-btn-icon-only,
+.plush-btn-icon {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0.5rem;
+  border-radius: 50%;
+}
+
+.plush-btn-primary {
+  background: linear-gradient(180deg, #66e39a 0%, #2ecc71 45%, #1ea855 100%);
+  box-shadow: 0 5px 0 #148f45, 0 10px 22px rgba(20, 143, 69, 0.35);
+}
+
+.plush-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+.plush-btn-secondary {
+  background: linear-gradient(180deg, #a29bfe 0%, #6c5ce7 100%);
+  box-shadow: 0 5px 0 #4b3fb0, 0 10px 22px rgba(108, 92, 231, 0.35);
+}
+
+.plush-btn-danger {
+  background: linear-gradient(180deg, #ff9f9e 0%, #ff7675 55%, #e0605f 100%);
+  box-shadow: 0 5px 0 #b34c4b, 0 10px 22px rgba(224, 96, 95, 0.35);
+}
+
+.plush-btn-ghost {
+  background: rgba(108, 92, 231, 0.08);
+  color: var(--primary);
+  box-shadow: none;
+  min-height: 44px;
+}
+
+.plush-btn-ghost:hover:not(:disabled) {
+  background: rgba(108, 92, 231, 0.16);
+}
+
+.plush-btn-label {
+  line-height: 1;
+}
+
+/* ---------- Chip ---------- */
+
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-weight: 800;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  line-height: 1;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(45, 27, 78, 0.12);
+}
+
+.ui-chip-icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+}
+
+.ui-chip-star {
+  color: #b8860b;
+}
+.ui-chip-star .ui-chip-icon {
+  color: #f1c40f;
+}
+
+.ui-chip-fruit {
+  color: #c0392b;
+}
+.ui-chip-fruit .ui-chip-icon {
+  color: #ff7675;
+}
+
+.ui-chip-success {
+  color: #00895f;
+  background: rgba(85, 239, 196, 0.25);
+}
+.ui-chip-success .ui-chip-icon {
+  color: #00b894;
+}
+
+.ui-chip-neutral {
+  color: var(--text-dark);
+}
+.ui-chip-neutral .ui-chip-icon {
+  color: var(--primary);
+}
+
+/* ---------- Progress ---------- */
+
+.ui-progress-label {
+  font-weight: 800;
+  font-size: 0.8rem;
+  color: var(--primary);
+  margin-bottom: 0.35rem;
+}
+
+.ui-progress-track {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(108, 92, 231, 0.15);
+  overflow: hidden;
+}
+
+.ui-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #55efc4, #00b894);
+  transition: width 0.4s ease;
+}
+
+/* Step dots (journey progress, no fake fractions) */
+
+.ui-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ui-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(108, 92, 231, 0.2);
+  transition: transform 0.2s, background 0.2s;
+}
+
+.ui-dot.is-filled {
+  background: linear-gradient(180deg, #55efc4, #00b894);
+  transform: scale(1.3);
+  box-shadow: 0 0 0 3px rgba(0, 184, 148, 0.2);
+}

@@ -6,6 +6,16 @@ import {
   t as translate,
 } from '@/i18n';
 
+const MUTED_KEY = 'barsik_muted';
+
+function readStoredMuted(): boolean {
+  try {
+    return localStorage.getItem(MUTED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export interface UIState {
   currentScreen: 'welcome' | 'quick' | 'mission0' | 'game';
   activeTab: 'travel' | 'friends' | 'city' | 'shop' | 'leaderboard' | 'qr' | 'episode';
@@ -14,6 +24,7 @@ export interface UIState {
   softGate: 'phone_1min' | 'phone_5levels' | 'email' | null;
   sessionPlayMs: number;
   lang: Lang;
+  muted: boolean;
 
   setScreen: (screen: UIState['currentScreen']) => void;
   setActiveTab: (tab: UIState['activeTab']) => void;
@@ -23,6 +34,7 @@ export interface UIState {
   closeSoftGate: () => void;
   addSessionPlayMs: (ms: number) => void;
   setLang: (lang: Lang) => void;
+  toggleMuted: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -33,10 +45,23 @@ export const useUIStore = create<UIState>((set) => ({
   softGate: null,
   sessionPlayMs: 0,
   lang: typeof window !== 'undefined' ? readStoredLang() : 'ru',
+  muted: typeof window !== 'undefined' ? readStoredMuted() : false,
 
   setScreen: (screen) => set({ currentScreen: screen }),
   setActiveTab: (tab) => set({ activeTab: tab }),
-  startEpisode: (episodeId) => set({ showEpisode: true, episodeId, activeTab: 'episode' }),
+  startEpisode: (episodeId) => {
+    // Level 0 = Mission0 (real 3D «Первое утро»), not the EpisodeScreen timer stub.
+    if (episodeId === 0) {
+      set({
+        currentScreen: 'mission0',
+        showEpisode: false,
+        episodeId: null,
+        activeTab: 'travel',
+      });
+      return;
+    }
+    set({ showEpisode: true, episodeId, activeTab: 'episode' });
+  },
   endEpisode: () => set({ showEpisode: false, episodeId: null, activeTab: 'travel' }),
   openSoftGate: (gate) => set({ softGate: gate }),
   closeSoftGate: () => set({ softGate: null }),
@@ -60,4 +85,14 @@ export const useUIStore = create<UIState>((set) => ({
       /* ignore */
     }
   },
+  toggleMuted: () =>
+    set((s) => {
+      const muted = !s.muted;
+      try {
+        localStorage.setItem(MUTED_KEY, muted ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return { muted };
+    }),
 }));

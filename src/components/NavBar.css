@@ -8,6 +8,10 @@
   gap: var(--spacing-lg);
 }
 
+.navbar-mobile {
+  display: none;
+}
+
 .navbar-left {
   display: flex;
   align-items: center;
@@ -95,7 +99,8 @@
 }
 
 .star-icon {
-  font-size: 1.3rem;
+  color: var(--star);
+  flex-shrink: 0;
 }
 
 .star-value {
@@ -140,10 +145,10 @@
 }
 
 .btn-settings {
-  font-size: 1.3rem;
+  color: var(--primary);
   padding: var(--spacing-sm);
   border-radius: var(--radius-md);
-  transition: background 0.2s;
+  transition: background 0.2s, transform 0.15s;
   cursor: pointer;
   min-width: 44px;
   min-height: 44px;
@@ -152,6 +157,10 @@
   position: relative;
   z-index: 5;
   pointer-events: auto;
+}
+
+.btn-settings:active {
+  transform: scale(0.92);
 }
 
 .btn-settings:hover {
@@ -179,5 +188,40 @@
   .stars-counter {
     padding: var(--spacing-xs) var(--spacing-sm);
     font-size: 0.9rem;
+  }
+
+  .navbar-mobile {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    z-index: 20;
+    display: flex;
+    justify-content: space-between;
+    gap: 4px;
+    padding: 6px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 24px rgba(45, 27, 78, 0.24);
+    backdrop-filter: blur(6px);
+  }
+
+  .nav-tab.mobile {
+    flex: 1 1 0;
+    padding: 4px 2px;
+    border-radius: 10px;
+    gap: 3px;
+  }
+
+  .nav-tab.mobile .nav-tab-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+  }
+
+  .nav-tab.mobile .nav-tab-label {
+    font-size: 0.62rem;
+    letter-spacing: 0;
   }
 }

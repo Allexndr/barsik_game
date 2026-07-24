@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { useUIStore } from '@/store/useUIStore';
 import { NavBar } from '@/components/NavBar';
@@ -9,7 +8,6 @@ import { ShopScreen } from '@/components/screens/ShopScreen';
 import { LeaderboardScreen } from '@/components/screens/LeaderboardScreen';
 import { QRChestScreen } from '@/components/screens/QRChestScreen';
 import { EpisodeScreen } from '@/components/screens/EpisodeScreen';
-import { BottomActionBar } from '@/components/BottomActionBar';
 import { SidebarTips } from '@/components/widgets/SidebarTips';
 import { RewardsBar } from '@/components/widgets/RewardsBar';
 import { SoftGateModal } from '@/components/SoftGateModal';
@@ -20,7 +18,6 @@ export function GamePage() {
   const player = useGameStore((s) => s.player);
   const activeTab = useUIStore((s) => s.activeTab);
   const showEpisode = useUIStore((s) => s.showEpisode);
-  const [difficulty, setDifficulty] = useState<'easy' | 'brave' | 'super'>('brave');
 
   if (!player) {
     return <div>Loading...</div>;
@@ -56,8 +53,6 @@ export function GamePage() {
           <RewardsBar />
         </aside>
       </div>
-
-      <BottomActionBar difficulty={difficulty} setDifficulty={setDifficulty} />
     </div>
   );
 }

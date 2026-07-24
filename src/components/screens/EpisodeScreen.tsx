@@ -2,7 +2,20 @@ import { useEffect, useState } from 'react';
 import { useUIStore } from '@/store/useUIStore';
 import { useGameStore } from '@/store/useGameStore';
 import { getLevelConfig } from '@/utils/levels';
+import { PlushButton } from '@/components/ui/PlushButton';
+import { Chip } from '@/components/ui/Chip';
+import { ConfettiBurst } from '@/components/ui/ConfettiBurst';
+import { IconChevronLeft, IconFriends, IconPaw, IconStar } from '@/components/ui/icons';
 import './EpisodeScreen.css';
+
+const INTERACTIVITY_LABEL: Record<string, { ru: string }> = {
+  explore: { ru: 'Исследуй мир' },
+  find: { ru: 'Найди предметы' },
+  help: { ru: 'Помоги персонажу' },
+  choice: { ru: 'Выбери решение' },
+  timing: { ru: 'Рассчитай время' },
+  decor: { ru: 'Играй' },
+};
 
 export function EpisodeScreen() {
   const episodeId = useUIStore((s) => s.episodeId);
@@ -59,7 +72,8 @@ export function EpisodeScreen() {
     <div className="screen screen-episode">
       <div className="episode-header">
         <button className="btn-close-episode" onClick={endEpisode}>
-          ← Вернуться на карту
+          <IconChevronLeft size={16} />
+          Вернуться на карту
         </button>
         <div className="episode-title">
           <h2>Эпизод #{episodeId + 1}: {levelConfig.title}</h2>
@@ -73,7 +87,9 @@ export function EpisodeScreen() {
 
           <div className="scene-content">
             <div className="dialogue-box">
-              <div className="dialogue-character">🐯 Барсик</div>
+              <div className="dialogue-character">
+                <IconPaw size={16} /> Барсик
+              </div>
               <p className="dialogue-text">
                 {player?.lang === 'kk' ? levelConfig.narrative.kk : levelConfig.narrative.ru}
               </p>
@@ -81,22 +97,7 @@ export function EpisodeScreen() {
 
             <div className="episode-interactivity">
               <div className={`interactivity-type interactivity-${levelConfig.interactivity}`}>
-                {(() => {
-                  switch (levelConfig.interactivity) {
-                    case 'explore':
-                      return '🔍 Исследуй мир';
-                    case 'find':
-                      return '🔎 Найди предметы';
-                    case 'help':
-                      return '👋 Помоги персонажу';
-                    case 'choice':
-                      return '🤔 Выбери решение';
-                    case 'timing':
-                      return '⚡ Рассчитай время';
-                    default:
-                      return '▶️ Играй';
-                  }
-                })()}
+                {INTERACTIVITY_LABEL[levelConfig.interactivity]?.ru ?? 'Играй'}
               </div>
             </div>
           </div>
@@ -119,34 +120,33 @@ export function EpisodeScreen() {
       <div className="episode-footer">
         {!isPlaying ? (
           <>
-            <div className="reward-announcement">
-              <h3>🎉 Уровень завершён!</h3>
+            <div className="reward-announcement reward-pop">
+              <ConfettiBurst active />
+              <h3>Уровень завершён!</h3>
               <div className="reward-items">
-                <div className="reward-item">
-                  <span className="reward-icon">⭐</span>
-                  <span className="reward-value">{levelConfig.reward.stars} звёзд</span>
-                </div>
+                <Chip icon={<IconStar size={16} />} tone="star" className="reward-item">
+                  {levelConfig.reward.stars} звёзд
+                </Chip>
                 {levelConfig.reward.friend && (
-                  <div className="reward-item">
-                    <span className="reward-icon">🐾</span>
-                    <span className="reward-value">Новый друг!</span>
-                  </div>
+                  <Chip icon={<IconFriends size={16} />} tone="success" className="reward-item">
+                    Новый друг!
+                  </Chip>
                 )}
               </div>
             </div>
 
-            <button className="btn-continue" onClick={handleCompleteLevel}>
-              ✓ Продолжить →
-            </button>
+            <PlushButton variant="primary" size="lg" className="btn-continue" onClick={handleCompleteLevel}>
+              Продолжить
+            </PlushButton>
           </>
         ) : (
           <div className="episode-controls">
-            <button className="btn-continue" onClick={handleFinishNow}>
-              ✓ Готово!
-            </button>
-            <button className="btn-skip" onClick={endEpisode}>
-              ← На карту
-            </button>
+            <PlushButton variant="primary" size="lg" className="btn-continue" onClick={handleFinishNow}>
+              Готово!
+            </PlushButton>
+            <PlushButton variant="ghost" onClick={endEpisode}>
+              <IconChevronLeft size={16} /> На карту
+            </PlushButton>
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { useUIStore } from '@/store/useUIStore';
 import { t } from '@/i18n';
 import { SettingsModal } from '@/components/SettingsModal';
+import { IconStar, IconGear } from '@/components/ui/icons';
 import './NavBar.css';
 
 export function NavBar() {
@@ -21,6 +22,7 @@ export function NavBar() {
     { id: 'leaderboard', label: t(lang, 'nav.leaderboard'), icon: 'nav_leaderboard' },
     { id: 'qr', label: t(lang, 'nav.qr'), icon: 'nav_qr' },
   ] as const;
+  const mobileTabs = tabs.filter((t) => t.id !== 'shop');
 
   return (
     <>
@@ -50,7 +52,7 @@ export function NavBar() {
 
         <div className="navbar-right">
           <div className="stars-counter">
-            <span className="star-icon">⭐</span>
+            <IconStar className="star-icon" size={20} />
             <span className="star-value">{stars}</span>
           </div>
 
@@ -70,9 +72,27 @@ export function NavBar() {
             aria-label={t(lang, 'welcome.settings')}
             onClick={() => setSettingsOpen(true)}
           >
-            ⚙️
+            <IconGear size={22} />
           </button>
         </div>
+      </nav>
+      <nav className="navbar-mobile" aria-label="Mobile navigation">
+        {mobileTabs.map((tab) => (
+          <button
+            key={`mobile-${tab.id}`}
+            className={`nav-tab mobile ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <img
+              className="nav-tab-icon"
+              src={`/assets/ui/${tab.icon}.png`}
+              alt=""
+              aria-hidden
+              draggable={false}
+            />
+            <span className="nav-tab-label">{tab.label}</span>
+          </button>
+        ))}
       </nav>
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />

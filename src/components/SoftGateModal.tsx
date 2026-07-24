@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { useUIStore } from '@/store/useUIStore';
 import { t } from '@/i18n';
+import { PlushButton } from '@/components/ui/PlushButton';
+import { IconMail, IconPhone } from '@/components/ui/icons';
+import { formatPhoneDisplay, isPhoneComplete, phoneDigits } from '@/utils/phone';
 import './SoftGateModal.css';
 
 export function SoftGateModal() {
@@ -11,7 +14,7 @@ export function SoftGateModal() {
   const patchPlayer = useGameStore((s) => s.patchPlayer);
   const player = useGameStore((s) => s.player);
 
-  const [phone, setPhone] = useState(player?.phone || '');
+  const [phone, setPhone] = useState(() => formatPhoneDisplay(player?.phone || ''));
   const [email, setEmail] = useState(player?.email || '');
   const [err, setErr] = useState('');
 
@@ -51,20 +54,26 @@ export function SoftGateModal() {
       return;
     }
 
-    const digits = phone.replace(/\D/g, '');
-    if (digits.length < 10) {
+    if (!isPhoneComplete(phone)) {
       setErr(t(lang, 'gate.phone.err'));
       return;
     }
+    const pretty = formatPhoneDisplay(phone);
     patchPlayer({
-      phone: phone.trim(),
+      phone: pretty,
       phoneAskedAt: new Date().toISOString(),
       profileStage: 'phone',
     });
     try {
       localStorage.setItem(
         'barsik_cloud_pending',
-        JSON.stringify({ id: player.id, nick: player.nick, phone: phone.trim(), at: Date.now() }),
+        JSON.stringify({
+          id: player.id,
+          nick: player.nick,
+          phone: pretty,
+          phoneE164: `+${phoneDigits(phone)}`,
+          at: Date.now(),
+        }),
       );
     } catch {
       /* ignore */
@@ -80,7 +89,7 @@ export function SoftGateModal() {
       onClick={skip}
     >
       <div className="soft-gate-card animate-slide-up" onClick={(e) => e.stopPropagation()}>
-        <div className="soft-gate-emoji">{isEmail ? '✉️' : '💾'}</div>
+        <div className="soft-gate-icon">{isEmail ? <IconMail size={30} /> : <IconPhone size={30} />}</div>
         <h2>{title}</h2>
         <p className="soft-gate-body">{body}</p>
 
@@ -98,21 +107,26 @@ export function SoftGateModal() {
         ) : (
           <input
             type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             className="soft-gate-input"
-            placeholder="+7 …"
+            placeholder="+7 777 777 77 77"
             value={phone}
             onChange={(e) => {
-              setPhone(e.target.value);
+              setPhone(formatPhoneDisplay(e.target.value));
               setErr('');
+            }}
+            onFocus={() => {
+              if (!phone) setPhone('+7 ');
             }}
           />
         )}
 
         {err && <p className="soft-gate-err">{err}</p>}
 
-        <button type="button" className="soft-gate-save" onClick={save}>
+        <PlushButton variant="secondary" className="soft-gate-save" onClick={save}>
           {t(lang, 'gate.save')}
-        </button>
+        </PlushButton>
         <button type="button" className="soft-gate-skip" onClick={skip}>
           {t(lang, 'gate.later')}
         </button>

@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { CityScene, getCityStageLabel } from '@/three/scenes/CityScene';
+import { Chip } from '@/components/ui/Chip';
+import { IconPaw } from '@/components/ui/icons';
 import './CityScreen.css';
 
 export function CityScreen() {
@@ -61,9 +63,9 @@ export function CityScreen() {
       {friends.length > 0 && (
         <div className="city-friends-strip">
           {friends.map((f) => (
-            <div key={f.id} className="city-friend-chip">
-              🐾 {f.name}
-            </div>
+            <Chip key={f.id} icon={<IconPaw size={14} />} tone="neutral" className="city-friend-chip">
+              {f.name}
+            </Chip>
           ))}
         </div>
       )}
