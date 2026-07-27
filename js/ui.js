@@ -3,6 +3,17 @@ let S = null;
 let curDiff = 'easy';
 let curWorld = null;
 
+// Any string that can come from a player (own nickname, cloud leaderboard rows,
+// referral links) must go through this before being put into innerHTML.
+function esc(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function toast(msg, type = '') {
   const t = document.getElementById('toast');
   const el = document.createElement('div');
@@ -306,7 +317,7 @@ function renderRating(s) {
     data.forEach((d, i) => {
       const r = document.createElement('div');
       r.className = 'rate-row' + (d.me ? ' me' : '');
-      r.innerHTML = `<div class="rate-pos">${medals[i] || (i + 1)}</div><div class="rate-av"><svg class="pill-ico"><use href="#ic-paw"/></svg></div><div><div class="rate-name">${d.n}</div><div class="rate-score"><svg class="pill-ico gold"><use href="#ic-star"/></svg> ${d.s}</div></div>`;
+      r.innerHTML = `<div class="rate-pos">${medals[i] || (i + 1)}</div><div class="rate-av"><svg class="pill-ico"><use href="#ic-paw"/></svg></div><div><div class="rate-name">${esc(d.n)}</div><div class="rate-score"><svg class="pill-ico gold"><use href="#ic-star"/></svg> ${esc(d.s)}</div></div>`;
       r.style.animationDelay = (i * 0.06) + 's';
       list.appendChild(r);
     });
@@ -421,7 +432,7 @@ function renderProfile(s) {
   c.innerHTML = `
     <div class="profile-hero">
       <div class="profile-avatar"><img src="${costume.icon}" alt=""></div>
-      <div class="profile-info"><div class="profile-name">${s.name}</div><div class="profile-sub">Костюм: ${costume.name}</div></div>
+      <div class="profile-info"><div class="profile-name">${esc(s.name)}</div><div class="profile-sub">Костюм: ${costume.name}</div></div>
     </div>
     <div class="profile-stats stagger">
       <div class="ps-card"><div class="ps-val">${s.stars}</div><div class="ps-lbl">⭐ Звёзд</div></div>

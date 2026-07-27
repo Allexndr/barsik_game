@@ -1,5 +1,16 @@
 // ===== Storage =====
 const KEY = 'barsik_v2';
+const MAX_NAME_LEN = 24;
+
+// Nicknames are shown to other players through the cloud leaderboard, so keep
+// them short and free of markup / control characters.
+function sanitizeName(raw) {
+  return String(raw || '')
+    .replace(/[<>&"'`]/g, '')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .trim()
+    .slice(0, MAX_NAME_LEN);
+}
 
 function defaultState() {
   return {
