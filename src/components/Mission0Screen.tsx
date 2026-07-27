@@ -7,6 +7,7 @@ import { StepDots } from '@/components/ui/ProgressBar';
 import { PlushButton } from '@/components/ui/PlushButton';
 import { ConfettiBurst } from '@/components/ui/ConfettiBurst';
 import { IconFruit, IconStar, IconPaw } from '@/components/ui/icons';
+import { STORAGE_KEYS, setFlag } from '@/utils/storage';
 import './Mission0Screen.css';
 
 /** Level 1 is the first of 5 story chapters shown as journey dots on the outro card. */
@@ -41,11 +42,7 @@ export function Mission0Screen() {
   const completeLevel = useGameStore((s) => s.completeLevel);
 
   const finishToMap = () => {
-    try {
-      localStorage.setItem('barsik_mission0_done', '1');
-    } catch {
-      /* ignore */
-    }
+    setFlag(STORAGE_KEYS.mission0Done, true);
     addStars(Math.max(3, hud.stars || 3));
     addFriend({
       id: 'gardener_l1',
@@ -239,11 +236,7 @@ export function Mission0Screen() {
           type="button"
           className="m0-skip"
           onClick={() => {
-            try {
-              localStorage.setItem('barsik_mission0_done', '1');
-            } catch {
-              /* ignore */
-            }
+            setFlag(STORAGE_KEYS.mission0Done, true);
             setScreen('game');
           }}
         >

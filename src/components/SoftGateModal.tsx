@@ -5,6 +5,7 @@ import { t } from '@/i18n';
 import { PlushButton } from '@/components/ui/PlushButton';
 import { IconMail, IconPhone } from '@/components/ui/icons';
 import { formatPhoneDisplay, isPhoneComplete, phoneDigits } from '@/utils/phone';
+import { STORAGE_KEYS, writeJson } from '@/utils/storage';
 import './SoftGateModal.css';
 
 export function SoftGateModal() {
@@ -64,20 +65,13 @@ export function SoftGateModal() {
       phoneAskedAt: new Date().toISOString(),
       profileStage: 'phone',
     });
-    try {
-      localStorage.setItem(
-        'barsik_cloud_pending',
-        JSON.stringify({
-          id: player.id,
-          nick: player.nick,
-          phone: pretty,
-          phoneE164: `+${phoneDigits(phone)}`,
-          at: Date.now(),
-        }),
-      );
-    } catch {
-      /* ignore */
-    }
+    writeJson(STORAGE_KEYS.cloudPending, {
+      id: player.id,
+      nick: player.nick,
+      phone: pretty,
+      phoneE164: `+${phoneDigits(phone)}`,
+      at: Date.now(),
+    });
     closeSoftGate();
   };
 

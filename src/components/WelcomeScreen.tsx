@@ -4,6 +4,7 @@ import { t as translate, type Lang } from '@/i18n';
 import { useState } from 'react';
 import { SettingsModal } from '@/components/SettingsModal';
 import { ResponsivePicture } from '@/components/ui/ResponsivePicture';
+import { STORAGE_KEYS, isFlagSet } from '@/utils/storage';
 import './WelcomeScreen.css';
 
 /** Стартовый экран: фон cover + UI кодом (адаптив под любой экран). */
@@ -96,7 +97,7 @@ export function WelcomeScreen() {
             title={player ? (lang === 'kk' ? 'Жалғастыру' : 'Продолжить') : translate(lang, 'welcome.profile')}
             onClick={() => {
               if (player) {
-                setScreen(localStorage.getItem('barsik_mission0_done') === '1' ? 'game' : 'mission0');
+                setScreen(isFlagSet(STORAGE_KEYS.mission0Done) ? 'game' : 'mission0');
               } else {
                 setScreen('quick');
               }

@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { friendDisplayName } from '@/utils/friends';
+import { STORAGE_KEYS, removeKey, writeJson } from '@/utils/storage';
 import type { Player, Friend } from '@/types';
 
 export type { Player, Friend };
@@ -21,11 +23,7 @@ export interface GameState {
 }
 
 function savePlayer(player: Player) {
-  try {
-    localStorage.setItem('barsik_player', JSON.stringify(player));
-  } catch {
-    /* ignore */
-  }
+  writeJson(STORAGE_KEYS.player, player);
 }
 
 export const useGameStore = create<GameState>((set) => ({
@@ -50,11 +48,7 @@ export const useGameStore = create<GameState>((set) => ({
     }),
 
   clearSession: () => {
-    try {
-      localStorage.removeItem('barsik_player');
-    } catch {
-      /* ignore */
-    }
+    removeKey(STORAGE_KEYS.player);
     set({
       player: null,
       // прогресс уровней оставляем на устройстве — можно продолжить после нового входа
@@ -123,27 +117,11 @@ export const useGameStore = create<GameState>((set) => ({
     }),
 }));
 
-function friendDisplayName(id: string): string {
-  const map: Record<string, string> = {
-    putalo: 'Путало',
-    gardener: 'Садовник',
-    ice_sculptor: 'Мастер льда',
-    snowman: 'Снеговик',
-    ice_friend: 'Ледяной друг',
-    rare_friend_1: 'Ягодка',
-  };
-  return map[id] ?? id;
-}
-
 function persistProgress(data: {
   friends: Friend[];
   unlockedLevels: number[];
   currentLevel: number;
   stars: number;
 }) {
-  try {
-    localStorage.setItem('barsik_progress', JSON.stringify(data));
-  } catch {
-    /* ignore */
-  }
+  writeJson(STORAGE_KEYS.progress, data);
 }

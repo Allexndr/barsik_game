@@ -1,27 +1,20 @@
+import { STORAGE_KEYS, readString, writeString } from '@/utils/storage';
+
 export type Lang = 'ru' | 'kk';
 
-export const LANG_KEY = 'barsik_lang';
+export const LANG_KEY = STORAGE_KEYS.lang;
 
 export function isLang(v: unknown): v is Lang {
   return v === 'ru' || v === 'kk';
 }
 
 export function readStoredLang(): Lang {
-  try {
-    const v = localStorage.getItem(LANG_KEY);
-    if (isLang(v)) return v;
-  } catch {
-    /* ignore */
-  }
-  return 'ru';
+  const v = readString(LANG_KEY);
+  return isLang(v) ? v : 'ru';
 }
 
 export function writeStoredLang(lang: Lang): void {
-  try {
-    localStorage.setItem(LANG_KEY, lang);
-  } catch {
-    /* ignore */
-  }
+  writeString(LANG_KEY, lang);
 }
 
 type Dict = Record<string, string>;

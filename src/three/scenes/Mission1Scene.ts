@@ -1,5 +1,36 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { CC0, CHARS, fitHeight, groundY, loadGlb } from '@/three/shared/assets';
+import { bobCollectibles, disposeSceneResources, hideCollectible, makeFruit } from '@/three/shared/collectibles';
+import { type Collider, resolveCollisions } from '@/three/shared/collision';
+import {
+  addDaylight,
+  addDriftingClouds,
+  createAdventureRenderer,
+  driftClouds,
+  grassGround,
+  hill,
+  mountain,
+  resizeToParent,
+  skyDome,
+} from '@/three/shared/environment';
+import { createGuideArrow, dollyCamera, followHero, updateGuideArrow } from '@/three/shared/guide';
+import { PlayerInput } from '@/three/shared/input';
+import {
+  animateQuestMarker,
+  bobPathArrows,
+  bridge,
+  bush,
+  butterfly,
+  flutterButterflies,
+  pathArrow,
+  questMarker,
+  spawnPad,
+  streamSegment,
+  tulip,
+  zoneDisc,
+} from '@/three/shared/props';
+import { spawnSparks, updateSparks } from '@/three/shared/sparks';
 
 /**
  * Level 2 «Первый друг» — Arc 1 canon (docs/BARSIK_ARC1_OUTLINE.md, BARSIK_GDD_v2.md):
@@ -34,410 +65,9 @@ export interface L2Hud {
   outro: boolean;
 }
 
-const CC0 = '/assets/models/cc0/';
-const CHARS = '/assets/models/chars/';
-const PLAYER_RADIUS = 0.45;
 
-type AabbCollider = { kind: 'aabb'; x: number; z: number; halfW: number; halfD: number };
-type CircleCollider = { kind: 'circle'; x: number; z: number; r: number };
-type Collider = AabbCollider | CircleCollider;
+const SKY_STOPS: [string, string, string] = ['#66c8f5', '#94d8ef', '#e8faf3'];
 
-function pushAabb(nx: number, nz: number, c: AabbCollider) {
-  const dx = Math.abs(nx - c.x);
-  const dz = Math.abs(nz - c.z);
-  if (dx < c.halfW + PLAYER_RADIUS && dz < c.halfD + PLAYER_RADIUS) {
-    const pushX = c.halfW + PLAYER_RADIUS - dx;
-    const pushZ = c.halfD + PLAYER_RADIUS - dz;
-    if (pushX < pushZ) {
-      nx = nx < c.x ? c.x - c.halfW - PLAYER_RADIUS : c.x + c.halfW + PLAYER_RADIUS;
-    } else {
-      nz = nz < c.z ? c.z - c.halfD - PLAYER_RADIUS : c.z + c.halfD + PLAYER_RADIUS;
-    }
-  }
-  return { x: nx, z: nz };
-}
-
-function pushCircle(nx: number, nz: number, c: CircleCollider) {
-  const dx = nx - c.x;
-  const dz = nz - c.z;
-  const dist = Math.hypot(dx, dz);
-  const minDist = c.r + PLAYER_RADIUS;
-  if (dist >= minDist) return { x: nx, z: nz };
-  if (dist < 0.001) return { x: nx + minDist, z: nz };
-  const scale = minDist / dist;
-  return { x: c.x + dx * scale, z: c.z + dz * scale };
-}
-
-function resolveCollisions(nx: number, nz: number, colliders: Collider[]) {
-  for (const c of colliders) {
-    const p = c.kind === 'aabb' ? pushAabb(nx, nz, c) : pushCircle(nx, nz, c);
-    nx = p.x;
-    nz = p.z;
-  }
-  return { x: nx, z: nz };
-}
-
-const sharedFruitGeometry = new THREE.SphereGeometry(0.38, 16, 16);
-const sharedRingGeometry = new THREE.RingGeometry(0.5, 0.78, 28);
-const sharedRingMaterial = new THREE.MeshBasicMaterial({
-  color: 0xffeaa7,
-  transparent: true,
-  opacity: 0.85,
-  side: THREE.DoubleSide,
-  depthWrite: false,
-});
-const sharedBeamGeometry = new THREE.CylinderGeometry(0.06, 0.14, 2.4, 8);
-const sharedBeamMaterial = new THREE.MeshStandardMaterial({
-  color: 0xffeaa7,
-  emissive: 0xfdcb6e,
-  emissiveIntensity: 0.9,
-  transparent: true,
-  opacity: 0.55,
-  depthWrite: false,
-});
-
-function fitHeight(root: THREE.Object3D, h: number) {
-  const box = new THREE.Box3().setFromObject(root);
-  const size = box.getSize(new THREE.Vector3());
-  root.scale.multiplyScalar(h / Math.max(size.y, 0.001));
-  const b2 = new THREE.Box3().setFromObject(root);
-  root.position.y -= b2.min.y;
-}
-
-function groundY(o: THREE.Object3D) {
-  const b = new THREE.Box3().setFromObject(o);
-  o.position.y -= b.min.y;
-}
-
-async function loadGlb(loader: GLTFLoader, url: string) {
-  try {
-    const g = await Promise.race([
-      loader.loadAsync(url),
-      new Promise<never>((_, r) => setTimeout(() => r(new Error('t')), 12000)),
-    ]);
-    g.scene.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (m.isMesh) {
-        m.castShadow = true;
-        m.receiveShadow = true;
-      }
-    });
-    return g;
-  } catch {
-    return null;
-  }
-}
-
-function mountain(x: number, z: number, h: number, w: number) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0x8a96a8, flatShading: true, roughness: 0.95 });
-  const rock = new THREE.Mesh(new THREE.ConeGeometry(w, h, 6), mat);
-  rock.position.y = h / 2;
-  const snow = new THREE.Mesh(
-    new THREE.ConeGeometry(w * 0.45, h * 0.28, 6),
-    new THREE.MeshStandardMaterial({ color: 0xf7f9fc, flatShading: true }),
-  );
-  snow.position.y = h * 0.78;
-  g.add(rock, snow);
-  g.position.set(x, 0, z);
-  return g;
-}
-
-function zoneDisc(x: number, z: number, r: number, color: number, y = 0.02) {
-  const m = new THREE.Mesh(
-    new THREE.CircleGeometry(r, 48),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.92, transparent: true, opacity: 0.92 }),
-  );
-  m.rotation.x = -Math.PI / 2;
-  m.position.set(x, y, z);
-  m.receiveShadow = false;
-  m.castShadow = false;
-  return m;
-}
-
-function pathArrow(x: number, z: number, rotY: number) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0xffe066,
-    emissive: 0xf1c40f,
-    emissiveIntensity: 0.85,
-    roughness: 0.4,
-  });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.08, 1.0), mat);
-  body.position.y = 0.12;
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.48, 0.65, 3), mat);
-  tip.rotation.x = Math.PI / 2;
-  tip.position.set(0, 0.12, -0.7);
-  body.castShadow = false;
-  body.receiveShadow = false;
-  tip.castShadow = false;
-  tip.receiveShadow = false;
-  const glow = new THREE.Mesh(
-    new THREE.RingGeometry(0.6, 0.85, 18),
-    new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }),
-  );
-  glow.rotation.x = -Math.PI / 2;
-  glow.position.y = 0.02;
-  glow.castShadow = false;
-  glow.receiveShadow = false;
-  g.add(body, tip, glow);
-  g.position.set(x, 0, z);
-  g.rotation.y = rotY;
-  g.userData.bob = Math.random() * Math.PI * 2;
-  return g;
-}
-
-function spawnPad(x: number, z: number) {
-  const g = new THREE.Group();
-  const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.9, 1.25, 40),
-    new THREE.MeshStandardMaterial({ color: 0xa29bfe, emissive: 0x6c5ce7, emissiveIntensity: 0.85, side: THREE.DoubleSide }),
-  );
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.y = 0.04;
-  const disc = new THREE.Mesh(
-    new THREE.CircleGeometry(0.85, 32),
-    new THREE.MeshStandardMaterial({ color: 0xdfe6e9, emissive: 0x74b9ff, emissiveIntensity: 0.25 }),
-  );
-  disc.rotation.x = -Math.PI / 2;
-  disc.position.y = 0.03;
-  disc.castShadow = false;
-  disc.receiveShadow = false;
-  ring.castShadow = false;
-  ring.receiveShadow = false;
-  g.add(disc, ring);
-  g.position.set(x, 0, z);
-  return g;
-}
-
-/** Roblox-style yellow quest beam + “!” above NPC/object. */
-function questMarker(color = 0xffeaa7, emissive = 0xfdcb6e) {
-  const g = new THREE.Group();
-  const beam = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.12, 0.18, 3.2, 10),
-    new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: 1.1, transparent: true, opacity: 0.75 }),
-  );
-  beam.position.y = 2.4;
-  const bang = new THREE.Mesh(
-    new THREE.SphereGeometry(0.28, 10, 10),
-    new THREE.MeshStandardMaterial({ color: 0xffe066, emissive: 0xf1c40f, emissiveIntensity: 0.9 }),
-  );
-  bang.position.y = 4.2;
-  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshStandardMaterial({ color: 0x2d3436 }));
-  dot.position.y = 4.05;
-  beam.castShadow = false;
-  beam.receiveShadow = false;
-  bang.castShadow = false;
-  bang.receiveShadow = false;
-  dot.castShadow = false;
-  dot.receiveShadow = false;
-  g.add(beam, bang, dot);
-  g.userData.beam = beam;
-  g.userData.bang = bang;
-  return g;
-}
-
-function makeFruit(pos: THREE.Vector3, kind: string, color = 0xff4757) {
-  const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.45, roughness: 0.28 });
-  const mesh = new THREE.Mesh(sharedFruitGeometry, mat);
-  mesh.position.copy(pos);
-  mesh.castShadow = false;
-  mesh.receiveShadow = false;
-  mesh.userData.kind = kind;
-  mesh.userData.alive = true;
-
-  const ring = new THREE.Mesh(sharedRingGeometry, sharedRingMaterial);
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.set(pos.x, 0.05, pos.z);
-  ring.castShadow = false;
-  ring.receiveShadow = false;
-
-  const beam = new THREE.Mesh(sharedBeamGeometry, sharedBeamMaterial);
-  beam.position.set(pos.x, 1.4, pos.z);
-  beam.castShadow = false;
-  beam.receiveShadow = false;
-
-  mesh.userData.ring = ring;
-  mesh.userData.beam = beam;
-  return mesh;
-}
-
-function butterfly(x: number, z: number, color: number) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.35, side: THREE.DoubleSide });
-  const w1 = new THREE.Mesh(new THREE.CircleGeometry(0.18, 8), mat);
-  const w2 = w1.clone();
-  w1.position.x = -0.12;
-  w2.position.x = 0.12;
-  w1.castShadow = false;
-  w1.receiveShadow = false;
-  w2.castShadow = false;
-  w2.receiveShadow = false;
-  g.add(w1, w2);
-  g.position.set(x, 1.2 + Math.random(), z);
-  g.userData.phase = Math.random() * Math.PI * 2;
-  g.userData.ox = x;
-  g.userData.oz = z;
-  return g;
-}
-
-function bush(x: number, z: number, scale = 1) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
-  for (let i = 0; i < 4; i++) {
-    const s = new THREE.Mesh(new THREE.SphereGeometry((0.45 + Math.random() * 0.25) * scale, 8, 8), mat);
-    s.position.set((Math.random() - 0.5) * 0.55 * scale, 0.35 * scale, (Math.random() - 0.5) * 0.55 * scale);
-    s.castShadow = false;
-    s.receiveShadow = false;
-    g.add(s);
-  }
-  g.position.set(x, 0, z);
-  return g;
-}
-
-function tulip(x: number, z: number, color: number) {
-  const g = new THREE.Group();
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.55, 5), new THREE.MeshStandardMaterial({ color: 0x27ae60 }));
-  stem.position.y = 0.28;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), new THREE.MeshStandardMaterial({ color }));
-  head.position.y = 0.58;
-  head.scale.set(1, 1.35, 1);
-  stem.castShadow = false;
-  stem.receiveShadow = false;
-  head.castShadow = false;
-  head.receiveShadow = false;
-  g.add(stem, head);
-  g.position.set(x, 0, z);
-  return g;
-}
-
-function makeGrassTexture() {
-  const size = 512;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#4caf50';
-  ctx.fillRect(0, 0, size, size);
-  for (let i = 0; i < 6000; i++) {
-    ctx.fillStyle = Math.random() > 0.5 ? '#43a047' : '#66bb6a';
-    const x = Math.random() * size;
-    const y = Math.random() * size;
-    const h = 2 + Math.random() * 3;
-    ctx.fillRect(x, y, 1, h);
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(100, 100);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
-  return tex;
-}
-
-function makeSkyTexture() {
-  const w = 512;
-  const h = 512;
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d')!;
-  const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, '#66c8f5');
-  grad.addColorStop(0.55, '#94d8ef');
-  grad.addColorStop(1, '#e8faf3');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, w, h);
-  for (let i = 0; i < 8; i++) {
-    const cx = Math.random() * w;
-    const cy = (0.1 + Math.random() * 0.45) * h;
-    const rx = 30 + Math.random() * 50;
-    const ry = 12 + Math.random() * 20;
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function skyDome() {
-  const geo = new THREE.SphereGeometry(180, 32, 24);
-  const mat = new THREE.MeshBasicMaterial({ map: makeSkyTexture(), side: THREE.BackSide, fog: false });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.y = 40;
-  return mesh;
-}
-
-function cloud() {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.82, depthWrite: false });
-  for (let i = 0; i < 5; i++) {
-    const s = new THREE.Mesh(new THREE.SphereGeometry(1 + Math.random() * 1.5, 7, 7), mat);
-    s.position.set((Math.random() - 0.5) * 3.5, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 2);
-    g.add(s);
-  }
-  return g;
-}
-
-function hill(x: number, z: number, r: number, h: number) {
-  const geo = new THREE.SphereGeometry(r, 20, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x43a047, roughness: 1, flatShading: true });
-  const m = new THREE.Mesh(geo, mat);
-  m.position.set(x, 0, z);
-  m.scale.y = h / r;
-  m.receiveShadow = true;
-  m.castShadow = false;
-  return m;
-}
-
-function streamSegment(x1: number, z1: number, x2: number, z2: number, w: number) {
-  const g = new THREE.Group();
-  const len = Math.hypot(x2 - x1, z2 - z1);
-  const dx = (x2 - x1) / len;
-  const ang = Math.atan2(dx, (z2 - z1) / len);
-  const water = new THREE.Mesh(
-    new THREE.PlaneGeometry(w, len),
-    new THREE.MeshStandardMaterial({
-      color: 0x29b6f6,
-      emissive: 0x0288d1,
-      emissiveIntensity: 0.08,
-      roughness: 0.12,
-      metalness: 0.15,
-      transparent: true,
-      opacity: 0.85,
-    }),
-  );
-  water.rotation.x = -Math.PI / 2;
-  water.rotation.z = -ang;
-  water.position.set((x1 + x2) / 2, 0.02, (z1 + z2) / 2);
-  water.castShadow = false;
-  water.receiveShadow = false;
-  g.add(water);
-  return g;
-}
-
-function bridge(x: number, z: number, rotY: number) {
-  const g = new THREE.Group();
-  const wood = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 1 });
-  for (let i = -3; i <= 3; i++) {
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.08, 2.4), wood);
-    plank.position.set(i * 0.42, 0.25, 0);
-    plank.castShadow = true;
-    plank.receiveShadow = true;
-    g.add(plank);
-  }
-  const railL = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.1, 0.1), wood);
-  railL.position.set(0, 0.55, -1.15);
-  const railR = railL.clone();
-  railR.position.z = 1.15;
-  g.add(railL, railR);
-  g.position.set(x, 0, z);
-  g.rotation.y = rotY;
-  return g;
-}
 
 /** Sticky strand hint of Putalo — decorative foreshadow, not a full obstacle yet. */
 function stickyStrand(x: number, z: number, y: number, len: number, rot: number) {
@@ -486,8 +116,7 @@ export class Mission1Scene {
   private mixer: THREE.AnimationMixer | null = null;
   private walkAction: THREE.AnimationAction | null = null;
   private idleAction: THREE.AnimationAction | null = null;
-  private keys = new Set<string>();
-  private joy = { x: 0, y: 0 };
+  private input: PlayerInput;
   private phase: L2Phase = 'intro';
   private disposed = false;
   private raf = 0;
@@ -524,42 +153,15 @@ export class Mission1Scene {
   private clouds: THREE.Group[] = [];
 
   constructor(private canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer = createAdventureRenderer(canvas);
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 300);
     this.camera.position.set(-12, 8, 20);
     this.scene.background = new THREE.Color(0x8fd8f5);
     this.scene.fog = new THREE.Fog(0x8fd8f5, 70, 220);
 
-    this.scene.add(new THREE.HemisphereLight(0xfff6e0, 0x3d8b40, 1.2));
-    const sun = new THREE.DirectionalLight(0xfff8e7, 1.35);
-    sun.position.set(16, 26, 14);
-    sun.castShadow = true;
-    const isMobile = typeof window !== 'undefined' && (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
-    sun.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
-    sun.shadow.bias = -0.0005;
-    sun.shadow.radius = 2;
-    sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 80;
-    sun.shadow.camera.left = -30;
-    sun.shadow.camera.right = 30;
-    sun.shadow.camera.top = 30;
-    sun.shadow.camera.bottom = -30;
-    this.scene.add(sun);
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.25));
-
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(300, 300),
-      new THREE.MeshStandardMaterial({ map: makeGrassTexture(), color: 0xffffff, roughness: 0.98 }),
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.add(ground);
-
-    this.scene.add(skyDome());
+    addDaylight(this.scene, [16, 26, 14]);
+    this.scene.add(grassGround());
+    this.scene.add(skyDome(SKY_STOPS));
     for (const [hx, hz, hr, hh] of [
       [-26, -10, 15, 1.7],
       [28, -32, 17, 2],
@@ -568,13 +170,7 @@ export class Mission1Scene {
     ] as const) {
       this.scene.add(hill(hx, hz, hr, hh));
     }
-    for (let i = 0; i < 7; i++) {
-      const c = cloud();
-      c.position.set((Math.random() - 0.5) * 140, 26 + Math.random() * 10, -40 - Math.random() * 80);
-      c.userData.speed = 0.2 + Math.random() * 0.3;
-      this.clouds.push(c);
-      this.scene.add(c);
-    }
+    this.clouds = addDriftingClouds(this.scene);
 
     // Zone color coding
     this.scene.add(zoneDisc(0, 4, 8, 0x66bb6a, 0.025)); // trail start
@@ -616,7 +212,7 @@ export class Mission1Scene {
 
     // Creek + bridge — the only way across, funnels the player onto the plank crossing.
     this.scene.add(streamSegment(-16, -13.7, 16, -14.3, 2.0));
-    this.scene.add(bridge(0, -14, 0));
+    this.scene.add(bridge(0, -14, 0, { halfPlanks: 3, deck: 2.4, railLength: 3.2, railOffset: 1.15 }));
     this.colliders.push(
       { kind: 'aabb', x: -9, z: -14, halfW: 8, halfD: 1.3 },
       { kind: 'aabb', x: 9, z: -14, halfW: 8, halfD: 1.3 },
@@ -638,27 +234,18 @@ export class Mission1Scene {
     // Aya's hiding rock
     this.colliders.push({ kind: 'circle', x: -3, z: -29, r: 1.5 }, { kind: 'circle', x: -7, z: -40.5, r: 1.6 });
 
-    // Guide arrow
-    this.guideArrow = new THREE.Group();
-    const ga = new THREE.Mesh(
-      new THREE.ConeGeometry(0.28, 0.7, 4),
-      new THREE.MeshStandardMaterial({ color: 0x00cec9, emissive: 0x00b894, emissiveIntensity: 0.8 }),
-    );
-    ga.rotation.x = Math.PI;
-    this.guideArrow.add(ga);
-    this.guideArrow.position.y = 2.6;
-    this.guideArrow.visible = false;
+    this.guideArrow = createGuideArrow();
     this.hero.add(this.guideArrow);
 
     this.hero.position.set(0, 0, 4);
     this.scene.add(this.hero);
-    this.bindKeys();
+    this.input = new PlayerInput(() => this.tryInteract());
     this.resize();
     addEventListener('resize', this.resize);
   }
 
   setJoystick(x: number, y: number) {
-    this.joy = { x, y };
+    this.input.setJoystick(x, y);
   }
 
   tryInteract() {
@@ -709,30 +296,14 @@ export class Mission1Scene {
 
   private takeStuckFruit(mesh: THREE.Mesh) {
     if (!mesh.userData.alive) return;
-    mesh.userData.alive = false;
-    mesh.visible = false;
-    const ring = mesh.userData.ring as THREE.Object3D | undefined;
-    const beam = mesh.userData.beam as THREE.Object3D | undefined;
-    if (ring) ring.visible = false;
-    if (beam) beam.visible = false;
+    hideCollectible(mesh);
     this.bag += 1;
     this.spawnSparks(mesh.position, 14);
     this.praiseUntil = performance.now() + 900;
   }
 
   private spawnSparks(at: THREE.Vector3, count = 12) {
-    for (let i = 0; i < count; i++) {
-      const s = new THREE.Mesh(
-        new THREE.SphereGeometry(0.09, 6, 6),
-        new THREE.MeshBasicMaterial({ color: i % 2 ? 0xf1c40f : 0xe84393 }),
-      );
-      s.position.copy(at);
-      s.position.y += 0.6;
-      s.userData.v = new THREE.Vector3((Math.random() - 0.5) * 2.4, 2.2 + Math.random(), (Math.random() - 0.5) * 2.4);
-      s.userData.life = 0.8;
-      this.sparks.push(s);
-      this.scene.add(s);
-    }
+    spawnSparks(this.scene, this.sparks, at, count, 0xe84393);
   }
 
   private objectiveWorldPos(): THREE.Vector3 | null {
@@ -981,44 +552,9 @@ export class Mission1Scene {
     });
   }
 
-  private bindKeys() {
-    const down = (e: KeyboardEvent) => {
-      this.keys.add(e.code);
-      if (['KeyE', 'Space'].includes(e.code)) {
-        e.preventDefault();
-        this.tryInteract();
-      }
-      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
-        e.preventDefault();
-      }
-    };
-    const up = (e: KeyboardEvent) => this.keys.delete(e.code);
-    addEventListener('keydown', down);
-    addEventListener('keyup', up);
-    (this as unknown as { _kd: typeof down; _ku: typeof up })._kd = down;
-    (this as unknown as { _kd: typeof down; _ku: typeof up })._ku = up;
-  }
-
   private resize = () => {
-    const p = this.canvas.parentElement;
-    const w = p?.clientWidth || innerWidth;
-    const h = p?.clientHeight || innerHeight;
-    this.renderer.setSize(w, h, false);
-    this.camera.aspect = w / Math.max(h, 1);
-    this.camera.updateProjectionMatrix();
+    resizeToParent(this.canvas, this.renderer, this.camera);
   };
-
-  private dir() {
-    let x = this.joy.x;
-    let z = this.joy.y;
-    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) x -= 1;
-    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) x += 1;
-    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) z -= 1;
-    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) z += 1;
-    const v = new THREE.Vector2(x, z);
-    if (v.lengthSq() > 1) v.normalize();
-    return v;
-  }
 
   private nearestInteract(): THREE.Object3D | null {
     const hp = this.hero.position;
@@ -1063,7 +599,7 @@ export class Mission1Scene {
     }
 
     const canMove = !['intro', 'outro', 'give_gift'].includes(this.phase);
-    const d = this.dir();
+    const d = this.input.direction();
     const moving = canMove && d.lengthSq() > 0.01;
     if (moving) {
       const speed = this.phase.startsWith('trail') ? this.baseSpeed : this.runSpeed;
@@ -1102,72 +638,28 @@ export class Mission1Scene {
       this.pushHud();
     }
 
-    for (const f of this.fruits) {
-      if (!f.userData.alive || !f.visible) continue;
-      f.position.y = 0.5 + Math.sin(now * 0.005 + f.position.x) * 0.1;
-      const beam = f.userData.beam as THREE.Object3D | undefined;
-      if (beam) {
-        beam.position.x = f.position.x;
-        beam.position.z = f.position.z;
-        beam.position.y = 1.5 + Math.sin(now * 0.004) * 0.1;
-      }
-    }
-
-    for (const a of this.pathArrows) {
-      a.position.y = 0.08 + Math.sin(now * 0.004 + (a.userData.bob as number)) * 0.06;
-    }
-    for (const b of this.butterflies) {
-      const ph = (b.userData.phase as number) + now * 0.001;
-      b.position.x = (b.userData.ox as number) + Math.sin(ph) * 1.2;
-      b.position.z = (b.userData.oz as number) + Math.cos(ph * 0.8) * 1.2;
-      b.position.y = 1.1 + Math.sin(ph * 1.5) * 0.4;
-      b.rotation.y = ph;
-    }
+    bobCollectibles(this.fruits, now, dt, { baseY: 0.5, amplitude: 0.1, spin: 0 });
+    bobPathArrows(this.pathArrows, now);
+    flutterButterflies(this.butterflies, now);
     if (this.stickyGroup?.visible) {
       this.stickyGroup.children.forEach((c, i) => {
         c.rotation.y = Math.sin(now * 0.001 + i) * 0.08;
       });
     }
-    if (this.ayaMarker?.visible) {
-      const bang = this.ayaMarker.userData.bang as THREE.Object3D;
-      bang.position.y = 4.2 + Math.sin(now * 0.006) * 0.15;
-      bang.rotation.y += dt * 2;
-    }
-    for (const c of this.clouds) {
-      c.position.x += (c.userData.speed as number) * dt;
-      if (c.position.x > 90) c.position.x = -90;
-    }
+    if (this.ayaMarker?.visible) animateQuestMarker(this.ayaMarker, now, dt);
+    driftClouds(this.clouds, dt);
 
     const obj = this.objectiveWorldPos();
     if (this.guideArrow) {
       const show = !!obj && !['intro', 'outro', 'give_gift'].includes(this.phase) && !this.interactTarget;
-      this.guideArrow.visible = show;
-      if (show && obj) {
-        const local = obj.clone().sub(this.hero.position);
-        local.y = 0;
-        if (local.lengthSq() > 0.01) {
-          const ang = Math.atan2(local.x, local.z) - this.hero.rotation.y;
-          this.guideArrow.rotation.y = ang;
-        }
-        this.guideArrow.position.y = 2.55 + Math.sin(now * 0.006) * 0.12;
-      }
+      updateGuideArrow(this.guideArrow, this.hero, obj, show, now);
     }
 
     const prev = this.interactTarget;
     this.interactTarget = this.nearestInteract();
     if (prev !== this.interactTarget) this.pushHud();
 
-    for (let i = this.sparks.length - 1; i >= 0; i--) {
-      const s = this.sparks[i];
-      const v = s.userData.v as THREE.Vector3;
-      s.position.addScaledVector(v, dt);
-      v.y -= 7 * dt;
-      s.userData.life -= dt;
-      if (s.userData.life <= 0) {
-        this.scene.remove(s);
-        this.sparks.splice(i, 1);
-      }
-    }
+    updateSparks(this.scene, this.sparks, dt);
 
     this.mixer?.update(dt);
 
@@ -1175,15 +667,10 @@ export class Mission1Scene {
       const idx = Math.min(this.introI, 2);
       const introPos = [new THREE.Vector3(-12, 8, 20), new THREE.Vector3(-5, 6, 12), new THREE.Vector3(-1, 5.5, 8)];
       const introLook = [new THREE.Vector3(-3, 1.8, 6), new THREE.Vector3(-1, 1.5, 4), new THREE.Vector3(0, 1.2, 3)];
-      const target = introPos[idx];
-      this.camera.position.lerp(target, 1 - Math.pow(0.02, dt));
-      this.camera.lookAt(introLook[idx]);
+      dollyCamera(this.camera, introPos[idx], introLook[idx], dt);
     } else {
       const back = this.phase === 'give_gift' || this.phase === 'invite_aya' || this.phase === 'outro' ? 8.5 : 9.5;
-      const height = 6.0;
-      const target = new THREE.Vector3(this.hero.position.x * 0.55, height, this.hero.position.z + back);
-      this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
-      this.camera.lookAt(this.hero.position.x, 1.35, this.hero.position.z - 0.8);
+      followHero(this.camera, this.hero, dt, back, 6.0);
     }
 
     this.renderer.render(this.scene, this.camera);
@@ -1193,30 +680,8 @@ export class Mission1Scene {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     removeEventListener('resize', this.resize);
-    const self = this as unknown as { _kd?: (e: KeyboardEvent) => void; _ku?: (e: KeyboardEvent) => void };
-    if (self._kd) removeEventListener('keydown', self._kd);
-    if (self._ku) removeEventListener('keyup', self._ku);
-
-    const sharedGeos = new Set<THREE.BufferGeometry>([sharedFruitGeometry, sharedRingGeometry, sharedBeamGeometry]);
-    const sharedMats = new Set<THREE.Material>([sharedRingMaterial, sharedBeamMaterial]);
-
-    this.scene.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (m.isMesh) {
-        if (m.geometry && !sharedGeos.has(m.geometry as THREE.BufferGeometry)) {
-          m.geometry.dispose();
-        }
-        const mats = Array.isArray(m.material) ? m.material : [m.material];
-        for (const mat of mats) {
-          if (!mat || sharedMats.has(mat)) continue;
-          for (const key of Object.keys(mat) as (keyof THREE.Material)[]) {
-            const val = (mat as any)[key];
-            if (val && val.isTexture) val.dispose();
-          }
-          mat.dispose();
-        }
-      }
-    });
+    this.input.dispose();
+    disposeSceneResources(this.scene);
     this.renderer.dispose();
   }
 }
