@@ -1,5 +1,6 @@
 import type { Lang } from '@/i18n';
 import { t } from '@/i18n';
+import { logWarn } from '@/utils/logger';
 
 /** Soft nick uniqueness via local cache (device). Later: Supabase unique check. */
 
@@ -15,7 +16,8 @@ export function getCachedNicks(): string[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
-  } catch {
+  } catch (e) {
+    logWarn('getCachedNicks', e);
     return [];
   }
 }
@@ -31,8 +33,8 @@ export function isNickTaken(nick: string, exceptId?: string): boolean {
       const p = JSON.parse(playerRaw);
       if (p?.id !== exceptId && normalizeNick(p.nick || '') === n) return true;
     }
-  } catch {
-    /* ignore */
+  } catch (e) {
+    logWarn('isNickTaken', e);
   }
   return list.includes(n);
 }
@@ -53,7 +55,11 @@ export function registerNick(nick: string): void {
   const list = getCachedNicks();
   if (!list.includes(n)) {
     list.push(n);
-    localStorage.setItem(NICKS_KEY, JSON.stringify(list.slice(-500)));
+    try {
+      localStorage.setItem(NICKS_KEY, JSON.stringify(list.slice(-500)));
+    } catch (e) {
+      logWarn('registerNick', e);
+    }
   }
 }
 

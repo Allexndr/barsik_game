@@ -7,6 +7,7 @@ import { StepDots } from '@/components/ui/ProgressBar';
 import { PlushButton } from '@/components/ui/PlushButton';
 import { ConfettiBurst } from '@/components/ui/ConfettiBurst';
 import { IconFruit, IconStar, IconPaw } from '@/components/ui/icons';
+import { logError } from '@/utils/logger';
 import './Mission0Screen.css';
 
 /** Level 1 is the first of 5 story chapters shown as journey dots on the outro card. */
@@ -33,6 +34,7 @@ export function Mission0Screen() {
   const stickRef = useRef<HTMLDivElement>(null);
   const [hud, setHud] = useState<L1Hud>(emptyHud);
   const [loading, setLoading] = useState(true);
+  const [initFailed, setInitFailed] = useState(false);
   const lang = useUIStore((s) => s.lang);
   const setScreen = useUIStore((s) => s.setScreen);
   const player = useGameStore((s) => s.player);
@@ -40,11 +42,20 @@ export function Mission0Screen() {
   const addFriend = useGameStore((s) => s.addFriend);
   const completeLevel = useGameStore((s) => s.completeLevel);
 
+  const skipToGame = () => {
+    try {
+      localStorage.setItem('barsik_mission0_done', '1');
+    } catch (e) {
+      logError('mission0.markDone', e);
+    }
+    setScreen('game');
+  };
+
   const finishToMap = () => {
     try {
       localStorage.setItem('barsik_mission0_done', '1');
-    } catch {
-      /* ignore */
+    } catch (e) {
+      logError('mission0.markDone', e);
     }
     addStars(Math.max(3, hud.stars || 3));
     addFriend({
@@ -64,10 +75,29 @@ export function Mission0Screen() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const scene = new Mission0Scene(canvas);
-    sceneRef.current = scene;
     setLoading(true);
-    void scene.init(player?.nick || '', lang, setHud).then(() => setLoading(false));
+    setInitFailed(false);
+
+    let scene: Mission0Scene;
+    try {
+      scene = new Mission0Scene(canvas);
+    } catch (e) {
+      // WebGL может быть недоступен (старый браузер / отключено) — не зависаем на спиннере.
+      logError('mission0.create', e);
+      setLoading(false);
+      setInitFailed(true);
+      return;
+    }
+    sceneRef.current = scene;
+
+    scene
+      .init(player?.nick || '', lang, setHud)
+      .then(() => setLoading(false))
+      .catch((e) => {
+        logError('mission0.init', e);
+        setLoading(false);
+        setInitFailed(true);
+      });
     return () => {
       scene.dispose();
       sceneRef.current = null;
@@ -135,6 +165,19 @@ export function Mission0Screen() {
         <div className="m0-loader">
           <div className="m0-loader-spin" />
           <span>{lang === 'kk' ? 'Жүктелуде...' : 'Загрузка...'}</span>
+        </div>
+      ) : null}
+
+      {initFailed ? (
+        <div className="m0-loader">
+          <span>
+            {lang === 'kk'
+              ? 'Сахнаны жүктеу мүмкін болмады. Саяхатты жалғастырайық.'
+              : 'Не удалось загрузить сцену. Продолжим путешествие.'}
+          </span>
+          <PlushButton variant="primary" size="lg" onClick={skipToGame}>
+            {lang === 'kk' ? 'Жалғастыру' : 'Продолжить'}
+          </PlushButton>
         </div>
       ) : null}
 
@@ -238,14 +281,7 @@ export function Mission0Screen() {
         <button
           type="button"
           className="m0-skip"
-          onClick={() => {
-            try {
-              localStorage.setItem('barsik_mission0_done', '1');
-            } catch {
-              /* ignore */
-            }
-            setScreen('game');
-          }}
+          onClick={skipToGame}
         >
           {lang === 'kk' ? 'Өткізу →' : 'Пропустить →'}
         </button>

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { logWarn } from '@/utils/logger';
 
 /**
  * Level 1 «Первое утро» — adventure LD inspired by Roblox patterns:
@@ -133,7 +134,9 @@ async function loadGlb(loader: GLTFLoader, url: string) {
       }
     });
     return g;
-  } catch {
+  } catch (e) {
+    // Модель не обязательна — падаем на процедурный фоллбэк, но логируем, какой url подвёл.
+    logWarn(`loadGlb:${url}`, e);
     return null;
   }
 }
