@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Player, Friend } from '@/types';
+import { logWarn } from '@/utils/logger';
 
 export type { Player, Friend };
 
@@ -23,8 +24,8 @@ export interface GameState {
 function savePlayer(player: Player) {
   try {
     localStorage.setItem('barsik_player', JSON.stringify(player));
-  } catch {
-    /* ignore */
+  } catch (e) {
+    logWarn('savePlayer', e);
   }
 }
 
@@ -52,8 +53,8 @@ export const useGameStore = create<GameState>((set) => ({
   clearSession: () => {
     try {
       localStorage.removeItem('barsik_player');
-    } catch {
-      /* ignore */
+    } catch (e) {
+      logWarn('clearSession', e);
     }
     set({
       player: null,
@@ -143,7 +144,7 @@ function persistProgress(data: {
 }) {
   try {
     localStorage.setItem('barsik_progress', JSON.stringify(data));
-  } catch {
-    /* ignore */
+  } catch (e) {
+    logWarn('persistProgress', e);
   }
 }

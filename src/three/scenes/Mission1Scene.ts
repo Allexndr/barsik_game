@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { logWarn } from '@/utils/logger';
 
 /**
  * Level 2 «Первый друг» — Arc 1 canon (docs/BARSIK_ARC1_OUTLINE.md, BARSIK_GDD_v2.md):
@@ -123,7 +124,9 @@ async function loadGlb(loader: GLTFLoader, url: string) {
       }
     });
     return g;
-  } catch {
+  } catch (e) {
+    // Модель не обязательна — падаем на процедурный фоллбэк, но логируем, какой url подвёл.
+    logWarn(`loadGlb:${url}`, e);
     return null;
   }
 }

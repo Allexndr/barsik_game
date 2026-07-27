@@ -5,13 +5,15 @@ import {
   writeStoredLang,
   t as translate,
 } from '@/i18n';
+import { logWarn } from '@/utils/logger';
 
 const MUTED_KEY = 'barsik_muted';
 
 function readStoredMuted(): boolean {
   try {
     return localStorage.getItem(MUTED_KEY) === '1';
-  } catch {
+  } catch (e) {
+    logWarn('readStoredMuted', e);
     return false;
   }
 }
@@ -81,8 +83,8 @@ export const useUIStore = create<UIState>((set) => ({
           localStorage.setItem('barsik_player', JSON.stringify(player));
         }
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      logWarn('setLang.syncPlayer', e);
     }
   },
   toggleMuted: () =>
@@ -90,8 +92,8 @@ export const useUIStore = create<UIState>((set) => ({
       const muted = !s.muted;
       try {
         localStorage.setItem(MUTED_KEY, muted ? '1' : '0');
-      } catch {
-        /* ignore */
+      } catch (e) {
+        logWarn('toggleMuted', e);
       }
       return { muted };
     }),

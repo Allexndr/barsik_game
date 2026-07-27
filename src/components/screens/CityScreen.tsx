@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { CityScene, getCityStageLabel } from '@/three/scenes/CityScene';
 import { Chip } from '@/components/ui/Chip';
 import { IconPaw } from '@/components/ui/icons';
+import { logError } from '@/utils/logger';
 import './CityScreen.css';
 
 export function CityScreen() {
@@ -10,6 +11,7 @@ export function CityScreen() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<CityScene | null>(null);
+  const [sceneFailed, setSceneFailed] = useState(false);
 
   const { label } = getCityStageLabel(friends.length);
 
@@ -18,7 +20,16 @@ export function CityScreen() {
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return;
 
-    const city = new CityScene(canvas);
+    let city: CityScene;
+    try {
+      city = new CityScene(canvas);
+    } catch (e) {
+      // WebGL недоступен — показываем текстовый фоллбэк вместо падения экрана.
+      logError('city.create', e);
+      setSceneFailed(true);
+      return;
+    }
+    setSceneFailed(false);
     sceneRef.current = city;
 
     const resize = () => {
@@ -58,6 +69,11 @@ export function CityScreen() {
 
       <div className="city-3d-viewer" ref={wrapRef}>
         <canvas ref={canvasRef} className="city-canvas" />
+        {sceneFailed && (
+          <p className="city-3d-fallback">
+            3D-город не загрузился на этом устройстве, но друзья ниже всё равно здесь.
+          </p>
+        )}
       </div>
 
       {friends.length > 0 && (

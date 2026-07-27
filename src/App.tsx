@@ -7,6 +7,7 @@ import { Mission0Screen } from '@/components/Mission0Screen';
 import { GamePage } from '@/pages/GamePage';
 import { ScreenFade } from '@/components/ui/ScreenFade';
 import { readStoredLang, t, type Lang } from '@/i18n';
+import { logError } from '@/utils/logger';
 import type { Player } from '@/types';
 import './App.css';
 
@@ -52,7 +53,7 @@ export function App() {
           sessionPlayMs: 0,
         });
       } catch (e) {
-        console.error('Failed to load player', e);
+        logError('loadPlayer', e);
       }
     }
 
@@ -67,7 +68,7 @@ export function App() {
           stars: data.stars ?? 0,
         });
       } catch (e) {
-        console.error('Failed to load progress', e);
+        logError('loadProgress', e);
       }
     }
   }, []);

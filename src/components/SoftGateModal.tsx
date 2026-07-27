@@ -5,6 +5,7 @@ import { t } from '@/i18n';
 import { PlushButton } from '@/components/ui/PlushButton';
 import { IconMail, IconPhone } from '@/components/ui/icons';
 import { formatPhoneDisplay, isPhoneComplete, phoneDigits } from '@/utils/phone';
+import { logWarn } from '@/utils/logger';
 import './SoftGateModal.css';
 
 export function SoftGateModal() {
@@ -75,8 +76,8 @@ export function SoftGateModal() {
           at: Date.now(),
         }),
       );
-    } catch {
-      /* ignore */
+    } catch (e) {
+      logWarn('softGate.cloudPending', e);
     }
     closeSoftGate();
   };

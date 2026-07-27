@@ -1,3 +1,5 @@
+import { logWarn } from '@/utils/logger';
+
 export type Lang = 'ru' | 'kk';
 
 export const LANG_KEY = 'barsik_lang';
@@ -10,8 +12,8 @@ export function readStoredLang(): Lang {
   try {
     const v = localStorage.getItem(LANG_KEY);
     if (isLang(v)) return v;
-  } catch {
-    /* ignore */
+  } catch (e) {
+    logWarn('readStoredLang', e);
   }
   return 'ru';
 }
@@ -19,8 +21,8 @@ export function readStoredLang(): Lang {
 export function writeStoredLang(lang: Lang): void {
   try {
     localStorage.setItem(LANG_KEY, lang);
-  } catch {
-    /* ignore */
+  } catch (e) {
+    logWarn('writeStoredLang', e);
   }
 }
 
