@@ -3,7 +3,7 @@
 import urllib.request, urllib.parse, subprocess, os, time, sys
 
 BASE = 'https://image.pollinations.ai/prompt/'
-API_KEY = 'aNK52uCjrnjdcEFXoUusdgcW'
+API_KEY = os.environ.get('REMOVE_BG_API_KEY')
 OUTDIR = os.path.join(os.path.dirname(__file__), 'assets')
 
 STYLE = (
@@ -61,6 +61,9 @@ def generate(pose, desc, seed):
         return False
 
 def main():
+    if not API_KEY:
+        print('Missing REMOVE_BG_API_KEY environment variable', file=sys.stderr)
+        return 1
     os.makedirs(OUTDIR, exist_ok=True)
     for i, (pose, desc) in enumerate(POSES.items(), start=700):
         ok = generate(pose, desc, i)
@@ -70,6 +73,7 @@ def main():
             generate(pose, desc, i + 100)
         time.sleep(1)
     print('Done!')
+    return 0
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

@@ -40,7 +40,7 @@ function initLogin() {
   const inp = document.getElementById('login-name');
   const phone = document.getElementById('login-phone');
   btn.onclick = () => {
-    const name = inp.value.trim();
+    const name = sanitizeName(inp.value);
     if (!name) { inp.focus(); inp.style.borderColor = '#e74c3c'; Sound.hit(); return; }
     const tel = (phone && phone.value || '').trim();
     if (tel.length < 6) {
@@ -217,7 +217,7 @@ function initSettings() {
   };
   document.getElementById('btn-close-settings').onclick = () => {
     Sound.tap();
-    const n = document.getElementById('set-name').value.trim();
+    const n = sanitizeName(document.getElementById('set-name').value);
     if (n) { S.name = n; save(S); updateMenu(S); }
     S.sound = document.getElementById('set-sound').checked;
     Sound.enabled = S.sound;
@@ -259,7 +259,7 @@ function initInvite() {
 
 function checkReferral() {
   const params = new URLSearchParams(location.search);
-  const ref = params.get('ref');
+  const ref = sanitizeName(params.get('ref') || '');
   if (ref && !S.referredBy) {
     S.referredBy = ref;
     S.invited = (S.invited || 0) + 1;

@@ -38,10 +38,12 @@ const Cloud = {
   async push(s) {
     if (!this.enabled || !s) return;
     try {
+      // Rows are readable with the public anon key — never sync personal data.
+      const { phone, ...safe } = s;
       const body = [{
         player_key: this.playerKey(s),
-        name: s.name || 'Игрок',
-        data: s,
+        name: (typeof sanitizeName === 'function' ? sanitizeName(s.name) : s.name) || 'Игрок',
+        data: safe,
         updated_at: new Date().toISOString(),
       }];
       await fetch(this.url + '/rest/v1/barsik_saves', {
@@ -65,13 +67,15 @@ const Cloud = {
       if (!rows || !rows.length) return s;
       const remote = rows[0].data;
       if (!remote || typeof remote !== 'object') return s;
+      delete remote.phone;
       // Prefer the richer progress (more completed levels / stars).
       const localDone = (s.completed && s.completed.length) || 0;
       const remoteDone = (remote.completed && remote.completed.length) || 0;
       const localStars = s.totalStars || 0;
       const remoteStars = remote.totalStars || 0;
       if (remoteDone > localDone || (remoteDone === localDone && remoteStars > localStars)) {
-        return Object.assign(defaultState(), remote, { name: remote.name || s.name });
+        const name = (typeof sanitizeName === 'function' ? sanitizeName(remote.name) : remote.name) || s.name;
+        return Object.assign(defaultState(), remote, { name, phone: s.phone });
       }
     } catch (e) { /* keep local */ }
     return s;
