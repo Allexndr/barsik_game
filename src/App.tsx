@@ -7,7 +7,8 @@ import { Mission0Screen } from '@/components/Mission0Screen';
 import { GamePage } from '@/pages/GamePage';
 import { ScreenFade } from '@/components/ui/ScreenFade';
 import { readStoredLang, t, type Lang } from '@/i18n';
-import type { Player } from '@/types';
+import { STORAGE_KEYS, isFlagSet, readJson } from '@/utils/storage';
+import type { Friend, Player } from '@/types';
 import './App.css';
 
 function migratePlayer(raw: Partial<Player> & { nick?: string }): Player {
@@ -40,35 +41,30 @@ export function App() {
     // Language first: stored preference, then player's lang if returning
     applyLang(readStoredLang());
 
-    const saved = localStorage.getItem('barsik_player');
+    const saved = readJson<Partial<Player>>(STORAGE_KEYS.player);
     if (saved) {
-      try {
-        const player = migratePlayer(JSON.parse(saved));
-        useGameStore.setState({ player });
-        applyLang(player.lang);
-        const missionDone = localStorage.getItem('barsik_mission0_done') === '1';
-        useUIStore.setState({
-          currentScreen: missionDone ? 'game' : 'mission0',
-          sessionPlayMs: 0,
-        });
-      } catch (e) {
-        console.error('Failed to load player', e);
-      }
+      const player = migratePlayer(saved);
+      useGameStore.setState({ player });
+      applyLang(player.lang);
+      useUIStore.setState({
+        currentScreen: isFlagSet(STORAGE_KEYS.mission0Done) ? 'game' : 'mission0',
+        sessionPlayMs: 0,
+      });
     }
 
-    const progress = localStorage.getItem('barsik_progress');
+    const progress = readJson<{
+      friends?: Friend[];
+      unlockedLevels?: number[];
+      currentLevel?: number;
+      stars?: number;
+    }>(STORAGE_KEYS.progress);
     if (progress) {
-      try {
-        const data = JSON.parse(progress);
-        useGameStore.setState({
-          friends: data.friends ?? [],
-          unlockedLevels: data.unlockedLevels ?? [],
-          currentLevel: data.currentLevel ?? 0,
-          stars: data.stars ?? 0,
-        });
-      } catch (e) {
-        console.error('Failed to load progress', e);
-      }
+      useGameStore.setState({
+        friends: progress.friends ?? [],
+        unlockedLevels: progress.unlockedLevels ?? [],
+        currentLevel: progress.currentLevel ?? 0,
+        stars: progress.stars ?? 0,
+      });
     }
   }, []);
 

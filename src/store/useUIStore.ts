@@ -5,16 +5,8 @@ import {
   writeStoredLang,
   t as translate,
 } from '@/i18n';
-
-const MUTED_KEY = 'barsik_muted';
-
-function readStoredMuted(): boolean {
-  try {
-    return localStorage.getItem(MUTED_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
+import { STORAGE_KEYS, isFlagSet, readJson, setFlag, writeJson } from '@/utils/storage';
+import type { Player } from '@/types';
 
 export interface UIState {
   currentScreen: 'welcome' | 'quick' | 'mission0' | 'game';
@@ -45,7 +37,7 @@ export const useUIStore = create<UIState>((set) => ({
   softGate: null,
   sessionPlayMs: 0,
   lang: typeof window !== 'undefined' ? readStoredLang() : 'ru',
-  muted: typeof window !== 'undefined' ? readStoredMuted() : false,
+  muted: typeof window !== 'undefined' ? isFlagSet(STORAGE_KEYS.muted) : false,
 
   setScreen: (screen) => set({ currentScreen: screen }),
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -72,27 +64,15 @@ export const useUIStore = create<UIState>((set) => ({
     document.title = translate(lang, 'doc.title');
     set({ lang });
     // Keep player profile in sync so clouds/reload keep language
-    try {
-      const raw = localStorage.getItem('barsik_player');
-      if (raw) {
-        const player = JSON.parse(raw);
-        if (player && player.lang !== lang) {
-          player.lang = lang;
-          localStorage.setItem('barsik_player', JSON.stringify(player));
-        }
-      }
-    } catch {
-      /* ignore */
+    const player = readJson<Player>(STORAGE_KEYS.player);
+    if (player && player.lang !== lang) {
+      writeJson(STORAGE_KEYS.player, { ...player, lang });
     }
   },
   toggleMuted: () =>
     set((s) => {
       const muted = !s.muted;
-      try {
-        localStorage.setItem(MUTED_KEY, muted ? '1' : '0');
-      } catch {
-        /* ignore */
-      }
+      setFlag(STORAGE_KEYS.muted, muted);
       return { muted };
     }),
 }));

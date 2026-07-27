@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { IconPaw } from '@/components/ui/icons';
+import { friendDisplayName } from '@/utils/friends';
 import '@/components/ui/motion.css';
 import './FriendsScreen.css';
 
@@ -39,7 +40,7 @@ export function FriendsScreen() {
             return (
               <FriendTiltCard
                 key={f.id}
-                name={f.name === `Friend ${f.id}` ? prettyName(f.id) : f.name}
+                name={f.name === `Friend ${f.id}` ? friendDisplayName(f.id) : f.name}
                 role={meta.role}
                 rarity={meta.rarity}
                 blurb={meta.blurb}
@@ -122,19 +123,6 @@ function FriendTiltCard({
       </button>
     </div>
   );
-}
-
-function prettyName(id: string): string {
-  const map: Record<string, string> = {
-    putalo: 'Путало',
-    gardener: 'Садовник',
-    gardener_l1: 'Садовник',
-    ice_sculptor: 'Мастер льда',
-    snowman: 'Снеговик',
-    ice_friend: 'Ледяной друг',
-    rare_friend_1: 'Ягодка',
-  };
-  return map[id] ?? id;
 }
 
 function rarityLabel(r: string): string {
