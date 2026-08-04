@@ -229,7 +229,7 @@ export function MissionScreen({
       <RotateHint lang={lang} />
 
       {loading ? (
-        <LoadingOverlay label={lang === 'kk' ? 'Жүктелуде' : 'Загрузка'} />
+        <LoadingOverlay lang={lang} />
       ) : null}
 
       <div className="m0-top">

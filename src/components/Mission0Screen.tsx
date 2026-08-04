@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { RotateHint } from './ui/RotateHint';
 import { DialoguePanel } from './ui/DialoguePanel';
 import { useUIStore } from '@/store/useUIStore';
@@ -204,12 +205,9 @@ export function Mission0Screen() {
 
       <RotateHint lang={lang} />
 
-      {loading ? (
-        <div className="m0-loader">
-          <div className="m0-loader-spin" />
-          <span>{lang === 'kk' ? 'Жүктелуде...' : 'Загрузка...'}</span>
-        </div>
-      ) : null}
+      {/* Mission 0 is the heaviest scene and the first thing anyone sees, so
+          it gets the same real-progress screen as the rest, not a spinner. */}
+      {loading ? <LoadingOverlay lang={lang} /> : null}
 
       <div className="m0-top">
         <div className="m0-title">

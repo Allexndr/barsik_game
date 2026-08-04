@@ -39,17 +39,14 @@
   overflow: hidden;
 }
 
+/* Width is driven by real load progress now, not by an animation that
+   slid back and forth regardless of what was happening. */
 .loading-overlay__bar-fill {
-  width: 40%;
+  width: 0%;
   height: 100%;
   border-radius: 3px;
   background: linear-gradient(90deg, #00cec9, #6c5ce7);
-  animation: loading-bar-slide 1.2s ease-in-out infinite;
-}
-
-@keyframes loading-bar-slide {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(350%); }
+  transition: width 0.3s ease-out;
 }
 
 .loading-overlay__text {
@@ -58,4 +55,59 @@
   font-weight: 600;
   color: rgba(255, 255, 255, 0.85);
   letter-spacing: 0.5px;
+}
+
+/* ── Pet-the-Barsik toy ───────────────────────────────────────── */
+.loading-overlay__invite {
+  margin: 0 0 2px;
+  font-weight: 900;
+  font-size: 1.02rem;
+  color: #f0f3f8;
+}
+
+.loading-pet {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.14s ease-out;
+}
+
+.loading-pet:active { transform: scale(0.94); }
+.loading-pet.is-happy { transform: scale(1.06) rotate(-2deg); }
+
+.loading-pet__heart {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: #ff6b81;
+  font-size: 1.2rem;
+  pointer-events: none;
+  animation: loading-heart-rise 0.9s ease-out forwards;
+}
+
+@keyframes loading-heart-rise {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(0.6); }
+  100% { opacity: 0; transform: translate(-50%, -190%) scale(1.25); }
+}
+
+.loading-overlay__pets {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #9fb0c4;
+}
+
+.loading-overlay__pct {
+  font-style: normal;
+  opacity: 0.75;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-pet, .loading-pet.is-happy { transition: none; transform: none; }
+  .loading-pet__heart { animation-duration: 0.01s; }
 }
