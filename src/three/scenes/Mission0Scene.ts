@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { QualityPipeline } from '../QualityPipeline';
 import { createWindGrass, type WindGrass } from '../WindGrass';
 import { createValleyTerrain, snapToTerrain, sampleTerrainHeight, type ValleyTerrain } from '../Terrain';
 import { createWaterSurface, type WaterSurface } from '../WaterSurface';
@@ -14,15 +13,14 @@ import { normalizeKitMaterial } from '../kitPalette';
 import { createPlushCharacter, updatePlushCharacter } from '../PlushCharacter';
 import { ZHULDYZ_LOOK } from '../characterLooks';
 import {
+  BaseLevelScene,
   disposeObject3DResources,
   loadBarsikHeroRig,
   loadCharModel,
-  type HeroAnimMode,
 } from './BaseLevelScene';
 import { AudioManager } from '@/audio/AudioManager';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeMany, placeS1Prop, placeS1Char } from '../s1Place';
-import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
 
 /**
  * Level 1 «Первое утро» — adventure LD inspired by Roblox patterns:
@@ -910,91 +908,47 @@ function mailbox(x: number, z: number, label = '') {
   return g;
 }
 
-export class Mission0Scene {
-  private renderer: THREE.WebGLRenderer;
-  private scene = new THREE.Scene();
-  private camera: THREE.PerspectiveCamera;
-  private clock = new THREE.Clock();
-  private hero = new THREE.Group();
-  private mixer: THREE.AnimationMixer | null = null;
-  private walkAction: THREE.AnimationAction | null = null;
-  private idleAction: THREE.AnimationAction | null = null;
-  private keys = new Set<string>();
-  private joy = { x: 0, y: 0 };
+export class Mission0Scene extends BaseLevelScene {
   private phase: L1Phase = 'intro';
-  private disposed = false;
-  private raf = 0;
   private onHud: ((h: L1Hud) => void) | null = null;
-  private nick = '';
-  private lang: 'ru' | 'kk' = 'ru';
   private introI = 0;
   private nextAt = 0;
-  private yaw = 0;
-  private walking = false;
-  private heroAnimMode: HeroAnimMode = 'plush';
   private bag = 0;
   private questFruits = 0;
   private questNeed = 3;
-  private stars = 0;
-  private interactTarget: THREE.Object3D | null = null;
   private fruits: THREE.Mesh[] = [];
   private bird: THREE.Object3D | null = null;
   private gardener: THREE.Object3D | null = null;
   private birdMarker: THREE.Group | null = null;
   private gardenerMarker: THREE.Group | null = null;
-  private guideArrow: THREE.Group | null = null;
-  private pathArrows: THREE.Group[] = [];
   private butterflies: THREE.Group[] = [];
-  private colliders: Collider[] = [];
   private checkpoints = [
     new THREE.Vector3(0, 0, 6),
     new THREE.Vector3(0, 0, -2),
     new THREE.Vector3(0.3, 0, -8),
   ];
   private cpIdx = 0;
-  private baseSpeed = 3.2;
-  private runSpeed = 4.4;
-  private praiseUntil = 0;
-  private lastStepAt = 0;
-  private hasTakenFirstStep = false;
   private speedBoostShown = false;
   private birdBaseY = 0.42;
   private gardenerBaseY = 0;
   private collectibles: THREE.Mesh[] = [];
-  private sparks: THREE.Mesh[] = [];
   private smoke: THREE.Mesh[] = [];
   private smokeAt = 0;
-  private clouds: THREE.Group[] = [];
   private flame: THREE.Object3D | null = null;
-  private quality: QualityPipeline | null = null;
-  private renderQuality: RenderQualityProfile;
   private portrait = false;
-  private paused = false;
-  private pauseStartedAt = 0;
   private sun: THREE.DirectionalLight | null = null;
   private grass: WindGrass | null = null;
   private terrain: ValleyTerrain | null = null;
   private pondWater: WaterSurface | null = null;
-  private fireflies: Fireflies | null = null;
+  private firefliesFx: Fireflies | null = null;
   private heightAt = sampleTerrainHeight;
-  private kit: AssetKit | null = null;
 
   private snap(o: THREE.Object3D) {
     snapToTerrain(o, this.heightAt);
   }
 
-  private isMobile =
-    typeof window !== 'undefined' &&
-    (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
-
-  constructor(private canvas: HTMLCanvasElement) {
-    this.renderQuality = getRenderQualityProfile(resolveRenderQualityTier(this.isMobile), this.isMobile);
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.renderQuality.maxPixelRatio));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 300);
+  constructor(canvas: HTMLCanvasElement) {
+    super(canvas);
     // Wide cinematic opening that frames both the house and the hero spawn
     this.camera.position.set(-14, 8, 22);
 
@@ -1026,13 +980,7 @@ export class Mission0Scene {
     this.scene.add(fill);
     this.scene.add(new THREE.AmbientLight(0xfff5e6, 0.22));
 
-    this.quality = new QualityPipeline(this.renderer, this.scene, this.camera, {
-      mobile: !this.renderQuality.useComposer,
-      bloomStrength: this.renderQuality.bloomStrength,
-      bloomRadius: this.renderQuality.bloomRadius,
-      bloomThreshold: this.renderQuality.bloomThreshold,
-      exposure: this.renderQuality.exposure,
-    });
+    this.setupQuality();
 
     // Valley terrain (replaces flat island — rolling hills + path groove)
     this.terrain = createValleyTerrain(220, this.isMobile ? 96 : 128);
@@ -1058,7 +1006,7 @@ export class Mission0Scene {
     this.scene.add(this.grass.mesh);
 
     // Evening fireflies in forest belt
-    this.fireflies = createFireflies(this.isMobile ? 35 : 70, {
+    this.firefliesFx = createFireflies(this.isMobile ? 35 : 70, {
       xMin: -22,
       xMax: 22,
       zMin: -50,
@@ -1066,7 +1014,7 @@ export class Mission0Scene {
       yMin: 0.8,
       yMax: 3.2,
     });
-    this.scene.add(this.fireflies.points);
+    this.scene.add(this.firefliesFx.points);
 
     // Sky dome and distant hills
     this.scene.add(skyDome());
@@ -1273,29 +1221,6 @@ export class Mission0Scene {
     this.joy = { x, y };
   }
 
-  setPaused(value: boolean) {
-    if (value === this.paused) return;
-    if (value) {
-      this.paused = true;
-      this.pauseStartedAt = performance.now();
-      this.keys.clear();
-      this.joy = { x: 0, y: 0 };
-      return;
-    }
-    const pauseDuration = Math.max(0, performance.now() - this.pauseStartedAt);
-    const state = this as unknown as Record<string, unknown>;
-    for (const key of Object.keys(state)) {
-      if (!/(?:At|Until)$/.test(key)) continue;
-      const marker = state[key];
-      if (typeof marker === 'number' && marker > 0 && key !== 'pauseStartedAt') {
-        state[key] = marker + pauseDuration;
-      }
-    }
-    this.paused = false;
-    this.pauseStartedAt = 0;
-    this.clock.getDelta();
-  }
-
   tryInteract() {
     if (!this.interactTarget) return;
     const t = this.interactTarget;
@@ -1382,7 +1307,9 @@ export class Mission0Scene {
     this.pushHud();
   }
 
-  private spawnSparks(at: THREE.Vector3) {
+  protected currentPhase() { return this.phase; }
+
+  protected spawnSparks(at: THREE.Vector3) {
     for (let i = 0; i < 12; i++) {
       const s = new THREE.Mesh(
         new THREE.SphereGeometry(0.09, 6, 6),
@@ -1784,11 +1711,7 @@ export class Mission0Scene {
     this.introI = 0;
     this.nextAt = performance.now() + 700;
     this.pushHud();
-    this.loop();
-  }
-
-  private copy(ru: string, kk: string) {
-    return this.lang === 'kk' ? kk : ru;
+    this.activate(() => this.loop());
   }
 
   private pushHud() {
@@ -1886,52 +1809,6 @@ export class Mission0Scene {
     });
   }
 
-  private bindKeys() {
-    const down = (e: KeyboardEvent) => {
-      this.keys.add(e.code);
-      if (['KeyE', 'Space'].includes(e.code)) {
-        e.preventDefault();
-        this.tryInteract();
-      }
-      if (
-        ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(
-          e.code,
-        )
-      ) {
-        e.preventDefault();
-      }
-    };
-    const up = (e: KeyboardEvent) => this.keys.delete(e.code);
-    addEventListener('keydown', down);
-    addEventListener('keyup', up);
-    (this as unknown as { _kd: typeof down; _ku: typeof up })._kd = down;
-    (this as unknown as { _kd: typeof down; _ku: typeof up })._ku = up;
-  }
-
-  private resize = () => {
-    const p = this.canvas.parentElement;
-    const w = p?.clientWidth || innerWidth;
-    const h = p?.clientHeight || innerHeight;
-    this.portrait = h > w * 1.15;
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.renderQuality.maxPixelRatio));
-    this.renderer.setSize(w, h, false);
-    this.camera.aspect = w / Math.max(h, 1);
-    this.camera.fov = this.portrait ? 61 : 55;
-    this.camera.updateProjectionMatrix();
-    this.quality?.setSize(w, h);
-  };
-
-  private dir() {
-    let x = this.joy.x;
-    let z = this.joy.y;
-    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) x -= 1;
-    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) x += 1;
-    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) z -= 1;
-    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) z += 1;
-    const v = new THREE.Vector2(x, z);
-    if (v.lengthSq() > 1) v.normalize();
-    return v;
-  }
 
 
   private nearestInteract(): THREE.Object3D | null {
@@ -1973,18 +1850,16 @@ export class Mission0Scene {
     return best;
   }
 
-  private loop = () => {
+  protected loop = () => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
-    if (this.paused) {
-      this.clock.getDelta();
-      return;
-    }
+    if (this.renderPausedFrame()) return;
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
     this.grass?.update(now * 0.001);
     this.pondWater?.update(now * 0.001);
-    this.fireflies?.update(now * 0.001);
+    this.firefliesFx?.update(now * 0.001);
+    this.portrait = this.isPortraitViewport();
 
     if (this.phase === 'intro' && now > this.nextAt) {
       this.introI += 1;
@@ -2001,16 +1876,17 @@ export class Mission0Scene {
     const canMove = !['intro', 'outro'].includes(this.phase);
     const d = this.dir();
     const moving = canMove && d.lengthSq() > 0.01;
-    if (moving && now - this.lastStepAt > 360) {
+    const speed = this.phase.startsWith('move') ? this.baseSpeed : this.runSpeed;
+    const cadenceMs = speed > this.baseSpeed + 0.2 ? 250 : 330;
+    if (moving && now - this.lastStepAt > cadenceMs) {
       this.lastStepAt = now;
-      AudioManager.sfx('step');
+      AudioManager.sfx('stepGrass');
     }
     if (moving && !this.hasTakenFirstStep) {
       this.hasTakenFirstStep = true;
       this.pushHud();
     }
     if (moving) {
-      const speed = this.phase.startsWith('move') ? this.baseSpeed : this.runSpeed;
       let nx = this.hero.position.x + d.x * speed * dt;
       let nz = this.hero.position.z + d.y * speed * dt;
       nx = THREE.MathUtils.clamp(nx, -45, 45);
@@ -2298,8 +2174,8 @@ export class Mission0Scene {
     this.terrain = null;
     this.pondWater?.dispose();
     this.pondWater = null;
-    this.fireflies?.dispose();
-    this.fireflies = null;
+    this.firefliesFx?.dispose();
+    this.firefliesFx = null;
     this.kit?.dispose();
     this.kit = null;
     this.mixer?.stopAllAction();

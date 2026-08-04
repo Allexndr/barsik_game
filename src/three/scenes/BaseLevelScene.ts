@@ -7,8 +7,11 @@ import { isUsableHeroGlb } from '../heroQuality';
 import { markStaticHeroBaseY, updateStaticHeroLocomotion } from '../staticHeroLocomotion';
 import { AudioManager } from '@/audio/AudioManager';
 import { createFireflies, type Fireflies } from '../Fireflies';
+import { createLevelTerrain, type LevelTerrain, type LevelTerrainOptions } from '../LevelTerrain';
+import { createWindGrass, type WindGrass } from '../WindGrass';
 import { AssetKit } from '../AssetKit';
 import { placePatch, ringAnchors, type PatchSpec } from '../sceneComposition';
+import { setPlacementGround } from '../s1Place';
 import { disposeObject3DResources, fitHeight, fitMaxSize, groundY } from '../modelUtils';
 import { createFpsSampler } from '@/dev/fpsSampler';
 import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
@@ -629,10 +632,23 @@ export abstract class BaseLevelScene {
   protected runSpeed = 4.4;
   protected praiseUntil = 0;
   protected lastStepAt = 0;
+  protected footstepSurface: 'grass' | 'snow' | 'stone' = 'grass';
   protected isMobile = typeof window !== 'undefined' && (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
   protected quality: QualityPipeline | null = null;
   protected renderQuality: RenderQualityProfile;
   protected kit: AssetKit | null = null;
+  protected levelTerrain: LevelTerrain | null = null;
+  protected windGrass: WindGrass[] = [];
+  /**
+   * Grass options staged by setupForestEnvironment and built in activate(),
+   * once the level has reserved its gameplay zones.
+   */
+  private pendingGrass: Parameters<BaseLevelScene['setupWindGrass']>[0] | null = null;
+  /**
+   * Ground height at a world point. Flat until a scene calls
+   * setupSculptedGround, so levels that have not been converted keep working.
+   */
+  protected groundHeightAt: (x: number, z: number) => number = () => 0;
   protected reserved: Array<{ x: number; z: number; r: number }> = [];
   private fpsSampler = createFpsSampler('level');
   private onVisibility = () => {
@@ -666,31 +682,45 @@ export abstract class BaseLevelScene {
   }
 
   // ── Setup helpers ────────────────────────────────────────────
-  protected setupLighting(fogColor: number, sunColor: number, sunIntensity = 1.35, hemiSky = 0xfff6e0, hemiGround = 0x3d8b40) {
+  /**
+   * Key / fill / rim at a proper contrast ratio.
+   *
+   * The previous rig ran a 1.35 hemisphere plus 0.14 ambient against a 1.35
+   * sun — roughly 1.9:1 lit-to-shadow, which is why every level read as flat
+   * and washed out no matter how good the geometry was. Stylised 3D wants
+   * closer to 4:1: a strong warm key, a dim sky-coloured fill that keeps
+   * shadows blue rather than black, and a cool rim so plush silhouettes
+   * separate from the background.
+   */
+  protected setupLighting(fogColor: number, sunColor: number, sunIntensity = 2.35, hemiSky = 0xfff6e0, hemiGround = 0x3d8b40) {
     this.scene.background = new THREE.Color(fogColor);
-    this.scene.fog = new THREE.Fog(fogColor, 58, 185);
-    this.scene.add(new THREE.HemisphereLight(hemiSky, hemiGround, 1.35));
+    // Fog starts inside the play area so distance actually reads. At near=58
+    // nothing in a ~50-unit level was ever touched by it.
+    this.scene.fog = new THREE.Fog(fogColor, 26, 150);
+    this.scene.add(new THREE.HemisphereLight(hemiSky, hemiGround, 0.58));
+
     const sun = new THREE.DirectionalLight(sunColor, sunIntensity);
     sun.position.set(-14, 24, 12);
     sun.castShadow = true;
     sun.shadow.mapSize.set(this.renderQuality.shadowMapSize, this.renderQuality.shadowMapSize);
-    sun.shadow.bias = -0.0005;
-    sun.shadow.radius = 2;
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.02;
+    sun.shadow.radius = 2.5;
     sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 80;
-    sun.shadow.camera.left = -30;
-    sun.shadow.camera.right = 30;
-    sun.shadow.camera.top = 30;
-    sun.shadow.camera.bottom = -30;
+    sun.shadow.camera.far = 90;
+    // Tighter frustum than the play area is wide: shadow texels are spent on
+    // where the player actually is, so contact shadows stay crisp.
+    sun.shadow.camera.left = -24;
+    sun.shadow.camera.right = 24;
+    sun.shadow.camera.top = 24;
+    sun.shadow.camera.bottom = -24;
     this.scene.add(sun);
 
-    // A soft studio-like fill and cool rim keep plush characters readable
-    // without flattening the scene with excessive ambient light.
-    const fill = new THREE.DirectionalLight(0xffd9c0, 0.32);
-    fill.position.set(14, 9, 10);
-    const rim = new THREE.DirectionalLight(0xb9d9ff, 0.42);
-    rim.position.set(2, 14, -18);
-    this.scene.add(fill, rim, new THREE.AmbientLight(0xffffff, 0.14));
+    const fill = new THREE.DirectionalLight(0xbcd6f5, 0.34);
+    fill.position.set(16, 8, 12);
+    const rim = new THREE.DirectionalLight(0xdcefff, 0.62);
+    rim.position.set(4, 12, -20);
+    this.scene.add(fill, rim, new THREE.AmbientLight(0xffffff, 0.06));
   }
 
   protected setupGround(texture: THREE.Texture, size = 300, color = 0xffffff) {
@@ -701,6 +731,61 @@ export abstract class BaseLevelScene {
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     this.scene.add(ground);
+  }
+
+  /**
+   * Sculpted ground. Prefer this over setupGround: a flat plane gives the
+   * scene no horizon shaping and no depth cues, and every prop reads as
+   * standing on a table. Sets `heightAt` for everything placed afterwards.
+   */
+  protected setupSculptedGround(opts: LevelTerrainOptions = {}) {
+    const corridor = opts.corridor ?? this.pathCorridor ?? undefined;
+    this.levelTerrain = createLevelTerrain({ corridorHalf: this.pathCorridorHalf, ...opts, corridor });
+    this.groundHeightAt = this.levelTerrain.sampleHeight;
+    // Prop helpers position by (x, z) and derive y; point them at this terrain.
+    setPlacementGround(this.groundHeightAt);
+    this.scene.add(this.levelTerrain.mesh);
+    return this.levelTerrain;
+  }
+
+  /**
+   * Wind-reactive grass over the play area, keeping clear of the corridor and
+   * any reserved gameplay zones. One instanced draw call.
+   */
+  protected setupWindGrass(
+    opts: {
+      count?: number;
+      area?: { xMin: number; xMax: number; zMin: number; zMax: number };
+      rootColor?: number;
+      tipColor?: number;
+      tipWarmColor?: number;
+      bladeHeight?: [number, number];
+    } = {},
+  ) {
+    const {
+      count = this.isMobile ? 5000 : 14000,
+      area = { xMin: -34, xMax: 34, zMin: -46, zMax: 16 },
+    } = opts;
+    if (!this.renderQuality.useComposer && count <= 0) return null;
+    const grass = createWindGrass({
+      count,
+      area,
+      rootColor: opts.rootColor,
+      tipColor: opts.tipColor,
+      tipWarmColor: opts.tipWarmColor,
+      bladeHeight: opts.bladeHeight,
+      heightAt: this.groundHeightAt,
+      exclude: (x, z) => this.isReserved(x, z, 0.4),
+    });
+    this.windGrass.push(grass);
+    this.scene.add(grass.mesh);
+    return grass;
+  }
+
+  /** Sit an object on the sculpted ground rather than on y=0. */
+  protected snapToGround(obj: THREE.Object3D) {
+    const box = new THREE.Box3().setFromObject(obj);
+    obj.position.y += this.groundHeightAt(obj.position.x, obj.position.z) - box.min.y;
   }
 
   protected setupClouds(count = 7, yBase = 26, zRange = 80) {
@@ -732,6 +817,7 @@ export abstract class BaseLevelScene {
     // Snow variants only: the plain green fir reads as a Christmas tree
     // dropped into the Ice Valley.
     for (const tree of await kit.scatter('holiday', ['tree-snow-a', 'tree-snow-b', 'tree-snow-c'], trees)) {
+      this.snapToGround(tree);
       this.scene.add(tree);
       this.colliders.push({ kind: 'circle', x: tree.position.x, z: tree.position.z, r: 1.4 });
     }
@@ -744,6 +830,7 @@ export abstract class BaseLevelScene {
       drifts.push({ x, z, maxSize: 1.2 + Math.random() * 2.4 });
     }
     for (const drift of await kit.scatter('holiday', ['snow-pile', 'rocks-small', 'rocks-medium', 'snow-flat'], drifts)) {
+      this.snapToGround(drift);
       this.scene.add(drift);
     }
   }
@@ -786,17 +873,35 @@ export abstract class BaseLevelScene {
       decorCenterZ?: number;
       clouds?: number;
       backdrop?: 'valley' | 'finale' | 'none';
+      /** Sculpted relief. Pass `false` only for levels on a built ice surface. */
+      terrain?: LevelTerrainOptions | false;
     } = {},
   ) {
+    this.footstepSurface = opts.ground === 'ice' ? 'stone' : 'snow';
     const sky = opts.sky ?? (['#4a6a8a', '#8ab0c8', '#d0e8f0'] as [string, string, string]);
+    // Snow bounces a lot of light, so the sky term sits higher here than in
+    // the forest; the key still has to out-punch it or drifts read as paper.
     this.setupLighting(
-      0xb0bec5,
-      opts.sunColor ?? 0xecf0f1,
-      opts.sunIntensity ?? 1.0,
-      0xcfd8dc,
-      0x78909c,
+      0xc2d4de,
+      opts.sunColor ?? 0xfff3e0,
+      opts.sunIntensity ?? 2.1,
+      0xdcecf5,
+      0x8fa8b8,
     );
-    this.setupGround(opts.ground === 'ice' ? makeIceTexture() : makeSnowTexture());
+    if (opts.terrain === false) {
+      this.setupGround(opts.ground === 'ice' ? makeIceTexture() : makeSnowTexture());
+    } else {
+      // Keep the gameplay area flat by default: Ice Valley levels place their
+      // props, NPCs and quest zones by hand at y=0, and relief under them
+      // would tilt quest markers and bury collectibles.
+      this.setupSculptedGround({
+        biome: opts.ground === 'ice' ? 'ice' : 'snow',
+        relief: 0.85,
+        rimHeight: 3.4,
+        features: [{ kind: 'flat', x: 0, z: opts.decorCenterZ ?? -20, r: 22 }],
+        ...opts.terrain,
+      });
+    }
     this.scene.add(skyDome(sky[0], sky[1], sky[2]));
     this.setupClouds(opts.clouds ?? 5, 26, 50);
     await this.loadWinterDecor(loader, opts.decorCount ?? 22, opts.decorCenterZ ?? -20);
@@ -809,6 +914,71 @@ export abstract class BaseLevelScene {
         ? ([[-72, -120, 18, 18], [0, -138, 20, 20], [70, -118, 18, 18]] as const)
         : ([[-40, -60, 20, 14], [0, -70, 26, 18], [38, -55, 22, 15]] as const);
     for (const [x, z, h, w] of mountains) this.scene.add(mountain(x, z, h, w));
+  }
+
+  /**
+   * Shared Fruit Forest look: lighting, sculpted ground, sky, clouds, ridge
+   * backdrop and wind grass.
+   *
+   * The play area is kept flat (`flatRadius`) so hand-placed props, NPCs and
+   * quest markers keep the positions their levels were authored with; the
+   * relief lives outside it, where it does the work of shaping the horizon.
+   * Grass is deferred to `activate()` so it can exclude every zone the level
+   * reserves after this call.
+   */
+  protected async setupForestEnvironment(
+    loader: GLTFLoader,
+    opts: {
+      fogColor?: number;
+      sunColor?: number;
+      sunIntensity?: number;
+      hemiSky?: number;
+      hemiGround?: number;
+      sky?: [string, string, string];
+      clouds?: number;
+      /** Radius of the flat gameplay area. */
+      flatRadius?: number;
+      flatCenterZ?: number;
+      terrain?: LevelTerrainOptions;
+      grass?: Parameters<BaseLevelScene['setupWindGrass']>[0] | false;
+      backdrop?: boolean;
+      fireflies?: boolean;
+    } = {},
+  ) {
+    const {
+      fogColor = 0x81c784,
+      sunColor = 0xfff8e7,
+      sunIntensity = 1.35,
+      hemiSky = 0xfff6e0,
+      hemiGround = 0x3d8b40,
+      sky = ['#7cc6ef', '#a6dcf0', '#eaf9f2'] as [string, string, string],
+      clouds = 6,
+      flatRadius = 20,
+      flatCenterZ = -14,
+      backdrop = true,
+      fireflies = false,
+    } = opts;
+
+    this.footstepSurface = 'grass';
+    this.setupLighting(fogColor, sunColor, sunIntensity, hemiSky, hemiGround);
+    this.setupSculptedGround({
+      biome: 'forest',
+      relief: 1.05,
+      rimHeight: 3.2,
+      playHalfExtent: 34,
+      features: [{ kind: 'flat', x: 0, z: flatCenterZ, r: flatRadius }],
+      ...opts.terrain,
+    });
+    this.scene.add(skyDome(sky[0], sky[1], sky[2]));
+    this.setupClouds(clouds, 26, 70);
+    if (backdrop) {
+      for (const [x, z, h, w] of [[-46, -66, 18, 15], [4, -78, 22, 19], [44, -62, 19, 16]] as const) {
+        this.scene.add(mountain(x, z, h, w));
+      }
+    }
+    if (fireflies) this.setupFireflies();
+    if (opts.grass !== false) this.pendingGrass = opts.grass ?? {};
+    void loader;
   }
 
   protected setupFireflies(
@@ -927,6 +1097,7 @@ export abstract class BaseLevelScene {
       })),
     );
     for (const stone of placed) {
+      this.snapToGround(stone);
       stone.position.y += 0.01;
       stone.traverse((object) => {
         const mesh = object as THREE.Mesh;
@@ -1005,6 +1176,7 @@ export abstract class BaseLevelScene {
       if (!subset.length) continue;
       const placed = await kit.scatter('nature', group, subset);
       for (const tree of placed) {
+        this.snapToGround(tree);
         this.scene.add(tree);
         const bend = Math.sin((tree.position.z + 18) * -0.02) * 2.1;
         if (Math.abs(tree.position.x - bend) > 2.4) {
@@ -1030,7 +1202,7 @@ export abstract class BaseLevelScene {
     radius = 8,
     spread = 38,
     centerZ = -22,
-    heightAt?: (x: number, z: number) => number,
+    heightAt: (x: number, z: number) => number = this.groundHeightAt,
   ) {
     // `size` fits the largest dimension, `height` fits vertically. Wide, flat
     // models (rocks, logs) must use `size` or uniform scaling inflates them
@@ -1128,9 +1300,21 @@ export abstract class BaseLevelScene {
     const d = this.dir();
     const moving = canMove && d.lengthSq() > 0.01;
     const now = performance.now();
-    if (moving && now - this.lastStepAt > 360) {
+    const isRunning = speed > this.baseSpeed + 0.2;
+    const cadenceMs = this.footstepSurface === 'snow'
+      ? (isRunning ? 300 : 390)
+      : this.footstepSurface === 'stone'
+        ? (isRunning ? 230 : 300)
+        : (isRunning ? 250 : 330);
+    if (moving && now - this.lastStepAt > cadenceMs) {
       this.lastStepAt = now;
-      AudioManager.sfx('step');
+      AudioManager.sfx(
+        this.footstepSurface === 'snow'
+          ? 'stepSnow'
+          : this.footstepSurface === 'stone'
+            ? 'stepStone'
+            : 'stepGrass',
+      );
     }
     if (moving && !this.hasTakenFirstStep) {
       this.hasTakenFirstStep = true;
@@ -1144,6 +1328,10 @@ export abstract class BaseLevelScene {
       const fixed = resolveCollisions(nx, nz, this.colliders);
       this.hero.position.x = fixed.x;
       this.hero.position.z = fixed.z;
+      // Ride the sculpted ground. Eased rather than snapped so crossing a
+      // ridge does not pop the camera, which tracks hero.y.
+      const groundHeight = this.groundHeightAt(fixed.x, fixed.z);
+      this.hero.position.y += (groundHeight - this.hero.position.y) * Math.min(1, dt * 12);
       this.yaw = Math.atan2(d.x, d.y);
       this.hero.rotation.y = this.yaw;
       if (!this.walking) {
@@ -1185,6 +1373,9 @@ export abstract class BaseLevelScene {
       positions.needsUpdate = true;
     }
     this.fireflies?.update(now * 0.001);
+    if (!this.prefersReducedMotion) {
+      for (const grass of this.windGrass) grass.update(now * 0.001);
+    }
     for (let i = this.sparks.length - 1; i >= 0; i--) {
       const s = this.sparks[i];
       const v = s.userData.v as THREE.Vector3;
@@ -1253,6 +1444,10 @@ export abstract class BaseLevelScene {
       this.disposeSceneResources();
       return false;
     }
+    if (this.pendingGrass) {
+      this.setupWindGrass(this.pendingGrass);
+      this.pendingGrass = null;
+    }
     document.addEventListener('visibilitychange', this.onVisibility);
     start();
     return true;
@@ -1276,6 +1471,12 @@ export abstract class BaseLevelScene {
   // ── Dispose ──────────────────────────────────────────────────
   private disposeSceneResources() {
     disposeObject3DResources(this.scene);
+    for (const grass of this.windGrass) grass.dispose();
+    this.windGrass.length = 0;
+    this.levelTerrain?.dispose();
+    this.levelTerrain = null;
+    this.groundHeightAt = () => 0;
+    setPlacementGround(null);
     this.kit?.dispose();
     this.kit = null;
     this.reserved.length = 0;
