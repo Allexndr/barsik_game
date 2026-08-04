@@ -677,9 +677,10 @@ export class Mission1Scene extends BaseLevelScene {
     } else {
       const back = this.phase === 'give_gift' || this.phase === 'invite_aya' || this.phase === 'outro' ? 8.5 : 9.5;
       const height = 6.0;
-      const target = new THREE.Vector3(this.hero.position.x * 0.55, height, this.hero.position.z + back);
+      const camOffsetX = this.portraitCameraOffset(0.9);
+      const target = new THREE.Vector3(this.hero.position.x * 0.55 + camOffsetX, height, this.hero.position.z + back);
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
-      this.camera.lookAt(this.hero.position.x, 1.35, this.hero.position.z - 0.8);
+      this.camera.lookAt(this.hero.position.x - camOffsetX * 0.28, 1.35, this.hero.position.z - 0.8);
     }
 
     this.renderFrame();

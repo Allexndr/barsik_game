@@ -1,6 +1,6 @@
 # S1 Execution Tracker — полный Season 1 по `SEASON_1_FULL_SPEC.md`
 
-> Старт: 2026-08-03 · Обновлено: 2026-08-04 (depth pass)
+> Старт: 2026-08-03 · Обновлено: 2026-08-04 (quality tiers)
 
 ## DoD (из S1_COMPLETION_PLAN §0)
 
@@ -26,6 +26,8 @@
 | Ice valley mechanic SFX | ✅ L11 sparkle, L12 slip/bonus, L14 found/whoosh, L9/L16 chest |
 | Hallmark Welcome / design.md | ✅ Barsik Hum; ART_DIRECTION §3b env look |
 | **Depth pass** (L6 clues, L9 seals, L10 gifts/farewell, L14 drifts, L16 prep) | ✅ см. `S1_DEPTH_PASS.md` |
+| **Quality tiers** (`?quality=low|medium|high`) | ✅ pixel ratio + shadows + postprocess profile |
+| Portrait camera offsets (narrow screens) | ✅ Mission0 + Mission1 follow cam bias |
 | Full screenshot / mobile matrix | ⏳ manual via `?mission=N&lang=` |
 | Premium-bar parity L1–L16 vs L0 | 🟡 L1 now on Base stack; Mission0 still standalone flagship |
 | Mission0 → BaseLevelScene | ⏳ next infra polish |
