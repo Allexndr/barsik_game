@@ -24,9 +24,10 @@ export function fitMaxSize(root: THREE.Object3D, s: number) {
 }
 
 /** Drop an object so its lowest point sits on y=0. */
-export function groundY(o: THREE.Object3D) {
+/** Sit an object's lowest point on `base` (terrain height, or 0 for a plane). */
+export function groundY(o: THREE.Object3D, base = 0) {
   const b = new THREE.Box3().setFromObject(o);
-  o.position.y -= b.min.y;
+  o.position.y += base - b.min.y;
 }
 
 export function disposeObject3DResources(root: THREE.Object3D) {

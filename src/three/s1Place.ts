@@ -18,6 +18,21 @@ export type PlaceOpts = {
   scale?: number;
 };
 
+/**
+ * Ground height for the level currently being built.
+ *
+ * Every call site here positions props by (x, z) and lets the helper work out
+ * y. Once levels sit on sculpted terrain rather than a plane, that y has to
+ * come from the terrain or props hover and sink. Threading a sampler through
+ * ~200 call sites would be noise, so the active scene registers one here and
+ * clears it on dispose; only one level is ever live at a time.
+ */
+let groundSampler: ((x: number, z: number) => number) | null = null;
+
+export function setPlacementGround(sampler: ((x: number, z: number) => number) | null) {
+  groundSampler = sampler;
+}
+
 async function placeFile(
   loader: GLTFLoader,
   kind: 'prop' | 'char',
@@ -34,9 +49,12 @@ async function placeFile(
       : await loadCharModel(loader, file, opts.height ?? 0.9);
   if (!obj) return null;
   if (opts.scale !== undefined) obj.scale.multiplyScalar(opts.scale);
-  obj.position.set(opts.x, opts.y ?? 0, opts.z);
+  const base = groundSampler ? groundSampler(opts.x, opts.z) : 0;
+  // An explicit y is a height above the ground, not an absolute world y —
+  // floating props (lanterns, snowflakes) must ride the terrain too.
+  obj.position.set(opts.x, base + (opts.y ?? 0), opts.z);
   if (opts.rotY !== undefined) obj.rotation.y = opts.rotY;
-  if (opts.y === undefined) groundY(obj);
+  if (opts.y === undefined) groundY(obj, base);
   return obj;
 }
 

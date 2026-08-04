@@ -9,7 +9,6 @@ import {
   bush,
   hill,
   skyDome,
-  makeGrassTexture,
   pathArrow,
   placeWoodSign,
   loadCharModel,
@@ -206,8 +205,7 @@ export class Level7Scene extends BaseLevelScene {
     const loader = createGameGltfLoader();
 
     this.camera.position.set(0, 6, 14);
-    this.setupLighting(0x4a5d4a, 0xfff3e0, 0.9, 0x6b8e6b, 0x2d4a2d);
-    this.setupGround(makeGrassTexture());
+    await this.setupForestEnvironment(loader, { fogColor: 0x4a5d4a, sunColor: 0xfff3e0, sunIntensity: 1.75, hemiSky: 0x6b8e6b, hemiGround: 0x2d4a2d, sky: ['#e8a25c', '#f0c48a', '#f6e2c4'], flatRadius: 18, flatCenterZ: -10, fireflies: true });
     this.scene.add(skyDome('#3a5a3a', '#5a7a5a', '#8aaa8a'));
     this.setupClouds(4, 22, 40);
 

@@ -10,7 +10,6 @@ import {
   tulip,
   hill,
   skyDome,
-  makeGrassTexture,
   loadCharModel,
   loadPropModel,
   placeWoodSign,
@@ -247,8 +246,7 @@ export class Level8Scene extends BaseLevelScene {
     const loader = createGameGltfLoader();
 
     this.camera.position.set(0, 7, 16);
-    this.setupLighting(0x81c784, 0xfff8e7);
-    this.setupGround(makeGrassTexture());
+    await this.setupForestEnvironment(loader, { flatRadius: 20, flatCenterZ: -14, fireflies: true });
     this.scene.add(skyDome());
     this.setupClouds(6, 26, 50);
 

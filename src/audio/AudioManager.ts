@@ -22,7 +22,10 @@ type SfxName =
   | 'sparkle'
   | 'levelComplete'
   | 'tick'
-  | 'step';
+  | 'step'
+  | 'stepGrass'
+  | 'stepSnow'
+  | 'stepStone';
 
 export type MusicTheme = 'forest' | 'ice' | 'hub' | 'none';
 
@@ -222,6 +225,15 @@ class AudioManagerClass {
         break;
       case 'step':
         this.playTone(90 + Math.random() * 40, 0.05, 'triangle', 0.06);
+        break;
+      case 'stepGrass':
+        this.playTone(120 + Math.random() * 55, 0.045, 'triangle', 0.055);
+        break;
+      case 'stepSnow':
+        this.playTone(170 + Math.random() * 40, 0.06, 'triangle', 0.05);
+        break;
+      case 'stepStone':
+        this.playTone(145 + Math.random() * 45, 0.05, 'square', 0.045);
         break;
     }
   }

@@ -11,7 +11,6 @@ import {
   tulip,
   hill,
   skyDome,
-  makeGrassTexture,
   pathArrow,
   placeWoodSign,
   loadCharModel,
@@ -530,8 +529,7 @@ export class Level2Scene extends BaseLevelScene {
 
     // Setup
     this.camera.position.set(-10, 7, 16);
-    this.setupLighting(0x8fd8f5, 0xfff8e7);
-    this.setupGround(makeGrassTexture());
+    await this.setupForestEnvironment(loader, { fogColor: 0x8fd8f5, flatRadius: 21, flatCenterZ: -14 });
     this.scene.add(skyDome());
     this.setupClouds(6, 26, 60);
 
