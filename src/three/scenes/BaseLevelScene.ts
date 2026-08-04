@@ -11,6 +11,7 @@ import { AssetKit } from '../AssetKit';
 import { placePatch, ringAnchors, type PatchSpec } from '../sceneComposition';
 import { disposeObject3DResources, fitHeight, fitMaxSize, groundY } from '../modelUtils';
 import { createFpsSampler } from '@/dev/fpsSampler';
+import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
 
 // ─── Shared types ───────────────────────────────────────────────
 export type Collider = 
@@ -630,6 +631,7 @@ export abstract class BaseLevelScene {
   protected lastStepAt = 0;
   protected isMobile = typeof window !== 'undefined' && (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
   protected quality: QualityPipeline | null = null;
+  protected renderQuality: RenderQualityProfile;
   protected kit: AssetKit | null = null;
   protected reserved: Array<{ x: number; z: number; r: number }> = [];
   private fpsSampler = createFpsSampler('level');
@@ -650,12 +652,13 @@ export abstract class BaseLevelScene {
   private pauseStartedAt = 0;
 
   constructor(protected canvas: HTMLCanvasElement) {
+    this.renderQuality = getRenderQualityProfile(resolveRenderQualityTier(this.isMobile), this.isMobile);
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
       powerPreference: 'high-performance',
     });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.isMobile ? 1.5 : 2));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.renderQuality.maxPixelRatio));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -670,7 +673,7 @@ export abstract class BaseLevelScene {
     const sun = new THREE.DirectionalLight(sunColor, sunIntensity);
     sun.position.set(-14, 24, 12);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(this.isMobile ? 1024 : 2048, this.isMobile ? 1024 : 2048);
+    sun.shadow.mapSize.set(this.renderQuality.shadowMapSize, this.renderQuality.shadowMapSize);
     sun.shadow.bias = -0.0005;
     sun.shadow.radius = 2;
     sun.shadow.camera.near = 1;
@@ -819,7 +822,11 @@ export abstract class BaseLevelScene {
   /** ACES + bloom + FXAA — same premium frame as Mission 0. */
   protected setupQuality() {
     this.quality = new QualityPipeline(this.renderer, this.scene, this.camera, {
-      mobile: this.isMobile,
+      mobile: !this.renderQuality.useComposer,
+      bloomStrength: this.renderQuality.bloomStrength,
+      bloomRadius: this.renderQuality.bloomRadius,
+      bloomThreshold: this.renderQuality.bloomThreshold,
+      exposure: this.renderQuality.exposure,
     });
     const p = this.canvas.parentElement;
     const w = p?.clientWidth || innerWidth;
@@ -1221,6 +1228,19 @@ export abstract class BaseLevelScene {
     this.camera.lookAt(look);
   }
 
+  protected isPortraitViewport() {
+    return this.camera.aspect < 0.86;
+  }
+
+  /**
+   * Small rightward camera bias for narrow portrait screens. This keeps more
+   * forward route visible and prevents the hero from sitting exactly centered
+   * under HUD controls.
+   */
+  protected portraitCameraOffset(amount = 0.9) {
+    return this.isPortraitViewport() ? amount : 0;
+  }
+
   // ── Abstract methods ─────────────────────────────────────────
   protected abstract currentPhase(): string;
   abstract tryInteract(): void;
@@ -1245,7 +1265,7 @@ export abstract class BaseLevelScene {
     const h = p?.clientHeight || innerHeight;
     const portrait = h > w * 1.15;
     this.isMobile = window.matchMedia('(pointer: coarse)').matches || w < 768;
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.isMobile ? 1.5 : 2));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.renderQuality.maxPixelRatio));
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / Math.max(h, 1);
     this.camera.fov = portrait ? 61 : 53;

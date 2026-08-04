@@ -22,6 +22,7 @@ import {
 import { AudioManager } from '@/audio/AudioManager';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeMany, placeS1Prop, placeS1Char } from '../s1Place';
+import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
 
 /**
  * Level 1 «Первое утро» — adventure LD inspired by Roblox patterns:
@@ -966,6 +967,8 @@ export class Mission0Scene {
   private clouds: THREE.Group[] = [];
   private flame: THREE.Object3D | null = null;
   private quality: QualityPipeline | null = null;
+  private renderQuality: RenderQualityProfile;
+  private portrait = false;
   private paused = false;
   private pauseStartedAt = 0;
   private sun: THREE.DirectionalLight | null = null;
@@ -985,8 +988,9 @@ export class Mission0Scene {
     (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
 
   constructor(private canvas: HTMLCanvasElement) {
+    this.renderQuality = getRenderQualityProfile(resolveRenderQualityTier(this.isMobile), this.isMobile);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.isMobile ? 1.5 : 2));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.renderQuality.maxPixelRatio));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1003,7 +1007,7 @@ export class Mission0Scene {
     const sun = new THREE.DirectionalLight(0xffe0b0, 1.55);
     sun.position.set(22, 30, 10);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(this.isMobile ? 1024 : 2048, this.isMobile ? 1024 : 2048);
+    sun.shadow.mapSize.set(this.renderQuality.shadowMapSize, this.renderQuality.shadowMapSize);
     sun.shadow.bias = -0.00035;
     sun.shadow.normalBias = 0.035;
     sun.shadow.radius = 3.5;
@@ -1023,11 +1027,11 @@ export class Mission0Scene {
     this.scene.add(new THREE.AmbientLight(0xfff5e6, 0.22));
 
     this.quality = new QualityPipeline(this.renderer, this.scene, this.camera, {
-      mobile: this.isMobile,
-      bloomStrength: 0.22,
-      bloomRadius: 0.38,
-      bloomThreshold: 0.82,
-      exposure: 1.18,
+      mobile: !this.renderQuality.useComposer,
+      bloomStrength: this.renderQuality.bloomStrength,
+      bloomRadius: this.renderQuality.bloomRadius,
+      bloomThreshold: this.renderQuality.bloomThreshold,
+      exposure: this.renderQuality.exposure,
     });
 
     // Valley terrain (replaces flat island — rolling hills + path groove)
@@ -1908,8 +1912,11 @@ export class Mission0Scene {
     const p = this.canvas.parentElement;
     const w = p?.clientWidth || innerWidth;
     const h = p?.clientHeight || innerHeight;
+    this.portrait = h > w * 1.15;
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.renderQuality.maxPixelRatio));
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / Math.max(h, 1);
+    this.camera.fov = this.portrait ? 61 : 55;
     this.camera.updateProjectionMatrix();
     this.quality?.setSize(w, h);
   };
@@ -2245,16 +2252,21 @@ export class Mission0Scene {
     } else {
       const back = this.phase.startsWith('help') || this.phase === 'outro' ? 11 : 9.5;
       const height = 6.2;
+      const camOffsetX = this.portrait ? 0.9 : 0;
       // Clamp so the house at (-9, 12) never eats the camera (Level Design Book)
       const camZ = Math.min(this.hero.position.z + back, 20);
-      let camX = this.hero.position.x * 0.55;
+      let camX = this.hero.position.x * 0.55 + camOffsetX;
       // Soft push away from house volume when hero is in the yard
       if (this.hero.position.z > 6 && this.hero.position.x < -2) {
         camX = Math.max(camX, -2.5);
       }
       const target = new THREE.Vector3(camX, height, camZ);
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
-      this.camera.lookAt(this.hero.position.x, this.heightAt(this.hero.position.x, this.hero.position.z) + 1.35, this.hero.position.z - 0.8);
+      this.camera.lookAt(
+        this.hero.position.x - camOffsetX * 0.28,
+        this.heightAt(this.hero.position.x, this.hero.position.z) + 1.35,
+        this.hero.position.z - 0.8,
+      );
     }
 
     // Keep soft shadows tight around the hero (crisper contact without huge maps)
