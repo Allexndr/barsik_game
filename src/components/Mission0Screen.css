@@ -122,18 +122,31 @@
   animation: m0-pop 0.8s ease;
 }
 
+/*
+ * Control hint.
+ *
+ * This used to float bare at the top centre of the viewport, directly over
+ * the route the player is being asked to look down. It now sits as one
+ * contained panel low on the screen, out of the action zone, and reads as
+ * part of the HUD rather than as loose keycaps dropped on the render.
+ */
 .m0-keys {
   position: absolute;
-  top: 70px;
   left: 50%;
+  bottom: calc(20px + max(24px, env(safe-area-inset-bottom)));
   transform: translateX(-50%);
   z-index: 5;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 6px 20px rgba(38, 30, 84, 0.16);
   pointer-events: none;
-  animation: m0-pulse 1.4s ease-in-out infinite;
+  animation: m0-hint-in 0.35s ease-out both, m0-pulse 2.6s ease-in-out 0.4s infinite;
 }
 
 .m0-keys-row {
@@ -144,22 +157,43 @@
 .m0-keys kbd {
   display: inline-grid;
   place-items: center;
-  min-width: 36px;
-  height: 36px;
-  padding: 0 8px;
-  border-radius: 8px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 7px;
   background: #fff;
-  border: 2px solid #6c5ce7;
+  border: 1.5px solid #6c5ce7;
+  font-size: 0.78rem;
   font-weight: 900;
   color: #6c5ce7;
-  box-shadow: 0 3px 0 #3a2e7a;
+  box-shadow: 0 2px 0 #3a2e7a;
 }
 
 .m0-keys-or {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  color: #6b6685;
+}
+
+@keyframes m0-hint-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* On phones the joystick owns the bottom-left, so shift the hint clear of it. */
+@media (max-width: 720px) {
+  .m0-keys {
+    left: auto;
+    right: 12px;
+    transform: none;
+    animation: m0-pulse 2.6s ease-in-out infinite;
+  }
 }
 
 .m0-stick {
