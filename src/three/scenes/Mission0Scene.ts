@@ -334,38 +334,68 @@ function woodSign(x: number, z: number, rotY: number, faceColor: number) {
   return g;
 }
 
-/** Giant apple landmark — visible from spawn (focal point). */
+/**
+ * Giant apple landmark — the focal point visible from spawn.
+ *
+ * A perfect emissive sphere on a pole read as a beach ball, not fruit. An
+ * apple's silhouette is wider than it is tall and dimpled at both ends, so
+ * the body is squashed and capped with recessed poles; the finish is matte
+ * with a faint sheen instead of self-lit, and the glow is a warm bounce
+ * rather than a lamp buried in the fruit.
+ */
 function giantAppleLandmark(x: number, z: number) {
   const g = new THREE.Group();
-  const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.12, 0.16, 2.2, 8),
-    new THREE.MeshStandardMaterial({ color: 0x5d4037 }),
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.24, 2.0, 8),
+    new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.95 }),
   );
-  stem.position.y = 1.1;
-  const fruit = new THREE.Mesh(
-    new THREE.SphereGeometry(1.15, 18, 18),
-    new THREE.MeshStandardMaterial({
-      color: 0xff3b5c,
-      emissive: 0xc0392b,
-      emissiveIntensity: 0.35,
-      roughness: 0.35,
-    }),
+  trunk.position.y = 1.0;
+  trunk.castShadow = true;
+
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: 0xe03a52,
+    roughness: 0.42,
+    metalness: 0.02,
+  });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1.15, 24, 20), bodyMat);
+  body.scale.set(1.06, 0.9, 1.06);
+  body.position.y = 3.0;
+  body.castShadow = true;
+  body.receiveShadow = true;
+
+  // Recessed poles: without them the sphere never reads as fruit.
+  const dimpleMat = new THREE.MeshStandardMaterial({ color: 0xa8283a, roughness: 0.7 });
+  const topDimple = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 10), dimpleMat);
+  topDimple.scale.set(1, 0.45, 1);
+  topDimple.position.y = 3.9;
+  const bottomDimple = topDimple.clone();
+  bottomDimple.position.y = 2.14;
+
+  const stalk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.07, 0.62, 6),
+    new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.9 }),
   );
-  fruit.position.y = 2.6;
-  fruit.castShadow = true;
-  const leaf = new THREE.Mesh(
-    new THREE.SphereGeometry(0.35, 8, 8),
-    new THREE.MeshStandardMaterial({ color: 0x2ecc71 }),
-  );
-  leaf.scale.set(1.4, 0.4, 1);
-  leaf.position.set(0.5, 3.5, 0);
-  stem.castShadow = false;
-  stem.receiveShadow = false;
-  leaf.castShadow = false;
-  leaf.receiveShadow = false;
-  const glow = new THREE.PointLight(0xff7675, 1.4, 14);
-  glow.position.set(0, 2.8, 0);
-  g.add(stem, fruit, leaf, glow);
+  stalk.position.set(0.03, 4.16, 0);
+  stalk.rotation.z = -0.16;
+
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x3f9d4f, roughness: 0.75 });
+  for (const [side, tilt] of [[1, 0.5], [-1, -0.7]] as const) {
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), leafMat);
+    leaf.scale.set(1.5, 0.16, 0.72);
+    leaf.position.set(side * 0.3, 4.32 + side * 0.04, 0);
+    leaf.rotation.set(0, side * 0.3, tilt);
+    g.add(leaf);
+  }
+
+  for (const part of [topDimple, bottomDimple, stalk]) {
+    part.castShadow = false;
+    part.receiveShadow = false;
+  }
+
+  // Warm bounce under the canopy, not a lamp inside the fruit.
+  const glow = new THREE.PointLight(0xffb3a0, 0.85, 11, 2);
+  glow.position.set(0, 2.2, 0.4);
+  g.add(trunk, body, topDimple, bottomDimple, stalk, glow);
   g.position.set(x, 0, z);
   return g;
 }
@@ -949,16 +979,23 @@ export class Mission0Scene extends BaseLevelScene {
 
   constructor(canvas: HTMLCanvasElement) {
     super(canvas);
-    // Wide cinematic opening that frames both the house and the hero spawn
-    this.camera.position.set(-14, 8, 22);
+    // Must match introPos[0] in the loop. Starting on the -X side put the
+    // camera 11 units from the house at (-9, 12), so the opening seconds —
+    // before the dolly lerps anywhere — were a screenful of roof.
+    this.camera.position.set(11, 9.5, 25);
 
-    // Warm morning fog + sky (matches golden-hour sky dome)
+    // Warm morning fog + sky (matches golden-hour sky dome). Fog starts well
+    // inside the valley so distance separates; at near=48 nothing in the
+    // playable area was ever touched by it and the scene read as one flat card.
     const fogCol = 0xc8e4f2;
     this.scene.background = new THREE.Color(fogCol);
-    this.scene.fog = new THREE.Fog(fogCol, 48, 195);
+    this.scene.fog = new THREE.Fog(fogCol, 24, 155);
 
-    this.scene.add(new THREE.HemisphereLight(0xffe8c8, 0x4a8f4e, 0.95));
-    const sun = new THREE.DirectionalLight(0xffe0b0, 1.55);
+    // Key/fill ratio, not a flood. The old rig ran 0.95 hemisphere plus 0.22
+    // ambient against a 1.55 sun — barely 2.3:1 — which washed the morning
+    // out no matter how well the valley was sculpted.
+    this.scene.add(new THREE.HemisphereLight(0xffe8c8, 0x4a8f4e, 0.5));
+    const sun = new THREE.DirectionalLight(0xffe4bc, 2.55);
     sun.position.set(22, 30, 10);
     sun.castShadow = true;
     sun.shadow.mapSize.set(this.renderQuality.shadowMapSize, this.renderQuality.shadowMapSize);
@@ -974,11 +1011,14 @@ export class Mission0Scene extends BaseLevelScene {
     this.scene.add(sun);
     this.scene.add(sun.target);
     this.sun = sun;
-    // Soft fill from opposite side — lifts dark faces without killing shadows
-    const fill = new THREE.DirectionalLight(0xb8d4ff, 0.35);
+    // Sky-coloured fill keeps shadows blue rather than black; a cool rim from
+    // behind separates plush silhouettes from the treeline.
+    const fill = new THREE.DirectionalLight(0xb8d4ff, 0.38);
     fill.position.set(-14, 12, -8);
-    this.scene.add(fill);
-    this.scene.add(new THREE.AmbientLight(0xfff5e6, 0.22));
+    const rim = new THREE.DirectionalLight(0xdcefff, 0.6);
+    rim.position.set(-6, 14, -20);
+    this.scene.add(fill, rim);
+    this.scene.add(new THREE.AmbientLight(0xfff5e6, 0.07));
 
     this.setupQuality();
 
@@ -2109,22 +2149,30 @@ export class Mission0Scene extends BaseLevelScene {
 
     // Camera: Roblox-ish elevated third person
     if (this.phase === 'intro') {
-      // Cinematic dolly from wide establishing shot to behind-the-hero
+      // Cinematic dolly from wide establishing shot to behind-the-hero.
+      //
+      // These shots used to run down the -X side, which puts the house at
+      // (-9, 12) directly between the lens and the look target: the opening
+      // frame of the whole game was half roof. The approach now comes from
+      // the open side, so the house reads as a landmark on the left, the yard
+      // and the trail stay visible, and Barsik is never occluded.
       const idx = Math.min(this.introI, 2);
       const introPos = [
-        new THREE.Vector3(-16, 11, 24),
-        new THREE.Vector3(-7, 8, 18),
-        new THREE.Vector3(-1.2, 6.5, 14),
+        new THREE.Vector3(11, 9.5, 25),
+        new THREE.Vector3(6, 7.5, 19),
+        new THREE.Vector3(1.5, 6.4, 14.5),
       ];
       const introLook = [
-        new THREE.Vector3(-4, 2.2, 10),
-        new THREE.Vector3(-1, 1.8, 8),
-        new THREE.Vector3(0, 1.5, 7),
+        new THREE.Vector3(-3.5, 2.4, 11),
+        new THREE.Vector3(-1.5, 2.0, 9.5),
+        new THREE.Vector3(0, 1.5, 7.5),
       ];
-      const target = introPos[idx];
+      // Portrait crops the sides, so pull back to keep the same framing on a
+      // phone as on a desktop rather than filling the screen with one prop.
+      const pullback = this.portrait ? 1.22 : 1;
+      const target = introPos[idx].clone().multiplyScalar(pullback);
       this.camera.position.lerp(target, 1 - Math.pow(0.02, dt));
-      const look = new THREE.Vector3().copy(introLook[idx]);
-      this.camera.lookAt(look);
+      this.camera.lookAt(introLook[idx]);
     } else {
       const back = this.phase.startsWith('help') || this.phase === 'outro' ? 11 : 9.5;
       const height = 6.2;

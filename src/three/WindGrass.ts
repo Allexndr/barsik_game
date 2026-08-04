@@ -12,6 +12,10 @@ export type WindGrassOptions = {
   /** Return terrain Y at (x, z) for blade root. */
   heightAt?: (x: number, z: number) => number;
   bladeHeight?: [min: number, max: number];
+  /** Must match the scene fog, or far grass stays vivid while the world fades. */
+  fogColor?: number;
+  fogNear?: number;
+  fogFar?: number;
 };
 
 export type WindGrass = {
@@ -33,18 +37,26 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
     count,
     area,
     exclude,
-    rootColor = 0x3e7a35,
-    tipColor = 0x8fc45c,
-    tipWarmColor = 0xd9c86b,
-    bladeHeight = [0.28, 0.62],
+    // Root sits close to the terrain's own green. The old 0x3e7a35 crushed
+    // to near-black through ACES, so the field read as dark scratches lying
+    // on the ground rather than as grass growing out of it.
+    rootColor = 0x5e9a4a,
+    tipColor = 0xa2d46b,
+    tipWarmColor = 0xe0cf7c,
+    bladeHeight = [0.3, 0.68],
     heightAt,
+    fogColor = 0xc8e4f2,
+    fogNear = 24,
+    fogFar = 155,
   } = opts;
 
   // Single tapered triangle per blade — cheapest silhouette that still sways.
+  // Half-width 0.035 was under a pixel past ~15 units, which aliased every
+  // distant blade into a hard dark speck.
   const base = new THREE.BufferGeometry();
   base.setAttribute(
     'position',
-    new THREE.Float32BufferAttribute([-0.035, 0, 0, 0.035, 0, 0, 0, 1, 0], 3),
+    new THREE.Float32BufferAttribute([-0.055, 0, 0, 0.055, 0, 0, 0, 1, 0], 3),
   );
 
   const geometry = new THREE.InstancedBufferGeometry();
@@ -84,9 +96,9 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
       uRoot: { value: new THREE.Color(rootColor).convertSRGBToLinear() },
       uTip: { value: new THREE.Color(tipColor).convertSRGBToLinear() },
       uTipWarm: { value: new THREE.Color(tipWarmColor).convertSRGBToLinear() },
-      fogColor: { value: new THREE.Color(0xc8e4f2).convertSRGBToLinear() },
-      fogNear: { value: 55 },
-      fogFar: { value: 175 },
+      fogColor: { value: new THREE.Color(fogColor).convertSRGBToLinear() },
+      fogNear: { value: fogNear },
+      fogFar: { value: fogFar },
     },
     vertexShader: /* glsl */ `
       attribute vec3 offset;
@@ -130,6 +142,9 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
       void main() {
         vec3 tip = mix(uTip, uTipWarm, vTint);
         vec3 col = mix(uRoot, tip, smoothstep(0.03, 1.0, vY));
+        // Blades are unlit geometry; a gentle tip lift stands in for the sun
+        // so the field has form instead of reading as flat cutouts.
+        col *= 0.9 + 0.28 * vY;
         float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
         gl_FragColor = vec4(mix(col, fogColor, fogFactor), 1.0);
       }
