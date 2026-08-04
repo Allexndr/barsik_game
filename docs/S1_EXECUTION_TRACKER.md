@@ -23,14 +23,15 @@
 | **QR / finale productize** | ✅ keys honest, L16 friends filter, outro CTA → QR tab, `season1Complete` |
 | **FPS sampler** | ✅ `?fps=1` → console avg/p5 every 10s |
 | visibility pause | ✅ `visibilitychange` → `setPaused(true)` |
+| Footstep cadence + surface SFX | ✅ grass/snow/ice cadence in Base + Mission0 |
 | Ice valley mechanic SFX | ✅ L11 sparkle, L12 slip/bonus, L14 found/whoosh, L9/L16 chest |
 | Hallmark Welcome / design.md | ✅ Barsik Hum; ART_DIRECTION §3b env look |
 | **Depth pass** (L6 clues, L9 seals, L10 gifts/farewell, L14 drifts, L16 prep) | ✅ см. `S1_DEPTH_PASS.md` |
 | **Quality tiers** (`?quality=low|medium|high`) | ✅ pixel ratio + shadows + postprocess profile |
 | Portrait camera offsets (narrow screens) | ✅ Mission0 + Mission1 follow cam bias |
 | Full screenshot / mobile matrix | ⏳ manual via `?mission=N&lang=` |
-| Premium-bar parity L1–L16 vs L0 | 🟡 L1 now on Base stack; Mission0 still standalone flagship |
-| Mission0 → BaseLevelScene | ⏳ next infra polish |
+| Premium-bar parity L1–L16 vs L0 | ✅ Mission0 + Mission1 на Base stack |
+| Mission0 → BaseLevelScene | ✅ `Mission0Scene extends BaseLevelScene` |
 
 **Verdict:** S1 **играбелен end-to-end**. Depth-pass на тонких уровнях; e2e playtest и mobile matrix — вручную.
 
@@ -46,7 +47,6 @@
 ## Очередь (остаток polish)
 
 1. Screenshot / FPS matrix на реальном mobile (`?mission=N&lang=&fps=1`)
-2. Mission0 `extends BaseLevelScene` (flagship parity)
-3. Barsik skins Image-to-3D по запросу
-4. Meshy credits → plush scarf + style-match fence
-5. Season 2 kickoff по `SEASON_2_SPEC.md` после S1 visual lock
+2. Barsik skins Image-to-3D по запросу
+3. Meshy credits → plush scarf + style-match fence
+4. Season 2 kickoff по `SEASON_2_SPEC.md` после S1 visual lock
