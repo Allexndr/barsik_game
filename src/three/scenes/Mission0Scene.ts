@@ -2167,18 +2167,25 @@ export class Mission0Scene extends BaseLevelScene {
         new THREE.Vector3(-1.5, 2.0, 9.5),
         new THREE.Vector3(0, 1.5, 7.5),
       ];
-      // Portrait crops the sides, so pull back to keep the same framing on a
-      // phone as on a desktop rather than filling the screen with one prop.
-      const pullback = this.portrait ? 1.22 : 1;
+      // Portrait crops the sides, so pull back to keep roughly the desktop
+      // framing. It also sits the camera lower and aims it further out: at
+      // the desktop pitch a phone spends its bottom third on empty ground
+      // between the lens and the hero.
+      const pullback = this.portrait ? 1.2 : 1;
       const target = introPos[idx].clone().multiplyScalar(pullback);
+      if (this.portrait) target.y *= 0.82;
       this.camera.position.lerp(target, 1 - Math.pow(0.02, dt));
-      this.camera.lookAt(introLook[idx]);
+      const look = introLook[idx].clone();
+      if (this.portrait) look.y += 1.4;
+      this.camera.lookAt(look);
     } else {
       const back = this.phase.startsWith('help') || this.phase === 'outro' ? 11 : 9.5;
-      const height = 6.2;
+      // Lower and slightly further back on a phone: a flatter angle fills the
+      // tall frame with world instead of foreground grass.
+      const height = this.portrait ? 4.9 : 6.2;
       const camOffsetX = this.portrait ? 0.9 : 0;
       // Clamp so the house at (-9, 12) never eats the camera (Level Design Book)
-      const camZ = Math.min(this.hero.position.z + back, 20);
+      const camZ = Math.min(this.hero.position.z + back + (this.portrait ? 1.4 : 0), 20);
       let camX = this.hero.position.x * 0.55 + camOffsetX;
       // Soft push away from house volume when hero is in the yard
       if (this.hero.position.z > 6 && this.hero.position.x < -2) {
@@ -2188,8 +2195,8 @@ export class Mission0Scene extends BaseLevelScene {
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
       this.camera.lookAt(
         this.hero.position.x - camOffsetX * 0.28,
-        this.heightAt(this.hero.position.x, this.hero.position.z) + 1.35,
-        this.hero.position.z - 0.8,
+        this.heightAt(this.hero.position.x, this.hero.position.z) + (this.portrait ? 2.3 : 1.35),
+        this.hero.position.z - (this.portrait ? 3.2 : 0.8),
       );
     }
 
