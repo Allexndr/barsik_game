@@ -22,11 +22,10 @@ export function NavBar() {
     { id: 'leaderboard', label: t(lang, 'nav.leaderboard'), icon: 'nav_leaderboard' },
     { id: 'qr', label: t(lang, 'nav.qr'), icon: 'nav_qr' },
   ] as const;
-  const mobileTabs = tabs.filter((t) => t.id !== 'shop');
 
   return (
     <>
-      <nav className="navbar">
+      <nav className="navbar" aria-label="Main navigation">
         <div className="navbar-left">
           <div className="logo">BARSIK</div>
         </div>
@@ -35,7 +34,9 @@ export function NavBar() {
           {tabs.map((tab) => (
             <button
               key={tab.id}
+              type="button"
               className={`nav-tab ${activeTab === tab.id ? 'active' : ''}`}
+              aria-current={activeTab === tab.id ? 'page' : undefined}
               onClick={() => setActiveTab(tab.id)}
             >
               <img
@@ -77,10 +78,12 @@ export function NavBar() {
         </div>
       </nav>
       <nav className="navbar-mobile" aria-label="Mobile navigation">
-        {mobileTabs.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={`mobile-${tab.id}`}
+            type="button"
             className={`nav-tab mobile ${activeTab === tab.id ? 'active' : ''}`}
+            aria-current={activeTab === tab.id ? 'page' : undefined}
             onClick={() => setActiveTab(tab.id)}
           >
             <img

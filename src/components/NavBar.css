@@ -215,13 +215,13 @@
   }
 
   .nav-tab.mobile .nav-tab-icon {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     border-radius: 9px;
   }
 
   .nav-tab.mobile .nav-tab-label {
-    font-size: 0.62rem;
+    font-size: 0.58rem;
     letter-spacing: 0;
   }
 }

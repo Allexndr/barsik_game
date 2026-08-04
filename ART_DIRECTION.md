@@ -8,14 +8,14 @@
 
 ## 2. Палитра
 
-- **Primary**: `#6C5CE7` (фиолетовый) — основной брендовый цвет
-- **Secondary**: `#FD79A8` (розовый) — акценты, кнопки действий
-- **Tertiary**: `#FDCB6E` (жёлтый) — звёзды, награды, выделение
-- **Success**: `#00B894` (бирюзовый) — прогресс, достижения
-- **Info**: `#0984E3` (синий) — лёд, вода, небо
-- **Surface**: `#FFFFFF` с 85–95% непрозрачности — карточки UI
-- **Text**: `#2D3436` — тёмный серый, не чёрный
-- **Background gradient base**: `#A29BFE` → `#6C5CE7`
+- **Primary (3D / brand plush)**: warm sky cyan + pear yellow — see also UI lock in `design.md` (**Barsik Hum**: cream / pear / cyan / coral). Avoid purple-violet UI defaults.
+- **Secondary**: `#EF6B3A` (coral) — accents, CTA pop
+- **Tertiary**: `#F0D24A` (pear) — звёзды, награды, выделение
+- **Success**: `#5FBF7A` (mint) — прогресс, forest
+- **Info**: `#2AA8D8` (cyan) — лёд, вода, небо, links
+- **Surface**: cream `#F7F3E3` — marketing / hub paper
+- **Text**: `#1C2430` — cool near-black, не чистый чёрный
+- **Legacy violet** (`#6C5CE7`) — deprecated for new UI; keep only if an old asset already uses it
 
 ## 3. Персонаж
 
@@ -35,6 +35,19 @@
 4. `fall` — падение/приземление, 3 кадра.
 5. `celebrate` — радуется, лапы вверх.
 6. `wave` — машет лапой, для меню.
+
+## 3b. Environment look (Three.js Season 1)
+
+Цель кадра — **stylized sunny toy-world**, не фотореализм и не uncanny AI faces:
+
+- **Небо**: `#8fd8f5` fog + `skyDome`, мягкие облака; fill + rim lights из `BaseLevelScene.setupLighting`.
+- **Земля**: `makeGrassTexture` / snow|ice winter presets — не плоский серый plane.
+- **Деревья / props**: Kenney nature kit через `loadTrees` / `loadProps` / `layTrail`; landmarks через `s1Place` (2–6 на уровень).
+- **Тропа**: dirt quads + stone trail + sparse yellow breadcrumbs — не «светящийся конвейер».
+- **Камера**: intro keyframes → follow back ~9 / height ~5.5–6; bloom via `QualityPipeline`.
+- **Запрет**: фиолетовый ambient, glassmorphism, random Meshy clutter без cast map.
+
+UI marketing tokens: `design.md` (Hallmark · Barsik Hum).
 
 ## 4. Фоны и safe zones
 

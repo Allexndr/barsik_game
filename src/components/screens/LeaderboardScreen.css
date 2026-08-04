@@ -3,18 +3,120 @@
   flex-direction: column;
 }
 
-.leaderboard-list {
-  flex: 1;
+.leaderboard-you {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: var(--spacing-xl);
-  color: var(--text-light);
-  background: rgba(0, 0, 0, 0.05);
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+  padding: 0.65rem 0.85rem;
   border-radius: var(--radius-lg);
-  border: 2px dashed var(--border);
+  background: rgba(253, 203, 110, 0.15);
+  border: 2px solid rgba(253, 203, 110, 0.45);
 }
 
-.leaderboard-item-placeholder {
-  font-size: 1.1rem;
+.leaderboard-you-label {
+  font-weight: 700;
+  color: var(--text-dark);
+  font-size: 0.9rem;
+}
+
+.leaderboard-you-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.leaderboard-panel {
+  flex: 1;
+  min-height: 220px;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border);
+  background: rgba(255, 255, 255, 0.85);
+  overflow: hidden;
+}
+
+.leaderboard-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-2xl);
+  text-align: center;
+  color: var(--text-light);
+  min-height: 220px;
+}
+
+.leaderboard-spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid rgba(108, 92, 231, 0.2);
+  border-top-color: var(--primary);
+  animation: spin 0.9s linear infinite;
+}
+
+.leaderboard-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem;
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-md);
+  transition: background 0.15s;
+}
+
+.leaderboard-row:nth-child(odd) {
+  background: rgba(108, 92, 231, 0.04);
+}
+
+.leaderboard-row.is-you {
+  background: rgba(46, 204, 113, 0.12);
+  outline: 2px solid rgba(46, 204, 113, 0.35);
+}
+
+.leaderboard-rank {
+  font-weight: 800;
+  color: var(--primary);
+  text-align: center;
+}
+
+.leaderboard-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.leaderboard-name {
+  font-weight: 700;
+  color: var(--text-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-you-tag {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--primary);
+  color: white;
+}
+
+.leaderboard-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-weight: 700;
+  color: var(--text-dark);
 }

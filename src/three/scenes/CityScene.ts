@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { CAST_CHAR_GLB } from '../castModels';
+import { fitHeight, groundY } from '../modelUtils';
+import { createGameGltfLoader } from '../createGameGltfLoader';
+import { placeMany, placeAmbientCritters } from '../s1Place';
 
 export type CityStage = 'early' | 'growing' | 'full';
 
@@ -85,6 +89,46 @@ function makeFountain(): THREE.Group {
   return g;
 }
 
+function makeLamp(x: number, z: number): THREE.Group {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.08, 1.8, 8),
+    new THREE.MeshStandardMaterial({ color: 0x4f5261, roughness: 0.75 }),
+  );
+  pole.position.y = 0.9;
+  const light = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 12, 10),
+    new THREE.MeshStandardMaterial({
+      color: 0xffe59a,
+      emissive: 0xffcc66,
+      emissiveIntensity: 1.2,
+    }),
+  );
+  light.position.y = 1.85;
+  g.add(pole, light);
+  g.position.set(x, 0, z);
+  return g;
+}
+
+function makeBench(x: number, z: number): THREE.Group {
+  const g = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({ color: 0xa86f42, roughness: 0.9 });
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.15, 0.5), wood);
+  seat.position.y = 0.55;
+  const back = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.65, 0.12), wood);
+  back.position.set(0, 0.9, 0.2);
+  for (const side of [-0.55, 0.55]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.12), wood);
+    leg.position.set(side, 0.28, 0);
+    g.add(leg);
+  }
+  seat.castShadow = true;
+  back.castShadow = true;
+  g.add(seat, back);
+  g.position.set(x, 0, z);
+  return g;
+}
+
 function makeFriendMarker(marker: CityFriendMarker): THREE.Group {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
@@ -110,19 +154,32 @@ function makeFriendMarker(marker: CityFriendMarker): THREE.Group {
 
 const FRIEND_COLORS = [0x6c5ce7, 0x00b894, 0xfd79a8, 0xfdcb6e, 0x0984e3, 0xe17055];
 
+function disposeObject(root: THREE.Object3D) {
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry?.dispose();
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const material of materials) material?.dispose();
+  });
+}
+
 export class CityScene {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   private animId = 0;
-  private friendMeshes: THREE.Group[] = [];
+  private friendMeshes: THREE.Object3D[] = [];
   private world = new THREE.Group();
   private clock = new THREE.Clock();
   private disposed = false;
+  private cityGen = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const mobile =
+      window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobile ? 1.5 : 2));
     this.renderer.shadowMap.enabled = true;
 
     this.scene = new THREE.Scene();
@@ -171,9 +228,12 @@ export class CityScene {
     this.renderer.setSize(width, height, false);
   }
 
-  setCity(friends: { id: string; name: string }[]) {
+  setCity(friends: { id: string; name: string }[], ownedObjects: string[] = []) {
+    const gen = ++this.cityGen;
     while (this.world.children.length) {
-      this.world.remove(this.world.children[0]);
+      const child = this.world.children[0];
+      this.world.remove(child);
+      disposeObject(child);
     }
     this.friendMeshes = [];
 
@@ -188,7 +248,6 @@ export class CityScene {
       this.world.add(makeHouse(0x00b894, 3.2, -2.8));
       this.world.add(makeHouse(0xfd79a8, -2.2, 3.5));
       this.world.add(makeTree(4.5, 3.2));
-      this.world.add(makeFountain());
     }
 
     if (stage === 'full') {
@@ -206,18 +265,67 @@ export class CityScene {
       this.world.add(plaza);
     }
 
+    if (ownedObjects.includes('city_tree')) this.world.add(makeTree(0.8, -4.6));
+    if (ownedObjects.includes('city_lamp')) {
+      this.world.add(makeLamp(-1.8, 1.8), makeLamp(1.8, 1.8));
+    }
+    if (ownedObjects.includes('city_bench')) this.world.add(makeBench(3.5, 1.3));
+    if (ownedObjects.includes('city_fountain')) this.world.add(makeFountain());
+
+    const loader = createGameGltfLoader();
+    // Laconic S1 city dressing
+    void placeMany(this.world as unknown as THREE.Scene, loader, [
+      { key: 'party_table', opts: { x: 0, z: -3.2, maxSize: 1.6 } },
+      { key: 'lantern', opts: { x: -2.4, z: -1.5, maxSize: 0.55 } },
+      { key: 'lantern', opts: { x: 2.4, z: -1.5, maxSize: 0.55 } },
+      { key: 'mushroom', opts: { x: -3.8, z: 0.5, maxSize: 0.4 } },
+      { key: 'wood_sign', opts: { x: 0, z: 3.5, maxSize: 1.1, rotY: Math.PI } },
+      { key: 'bench', opts: { x: 3.2, z: 1.5, maxSize: 1.2, rotY: -0.5 } },
+      { key: 'fence', opts: { x: -4.5, z: 2.2, maxSize: 1.3, rotY: 0.3 } },
+      { key: 'present', opts: { x: 1.2, z: -2.5, maxSize: 0.4 } },
+      { key: 'flag', opts: { x: -1.5, z: 3.2, maxSize: 1.0 } },
+    ]).then((objs) => {
+      if (this.disposed || gen !== this.cityGen) {
+        for (const o of objs) this.world.remove(o);
+      }
+    });
+    void placeAmbientCritters(this.world as unknown as THREE.Scene, loader, [
+      { key: 'fox', x: 4.2, z: -2.5, rotY: -1.2, h: 0.7 },
+      { key: 'rabbit', x: -4.0, z: -2.2, rotY: 0.8, h: 0.55 },
+      { key: 'owl', x: 3.5, z: 2.8, rotY: -2.4, h: 0.6 },
+      { key: 'bee', x: -2.8, z: -3.5, rotY: 0.4, h: 0.35 },
+    ]);
+
     friends.forEach((f, i) => {
       const a = (i / Math.max(friends.length, 1)) * Math.PI * 2;
       const r = 2.8 + (i % 3) * 0.4;
-      const marker = makeFriendMarker({
-        id: f.id,
-        name: f.name,
-        x: Math.cos(a) * r,
-        z: Math.sin(a) * r,
-        color: FRIEND_COLORS[i % FRIEND_COLORS.length],
-      });
+      const x = Math.cos(a) * r;
+      const z = Math.sin(a) * r;
+      const color = FRIEND_COLORS[i % FRIEND_COLORS.length];
+      const marker = makeFriendMarker({ id: f.id, name: f.name, x, z, color });
       this.world.add(marker);
       this.friendMeshes.push(marker);
+
+      const file = CAST_CHAR_GLB[f.id];
+      if (!file) return;
+      void loader.loadAsync(`/assets/models/chars/${file}`).then((gltf) => {
+        if (this.disposed || gen !== this.cityGen) return;
+        fitHeight(gltf.scene, f.id === 'hedgehog' || f.id === 'squirrel' ? 0.85 : 1.1);
+        gltf.scene.position.set(x, 0, z);
+        groundY(gltf.scene);
+        gltf.scene.userData.friendId = f.id;
+        gltf.scene.userData.bobPhase = Math.random() * Math.PI * 2;
+        gltf.scene.traverse((obj) => {
+          const mesh = obj as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+        });
+        this.world.remove(marker);
+        const idx = this.friendMeshes.indexOf(marker);
+        if (idx >= 0) this.friendMeshes[idx] = gltf.scene;
+        this.world.add(gltf.scene);
+      }).catch(() => { /* keep capsule */ });
     });
   }
 
@@ -244,13 +352,24 @@ export class CityScene {
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.animId);
+    disposeObject(this.scene);
     this.renderer.dispose();
   }
 }
 
-export function getCityStageLabel(friendCount: number): { stage: CityStage; label: string } {
+export function getCityStageLabel(
+  friendCount: number,
+  lang: 'ru' | 'kk' = 'ru',
+): { stage: CityStage; label: string } {
   const stage = stageFromFriends(friendCount);
-  if (stage === 'full') return { stage, label: 'Город Друзей BARSIK' };
-  if (stage === 'growing') return { stage, label: 'Город растёт' };
-  return { stage, label: 'Только начали строить город' };
+  if (stage === 'full') {
+    return { stage, label: lang === 'kk' ? 'BARSIK Достар қаласы' : 'Город Друзей BARSIK' };
+  }
+  if (stage === 'growing') {
+    return { stage, label: lang === 'kk' ? 'Қала өсіп келеді' : 'Город растёт' };
+  }
+  return {
+    stage,
+    label: lang === 'kk' ? 'Қаланы енді салып жатырмыз' : 'Только начали строить город',
+  };
 }

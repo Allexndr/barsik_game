@@ -1,5 +1,27 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { QualityPipeline } from '../QualityPipeline';
+import { createWindGrass, type WindGrass } from '../WindGrass';
+import { createValleyTerrain, snapToTerrain, sampleTerrainHeight, type ValleyTerrain } from '../Terrain';
+import { createWaterSurface, type WaterSurface } from '../WaterSurface';
+import { createFireflies, type Fireflies } from '../Fireflies';
+import { updatePlushLocomotion } from '../PlushBarsik';
+import { stylizeHeroGlb } from '../stylizeHeroGlb';
+import { updateStaticHeroLocomotion } from '../staticHeroLocomotion';
+import { AssetKit } from '../AssetKit';
+import { placePatch } from '../sceneComposition';
+import { normalizeKitMaterial } from '../kitPalette';
+import { createPlushCharacter, updatePlushCharacter } from '../PlushCharacter';
+import { ZHULDYZ_LOOK } from '../characterLooks';
+import {
+  disposeObject3DResources,
+  loadBarsikHeroRig,
+  loadCharModel,
+  type HeroAnimMode,
+} from './BaseLevelScene';
+import { AudioManager } from '@/audio/AudioManager';
+import { createGameGltfLoader } from '../createGameGltfLoader';
+import { placeMany, placeS1Prop, placeS1Char } from '../s1Place';
 
 /**
  * Level 1 «Первое утро» — adventure LD inspired by Roblox patterns:
@@ -36,7 +58,6 @@ export interface L1Hud {
 }
 
 const CC0 = '/assets/models/cc0/';
-const CHARS = '/assets/models/chars/';
 const PLAYER_RADIUS = 0.45;
 
 type AabbCollider = { kind: 'aabb'; x: number; z: number; halfW: number; halfD: number };
@@ -114,9 +135,10 @@ function fitHeight(root: THREE.Object3D, h: number) {
   root.position.y -= b2.min.y;
 }
 
-function groundY(o: THREE.Object3D) {
+function groundY(o: THREE.Object3D, heightAt?: (x: number, z: number) => number) {
   const b = new THREE.Box3().setFromObject(o);
-  o.position.y -= b.min.y;
+  const y = heightAt ? heightAt(o.position.x, o.position.z) : 0;
+  o.position.y += y - b.min.y;
 }
 
 async function loadGlb(loader: GLTFLoader, url: string) {
@@ -127,11 +149,21 @@ async function loadGlb(loader: GLTFLoader, url: string) {
     ]);
     g.scene.traverse((o) => {
       const m = o as THREE.Mesh;
-      if (m.isMesh) {
-        m.castShadow = true;
-        m.receiveShadow = true;
+      if (!m.isMesh) return;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      for (const mat of mats) {
+        if (!mat) continue;
+        const std = mat as THREE.MeshStandardMaterial;
+        // These CC0 models ship metallicFactor 1 with no environment map, so
+        // without this every tree, the house and the furniture rendered as
+        // near-black silhouettes.
+        normalizeKitMaterial(std);
+        mat.needsUpdate = true;
       }
     });
+    if (url.includes('barsik.glb')) stylizeHeroGlb(g.scene);
     return g;
   } catch {
     return null;
@@ -153,16 +185,17 @@ function mountain(x: number, z: number, h: number, w: number) {
   return g;
 }
 
-/** Roblox-style zone disc on grass (readable area identity). */
-function zoneDisc(x: number, z: number, r: number, color: number, y = 0.02) {
+/** Soft meadow tint — readable zone without loud Roblox paint. */
+function zoneDisc(x: number, z: number, r: number, color: number, y = 0.018) {
   const m = new THREE.Mesh(
     new THREE.CircleGeometry(r, 48),
     new THREE.MeshStandardMaterial({
       color,
-      roughness: 0.92,
+      roughness: 0.98,
       metalness: 0,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.38,
+      depthWrite: false,
     }),
   );
   m.rotation.x = -Math.PI / 2;
@@ -170,37 +203,6 @@ function zoneDisc(x: number, z: number, r: number, color: number, y = 0.02) {
   m.receiveShadow = false;
   m.castShadow = false;
   return m;
-}
-
-function pond(x: number, z: number, r: number) {
-  const g = new THREE.Group();
-  const water = new THREE.Mesh(
-    new THREE.CircleGeometry(r, 32),
-    new THREE.MeshStandardMaterial({
-      color: 0x4fc3f7,
-      emissive: 0x0288d1,
-      emissiveIntensity: 0.15,
-      roughness: 0.15,
-      metalness: 0.2,
-      transparent: true,
-      opacity: 0.88,
-    }),
-  );
-  water.rotation.x = -Math.PI / 2;
-  water.position.y = 0.03;
-  const rim = new THREE.Mesh(
-    new THREE.RingGeometry(r * 0.92, r * 1.12, 32),
-    new THREE.MeshStandardMaterial({ color: 0xd4a574, roughness: 1 }),
-  );
-  rim.rotation.x = -Math.PI / 2;
-  rim.position.y = 0.035;
-  water.castShadow = false;
-  water.receiveShadow = false;
-  rim.castShadow = false;
-  rim.receiveShadow = false;
-  g.add(water, rim);
-  g.position.set(x, 0, z);
-  return g;
 }
 
 /** Floating path chevron — classic adventure “go this way”. */
@@ -416,20 +418,33 @@ function makeFruit(pos: THREE.Vector3, kind: 'tutorial' | 'trail' | 'quest' | 'b
     });
     fruitMatCache.set(color, mat);
   }
-  const mesh = new THREE.Mesh(sharedFruitGeometry, mat);
+  // Quest fruits get a private clone so fade-in opacity never bleeds into the shared cache.
+  const fruitMat =
+    kind === 'quest'
+      ? (mat.clone() as THREE.MeshStandardMaterial)
+      : mat;
+  const mesh = new THREE.Mesh(sharedFruitGeometry, fruitMat);
   mesh.position.copy(pos);
   mesh.castShadow = false;
   mesh.receiveShadow = false;
   mesh.userData.kind = kind;
   mesh.userData.alive = true;
 
-  const ring = new THREE.Mesh(sharedRingGeometry, sharedRingMaterial);
+  const ringMat =
+    kind === 'quest'
+      ? (sharedRingMaterial.clone() as THREE.MeshBasicMaterial)
+      : sharedRingMaterial;
+  const ring = new THREE.Mesh(sharedRingGeometry, ringMat);
   ring.rotation.x = -Math.PI / 2;
   ring.position.set(pos.x, 0.05, pos.z);
   ring.castShadow = false;
   ring.receiveShadow = false;
 
-  const beam = new THREE.Mesh(sharedBeamGeometry, sharedBeamMaterial);
+  const beamMat =
+    kind === 'quest'
+      ? (sharedBeamMaterial.clone() as THREE.MeshStandardMaterial)
+      : sharedBeamMaterial;
+  const beam = new THREE.Mesh(sharedBeamGeometry, beamMat);
   beam.position.set(pos.x, 1.4, pos.z);
   beam.castShadow = false;
   beam.receiveShadow = false;
@@ -437,6 +452,24 @@ function makeFruit(pos: THREE.Vector3, kind: 'tutorial' | 'trail' | 'quest' | 'b
   mesh.userData.ring = ring;
   mesh.userData.beam = beam;
   return mesh;
+}
+
+/** Small decorative rock — mid-trail set dressing, no collider. */
+function decorRock(x: number, z: number, scale = 1) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x8d9aa5, roughness: 0.95, flatShading: true });
+  const a = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35 * scale, 0), mat);
+  a.position.y = 0.22 * scale;
+  a.rotation.set(Math.random(), Math.random(), Math.random());
+  const b = new THREE.Mesh(new THREE.DodecahedronGeometry(0.22 * scale, 0), mat);
+  b.position.set(0.28 * scale, 0.14 * scale, 0.1 * scale);
+  a.castShadow = false;
+  a.receiveShadow = true;
+  b.castShadow = false;
+  b.receiveShadow = true;
+  g.add(a, b);
+  g.position.set(x, 0, z);
+  return g;
 }
 
 function makeBird() {
@@ -524,15 +557,41 @@ function butterfly(x: number, z: number, color: number) {
 }
 
 function bush(x: number, z: number) {
+  // Fallback only — prefer Kenney plant GLBs in init(). Soft multi-tone spheres.
   const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
-  for (let i = 0; i < 4; i++) {
-    const s = new THREE.Mesh(new THREE.SphereGeometry(0.45 + Math.random() * 0.25, 8, 8), mat);
-    s.position.set((Math.random() - 0.5) * 0.55, 0.35, (Math.random() - 0.5) * 0.55);
-    s.castShadow = false;
-    s.receiveShadow = false;
+  const tones = [0x3d9b5f, 0x2e8b57, 0x4caf70];
+  for (let i = 0; i < 5; i++) {
+    const mat = new THREE.MeshStandardMaterial({
+      color: tones[i % tones.length],
+      roughness: 0.92,
+      flatShading: true,
+    });
+    const s = new THREE.Mesh(new THREE.IcosahedronGeometry(0.38 + Math.random() * 0.28, 0), mat);
+    s.position.set((Math.random() - 0.5) * 0.7, 0.32 + Math.random() * 0.12, (Math.random() - 0.5) * 0.7);
+    s.castShadow = true;
+    s.receiveShadow = true;
     g.add(s);
   }
+  g.position.set(x, 0, z);
+  return g;
+}
+
+/** Sticky strand — foreshadowing of Putalo (level 1+ hint). */
+function stickyStrand(x: number, z: number, y: number, len: number, rot: number) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xdfe6e9,
+    emissive: 0xb2bec3,
+    emissiveIntensity: 0.2,
+    transparent: true,
+    opacity: 0.7,
+  });
+  const strand = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.025, len, 5), mat);
+  strand.position.y = y + len / 2;
+  strand.rotation.z = rot;
+  strand.castShadow = false;
+  strand.receiveShadow = false;
+  g.add(strand);
   g.position.set(x, 0, z);
   return g;
 }
@@ -559,30 +618,6 @@ function tulip(x: number, z: number, color: number) {
   return g;
 }
 
-function makeGrassTexture() {
-  const size = 512;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#4caf50';
-  ctx.fillRect(0, 0, size, size);
-  for (let i = 0; i < 6000; i++) {
-    ctx.fillStyle = Math.random() > 0.5 ? '#43a047' : '#66bb6a';
-    const x = Math.random() * size;
-    const y = Math.random() * size;
-    const h = 2 + Math.random() * 3;
-    ctx.fillRect(x, y, 1, h);
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(100, 100);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
-  return tex;
-}
-
 function makeSkyTexture() {
   const w = 512;
   const h = 512;
@@ -590,18 +625,20 @@ function makeSkyTexture() {
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d')!;
+  // Golden-hour sky — warmer horizon, soft cyan zenith
   const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, '#4fc3f7');
-  grad.addColorStop(0.55, '#87ceeb');
-  grad.addColorStop(1, '#e0f7fa');
+  grad.addColorStop(0, '#5eb4e8');
+  grad.addColorStop(0.42, '#9ad4f0');
+  grad.addColorStop(0.72, '#f0d7b8');
+  grad.addColorStop(1, '#f7e6c8');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 10; i++) {
     const cx = Math.random() * w;
-    const cy = (0.1 + Math.random() * 0.45) * h;
-    const rx = 30 + Math.random() * 50;
-    const ry = 12 + Math.random() * 20;
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    const cy = (0.08 + Math.random() * 0.4) * h;
+    const rx = 36 + Math.random() * 55;
+    const ry = 14 + Math.random() * 22;
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
     ctx.beginPath();
     ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -632,7 +669,7 @@ function cloud() {
 
 function hill(x: number, z: number, r: number, h: number) {
   const geo = new THREE.SphereGeometry(r, 20, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x43a047, roughness: 1, flatShading: true });
+  const mat = new THREE.MeshStandardMaterial({ color: 0x5da85a, roughness: 0.98, flatShading: true });
   const m = new THREE.Mesh(geo, mat);
   m.position.set(x, 0, z);
   m.scale.y = h / r;
@@ -643,11 +680,17 @@ function hill(x: number, z: number, r: number, h: number) {
 
 function house(x: number, z: number, rotY: number) {
   const g = new THREE.Group();
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0xfdf6e3, roughness: 0.95 });
-  const roofMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 1 });
-  const woodMat = new THREE.MeshStandardMaterial({ color: 0x5d4037 });
-  const glassMat = new THREE.MeshStandardMaterial({ color: 0xffeb3b, emissive: 0xffc107, emissiveIntensity: 0.45 });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.95 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xfff4e0, roughness: 0.88 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0xb56b4a, roughness: 0.92 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x6b4534, roughness: 0.9 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0xe8d5b5, roughness: 0.85 });
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0xffe082,
+    emissive: 0xffb300,
+    emissiveIntensity: 0.55,
+    roughness: 0.35,
+  });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x2a211c, roughness: 0.95 });
   const w = 4.6, d = 3.6, h = 2.6;
   const walls = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
   walls.position.y = h / 2;
@@ -658,23 +701,36 @@ function house(x: number, z: number, rotY: number) {
   roof.rotation.y = Math.PI / 4;
   roof.scale.set(1.15, 1, 1.15);
   roof.castShadow = true;
+  // Soft eaves band
+  const eaves = new THREE.Mesh(new THREE.BoxGeometry(w + 0.35, 0.12, d + 0.35), trimMat);
+  eaves.position.y = h + 0.02;
+  eaves.castShadow = true;
 
-  // Dark recessed doorway with warm light spilling from inside
   const door = new THREE.Mesh(new THREE.PlaneGeometry(1, 1.6), darkMat);
   door.position.set(0, 0.8, -d / 2 - 0.02);
-  const doorLight = new THREE.PointLight(0xff9f43, 1.4, 9);
+  const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.75, 0.08), woodMat);
+  doorFrame.position.set(0, 0.88, -d / 2 - 0.01);
+  const doorLight = new THREE.PointLight(0xff9f43, 1.55, 10);
   doorLight.position.set(0, 1.1, -d / 2 - 0.9);
 
   const winL = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.8), glassMat);
   winL.position.set(-1.2, 1.5, -d / 2 - 0.02);
   const winR = winL.clone();
   winR.position.set(1.2, 1.5, -d / 2 - 0.02);
+  const winFrameL = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.06), woodMat);
+  winFrameL.position.copy(winL.position);
+  const winFrameR = winFrameL.clone();
+  winFrameR.position.copy(winR.position);
   const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.2, 0.45), woodMat);
   chimney.position.set(1.1, h + 1.2, 0.8);
-  const step = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.15, 0.8), new THREE.MeshStandardMaterial({ color: 0x9e9e9e }));
+  chimney.castShadow = true;
+  const step = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 0.15, 0.8),
+    new THREE.MeshStandardMaterial({ color: 0xa89888, roughness: 0.95 }),
+  );
   step.position.set(0, 0.075, -d / 2 - 0.45);
   step.receiveShadow = true;
-  g.add(walls, roof, door, doorLight, winL, winR, chimney, step);
+  g.add(walls, roof, eaves, door, doorFrame, doorLight, winL, winR, winFrameL, winFrameR, chimney, step);
   g.position.set(x, 0, z);
   g.rotation.y = rotY;
   return g;
@@ -874,13 +930,14 @@ export class Mission0Scene {
   private nextAt = 0;
   private yaw = 0;
   private walking = false;
+  private heroAnimMode: HeroAnimMode = 'plush';
   private bag = 0;
   private questFruits = 0;
   private questNeed = 3;
   private stars = 0;
   private interactTarget: THREE.Object3D | null = null;
   private fruits: THREE.Mesh[] = [];
-  private bird: THREE.Group | null = null;
+  private bird: THREE.Object3D | null = null;
   private gardener: THREE.Object3D | null = null;
   private birdMarker: THREE.Group | null = null;
   private gardenerMarker: THREE.Group | null = null;
@@ -897,50 +954,115 @@ export class Mission0Scene {
   private baseSpeed = 3.2;
   private runSpeed = 4.4;
   private praiseUntil = 0;
+  private lastStepAt = 0;
+  private hasTakenFirstStep = false;
+  private speedBoostShown = false;
+  private birdBaseY = 0.42;
+  private gardenerBaseY = 0;
   private collectibles: THREE.Mesh[] = [];
   private sparks: THREE.Mesh[] = [];
   private smoke: THREE.Mesh[] = [];
   private smokeAt = 0;
   private clouds: THREE.Group[] = [];
   private flame: THREE.Object3D | null = null;
+  private quality: QualityPipeline | null = null;
+  private paused = false;
+  private pauseStartedAt = 0;
+  private sun: THREE.DirectionalLight | null = null;
+  private grass: WindGrass | null = null;
+  private terrain: ValleyTerrain | null = null;
+  private pondWater: WaterSurface | null = null;
+  private fireflies: Fireflies | null = null;
+  private heightAt = sampleTerrainHeight;
+  private kit: AssetKit | null = null;
+
+  private snap(o: THREE.Object3D) {
+    snapToTerrain(o, this.heightAt);
+  }
+
+  private isMobile =
+    typeof window !== 'undefined' &&
+    (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
 
   constructor(private canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.isMobile ? 1.5 : 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 300);
     // Wide cinematic opening that frames both the house and the hero spawn
     this.camera.position.set(-14, 8, 22);
-    this.scene.background = new THREE.Color(0x87ceeb);
-    this.scene.fog = new THREE.Fog(0x87ceeb, 70, 220);
 
-    this.scene.add(new THREE.HemisphereLight(0xfff6e0, 0x3d8b40, 1.2));
-    const sun = new THREE.DirectionalLight(0xfff8e7, 1.35);
-    sun.position.set(18, 28, 12);
+    // Warm morning fog + sky (matches golden-hour sky dome)
+    const fogCol = 0xc8e4f2;
+    this.scene.background = new THREE.Color(fogCol);
+    this.scene.fog = new THREE.Fog(fogCol, 48, 195);
+
+    this.scene.add(new THREE.HemisphereLight(0xffe8c8, 0x4a8f4e, 0.95));
+    const sun = new THREE.DirectionalLight(0xffe0b0, 1.55);
+    sun.position.set(22, 30, 10);
     sun.castShadow = true;
-    const isMobile = typeof window !== 'undefined' && (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
-    sun.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
-    sun.shadow.bias = -0.0005;
-    sun.shadow.radius = 2;
-    sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 80;
-    sun.shadow.camera.left = -30;
-    sun.shadow.camera.right = 30;
-    sun.shadow.camera.top = 30;
-    sun.shadow.camera.bottom = -30;
+    sun.shadow.mapSize.set(this.isMobile ? 1024 : 2048, this.isMobile ? 1024 : 2048);
+    sun.shadow.bias = -0.00035;
+    sun.shadow.normalBias = 0.035;
+    sun.shadow.radius = 3.5;
+    sun.shadow.camera.near = 2;
+    sun.shadow.camera.far = 70;
+    sun.shadow.camera.left = -22;
+    sun.shadow.camera.right = 22;
+    sun.shadow.camera.top = 22;
+    sun.shadow.camera.bottom = -22;
     this.scene.add(sun);
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+    this.scene.add(sun.target);
+    this.sun = sun;
+    // Soft fill from opposite side — lifts dark faces without killing shadows
+    const fill = new THREE.DirectionalLight(0xb8d4ff, 0.35);
+    fill.position.set(-14, 12, -8);
+    this.scene.add(fill);
+    this.scene.add(new THREE.AmbientLight(0xfff5e6, 0.22));
 
-    // Base grass with procedural texture
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(300, 300),
-      new THREE.MeshStandardMaterial({ map: makeGrassTexture(), color: 0xffffff, roughness: 0.98 }),
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.add(ground);
+    this.quality = new QualityPipeline(this.renderer, this.scene, this.camera, {
+      mobile: this.isMobile,
+      bloomStrength: 0.22,
+      bloomRadius: 0.38,
+      bloomThreshold: 0.82,
+      exposure: 1.18,
+    });
+
+    // Valley terrain (replaces flat island — rolling hills + path groove)
+    this.terrain = createValleyTerrain(220, this.isMobile ? 96 : 128);
+    this.scene.add(this.terrain.mesh);
+
+    // Painterly wind-reactive grass on terrain.
+    //
+    // Dialled back from 90k blades at 0.28–0.62 m. Barsik stands about 0.55 m
+    // tall, so the default blades reached his head: the meadow read as spiky
+    // undergrowth swallowing the character rather than a lawn he walks over.
+    this.grass = createWindGrass({
+      bladeHeight: [0.14, 0.3],
+      count: this.isMobile ? 18000 : 48000,
+      area: { xMin: -30, xMax: 30, zMin: -52, zMax: 17 },
+      heightAt: this.heightAt,
+      exclude: (x, z) =>
+        Math.abs(x - pathCenterX(z)) < 2.4 ||
+        Math.hypot(x - 6, z + 25) < 4.4 ||
+        (x > -13.8 && x < -4.2 && z > 7.6 && z < 16.4) ||
+        (Math.abs(z + 20) < 1.5 && x > -2.5 && x < 7.5) ||
+        Math.hypot(x - 10, z + 12) < 2.4,
+    });
+    this.scene.add(this.grass.mesh);
+
+    // Evening fireflies in forest belt
+    this.fireflies = createFireflies(this.isMobile ? 35 : 70, {
+      xMin: -22,
+      xMax: 22,
+      zMin: -50,
+      zMax: -8,
+      yMin: 0.8,
+      yMax: 3.2,
+    });
+    this.scene.add(this.fireflies.points);
 
     // Sky dome and distant hills
     this.scene.add(skyDome());
@@ -969,53 +1091,68 @@ export class Mission0Scene {
     this.scene.add(zoneDisc(6, -25, 5, 0x4fc3f7, 0.03)); // pond cool zone
     this.scene.add(zoneDisc(6, -35, 8, 0xffcc80, 0.025)); // forest edge
 
-    // Dirt path strip (critical path cue)
+    // Dirt path strip — follows terrain height
     for (let i = 0; i < 48; i++) {
       const bend = i > 6 ? Math.sin((i - 6) * 0.28) * 2.2 : 0;
+      const z = 11 - i * 0.95;
+      const y = this.heightAt(bend, z) + 0.04;
       const dirt = new THREE.Mesh(
         new THREE.PlaneGeometry(2.8, 1.1),
         new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 1 }),
       );
       dirt.rotation.x = -Math.PI / 2;
-      dirt.position.set(bend, 0.035, 11 - i * 0.95);
+      dirt.position.set(bend, y, z);
+      dirt.receiveShadow = true;
       this.scene.add(dirt);
     }
 
-    // Glowing runway tiles on top of dirt
     for (let i = 0; i < 40; i++) {
       const tile = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.55, 0.95),
+        new THREE.PlaneGeometry(1.35, 0.7),
         new THREE.MeshStandardMaterial({
-          color: 0xffeaa7,
-          emissive: 0xfdcb6e,
-          emissiveIntensity: 0.55,
+          color: 0xf5e6b8,
+          emissive: 0xe8c56a,
+          emissiveIntensity: 0.22,
           transparent: true,
-          opacity: 0.78,
+          opacity: 0.55,
+          roughness: 0.85,
         }),
       );
       tile.rotation.x = -Math.PI / 2;
       const bend = i > 6 ? Math.sin((i - 6) * 0.3) * 2.0 : 0;
-      tile.position.set(bend, 0.05, 10.5 - i * 0.92);
+      const z = 10.5 - i * 0.92;
+      tile.position.set(bend, this.heightAt(bend, z) + 0.055, z);
       this.scene.add(tile);
     }
 
-    // Path arrows
     for (let i = 0; i < 26; i++) {
       const z = 11 - i * 1.55;
       const bend = i > 3 ? Math.sin((i - 3) * 0.3) * 2.2 : 0;
       const rot = i > 3 ? -Math.sin((i - 3) * 0.3) * 0.45 : 0;
       const a = pathArrow(bend, z, rot);
+      a.position.y = this.heightAt(bend, z) + 0.02;
       this.pathArrows.push(a);
       this.scene.add(a);
     }
 
-    // Home zone — west of the path so the camera never clips through it
-    this.scene.add(house(-9, 12, -Math.PI / 2));
-    this.scene.add(spawnPad(0, 12));
-    this.scene.add(well(-11, 13.5));
-    this.scene.add(vegetableRow(-7, 14, 1.4, 3.0, 0x2ecc71));
-    this.scene.add(catBowl(-8, 9.5));
-    this.scene.add(mailbox(-4.5, 13.5, this.nick || 'Барсик'));
+    const home = house(-9, 12, -Math.PI / 2);
+    this.snap(home);
+    this.scene.add(home);
+    const pad = spawnPad(0, 12);
+    this.snap(pad);
+    this.scene.add(pad);
+    const wellG = well(-11, 13.5);
+    this.snap(wellG);
+    this.scene.add(wellG);
+    const veg = vegetableRow(-7, 14, 1.4, 3.0, 0x2ecc71);
+    this.snap(veg);
+    this.scene.add(veg);
+    const bowl = catBowl(-8, 9.5);
+    this.snap(bowl);
+    this.scene.add(bowl);
+    const mail = mailbox(-4.5, 13.5, this.nick || 'Барсик');
+    this.snap(mail);
+    this.scene.add(mail);
 
     // Home yard fence
     this.scene.add(fenceSection(-13, 8, -5, 8));
@@ -1028,11 +1165,37 @@ export class Mission0Scene {
     this.scene.add(woodSign(-3.6, -2, 0.5, 0x81ecec));
     this.scene.add(woodSign(2.2, -18, -0.25, 0xff7675));
     this.scene.add(giantAppleLandmark(10, -12));
-    this.scene.add(pond(6, -25, 3.5));
+    const pondX = 6;
+    const pondZ = -25;
+    const pondR = 3.5;
+    this.pondWater = createWaterSurface(pondR);
+    this.pondWater.mesh.position.set(pondX, this.heightAt(pondX, pondZ) + 0.04, pondZ);
+    this.scene.add(this.pondWater.mesh);
+    const pondRim = new THREE.Mesh(
+      new THREE.RingGeometry(pondR * 0.92, pondR * 1.15, 36),
+      new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 1 }),
+    );
+    pondRim.rotation.x = -Math.PI / 2;
+    pondRim.position.set(pondX, this.heightAt(pondX, pondZ) + 0.05, pondZ);
+    this.scene.add(pondRim);
     this.scene.add(streamSegment(-2, -19.8, 7, -20.2, 1.6));
     this.scene.add(bridge(2.2, -20, 0));
-    this.scene.add(bush(-4, -31));
+    // Mid-trail set dressing — Kenney plants replace most procedural bushes in init()
     this.scene.add(bush(-7, -36));
+    this.scene.add(bush(5, -33));
+
+    // Fill empty space z=-20..-35 (Level Design Book: flow must maintain interest)
+    this.scene.add(decorRock(-3.8, -21.5, 1.1));
+    this.scene.add(decorRock(3.6, -25.5, 0.85));
+    this.scene.add(decorRock(-4.5, -33.2, 1.0));
+    this.scene.add(decorRock(2.2, -30.0, 0.7));
+
+    // Putalo foreshadowing — sticky strands early on the path (z≈-15..-20) + deeper trail
+    this.scene.add(stickyStrand(-3.2, -15.5, 0.55, 0.75, 0.35));
+    this.scene.add(stickyStrand(3.8, -17.2, 0.5, 0.6, -0.25));
+    this.scene.add(stickyStrand(-2.8, -19.5, 0.7, 0.85, 0.15));
+    this.scene.add(stickyStrand(-3.5, -30.5, 0.8, 0.7, 0.3));
+    this.scene.add(stickyStrand(-6.5, -35.5, 0.9, 0.6, 0.5));
 
     const log1 = makeLogBarrier(-0.4, -18.2);
     const log2 = makeLogBarrier(-2.8, -28.5);
@@ -1040,7 +1203,7 @@ export class Mission0Scene {
 
     const arch = forestArch(0.4, -1.5, 0);
     this.scene.add(arch);
-    const archGlow = new THREE.PointLight(0xfdcb6e, 1.0, 12);
+    const archGlow = new THREE.PointLight(0xfdcb6e, 0.75, 12);
     archGlow.position.set(0.4, 2.8, -1.5);
     this.scene.add(archGlow);
 
@@ -1068,20 +1231,6 @@ export class Mission0Scene {
       this.scene.add(mountain(x, z, h, w));
     }
 
-    // Flowers / bushes along path edges (not blocking)
-    for (let i = 0; i < 45; i++) {
-      const side = i % 2 === 0 ? 1 : -1;
-      const z = 12 - (i / 45) * 62;
-      const bend = i > 10 ? Math.sin((i - 10) * 0.28) * 2.0 : 0;
-      const x = side * (3.2 + (i % 5) * 0.35) + bend + Math.sin(i) * 0.5;
-      this.scene.add(tulip(x, z, [0xe74c3c, 0xf1c40f, 0xe67e22, 0xfd79a8, 0xa29bfe][i % 5]));
-    }
-    for (let i = 0; i < 20; i++) {
-      const a = (i / 20) * Math.PI * 2;
-      const r = 14 + (i % 6);
-      this.scene.add(bush(Math.cos(a) * r, Math.sin(a) * r - 4));
-    }
-
     for (let i = 0; i < 12; i++) {
       const bf = butterfly(
         (Math.random() - 0.5) * 26,
@@ -1105,6 +1254,7 @@ export class Mission0Scene {
     ga.rotation.x = Math.PI;
     this.guideArrow.add(ga);
     this.guideArrow.position.y = 2.6;
+    this.guideArrow.userData.isGuideArrow = true;
     this.guideArrow.visible = false;
     this.hero.add(this.guideArrow);
 
@@ -1117,6 +1267,29 @@ export class Mission0Scene {
 
   setJoystick(x: number, y: number) {
     this.joy = { x, y };
+  }
+
+  setPaused(value: boolean) {
+    if (value === this.paused) return;
+    if (value) {
+      this.paused = true;
+      this.pauseStartedAt = performance.now();
+      this.keys.clear();
+      this.joy = { x: 0, y: 0 };
+      return;
+    }
+    const pauseDuration = Math.max(0, performance.now() - this.pauseStartedAt);
+    const state = this as unknown as Record<string, unknown>;
+    for (const key of Object.keys(state)) {
+      if (!/(?:At|Until)$/.test(key)) continue;
+      const marker = state[key];
+      if (typeof marker === 'number' && marker > 0 && key !== 'pauseStartedAt') {
+        state[key] = marker + pauseDuration;
+      }
+    }
+    this.paused = false;
+    this.pauseStartedAt = 0;
+    this.clock.getDelta();
   }
 
   tryInteract() {
@@ -1242,11 +1415,26 @@ export class Mission0Scene {
     return null;
   }
 
+  /** Nearest living bonus fruit — golden-path guide when critical objective is null. */
+  private nearestBonusPos(): THREE.Vector3 | null {
+    let best: THREE.Mesh | null = null;
+    let bestD = Infinity;
+    for (const c of this.collectibles) {
+      if (!c.userData.alive || !c.visible) continue;
+      const d = this.hero.position.distanceTo(c.position);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    return best ? best.position.clone() : null;
+  }
+
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: L1Hud) => void) {
     this.nick = nick || 'друг';
     this.lang = lang;
     this.onHud = onHud;
-    const loader = new GLTFLoader();
+    const loader = createGameGltfLoader();
 
     const treeFiles = [
       'tree_pineDefaultA.glb',
@@ -1258,21 +1446,23 @@ export class Mission0Scene {
     const templates: THREE.Group[] = [];
     const loadedTrees = await Promise.all(treeFiles.map((f) => loadGlb(loader, CC0 + f)));
     for (const g of loadedTrees) {
-      if (g) {
-        fitHeight(g.scene, 5.2 + Math.random() * 2.4);
-        templates.push(g.scene);
-      }
+      if (g) templates.push(g.scene);
     }
-    // Dense tree ring (play space bowl) — leave south open for camera
+    // Dense tree ring (play space bowl) — leave south open for camera.
+    // Height is graded by ring depth rather than randomised per template:
+    // one random height per species made every copy of that species
+    // identical, while the treeline as a whole had no silhouette.
     for (let i = 0; i < 60; i++) {
       if (!templates.length) break;
       const t = templates[i % templates.length].clone(true);
       const ang = (i / 60) * Math.PI * 2;
       if (ang > 1.05 && ang < 2.05) continue; // camera corridor
-      const r = 32 + (i % 10) * 2.0 + Math.random() * 2;
+      const ring = i % 10;
+      const r = 32 + ring * 2.0 + Math.random() * 2;
+      fitHeight(t, 5.0 + ring * 0.3);
       t.position.set(Math.cos(ang) * r, 0, Math.sin(ang) * r - 10);
       t.rotation.y = Math.random() * Math.PI;
-      groundY(t);
+      groundY(t, this.heightAt);
       this.scene.add(t);
       const px = pathCenterX(t.position.z);
       if (Math.abs(t.position.x - px) > 2.0) {
@@ -1287,7 +1477,7 @@ export class Mission0Scene {
       const a = (i / 16) * Math.PI * 2;
       t.position.set(Math.cos(a) * 20 + 1.2, 0, Math.sin(a) * 20 - 44);
       if (Math.abs(t.position.x) < 4.5 && t.position.z > -38) continue;
-      groundY(t);
+      groundY(t, this.heightAt);
       this.scene.add(t);
       const px = pathCenterX(t.position.z);
       if (Math.abs(t.position.x - px) > 2.0) {
@@ -1295,42 +1485,108 @@ export class Mission0Scene {
       }
     }
 
-    const propFiles = [
-      'rock_largeA.glb',
-      'rock_smallA.glb',
-      'flower_redA.glb',
-      'flower_yellowA.glb',
-      'plantSmall1.glb',
-      'plantSmall2.glb',
-    ] as const;
-    const loadedProps = await Promise.all(
-      propFiles.map(async (f) => ({ f, base: await loadGlb(loader, CC0 + f) })),
-    );
-    for (const { f, base } of loadedProps) {
-      if (!base) continue;
-      for (let i = 0; i < 10; i++) {
-        const c = base.scene.clone(true);
-        fitHeight(c, f.includes('rock_large') ? 1.5 : f.includes('rock') ? 0.7 : 0.55);
-        const a = Math.random() * Math.PI * 2;
-        const r = 8 + Math.random() * 42;
-        c.position.set(Math.cos(a) * r, 0, Math.sin(a) * r - 20);
-        if (Math.hypot(c.position.x, c.position.z - 11) < 3) continue;
-        groundY(c);
-        this.scene.add(c);
-        if (f.includes('rock_large')) {
-          this.colliders.push({ kind: 'circle', x: c.position.x, z: c.position.z, r: 1.15 });
-        }
-      }
+    // ── Ground decoration ─────────────────────────────────────
+    // Three deliberate layers read from the trail outwards: a tended verge of
+    // low flowers hugging the path, shrub clumps set well back from it, and
+    // forest-floor patches at the treeline.
+    //
+    // This replaced ~120 props cloned to random polar coordinates — including
+    // indoor potted plants from the furniture kit — which is why the meadow
+    // looked littered rather than landscaped. Positions are now derived from
+    // the trail centre line, so decoration follows the route by construction
+    // instead of happening to miss it.
+    const kit = (this.kit ??= new AssetKit(loader));
+    // Gameplay areas decoration must stay out of: the walkable corridor, the
+    // home yard, the pond and the garden plot.
+    const CORRIDOR_HALF = 1.5;
+    const keepClear: Array<{ x: number; z: number; r: number }> = [
+      { x: -9, z: 9.6, r: 4.2 },
+      { x: 6, z: -25, r: 4.6 },
+      { x: 10, z: -12, r: 3.0 },
+    ];
+    const isBlocked = (x: number, z: number, pad: number) =>
+      Math.abs(x - pathCenterX(z)) < CORRIDOR_HALF + pad ||
+      keepClear.some((zone) => Math.hypot(x - zone.x, z - zone.z) < zone.r + pad);
+
+    // Anchors are spaced along the trail, and each one grows a patch. Placing
+    // a single prop at every station instead produced a dotted line of lonely
+    // objects, which is the same "sprinkled" reading as random scatter.
+    const flowerAnchors: Array<{ x: number; z: number }> = [];
+    const shrubAnchors: Array<{ x: number; z: number }> = [];
+    const floorAnchors: Array<{ x: number; z: number }> = [];
+    for (let i = 0; i < 26; i++) {
+      const z = 9 - i * 2.2;
+      const side = i % 2 === 0 ? 1 : -1;
+      const center = pathCenterX(z);
+      if (i % 4 === 0) flowerAnchors.push({ x: center + side * 2.6, z });
+      if (i % 3 === 1) shrubAnchors.push({ x: center + side * (5.4 + (i % 2) * 1.6), z: z - 0.8 });
+      if (i % 4 === 2) floorAnchors.push({ x: center - side * (10.5 + (i % 3) * 2.4), z: z + 1.4 });
+    }
+
+    const ctx = { heightAt: this.heightAt, isBlocked };
+
+    for (const anchor of flowerAnchors) {
+      await placePatch(this.scene, kit, anchor, {
+        names: ['flower_redA', 'flower_yellowC', 'flower_purpleB', 'flower_redC'],
+        items: 5,
+        extent: 0.42,
+        fit: 'height',
+        spread: 0.9,
+      }, ctx);
+    }
+
+    for (const anchor of shrubAnchors) {
+      await placePatch(this.scene, kit, anchor, {
+        names: ['plant_bush', 'plant_bushDetailed', 'plant_bushLarge'],
+        items: 3,
+        extent: 1.0,
+        fit: 'size',
+        spread: 1.3,
+      }, ctx);
+    }
+
+    for (const [i, anchor] of floorAnchors.entries()) {
+      const spec = i % 2 === 0
+        ? { names: ['stump_round', 'log', 'mushroom_redGroup'], items: 3, extent: 0.9, fit: 'size' as const, spread: 1.1 }
+        : { names: ['grass_large', 'grass_leafsLarge'], items: 4, extent: 0.7, fit: 'size' as const, spread: 1.2 };
+      await placePatch(this.scene, kit, anchor, spec, ctx);
+    }
+
+    // Four boulders as authored landmarks: two frame the valley mouth, two
+    // anchor the treeline. Scattered boulders read as debris, not terrain.
+    for (const [bx, bz] of [[-8.6, -3], [9.4, -6.5], [-13, -33], [12, -29]] as const) {
+      const rock = await kit.spawn('nature', 'rock_largeB', { maxSize: 2.2, position: [bx, 0, bz] });
+      if (!rock) continue;
+      rock.position.y += this.heightAt(bx, bz);
+      this.scene.add(rock);
+      this.colliders.push({ kind: 'circle', x: bx, z: bz, r: 1.3 });
     }
 
     const stone = await loadGlb(loader, CC0 + 'path_stone.glb');
     if (stone) {
+      // Stepping stones ride the same centre line as the walkable trail.
+      // They used to use a private bend formula that drifted from
+      // pathCenterX, so the far half of the trail was paved off to one side.
       for (let i = 0; i < 55; i++) {
         const c = stone.scene.clone(true);
         fitHeight(c, 0.18);
-        const bend = i > 8 ? Math.sin((i - 8) * 0.28) * 2.0 : 0;
-        c.position.set(bend + (i % 2 ? 0.45 : -0.45), 0, 10.5 - i * 0.85);
-        groundY(c);
+        const z = 10.5 - i * 0.85;
+        c.position.set(pathCenterX(z) + (i % 2 ? 0.45 : -0.45), 0, z);
+        groundY(c, this.heightAt);
+        this.scene.add(c);
+      }
+      // Extra stone clusters near home + arch for “solid” ground contact
+      for (const [sx, sz] of [
+        [-1.2, 11.2],
+        [1.1, 10.8],
+        [-0.6, -1.0],
+        [1.4, -1.8],
+        [0.2, 8.5],
+      ] as const) {
+        const c = stone.scene.clone(true);
+        fitHeight(c, 0.22);
+        c.position.set(sx, 0, sz);
+        groundY(c, this.heightAt);
         this.scene.add(c);
       }
     }
@@ -1346,7 +1602,7 @@ export class Mission0Scene {
       if (!m) continue;
       fitHeight(m.scene, h);
       m.scene.position.set(x, 0, z);
-      groundY(m.scene);
+      groundY(m.scene, this.heightAt);
       this.scene.add(m.scene);
       if (f.startsWith('campfire')) {
         const flame = new THREE.Mesh(
@@ -1384,6 +1640,7 @@ export class Mission0Scene {
     }
 
     // Optional bonus star-fruit collectibles (exploration reward)
+    // Golden visual language distinct from quest fruits (Level Design Book: golden path)
     const bonusPositions: [number, number][] = [
       [2.5, -6],
       [-3, -15],
@@ -1394,12 +1651,21 @@ export class Mission0Scene {
     ];
     for (const [bx, bz] of bonusPositions) {
       const bonus = makeFruit(new THREE.Vector3(bx, 0.4, bz), 'bonus', 0xf1c40f);
+      // Override ring color for golden path distinction
+      const goldRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.5, 0.78, 28),
+        new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      goldRing.rotation.x = -Math.PI / 2;
+      goldRing.position.set(bx, 0.05, bz);
+      bonus.userData.ring = goldRing;
       this.collectibles.push(bonus);
-      this.scene.add(bonus, bonus.userData.ring, bonus.userData.beam);
+      this.scene.add(bonus, goldRing, bonus.userData.beam);
     }
 
-    // Bird + quest marker
-    this.bird = makeBird();
+    // Bird + quest marker — Meshy bird.glb when present
+    const birdGlb = await loadCharModel(loader, 'bird.glb', 0.55);
+    this.bird = birdGlb ?? makeBird();
     this.bird.position.set(-4.2, 0, -14.8);
     this.scene.add(this.bird);
     this.birdMarker = questMarker();
@@ -1412,31 +1678,20 @@ export class Mission0Scene {
     if (perch) {
       fitHeight(perch.scene, 1.0);
       perch.scene.position.set(-4.2, 0, -14.0);
-      groundY(perch.scene);
+      groundY(perch.scene, this.heightAt);
       this.scene.add(perch.scene);
-      this.bird.position.y = 0.85;
+      this.birdBaseY = 0.85;
+      this.bird.position.y = this.birdBaseY;
     }
 
-    // Gardener
-    const duck = await loadGlb(loader, CHARS + 'friend_placeholder.glb');
-    if (duck) {
-      fitHeight(duck.scene, 1.15);
-      duck.scene.position.set(-8.0, 0, -44.5);
-      groundY(duck.scene);
-      this.gardener = duck.scene;
-      this.scene.add(duck.scene);
-    } else {
-      const g = new THREE.Group();
-      const body = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.35, 0.55, 6, 10),
-        new THREE.MeshStandardMaterial({ color: 0x55efc4 }),
-      );
-      body.position.y = 0.6;
-      g.add(body);
-      g.position.set(-8.0, 0, -44.5);
-      this.gardener = g;
-      this.scene.add(g);
-    }
+    // Gardener — Meshy zhuldyz.glb when present, else plush Жұлдыз
+    const zhuldyzGlb = await loadCharModel(loader, 'zhuldyz.glb', 1.25);
+    const gardener = zhuldyzGlb ?? createPlushCharacter(ZHULDYZ_LOOK);
+    gardener.position.set(-8.0, 0, -44.5);
+    groundY(gardener, this.heightAt);
+    this.gardener = gardener;
+    this.gardenerBaseY = gardener.position.y;
+    this.scene.add(gardener);
     this.gardenerMarker = questMarker();
     this.gardenerMarker.position.copy(this.gardener.position);
     this.gardenerMarker.visible = false;
@@ -1465,20 +1720,61 @@ export class Mission0Scene {
       this.scene.add(tulip(fx + 0.4, fz + 0.3, 0xf1c40f));
     }
 
-    // Hero
-    const fox = await loadGlb(loader, CHARS + 'hero_placeholder.glb');
-    if (fox) {
-      fitHeight(fox.scene, 1.45);
-      this.hero.add(fox.scene);
-      if (fox.animations?.length) {
-        this.mixer = new THREE.AnimationMixer(fox.scene);
-        const walk = fox.animations.find((c) => /walk|run/i.test(c.name)) || fox.animations[0];
-        const idle = fox.animations.find((c) => /idle|survey|sit/i.test(c.name)) || fox.animations[0];
-        this.walkAction = this.mixer.clipAction(walk);
-        this.idleAction = this.mixer.clipAction(idle);
-        this.idleAction.play();
+    // S1 landmarks — cabin near garden, bridge accent, trail treats
+    const cabin = await placeS1Prop(loader, 'cabin', { x: -14, z: -48, maxSize: 2.6, rotY: 0.8 });
+    if (cabin) {
+      this.snap(cabin);
+      this.scene.add(cabin);
+      this.colliders.push({ kind: 'circle', x: -14, z: -48, r: 1.8 });
+    }
+    const s1Props = await placeMany(this.scene, loader, [
+      { key: 'lantern', opts: { x: -5.5, z: 9, maxSize: 0.65 } },
+      { key: 'lantern_wood', opts: { x: -8.5, z: 11, maxSize: 0.55 } },
+      { key: 'apple', opts: { x: 3.5, z: -8, maxSize: 0.4 } },
+      { key: 'apple_kit', opts: { x: 5.2, z: -9.5, maxSize: 0.35 } },
+      { key: 'mushroom', opts: { x: -6, z: -22, maxSize: 0.45 } },
+      { key: 'berry', opts: { x: 4, z: -32, maxSize: 0.35 } },
+      { key: 'flowers', opts: { x: 1.5, z: -6, maxSize: 0.7 } },
+      { key: 'flowers_tall', opts: { x: -4, z: -18, maxSize: 0.9 } },
+      { key: 'flower_red', opts: { x: 6, z: -28, maxSize: 0.45 } },
+      { key: 'wood_bridge', opts: { x: 2.2, z: -20.4, maxSize: 2.8, rotY: 0 } },
+      { key: 'fence', opts: { x: -10, z: 10, maxSize: 1.6, rotY: 0.2 } },
+      { key: 'fence_gate', opts: { x: -6.5, z: 8.2, maxSize: 1.5 } },
+      { key: 'bench', opts: { x: -3.5, z: 10.5, maxSize: 1.4, rotY: -0.4 } },
+      { key: 'honey', opts: { x: -7.2, z: 13.5, maxSize: 0.4 } },
+      { key: 'strawberry', opts: { x: 2.2, z: -5, maxSize: 0.35 } },
+    ]);
+    for (const o of s1Props) this.snap(o);
+    for (const s of [
+      { key: 'frog' as const, x: 7.5, z: -24, rotY: -1.2, h: 0.4 },
+      { key: 'rabbit' as const, x: -5, z: -36, rotY: 0.6, h: 0.65 },
+      { key: 'deer' as const, x: 8, z: -38, rotY: -1.0, h: 1.1 },
+      { key: 'beaver' as const, x: 5.5, z: -21, rotY: 2.4, h: 0.7 },
+      { key: 'bee' as const, x: -6, z: 12, rotY: 0.5, h: 0.35 },
+      { key: 'chick' as const, x: 4.5, z: -7, rotY: -0.8, h: 0.4 },
+    ]) {
+      const o = await placeS1Char(loader, s.key, {
+        x: s.x, z: s.z, rotY: s.rotY, height: s.h,
+      });
+      if (o) {
+        this.snap(o);
+        this.scene.add(o);
       }
     }
+
+    const rig = await loadBarsikHeroRig(loader, 1.45);
+    if (this.disposed) {
+      rig.mixer?.stopAllAction();
+      disposeObject3DResources(this.scene);
+      disposeObject3DResources(rig.model);
+      return;
+    }
+    this.heroAnimMode = rig.animMode;
+    this.hero.add(rig.model);
+    this.mixer = rig.mixer;
+    this.walkAction = rig.walkAction;
+    this.idleAction = rig.idleAction;
+    this.hero.position.set(0, this.heightAt(0, 12), 12);
 
     this.phase = 'intro';
     this.introI = 0;
@@ -1500,59 +1796,71 @@ export class Mission0Scene {
 
     if (p === 'intro') {
       const lines = [
-        this.copy('Привет! Я Барсик.', 'Сәлем! Мен Барсик.'),
-        this.copy(`Рад тебя видеть, ${n}!`, `Қуаныштымын, ${n}!`),
-        this.copy('Пойдём посмотрим, что там за лес!', 'Орманды бірге көрейік!'),
+        this.copy(
+          'Сегодня утром из леса донёсся странный звон… как будто кто-то зовёт на помощь.',
+          'Бүгін таңертең орманнан ерекше дыбыс естілді…',
+        ),
+        this.copy(
+          `Пойдём, ${n}? Только обещай: если страшно — скажешь, и мы остановимся.`,
+          `${n}, барамыз ба? Қорқсаң — айтасың.`,
+        ),
+        this.copy(
+          'Сначала дом, потом тропа. У меня в рюкзаке место для добрых дел.',
+          'Алдымен үй, кейін жол. Жақсылыққа орын бар.',
+        ),
       ];
       line = lines[Math.min(this.introI, lines.length - 1)];
-      objective = this.copy('📜 История', '📜 Тарих');
+      objective = this.copy('📜 Первое утро', '📜 Бірінші таң');
     } else if (p === 'move1' || p === 'move2' || p === 'move3') {
-      const step = this.cpIdx + 1;
       line = this.copy(
-        `Иди по жёлтым стрелкам! Шаг ${step}/3`,
-        `Сары көрсеткілермен жүру! Қадам ${step}/3`,
+        'Видишь большое яблоко? Это знак: мы на верном пути.',
+        'Үлкен алманы көріп тұрсың ба? Дұрыс жолдамыз.',
       );
       objective = this.copy('🎯 Следуй по тропе', '🎯 Жолмен жүр');
       if (p === 'move1' && performance.now() < this.praiseUntil) {
-        line = this.copy('Молодец! Так держать!', 'Жарайсың!');
+        line = this.copy('Вот так! Лапки помнят дорогу.', 'Осылай! Жақсы!');
       }
-      if (p === 'move2') line = this.copy('Отлично! Следующая стрелка вперёд…', 'Керемет! Келесі көрсеткі алда…');
-      if (p === 'move3') line = this.copy('Почти у цели! Большое яблоко рядом…', 'Мақсатқа жақын! Үлкен алма жақын…');
     } else if (p === 'pick1') {
-      line = this.copy('Нажми кнопку, чтобы поднять яблоко!', 'Батырманы басып алманы ал!');
+      line = this.copy('Яблоко тёплое — только что с ветки. Возьми его в рюкзак.', 'Алма жылы — жаңа ғана түскен.');
       objective = this.copy('✋ Подними яблоко', '✋ Алманы ал');
+      if (performance.now() < this.praiseUntil) {
+        line = this.copy('Ура! Теперь бегу легче — доброе дело заряжает!', 'Ура! Енді жеңіл жүгіреміз!');
+      }
     } else if (p === 'pick2') {
-      line = this.copy('Собери ещё фрукты по пути — подойди и нажми!', 'Жолдағы жемістерді де жина!');
+      line = this.copy('Ещё пару фруктов — пригодятся. Друзьям ведь тоже хочется сладкого.', 'Тағы жеміс жина — достарға да керек.');
       objective = this.copy(`🍎 В рюкзаке: ${this.bag}`, `🍎 Рюкзакта: ${this.bag}`);
     } else if (p === 'give_bird') {
-      speaker = this.copy('Синичка', 'Құс');
-      line = this.copy('Можно мне яблочко? Я так голодна…', 'Маған алма бересің бе?');
-      objective = this.copy('🤝 Отдай яблоко синичке (!)', '🤝 Алманы бер (!)');
-    } else if (p === 'help_meet') {
-      speaker = this.copy('Садовник', 'Бағбан');
+      speaker = this.copy('Жұлдыз', 'Жұлдыз');
       line = this.copy(
-        'Ой… у меня рассыпались фрукты. Стесняюсь просить…',
-        'Жемістерім шашылып қалды…',
+        'Я потеряла гнездышко в буре… Одно яблоко — и я снова смогу петь.',
+        'Ұямы желден жоғалды… Бір алма — қайта ән айтам.',
       );
-      objective = this.copy('Подойди к другу с !', 'Досқа жақында (!)');
+      objective = this.copy('🤝 Отдай яблоко Жұлдыз (!)', '🤝 Жұлдызға бер (!)');
+    } else if (p === 'help_meet') {
+      speaker = this.copy('Айбек', 'Айбек');
+      line = this.copy(
+        'Ой… завтра ярмарка, а корзина опрокинулась. Стыдно просить, но сам не успею…',
+        'Ертең базар… Себет төніп кетті. Ұят, бірақ өзім үлгермеймін…',
+      );
+      objective = this.copy('Подойди к Айбеку (!)', 'Айбекке жақында (!)');
     } else if (p === 'help_collect') {
       speaker = 'Барсик';
       line = this.copy(
-        'Давай вместе соберём! Три фрукта — обойди бревно.',
-        'Бірге жинайық! Үш жеміс — бөренені айналып өт.',
+        'Давай поможем! Три фрукта — обойди брёвна, они не кусаются.',
+        'Көмектесейік! Үш жеміс — бөренеден айналып өт.',
       );
       objective = this.copy(
-        `🍎 Фрукты для друга: ${this.questFruits}/${this.questNeed}`,
-        `🍎 Досқа: ${this.questFruits}/${this.questNeed}`,
+        `🍎 Для ярмарки: ${this.questFruits}/${this.questNeed}`,
+        `🍎 Базарға: ${this.questFruits}/${this.questNeed}`,
       );
     } else if (p === 'help_return') {
       speaker = 'Барсик';
-      line = this.copy('Отнесём фрукты садовнику!', 'Бағбанға апарайық!');
+      line = this.copy('Корзина снова полная — несём Айбеку!', 'Себет толды — Айбекке апарайық!');
       objective = this.copy('↩️ Верни фрукты', '↩️ Жемістерді бер');
     } else if (p === 'outro') {
       line = this.copy(
-        'Отлично получилось! Дальше в лесу ждут новые друзья.',
-        'Керемет! Орманда жаңа достар күтеді.',
+        'Первый день удался: мы помогли и нашли друзей. Впереди — весь Фруктовый лес!',
+        'Бірінші күн сәтті: көмектестік. Алда — бүкіл Жеміс орманы!',
       );
       objective = this.copy('🎉 Уровень 1 пройден', '🎉 1-деңгей өтті');
     }
@@ -1567,7 +1875,8 @@ export class Mission0Scene {
       questNeed: this.questNeed,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: p === 'move1' || p === 'move2' || p === 'move3',
+      showMoveHint:
+        (p === 'move1' || p === 'move2' || p === 'move3') && !this.hasTakenFirstStep,
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
@@ -1602,6 +1911,7 @@ export class Mission0Scene {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / Math.max(h, 1);
     this.camera.updateProjectionMatrix();
+    this.quality?.setSize(w, h);
   };
 
   private dir() {
@@ -1659,8 +1969,15 @@ export class Mission0Scene {
   private loop = () => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
+    if (this.paused) {
+      this.clock.getDelta();
+      return;
+    }
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
+    this.grass?.update(now * 0.001);
+    this.pondWater?.update(now * 0.001);
+    this.fireflies?.update(now * 0.001);
 
     if (this.phase === 'intro' && now > this.nextAt) {
       this.introI += 1;
@@ -1677,6 +1994,14 @@ export class Mission0Scene {
     const canMove = !['intro', 'outro'].includes(this.phase);
     const d = this.dir();
     const moving = canMove && d.lengthSq() > 0.01;
+    if (moving && now - this.lastStepAt > 360) {
+      this.lastStepAt = now;
+      AudioManager.sfx('step');
+    }
+    if (moving && !this.hasTakenFirstStep) {
+      this.hasTakenFirstStep = true;
+      this.pushHud();
+    }
     if (moving) {
       const speed = this.phase.startsWith('move') ? this.baseSpeed : this.runSpeed;
       let nx = this.hero.position.x + d.x * speed * dt;
@@ -1686,6 +2011,7 @@ export class Mission0Scene {
       const fixed = resolveCollisions(nx, nz, this.colliders);
       this.hero.position.x = fixed.x;
       this.hero.position.z = fixed.z;
+      this.hero.position.y = this.heightAt(fixed.x, fixed.z);
       this.yaw = Math.atan2(d.x, d.y);
       this.hero.rotation.y = this.yaw;
       if (!this.walking) {
@@ -1715,17 +2041,45 @@ export class Mission0Scene {
       const apple = this.fruits.find((f) => f.userData.kind === 'tutorial');
       if (apple && this.hero.position.distanceTo(apple.position) < 1.55) {
         this.phase = 'pick1';
+        if (!this.speedBoostShown) {
+          this.speedBoostShown = true;
+          this.spawnSparks(this.hero.position);
+          this.praiseUntil = now + 1600;
+        }
         this.pushHud();
       }
     }
 
     if (this.phase === 'help_collect') {
       for (const f of this.fruits) {
-        if (f.userData.kind === 'quest') {
+        if (f.userData.kind !== 'quest') continue;
+        if (!f.userData.shown) {
+          f.userData.shown = true;
           f.visible = true;
-          (f.userData.ring as THREE.Object3D).visible = f.userData.alive;
-          (f.userData.beam as THREE.Object3D).visible = f.userData.alive;
+          const ring = f.userData.ring as THREE.Mesh;
+          const beam = f.userData.beam as THREE.Mesh;
+          ring.visible = f.userData.alive;
+          beam.visible = f.userData.alive;
+          const mat = f.material as THREE.MeshStandardMaterial;
+          mat.transparent = true;
+          mat.opacity = 0;
+          const ringMat = ring.material as THREE.MeshBasicMaterial;
+          ringMat.transparent = true;
+          ringMat.opacity = 0;
+          const beamMat = beam.material as THREE.MeshStandardMaterial;
+          beamMat.transparent = true;
+          beamMat.opacity = 0;
         }
+        // 0.5s fade-in (Game Feel: anticipation, no pop-in)
+        const step = dt * 2;
+        const mat = f.material as THREE.MeshStandardMaterial;
+        if (mat.opacity < 1) mat.opacity = Math.min(1, mat.opacity + step);
+        const ring = f.userData.ring as THREE.Mesh;
+        const beam = f.userData.beam as THREE.Mesh;
+        const ringMat = ring.material as THREE.MeshBasicMaterial;
+        const beamMat = beam.material as THREE.MeshStandardMaterial;
+        if (ringMat.opacity < 0.9) ringMat.opacity = Math.min(0.9, ringMat.opacity + step);
+        if (beamMat.opacity < 0.55) beamMat.opacity = Math.min(0.55, beamMat.opacity + step);
       }
     }
 
@@ -1808,8 +2162,26 @@ export class Mission0Scene {
       bang.rotation.y += dt * 2;
     }
 
-    // Guide arrow → objective
-    const obj = this.objectiveWorldPos();
+    // Idle NPC animations — bob around stored base Y (don't fight perch)
+    if (this.bird) {
+      this.bird.position.y = this.birdBaseY + Math.sin(now * 0.004) * 0.05;
+      this.bird.rotation.y = Math.sin(now * 0.0015) * 0.3;
+    }
+    if (this.gardener) {
+      this.gardener.position.y = this.gardenerBaseY;
+      updatePlushCharacter(this.gardener, now * 0.001, false);
+    }
+
+    // Guide arrow → critical objective, else nearest golden bonus (after move tutorial)
+    let obj = this.objectiveWorldPos();
+    if (
+      !obj &&
+      !this.phase.startsWith('move') &&
+      this.phase !== 'intro' &&
+      this.phase !== 'outro'
+    ) {
+      obj = this.nearestBonusPos();
+    }
     if (this.guideArrow) {
       const show =
         !!obj && !['intro', 'outro'].includes(this.phase) && !this.interactTarget;
@@ -1837,25 +2209,34 @@ export class Mission0Scene {
       s.userData.life -= dt;
       if (s.userData.life <= 0) {
         this.scene.remove(s);
+        s.geometry.dispose();
+        const materials = Array.isArray(s.material) ? s.material : [s.material];
+        for (const material of materials) material.dispose();
         this.sparks.splice(i, 1);
       }
     }
 
     this.mixer?.update(dt);
+    const heroModel = this.hero.children.find((c) => !c.userData.isGuideArrow);
+    if (heroModel) {
+      const t = now * 0.001;
+      if (this.heroAnimMode === 'plush') updatePlushLocomotion(heroModel, this.walking, t);
+      else if (this.heroAnimMode === 'static') updateStaticHeroLocomotion(heroModel, this.walking, t);
+    }
 
     // Camera: Roblox-ish elevated third person
     if (this.phase === 'intro') {
       // Cinematic dolly from wide establishing shot to behind-the-hero
       const idx = Math.min(this.introI, 2);
       const introPos = [
-        new THREE.Vector3(-14, 8, 22),
-        new THREE.Vector3(-6, 6, 17),
-        new THREE.Vector3(-1.2, 5.5, 13.5),
+        new THREE.Vector3(-16, 11, 24),
+        new THREE.Vector3(-7, 8, 18),
+        new THREE.Vector3(-1.2, 6.5, 14),
       ];
       const introLook = [
-        new THREE.Vector3(-4, 1.8, 11),
-        new THREE.Vector3(-2, 1.5, 9),
-        new THREE.Vector3(0, 1.2, 8),
+        new THREE.Vector3(-4, 2.2, 10),
+        new THREE.Vector3(-1, 1.8, 8),
+        new THREE.Vector3(0, 1.5, 7),
       ];
       const target = introPos[idx];
       this.camera.position.lerp(target, 1 - Math.pow(0.02, dt));
@@ -1864,16 +2245,26 @@ export class Mission0Scene {
     } else {
       const back = this.phase.startsWith('help') || this.phase === 'outro' ? 11 : 9.5;
       const height = 6.2;
-      const target = new THREE.Vector3(
-        this.hero.position.x * 0.55,
-        height,
-        this.hero.position.z + back,
-      );
+      // Clamp so the house at (-9, 12) never eats the camera (Level Design Book)
+      const camZ = Math.min(this.hero.position.z + back, 20);
+      let camX = this.hero.position.x * 0.55;
+      // Soft push away from house volume when hero is in the yard
+      if (this.hero.position.z > 6 && this.hero.position.x < -2) {
+        camX = Math.max(camX, -2.5);
+      }
+      const target = new THREE.Vector3(camX, height, camZ);
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
-      this.camera.lookAt(this.hero.position.x, 1.35, this.hero.position.z - 0.8);
+      this.camera.lookAt(this.hero.position.x, this.heightAt(this.hero.position.x, this.hero.position.z) + 1.35, this.hero.position.z - 0.8);
     }
 
-    this.renderer.render(this.scene, this.camera);
+    // Keep soft shadows tight around the hero (crisper contact without huge maps)
+    if (this.sun) {
+      this.sun.target.position.set(this.hero.position.x, 0, this.hero.position.z);
+      this.sun.target.updateMatrixWorld();
+    }
+
+    if (this.quality) this.quality.render();
+    else this.renderer.render(this.scene, this.camera);
   };
 
   dispose() {
@@ -1886,6 +2277,20 @@ export class Mission0Scene {
     };
     if (self._kd) removeEventListener('keydown', self._kd);
     if (self._ku) removeEventListener('keyup', self._ku);
+
+    this.quality?.dispose();
+    this.quality = null;
+    this.grass?.dispose();
+    this.grass = null;
+    this.terrain?.dispose();
+    this.terrain = null;
+    this.pondWater?.dispose();
+    this.pondWater = null;
+    this.fireflies?.dispose();
+    this.fireflies = null;
+    this.kit?.dispose();
+    this.kit = null;
+    this.mixer?.stopAllAction();
 
     const sharedGeos = new Set<THREE.BufferGeometry>([sharedFruitGeometry, sharedRingGeometry, sharedBeamGeometry]);
     const sharedMats = new Set<THREE.Material>([sharedRingMaterial, sharedBeamMaterial, ...fruitMatCache.values()]);
@@ -1900,8 +2305,8 @@ export class Mission0Scene {
         for (const mat of mats) {
           if (!mat || sharedMats.has(mat)) continue;
           for (const key of Object.keys(mat) as (keyof THREE.Material)[]) {
-            const val = (mat as any)[key];
-            if (val && val.isTexture) val.dispose();
+            const val = (mat as unknown as Record<string, { isTexture?: boolean; dispose?: () => void } | undefined>)[key as string];
+            if (val && val.isTexture) val.dispose?.();
           }
           mat.dispose();
         }

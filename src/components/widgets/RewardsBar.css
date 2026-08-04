@@ -38,13 +38,16 @@
   border-radius: var(--radius-lg);
   padding: var(--spacing-md);
   position: relative;
-  transition: all 0.2s;
-  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
 }
 
 .reward-item:hover {
-  border-color: var(--primary);
-  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.2);
+  border-color: rgba(108, 92, 231, 0.35);
+}
+
+.rewards-travel-cta {
+  width: 100%;
+  justify-content: center;
 }
 
 .milestone-level {

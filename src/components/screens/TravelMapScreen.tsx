@@ -14,7 +14,9 @@ import {
 } from './chapterPaths';
 import './TravelMapScreen.css';
 
-export const TOTAL_LEVELS = 100;
+// Season 1 ships levels 0..16: Fruit Forest 0..9 + Ice Valley 10..16.
+// The remaining four map nodes are world teasers, not fake playable levels.
+const SEASON1_LEVELS = 17;
 
 const CHAPTERS: {
   name: { ru: string; kk: string };
@@ -27,7 +29,7 @@ const CHAPTERS: {
   {
     name: { ru: 'Фруктовый лес', kk: 'Жеміс орманы' },
     color: '#2ecc71',
-    levels: 17,
+    levels: 10,
     bg: '/assets/map/chapter1_fruit_forest.jpg',
     bgDesktop: '/assets/map/chapter1_fruit_forest_desktop.jpg',
     labelFill: '#2f6b3f',
@@ -35,35 +37,35 @@ const CHAPTERS: {
   {
     name: { ru: 'Ледяная долина', kk: 'Мұз аңғары' },
     color: '#74b9ff',
-    levels: 17,
+    levels: 7,
     bg: '/assets/map/chapter2_ice_valley.jpg',
     labelFill: '#2c5a8a',
   },
   {
     name: { ru: 'Горное озеро', kk: 'Тау көлі' },
     color: '#00cec9',
-    levels: 17,
+    levels: 1,
     bg: '/assets/map/chapter3_mountain_lake.jpg',
     labelFill: '#0a6b68',
   },
   {
     name: { ru: 'Кок-Тобе', kk: 'Көктөбе' },
     color: '#fdcb6e',
-    levels: 17,
+    levels: 1,
     bg: '/assets/map/chapter4_kok_tobe.jpg',
     labelFill: '#8a5a12',
   },
   {
     name: { ru: 'Степь с тюльпанами', kk: 'Қызғалдақ даласы' },
     color: '#ff7675',
-    levels: 16,
+    levels: 1,
     bg: '/assets/map/chapter5_tulip_steppe.jpg',
     labelFill: '#8a2e3a',
   },
   {
     name: { ru: 'Город Друзей', kk: 'Достар қаласы' },
     color: '#6c5ce7',
-    levels: 16,
+    levels: 1,
     bg: '/assets/map/chapter6_friends_city.jpg',
     labelFill: '#3a2e7a',
   },
@@ -350,8 +352,13 @@ export function TravelMapScreen() {
     }
   };
 
+  const seasonDone = currentLevel >= SEASON1_LEVELS;
+  const levelLabel = Math.min(currentLevel, SEASON1_LEVELS - 1) + 1;
+  const season1Unlocked = unlockedLevels.filter((l) => l < SEASON1_LEVELS).length;
+
   const handlePinClick = (level: number) => {
-    if (level <= currentLevel) startEpisode(level);
+    // Only route to real Season 1 missions; Season 2 pins are locked teasers.
+    if (level <= currentLevel && level < SEASON1_LEVELS) startEpisode(level);
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -413,10 +420,10 @@ export function TravelMapScreen() {
         </div>
         <div className="travel-stats">
           <Chip icon={<IconStar size={16} />} tone="star">
-            {lang === 'kk' ? `${currentLevel + 1}-деңгей` : `Уровень ${currentLevel + 1}`}
+            {lang === 'kk' ? `${levelLabel}-деңгей` : `Уровень ${levelLabel}`}
           </Chip>
           <Chip icon={<IconCheck size={16} />} tone="success">
-            {unlockedLevels.length}/{TOTAL_LEVELS}
+            {season1Unlocked}/{SEASON1_LEVELS}
           </Chip>
         </div>
       </div>
@@ -627,11 +634,16 @@ export function TravelMapScreen() {
           variant="primary"
           size="lg"
           icon={<IconPaw size={22} />}
-          onClick={() => handlePinClick(currentLevel)}
+          onClick={() => handlePinClick(Math.min(currentLevel, SEASON1_LEVELS - 1))}
+          disabled={seasonDone}
         >
-          {lang === 'kk'
-            ? `Ойнау · ${currentLevel + 1}-деңгей`
-            : `Играть · Уровень ${currentLevel + 1}`}
+          {seasonDone
+            ? lang === 'kk'
+              ? '1-маусым бітті · 2-маусым жақында'
+              : 'Сезон 1 пройден · Сезон 2 скоро'
+            : lang === 'kk'
+              ? `Ойнау · ${levelLabel}-деңгей`
+              : `Играть · Уровень ${levelLabel}`}
         </PlushButton>
       </div>
     </div>

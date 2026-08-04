@@ -30,6 +30,8 @@ export function ResponsivePicture({
         alt={alt}
         draggable={false}
         decoding="async"
+        fetchPriority="high"
+        loading="eager"
         aria-hidden={alt === '' ? true : undefined}
       />
     </picture>
