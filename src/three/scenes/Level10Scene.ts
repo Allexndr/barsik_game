@@ -20,7 +20,7 @@ import { createPlushSquirrel, createPlushHedgehog } from '../PlushAnimals';
 import { createPlushCharacter } from '../PlushCharacter';
 import { ZHULDYZ_LOOK } from '../characterLooks';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeAmbientCritters } from '../s1Place';
+import { placeAmbientCritters } from '../s1Place';
 
 /**
  * Level 11 «Прощание с лесом» — GDD Level 10:
@@ -309,7 +309,7 @@ export class Level10Scene extends BaseLevelScene {
     await this.loadProps(loader, 5, 4, 22, -16);
 
     // Farewell clearing — stump landmark + forest friends peeking
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'stump', opts: { x: -4.5, z: -2, maxSize: 1.2 } },
       { key: 'mushroom', opts: { x: -3.2, z: -1.2, maxSize: 0.4 } },
       { key: 'berry', opts: { x: 5, z: -4, maxSize: 0.35 } },

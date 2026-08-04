@@ -6,7 +6,7 @@ import {
 import { AYA_LOOK } from '../characterLooks';
 import { createPlushCharacter } from '../PlushCharacter';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeAmbientCritters, placeS1Prop } from '../s1Place';
+import { placeAmbientCritters, placeS1Prop } from '../s1Place';
 import { CAST_PROP_GLB } from '../castModels';
 import { AudioManager } from '@/audio/AudioManager';
 
@@ -349,7 +349,7 @@ export class Level14Scene extends BaseLevelScene {
       this.scene.add(log);
     }
 
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'pine_tree', opts: { x: -11, z: -5, maxSize: 3.0 } },
       { key: 'pine_tree', opts: { x: 15, z: -20, maxSize: 2.8 } },
       { key: 'pine_tree', opts: { x: -21, z: -24, maxSize: 3.2 } },

@@ -10,7 +10,6 @@ import {
 } from './BaseLevelScene';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { TrailPath } from '../TrailPath';
-import { placeMany } from '../s1Place';
 import { CAST_PROP_GLB, CAST_CHAR_GLB } from '../castModels';
 import { AudioManager } from '@/audio/AudioManager';
 
@@ -268,7 +267,7 @@ export class Level12Scene extends BaseLevelScene {
     this.scene.add(pad);
     this.scene.add(await placeWoodSign(loader, -2.8, 5, 0.35, 0xe1f5fe));
 
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'pine_tree', opts: { x: -11, z: -8, maxSize: 3.2 } },
       { key: 'pine_tree', opts: { x: 12, z: -20, maxSize: 3.6 } },
       { key: 'pine_tree', opts: { x: -14, z: -28, maxSize: 2.8 } },

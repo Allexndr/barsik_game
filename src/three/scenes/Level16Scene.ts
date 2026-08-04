@@ -9,7 +9,7 @@ import { createPlushSquirrel, createPlushHedgehog } from '../PlushAnimals';
 import { createPlushCharacter } from '../PlushCharacter';
 import { AYA_LOOK, ZHULDYZ_LOOK } from '../characterLooks';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeAmbientCritters } from '../s1Place';
+import { placeAmbientCritters } from '../s1Place';
 import { AudioManager } from '@/audio/AudioManager';
 import { useGameStore } from '@/store/useGameStore';
 
@@ -218,7 +218,7 @@ export class Level16Scene extends BaseLevelScene {
       this.scene.add(crystal);
     }
 
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'snowflake', opts: { x: 0, z: -4, maxSize: 0.7, y: 2.8 } },
       { key: 'pine_tree', opts: { x: -6, z: -8, maxSize: 2.6 } },
       { key: 'pine_tree', opts: { x: 6.5, z: -7, maxSize: 2.4 } },

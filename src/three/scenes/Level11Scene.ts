@@ -11,7 +11,7 @@ import {
 } from './BaseLevelScene';
 import { groundY } from '../modelUtils';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeAmbientCritters } from '../s1Place';
+import { placeAmbientCritters } from '../s1Place';
 import { AudioManager } from '@/audio/AudioManager';
 
 /**
@@ -148,7 +148,7 @@ export class Level11Scene extends BaseLevelScene {
       this.scene.add(fox);
     }
 
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'carrot', opts: { x: -1.5, z: -9.5, maxSize: 0.4 } },
       { key: 'snowflake', opts: { x: 2.5, z: -3, maxSize: 0.5, y: 1.2 } },
       { key: 'ice_crystal', opts: { x: -3.5, z: -11, maxSize: 0.55, y: 0.3 } },

@@ -621,3 +621,9 @@
 @media (prefers-reduced-motion: reduce) {
   .m0-rotate-icon { animation: none; }
 }
+
+/* Space is wider than a letter key; keep the pill from looking cramped. */
+.m0-keys .m0-key-wide {
+  min-width: 52px;
+  font-size: 0.68rem;
+}

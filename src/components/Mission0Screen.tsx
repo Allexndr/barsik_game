@@ -265,6 +265,8 @@ export function Mission0Screen() {
             <kbd>↓</kbd>
             <kbd>→</kbd>
           </div>
+          <span className="m0-keys-or">{lang === 'kk' ? 'секіру' : 'прыжок'}</span>
+          <kbd className="m0-key-wide">Space</kbd>
         </div>
       ) : null}
 

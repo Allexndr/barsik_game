@@ -16,7 +16,7 @@ import { AudioManager } from '@/audio/AudioManager';
 import { AYA_LOOK } from '../characterLooks';
 import { createPlushCharacter, updatePlushCharacter } from '../PlushCharacter';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeS1Prop } from '../s1Place';
+import { placeS1Prop } from '../s1Place';
 
 /**
  * Level 5 «Качающийся мостик» — GDD Chapter 1 Level 4:
@@ -278,7 +278,7 @@ export class Level4Scene extends BaseLevelScene {
       bridgeProp.position.set(0, -0.35, -1);
       this.scene.add(bridgeProp);
     }
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'rock_snow', opts: { x: -5.5, z: 1.5, maxSize: 1.3 } },
       { key: 'rock_snow', opts: { x: 5.8, z: -2.2, maxSize: 1.1, rotY: 1.0 } },
       { key: 'pine_tree', opts: { x: -7, z: AYA_Z - 1, maxSize: 2.6 } },

@@ -4,7 +4,7 @@ import {
   loadCharModel, loadPropModel, placeWoodSign,
 } from './BaseLevelScene';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeAmbientCritters } from '../s1Place';
+import { placeAmbientCritters } from '../s1Place';
 import { CAST_PROP_GLB, KEY_ICE, writeFlag } from '../castModels';
 import { AudioManager } from '@/audio/AudioManager';
 
@@ -328,7 +328,7 @@ export class Level13Scene extends BaseLevelScene {
       this.scene.add(mesh, marker);
     }
 
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'pine_tree', opts: { x: -12, z: -6, maxSize: 3.0 } },
       { key: 'pine_tree', opts: { x: 15, z: -19, maxSize: 2.7 } },
       { key: 'pine_tree', opts: { x: -20, z: -25, maxSize: 3.2 } },
