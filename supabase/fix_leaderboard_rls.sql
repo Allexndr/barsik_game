@@ -1,51 +1,50 @@
--- Lock down barsik_leaderboard.
+-- Close anonymous write access to player saves.
 --
--- Found during a security audit (2026-08-04): the anonymous role could
--- INSERT and DELETE on this table. The anon key ships inside the public JS
--- bundle, so this was open to anyone who opened devtools:
+-- Found during a security audit (2026-08-04). The shape of the hole was not
+-- what the first pass assumed, so for the record:
 --
---   INSERT — inject arbitrary rows, including offensive display names, into
---            a leaderboard that children read;
---   DELETE — `DELETE /barsik_leaderboard?player_key=neq.x` wipes every
---            player's standing in one request.
+--   * `barsik_leaderboard` is a VIEW over the real table `barsik_saves`.
+--   * RLS *was* enabled on `barsik_saves`, which looks reassuring, but its
+--     only policy was:
+--         barsik_saves_anon_all | ALL | {anon,authenticated} | true | true
+--     A policy of USING(true) WITH CHECK(true) FOR ALL grants everything to
+--     everyone; enabling RLS alongside it accomplishes nothing.
+--   * On top of that, anon held direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE
+--     grants on both the table and the view.
 --
--- Verified with a schema-invalid INSERT (returned PGRST204 "column not
--- found" rather than 42501 "permission denied", i.e. it passed the policy
--- check) and a DELETE with a filter matching zero rows (returned 204).
--- No data was written or removed during the audit.
+-- The anon key ships inside the public JS bundle, so any visitor could read
+-- every child's save, overwrite or delete any of them, or TRUNCATE the table.
 --
--- The client only ever calls fetchLeaderboard(), so read-only anon access
--- costs the game nothing. Score submission, when it is built, must go
--- through an edge function holding the service-role key, never the browser.
+-- The client never writes: leaderboard.ts only calls fetchLeaderboard(), and
+-- there are no POST/PATCH/DELETE calls anywhere in src/. Progress is
+-- local-first in localStorage. So anon write access buys nothing.
+--
+-- The view is owned by postgres and does not set security_invoker, so it
+-- reads the table with the owner's rights. That is what lets us lock the
+-- table down completely while the public leaderboard keeps working.
+--
+-- When cloud sync is built, writes must go through an edge function holding
+-- the service-role key — never from the browser.
 
-alter table public.barsik_leaderboard enable row level security;
+begin;
 
--- Clear whatever permissive policies are in place today.
-do $$
-declare
-  policy_name text;
-begin
-  for policy_name in
-    select policyname from pg_policies
-    where schemaname = 'public' and tablename = 'barsik_leaderboard'
-  loop
-    execute format('drop policy %I on public.barsik_leaderboard', policy_name);
-  end loop;
-end $$;
+-- 1. The permissive catch-all policy.
+drop policy if exists barsik_saves_anon_all on public.barsik_saves;
 
--- Reading the board is the only thing the browser needs.
-create policy leaderboard_anon_read
-  on public.barsik_leaderboard
-  for select
-  to anon, authenticated
-  using (true);
+-- 2. No direct table access for browser roles. RLS stays on, and with no
+--    policy left, non-owner roles are denied by default.
+alter table public.barsik_saves enable row level security;
+revoke all on public.barsik_saves from anon, authenticated;
 
--- Belt and braces: even with no policy granting them, revoke the verbs
--- outright so a future permissive policy cannot silently re-open writes.
-revoke insert, update, delete on public.barsik_leaderboard from anon;
-revoke insert, update, delete on public.barsik_leaderboard from authenticated;
+-- 3. The leaderboard view stays readable, and only readable.
+revoke all on public.barsik_leaderboard from anon, authenticated;
 grant select on public.barsik_leaderboard to anon, authenticated;
 
--- Verify: expect exactly one policy, for SELECT.
---   select policyname, cmd, roles from pg_policies
---   where tablename = 'barsik_leaderboard';
+commit;
+
+-- Verify:
+--   select policyname, cmd, roles::text from pg_policies
+--     where tablename = 'barsik_saves';                  -- expect 0 rows
+--   select table_name, privilege_type
+--     from information_schema.role_table_grants
+--     where grantee = 'anon' and table_schema = 'public'; -- expect view/SELECT only
