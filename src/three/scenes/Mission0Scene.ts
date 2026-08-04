@@ -2206,8 +2206,10 @@ export class Mission0Scene extends BaseLevelScene {
       this.sun.target.updateMatrixWorld();
     }
 
-    if (this.quality) this.quality.render();
-    else this.renderer.render(this.scene, this.camera);
+    // Mission 0 runs its own loop rather than the shared one, so the player
+    // camera orbit has to be ticked and applied here too.
+    this.updateCameraOrbit(dt);
+    this.renderFrame();
   };
 
   dispose() {
