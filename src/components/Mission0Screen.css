@@ -627,3 +627,88 @@
   min-width: 52px;
   font-size: 0.68rem;
 }
+
+/* ── Collapsible dialogue ─────────────────────────────────────── */
+.m0-dialogue-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 0.25rem;
+}
+
+.m0-dialogue-tools {
+  display: flex;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.m0-dialogue-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1.5px solid rgba(108, 92, 231, 0.35);
+  background: rgba(108, 92, 231, 0.08);
+  color: #6c5ce7;
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.m0-dialogue-btn:hover:not(:disabled) { background: rgba(108, 92, 231, 0.18); }
+.m0-dialogue-btn:active:not(:disabled) { transform: scale(0.92); }
+.m0-dialogue-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* The panel itself ignores pointers so it never blocks the scene; the
+   controls opt back in above. */
+.m0-dialogue { pointer-events: none; }
+
+/* Folded state: one slim strip carrying the current objective. */
+.m0-dialogue-tab {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(64px + env(safe-area-inset-top));
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(460px, 92vw);
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.93);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 20px rgba(45, 27, 78, 0.2);
+  font-weight: 800;
+  font-size: 0.86rem;
+  color: #2d3436;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.m0-dialogue-tab-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .m0-dialogue-tab {
+    top: calc(58px + env(safe-area-inset-top));
+    max-width: calc(100vw - 20px);
+  }
+  .m0-dialogue-btn { width: 34px; height: 34px; }
+}
+
+@media (max-height: 480px) and (orientation: landscape) {
+  .m0-dialogue-tab {
+    top: calc(44px + env(safe-area-inset-top));
+    max-width: 56vw;
+    font-size: 0.78rem;
+  }
+}
