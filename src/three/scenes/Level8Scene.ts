@@ -21,7 +21,7 @@ import { createPlushCharacter } from '../PlushCharacter';
 import { AYA_LOOK } from '../characterLooks';
 import { CAST_PROP_GLB } from '../castModels';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeAmbientCritters } from '../s1Place';
+import { placeAmbientCritters } from '../s1Place';
 
 /**
  * Level 9 «Лесной праздник» — GDD Chapter 1 Level 8:
@@ -358,7 +358,7 @@ export class Level8Scene extends BaseLevelScene {
     await this.loadTrees(loader, 20, 22, -14, 4.0);
     await this.loadProps(loader, 6, 5, 22, -16);
 
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'berry', opts: { x: -4.5, z: -11, maxSize: 0.38 } },
       { key: 'apple_gold', opts: { x: 4.8, z: -11, maxSize: 0.4 } },
       { key: 'map_scroll', opts: { x: 0, z: -3.5, maxSize: 0.55, y: 0.9 } },

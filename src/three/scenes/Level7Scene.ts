@@ -14,7 +14,7 @@ import {
   loadCharModel,
 } from './BaseLevelScene';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeAmbientCritters } from '../s1Place';
+import { placeAmbientCritters } from '../s1Place';
 
 /**
  * Level 8 «Встреча с Путало» — GDD Chapter 1 Level 7:
@@ -289,7 +289,7 @@ export class Level7Scene extends BaseLevelScene {
     await this.loadProps(loader, 5, 4, 18, -14);
 
     // Putalo's photo kit + quiet forest extras
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'camera', opts: { x: 2.4, z: -1.5, maxSize: 0.55, y: 0.05 } },
       { key: 'mushroom_cottage', opts: { x: -9, z: -8, maxSize: 2.2, rotY: 0.4 } },
       { key: 'lantern', opts: { x: -2.8, z: -6, maxSize: 0.65 } },

@@ -16,7 +16,7 @@ import {
 } from './BaseLevelScene';
 import { groundY } from '../modelUtils';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeAmbientCritters } from '../s1Place';
+import { placeAmbientCritters } from '../s1Place';
 
 /**
  * Level 7 «Лесная загадка» — GDD Chapter 1 Level 6:
@@ -393,7 +393,7 @@ export class Level6Scene extends BaseLevelScene {
     await this.loadTrees(loader, 20, 20, -16, 4.0);
     await this.loadProps(loader, 6, 5, 20, -18);
 
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'mushroom', opts: { x: -3.2, z: 1.2, maxSize: 0.5 } },
       { key: 'mushroom', opts: { x: 3.5, z: 0.8, maxSize: 0.4, rotY: 0.8 } },
       { key: 'berry', opts: { x: -6.5, z: -3, maxSize: 0.35 } },

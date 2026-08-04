@@ -23,7 +23,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createPlushHedgehog, updatePlushAnimal } from '../PlushAnimals';
 import { AudioManager } from '@/audio/AudioManager';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeAmbientCritters } from '../s1Place';
+import { placeAmbientCritters } from '../s1Place';
 
 /**
  * Level 4 «Потерявшийся ёжик» — GDD Chapter 1 Level 3:
@@ -347,7 +347,7 @@ export class Level3Scene extends BaseLevelScene {
     await this.loadProps(loader, 10, 6, 32, -18);
 
     // S1 landmarks — mushroom cottage, stump, critters (laconic)
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'mushroom_cottage', opts: { x: -11, z: -8, maxSize: 2.4, rotY: 0.6 } },
       { key: 'mushroom', opts: { x: -6, z: -14, maxSize: 0.55 } },
       { key: 'mushroom', opts: { x: 7, z: -16, maxSize: 0.45, rotY: 1.2 } },

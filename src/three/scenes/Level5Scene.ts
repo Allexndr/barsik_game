@@ -19,7 +19,6 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createPlushSquirrel, updatePlushAnimal } from '../PlushAnimals';
 import { groundY } from '../modelUtils';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany } from '../s1Place';
 import { CAST_PROP_GLB, KEY_ACORN, writeFlag } from '../castModels';
 /**
  * Level 6 «Корзина для белочки» — GDD Chapter 1 Level 5:
@@ -349,7 +348,7 @@ export class Level5Scene extends BaseLevelScene {
       this.scene.add(treehouse);
       this.colliders.push({ kind: 'circle', x: 2.5, z: -36, r: 1.8 });
     }
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'cabin', opts: { x: -4.5, z: -37, maxSize: 2.8, rotY: 0.5 } },
       { key: 'pinecone', opts: { x: 1.2, z: -8, maxSize: 0.32 } },
       { key: 'pinecone', opts: { x: -2.0, z: -18, maxSize: 0.28 } },

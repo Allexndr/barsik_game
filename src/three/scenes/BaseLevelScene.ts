@@ -11,7 +11,7 @@ import { createLevelTerrain, type LevelTerrain, type LevelTerrainOptions } from 
 import { createWindGrass, type WindGrass } from '../WindGrass';
 import { AssetKit } from '../AssetKit';
 import { placePatch, ringAnchors, type PatchSpec } from '../sceneComposition';
-import { setPlacementGround } from '../s1Place';
+import { placeMany, setPlacementGround } from '../s1Place';
 import { disposeObject3DResources, fitHeight, fitMaxSize, groundY } from '../modelUtils';
 import { createFpsSampler } from '@/dev/fpsSampler';
 import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
@@ -616,6 +616,12 @@ export abstract class BaseLevelScene {
   protected idleAction: THREE.AnimationAction | null = null;
   protected keys = new Set<string>();
   protected joy = { x: 0, y: 0 };
+  /** Vertical velocity, metres/sec. Zero while grounded. */
+  protected jumpVelocity = 0;
+  protected airborne = false;
+  /** Spec metric: 1.2m jump height (BARSIK_S1_PRODUCTION performance budgets). */
+  protected readonly jumpSpeed = 5.4;
+  protected readonly gravity = 12.2;
   /** Player camera orbit around the hero, radians. */
   protected camYaw = 0;
   protected orbitDragging = false;
@@ -789,6 +795,44 @@ export abstract class BaseLevelScene {
     this.windGrass.push(grass);
     this.scene.add(grass.mesh);
     return grass;
+  }
+
+  /**
+   * Place props and make them solid.
+   *
+   * placeMany only ever added meshes to the scene, and colliders were pushed
+   * by hand for trees alone — so logs, benches, tents, tables and rocks were
+   * all walk-through. That is what "проваливаюсь сквозь текстуры" is: the
+   * hero passing straight into scenery that plainly looks solid.
+   */
+  protected async placeProps(
+    loader: GLTFLoader,
+    items: Parameters<typeof placeMany>[2],
+    opts: { solid?: boolean } = {},
+  ) {
+    const placed = await placeMany(this.scene, loader, items);
+    if (opts.solid !== false) this.blockProps(placed);
+    return placed;
+  }
+
+  /**
+   * Derive a blocking circle from each object's own bounds.
+   *
+   * Short things are skipped deliberately: a child walking over a mushroom or
+   * a fallen snowflake should not be stopped by it, and collectibles must stay
+   * reachable.
+   */
+  protected blockProps(objects: THREE.Object3D[], minHeight = 0.55) {
+    const size = new THREE.Vector3();
+    for (const obj of objects) {
+      new THREE.Box3().setFromObject(obj).getSize(size);
+      if (size.y < minHeight) continue;
+      // 0.38 of the widest span: tight enough not to create invisible walls
+      // around a prop, wide enough that the hero never visibly clips it.
+      const r = Math.max(size.x, size.z) * 0.38;
+      if (r < 0.28) continue;
+      this.colliders.push({ kind: 'circle', x: obj.position.x, z: obj.position.z, r });
+    }
   }
 
   /** Sit an object on the sculpted ground rather than on y=0. */
@@ -1342,9 +1386,16 @@ export abstract class BaseLevelScene {
   protected bindKeys() {
     const down = (e: KeyboardEvent) => {
       this.keys.add(e.code);
-      if (['KeyE', 'Space'].includes(e.code)) {
+      if (e.code === 'KeyE') {
         e.preventDefault();
         this.tryInteract();
+      }
+      // Space jumps when there is nothing to interact with, so the key keeps
+      // its old meaning next to an objective but is a jump the rest of the time.
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (this.interactTarget) this.tryInteract();
+        else this.tryJump();
       }
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         e.preventDefault();
@@ -1405,9 +1456,12 @@ export abstract class BaseLevelScene {
       this.hero.position.x = fixed.x;
       this.hero.position.z = fixed.z;
       // Ride the sculpted ground. Eased rather than snapped so crossing a
-      // ridge does not pop the camera, which tracks hero.y.
-      const groundHeight = this.groundHeightAt(fixed.x, fixed.z);
-      this.hero.position.y += (groundHeight - this.hero.position.y) * Math.min(1, dt * 12);
+      // ridge does not pop the camera, which tracks hero.y. Skipped mid-jump,
+      // where the arc owns the height.
+      if (!this.airborne) {
+        const groundHeight = this.groundHeightAt(fixed.x, fixed.z);
+        this.hero.position.y += (groundHeight - this.hero.position.y) * Math.min(1, dt * 12);
+      }
       this.yaw = Math.atan2(d.x, d.y);
       this.hero.rotation.y = this.yaw;
       if (!this.walking) {
@@ -1423,10 +1477,41 @@ export abstract class BaseLevelScene {
     return { moving, d };
   }
 
+  /** Hop. Ignored in the air, so holding the key cannot climb. */
+  protected tryJump() {
+    if (this.airborne || this.paused) return;
+    this.airborne = true;
+    this.jumpVelocity = this.jumpSpeed;
+    AudioManager.sfx('whoosh');
+  }
+
+  /**
+   * Ballistic arc, landing back on whatever ground is under the hero.
+   *
+   * Called from updateAmbient so every level gets it without touching their
+   * loops — the same route the camera orbit takes.
+   */
+  protected updateJump(dt: number) {
+    if (!this.airborne) return;
+    this.jumpVelocity -= this.gravity * dt;
+    this.hero.position.y += this.jumpVelocity * dt;
+    const ground = this.groundHeightAt(this.hero.position.x, this.hero.position.z);
+    if (this.hero.position.y <= ground) {
+      this.hero.position.y = ground;
+      this.jumpVelocity = 0;
+      this.airborne = false;
+      AudioManager.sfx(
+        this.footstepSurface === 'snow' ? 'stepSnow'
+          : this.footstepSurface === 'stone' ? 'stepStone' : 'stepGrass',
+      );
+    }
+  }
+
   // ── Animation updates ────────────────────────────────────────
   protected updateAmbient(dt: number, now: number) {
     this.fpsSampler.frame(now);
     this.updateCameraOrbit(dt);
+    this.updateJump(dt);
     const motionScale = this.prefersReducedMotion ? 0.25 : 1;
     // Only the next few arrows stay lit. A long emissive trail piles up at the
     // vanishing point and bloom fuses it into one glowing blob on the horizon.

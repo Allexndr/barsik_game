@@ -4,7 +4,7 @@ import {
   loadPropModel, placeWoodSign,
 } from './BaseLevelScene';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeAmbientCritters, placeS1Prop } from '../s1Place';
+import { placeAmbientCritters, placeS1Prop } from '../s1Place';
 import { AudioManager } from '@/audio/AudioManager';
 
 /**
@@ -289,7 +289,7 @@ export class Level15Scene extends BaseLevelScene {
       this.scene.add(obj, marker);
     }
 
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'pine_tree', opts: { x: -11, z: -8, maxSize: 3.0 } },
       { key: 'pine_tree', opts: { x: 13, z: -24, maxSize: 2.6 } },
       { key: 'rock_snow', opts: { x: 9, z: -6, maxSize: 1.5 } },

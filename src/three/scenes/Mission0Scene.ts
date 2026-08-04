@@ -1934,7 +1934,8 @@ export class Mission0Scene extends BaseLevelScene {
       const fixed = resolveCollisions(nx, nz, this.colliders);
       this.hero.position.x = fixed.x;
       this.hero.position.z = fixed.z;
-      this.hero.position.y = this.heightAt(fixed.x, fixed.z);
+      // Mid-jump the arc owns the height; snapping here would flatten it.
+      if (!this.airborne) this.hero.position.y = this.heightAt(fixed.x, fixed.z);
       this.yaw = Math.atan2(d.x, d.y);
       this.hero.rotation.y = this.yaw;
       if (!this.walking) {
@@ -2218,8 +2219,9 @@ export class Mission0Scene extends BaseLevelScene {
     }
 
     // Mission 0 runs its own loop rather than the shared one, so the player
-    // camera orbit has to be ticked and applied here too.
+    // camera orbit and the jump arc have to be ticked here too.
     this.updateCameraOrbit(dt);
+    this.updateJump(dt);
     this.renderFrame();
   };
 

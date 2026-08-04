@@ -19,7 +19,7 @@ import {
 import { AudioManager } from '@/audio/AudioManager';
 import { groundY } from '../modelUtils';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeAmbientCritters } from '../s1Place';
+import { placeAmbientCritters } from '../s1Place';
 import { CAST_PROP_GLB, KEY_ACORN, readFlag, writeFlag } from '../castModels';
 
 /**
@@ -300,7 +300,7 @@ export class Level9Scene extends BaseLevelScene {
     await this.loadTrees(loader, 15, 20, -12, 4.0);
     await this.loadProps(loader, 5, 4, 20, -14);
 
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'map_scroll', opts: { x: -3.2, z: -2, maxSize: 0.6, y: 0.15 } },
       { key: 'lantern', opts: { x: 3.5, z: -1.5, maxSize: 0.7 } },
       { key: 'pinecone', opts: { x: 2.2, z: 1.5, maxSize: 0.3 } },
