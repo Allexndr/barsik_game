@@ -299,9 +299,11 @@ export function tulip(x: number, z: number, color: number) {
   return g;
 }
 
-export function hill(x: number, z: number, r: number, h: number) {
+/** Rounded knoll. Colour must match the biome — a green dome on snow reads
+ *  as a hole in the world, which is what the Ice Valley levels were showing. */
+export function hill(x: number, z: number, r: number, h: number, color = 0x43a047) {
   const geo = new THREE.SphereGeometry(r, 20, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x43a047, roughness: 1, flatShading: true });
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 1, flatShading: true });
   const m = new THREE.Mesh(geo, mat);
   m.position.set(x, 0, z);
   m.scale.y = h / r;
@@ -907,8 +909,8 @@ export abstract class BaseLevelScene {
     await this.loadWinterDecor(loader, opts.decorCount ?? 22, opts.decorCenterZ ?? -20);
     this.setupSnowfall();
     if (opts.backdrop === 'none') return;
-    this.scene.add(hill(-22, -15, 10, 1.2));
-    this.scene.add(hill(24, -25, 12, 1.4));
+    this.scene.add(hill(-22, -15, 10, 1.2, 0xeef5fa));
+    this.scene.add(hill(24, -25, 12, 1.4, 0xeef5fa));
     const mountains =
       opts.backdrop === 'finale'
         ? ([[-72, -120, 18, 18], [0, -138, 20, 20], [70, -118, 18, 18]] as const)
