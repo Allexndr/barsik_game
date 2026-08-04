@@ -16,6 +16,8 @@ import { disposeObject3DResources, fitHeight, fitMaxSize, groundY } from '../mod
 import { createFpsSampler } from '@/dev/fpsSampler';
 import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
 
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+
 // ─── Shared types ───────────────────────────────────────────────
 export type Collider = 
   | { kind: 'aabb'; x: number; z: number; halfW: number; halfD: number }
@@ -614,6 +616,10 @@ export abstract class BaseLevelScene {
   protected idleAction: THREE.AnimationAction | null = null;
   protected keys = new Set<string>();
   protected joy = { x: 0, y: 0 };
+  /** Player camera orbit around the hero, radians. */
+  protected camYaw = 0;
+  protected orbitDragging = false;
+  private orbitCleanup: (() => void) | null = null;
   protected disposed = false;
   protected raf = 0;
   protected yaw = 0;
@@ -1006,7 +1012,72 @@ export abstract class BaseLevelScene {
     this.quality.setSize(w, h);
   }
 
+  /**
+   * Player-controlled camera orbit.
+   *
+   * Playtest with a child: "чтобы можно было ... ещё поворачивать". Every
+   * level drove a fixed follow camera, so the player could never look around
+   * a tree or check what was behind them.
+   *
+   * Applied here rather than in each level's camera block: levels compute a
+   * position and lookAt of their own, and this rotates the finished result
+   * rigidly about the hero, so framing, pitch and distance are preserved and
+   * no level needed changing.
+   */
+  private applyCameraOrbit() {
+    if (Math.abs(this.camYaw) < 0.0005) return;
+    const q = new THREE.Quaternion().setFromAxisAngle(WORLD_UP, this.camYaw);
+    const offset = this.camera.position.clone().sub(this.hero.position).applyQuaternion(q);
+    this.camera.position.copy(this.hero.position).add(offset);
+    this.camera.quaternion.premultiply(q);
+  }
+
+  /** Q/E on desktop, drag anywhere outside the joystick on touch. */
+  protected updateCameraOrbit(dt: number) {
+    const rate = 1.5;
+    if (this.keys.has('KeyQ')) this.camYaw += rate * dt;
+    if (this.keys.has('KeyE')) this.camYaw -= rate * dt;
+    // Ease back to behind-the-hero so a child who spins the view is never
+    // left disoriented, but only once they stop steering it.
+    if (!this.orbitDragging && !this.keys.has('KeyQ') && !this.keys.has('KeyE')) {
+      this.camYaw *= Math.pow(0.55, dt);
+    }
+    this.camYaw = THREE.MathUtils.clamp(this.camYaw, -Math.PI * 0.75, Math.PI * 0.75);
+  }
+
+  protected bindCameraOrbitDrag() {
+    const canvas = this.canvas;
+    let lastX = 0;
+    const start = (e: PointerEvent) => {
+      // Left edge belongs to the virtual joystick.
+      if (e.pointerType === 'touch' && e.clientX < window.innerWidth * 0.32) return;
+      this.orbitDragging = true;
+      lastX = e.clientX;
+      canvas.setPointerCapture?.(e.pointerId);
+    };
+    const move = (e: PointerEvent) => {
+      if (!this.orbitDragging) return;
+      this.camYaw -= (e.clientX - lastX) * 0.006;
+      lastX = e.clientX;
+    };
+    const end = (e: PointerEvent) => {
+      this.orbitDragging = false;
+      canvas.releasePointerCapture?.(e.pointerId);
+    };
+    canvas.addEventListener('pointerdown', start);
+    canvas.addEventListener('pointermove', move);
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+    this.orbitCleanup = () => {
+      canvas.removeEventListener('pointerdown', start);
+      canvas.removeEventListener('pointermove', move);
+      canvas.removeEventListener('pointerup', end);
+      canvas.removeEventListener('pointercancel', end);
+    };
+  }
+
   protected renderFrame() {
+    this.applyCameraOrbit();
     if (this.quality) this.quality.render();
     else this.renderer.render(this.scene, this.camera);
   }
@@ -1274,13 +1345,14 @@ export abstract class BaseLevelScene {
         e.preventDefault();
         this.tryInteract();
       }
-      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         e.preventDefault();
       }
     };
     const up = (e: KeyboardEvent) => this.keys.delete(e.code);
     addEventListener('keydown', down);
     addEventListener('keyup', up);
+    this.bindCameraOrbitDrag();
     (this as unknown as { _kd: typeof down; _ku: typeof up })._kd = down;
     (this as unknown as { _kd: typeof down; _ku: typeof up })._ku = up;
   }
@@ -1352,6 +1424,7 @@ export abstract class BaseLevelScene {
   // ── Animation updates ────────────────────────────────────────
   protected updateAmbient(dt: number, now: number) {
     this.fpsSampler.frame(now);
+    this.updateCameraOrbit(dt);
     const motionScale = this.prefersReducedMotion ? 0.25 : 1;
     // Only the next few arrows stay lit. A long emissive trail piles up at the
     // vanishing point and bloom fuses it into one glowing blob on the horizon.
@@ -1496,6 +1569,8 @@ export abstract class BaseLevelScene {
     const self = this as unknown as { _kd?: (e: KeyboardEvent) => void; _ku?: (e: KeyboardEvent) => void };
     if (self._kd) removeEventListener('keydown', self._kd);
     if (self._ku) removeEventListener('keyup', self._ku);
+    this.orbitCleanup?.();
+    this.orbitCleanup = null;
     this.mixer?.stopAllAction();
     this.disposeSceneResources();
     this.quality?.dispose();

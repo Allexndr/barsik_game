@@ -90,11 +90,19 @@
   display: none;
 }
 
+/*
+ * Dialogue sits at the top, under the title bar.
+ *
+ * Playtest with a child: "чтобы текст был сверху, а то ничего не видно."
+ * The follow camera keeps Barsik in the lower half of the frame, so a
+ * bottom-anchored panel covers the one thing the player is steering — and
+ * on a phone it covered him completely.
+ */
 .m0-dialogue {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: max(140px, calc(18vh + env(safe-area-inset-bottom)));
+  top: calc(64px + env(safe-area-inset-top));
   z-index: 5;
   width: min(460px, 92vw);
   padding: 0.85rem 1.1rem 0.75rem;
@@ -129,9 +137,9 @@
  */
 @media (max-width: 560px) {
   .m0-dialogue {
-    bottom: max(18px, env(safe-area-inset-bottom));
+    top: calc(58px + env(safe-area-inset-top));
     width: calc(100vw - 20px);
-    border-radius: 1.25rem 1.25rem 1rem 1rem;
+    border-radius: 1rem 1rem 1.25rem 1.25rem;
   }
 
   .m0-line {
