@@ -514,15 +514,16 @@ export class Level12Scene extends BaseLevelScene {
       // Chase camera aligned to the trail, so bends read before they arrive
       // instead of swinging into view at the last moment.
       const tan = this.trail.tangentAt(Math.min(projection.t + 0.03, 1));
-      const back = tan.clone().multiplyScalar(-9.5);
+      const f = this.cameraFraming();
+      const back = tan.clone().multiplyScalar(-(9.5 + f.backAdd));
       const target = new THREE.Vector3(
-        this.hero.position.x + back.x + this.portraitCameraOffset(0.8),
-        this.hero.position.y + 5.6,
+        this.hero.position.x + back.x + f.lateral,
+        this.hero.position.y + 5.6 * f.heightMul,
         this.hero.position.z + back.z,
       );
       this.camera.position.lerp(target, 1 - Math.pow(0.0018, dt));
-      const look = this.hero.position.clone().add(tan.multiplyScalar(4.5));
-      this.camera.lookAt(look.x, this.hero.position.y + 1.1, look.z);
+      const look = this.hero.position.clone().add(tan.multiplyScalar(4.5 + f.lookAhead));
+      this.camera.lookAt(look.x, this.hero.position.y + 1.1 + f.lookUp, look.z);
     }
 
     this.renderFrame();

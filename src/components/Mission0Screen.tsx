@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { RotateHint } from './ui/RotateHint';
 import { useUIStore } from '@/store/useUIStore';
 import { useGameStore } from '@/store/useGameStore';
 import { Mission0Scene, type L1Hud } from '@/three/scenes/Mission0Scene';
@@ -199,6 +200,8 @@ export function Mission0Screen() {
   return (
     <div className="m0-screen">
       <canvas ref={canvasRef} className="m0-canvas" />
+
+      <RotateHint lang={lang} />
 
       {loading ? (
         <div className="m0-loader">

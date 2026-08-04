@@ -1506,6 +1506,27 @@ export abstract class BaseLevelScene {
   }
 
   /**
+   * Follow-camera tuning for the current viewport.
+   *
+   * Levels each hand-rolled `isPortraitViewport() ? a : b`, which left a
+   * sideways phone taking the desktop branch: desktop pitch into a frame
+   * barely 380px tall, so the lower third was foreground ground. Returning
+   * one set of offsets keeps the three modes consistent across levels.
+   */
+  protected cameraFraming() {
+    switch (this.viewport) {
+      case 'portrait':
+        // Lower and further back, aimed further ahead: fills a tall frame.
+        return { heightMul: 0.86, backAdd: 1.5, lookUp: 0.9, lookAhead: 2.2, lateral: 0.8 };
+      case 'phone-landscape':
+        // Flatter still; the frame is short, so pitch is what costs view.
+        return { heightMul: 0.74, backAdd: 1.8, lookUp: 0.6, lookAhead: 1.6, lateral: 0 };
+      default:
+        return { heightMul: 1, backAdd: 0, lookUp: 0, lookAhead: 0, lateral: 0 };
+    }
+  }
+
+  /**
    * Small rightward camera bias for narrow portrait screens. This keeps more
    * forward route visible and prevents the hero from sitting exactly centered
    * under HUD controls.
@@ -1563,8 +1584,12 @@ export abstract class BaseLevelScene {
     // Vertical FOV. A held-sideways phone is short, so a narrower vertical
     // angle over a wide aspect is what actually widens the view rather than
     // squashing the horizon into a letterbox.
+    // Portrait was 61deg, which put the bottom of the frame into the ground
+    // about five units in front of the camera — a dead band of foreground
+    // under the hero that no look target could recover. A narrower vertical
+    // angle pushes that intersection out past the play area.
     this.camera.fov = this.viewport === 'portrait'
-      ? 61
+      ? 54
       : this.viewport === 'phone-landscape' ? 46 : 53;
     this.camera.updateProjectionMatrix();
     this.quality?.setSize(w, h);

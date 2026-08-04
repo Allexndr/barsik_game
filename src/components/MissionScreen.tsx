@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { RotateHint } from './ui/RotateHint';
 import { useUIStore } from '@/store/useUIStore';
 import { useGameStore } from '@/store/useGameStore';
 import { type BaseHud } from '@/three/scenes/BaseLevelScene';
@@ -223,6 +224,8 @@ export function MissionScreen({
   return (
     <div className="m0-screen">
       <canvas ref={canvasRef} className="m0-canvas" />
+
+      <RotateHint lang={lang} />
 
       {loading ? (
         <LoadingOverlay label={lang === 'kk' ? 'Жүктелуде' : 'Загрузка'} />
