@@ -555,13 +555,18 @@ export class Level15Scene extends BaseLevelScene {
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
       this.camera.lookAt(introLook[idx]);
     } else {
+      const f = this.cameraFraming();
       const target = new THREE.Vector3(
-        this.hero.position.x * 0.35 + this.portraitCameraOffset(0.8),
-        this.hero.position.y + 6.2,
-        this.hero.position.z + 10.5,
+        this.hero.position.x * 0.35 + f.lateral,
+        this.hero.position.y + 6.2 * f.heightMul,
+        this.hero.position.z + 10.5 + f.backAdd,
       );
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
-      this.camera.lookAt(this.hero.position.x * 0.25, this.hero.position.y + 1.2, this.hero.position.z - 3);
+      this.camera.lookAt(
+        this.hero.position.x * 0.25,
+        this.hero.position.y + 1.2 + f.lookUp,
+        this.hero.position.z - 3 - f.lookAhead,
+      );
     }
 
     this.renderFrame();

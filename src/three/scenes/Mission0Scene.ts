@@ -2206,8 +2206,8 @@ export class Mission0Scene extends BaseLevelScene {
       this.camera.lookAt(
         this.hero.position.x - camOffsetX * 0.28,
         this.heightAt(this.hero.position.x, this.hero.position.z)
-          + (this.portrait ? 2.3 : landscapePhone ? 1.9 : 1.35),
-        this.hero.position.z - (this.portrait ? 3.2 : landscapePhone ? 2.4 : 0.8),
+          + (this.portrait ? 3.3 : landscapePhone ? 2.4 : 1.35),
+        this.hero.position.z - (this.portrait ? 5.0 : landscapePhone ? 3.4 : 0.8),
       );
     }
 
