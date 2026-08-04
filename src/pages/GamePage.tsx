@@ -1,18 +1,23 @@
+import { lazy, Suspense } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { useUIStore } from '@/store/useUIStore';
 import { NavBar } from '@/components/NavBar';
 import { TravelMapScreen } from '@/components/screens/TravelMapScreen';
 import { FriendsScreen } from '@/components/screens/FriendsScreen';
-import { CityScreen } from '@/components/screens/CityScreen';
 import { ShopScreen } from '@/components/screens/ShopScreen';
 import { LeaderboardScreen } from '@/components/screens/LeaderboardScreen';
 import { QRChestScreen } from '@/components/screens/QRChestScreen';
 import { EpisodeScreen } from '@/components/screens/EpisodeScreen';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { SidebarTips } from '@/components/widgets/SidebarTips';
 import { RewardsBar } from '@/components/widgets/RewardsBar';
 import { SoftGateModal } from '@/components/SoftGateModal';
 import { SoftGateController } from '@/components/SoftGateController';
 import './GamePage.css';
+
+const CityScreen = lazy(() =>
+  import('@/components/screens/CityScreen').then((module) => ({ default: module.CityScreen })),
+);
 
 export function GamePage() {
   const player = useGameStore((s) => s.player);
@@ -39,7 +44,11 @@ export function GamePage() {
             <div className="screens">
               {activeTab === 'travel' && <TravelMapScreen />}
               {activeTab === 'friends' && <FriendsScreen />}
-              {activeTab === 'city' && <CityScreen />}
+              {activeTab === 'city' && (
+                <Suspense fallback={<LoadingOverlay />}>
+                  <CityScreen />
+                </Suspense>
+              )}
               {activeTab === 'shop' && <ShopScreen />}
               {activeTab === 'leaderboard' && <LeaderboardScreen />}
               {activeTab === 'qr' && <QRChestScreen />}

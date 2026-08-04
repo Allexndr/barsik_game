@@ -1,42 +1,48 @@
 .screen-friends {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
-}
-
-.friends-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: var(--spacing-md);
-}
-
-.friends-header h2 {
-  margin-bottom: 0;
-}
-
-.friends-count {
-  font-weight: 700;
-  color: var(--primary);
 }
 
 .friends-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: var(--spacing-lg);
+  gap: var(--spacing-md);
 }
 
-.friend-card-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--spacing-2xl);
+.friend-card-locked {
+  opacity: 0.92;
+  background: linear-gradient(160deg, #fafafa 0%, #f0eef8 100%);
+  border-style: dashed;
+}
+
+.friend-avatar-locked {
   color: var(--text-light);
-  font-size: 1.05rem;
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: var(--radius-lg);
-  border: 2px dashed var(--border);
-  text-align: center;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.friend-lock-hint {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-light);
+  margin-top: 0.25rem;
+}
+
+.friend-go-travel {
+  margin-top: 0.5rem;
+  border: none;
+  background: rgba(108, 92, 231, 0.1);
+  color: var(--primary);
+  font-weight: 800;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.friend-go-travel:hover {
+  background: rgba(108, 92, 231, 0.18);
 }
 
 .friend-card {

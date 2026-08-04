@@ -3,7 +3,8 @@ import { useGameStore } from '@/store/useGameStore';
 import { t } from '@/i18n';
 import { Chip } from '@/components/ui/Chip';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { IconCheck, IconStar } from '@/components/ui/icons';
+import { PlushButton } from '@/components/ui/PlushButton';
+import { IconCheck, IconMap, IconStar } from '@/components/ui/icons';
 import './RewardsBar.css';
 
 const MILESTONES = [
@@ -16,10 +17,12 @@ const MILESTONES = [
 
 export function RewardsBar() {
   const lang = useUIStore((s) => s.lang);
+  const setActiveTab = useUIStore((s) => s.setActiveTab);
   const stars = useGameStore((s) => s.stars);
 
   const next = MILESTONES.find((r) => stars < r.milestone) ?? MILESTONES[MILESTONES.length - 1];
   const prevThreshold = MILESTONES.filter((r) => r.milestone <= stars).at(-1)?.milestone ?? 0;
+  const allClaimed = stars >= MILESTONES[MILESTONES.length - 1].milestone;
 
   return (
     <div className="rewards-bar">
@@ -36,6 +39,18 @@ export function RewardsBar() {
           label={t(lang, 'reward.at', { n: next.milestone })}
         />
       </div>
+
+      {!allClaimed && (
+        <PlushButton
+          variant="ghost"
+          size="md"
+          className="rewards-travel-cta"
+          icon={<IconMap size={16} />}
+          onClick={() => setActiveTab('travel')}
+        >
+          {t(lang, 'reward.playForStars')}
+        </PlushButton>
+      )}
 
       <div className="rewards-list">
         {MILESTONES.map((r) => {

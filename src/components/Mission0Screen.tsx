@@ -7,6 +7,9 @@ import { StepDots } from '@/components/ui/ProgressBar';
 import { PlushButton } from '@/components/ui/PlushButton';
 import { ConfettiBurst } from '@/components/ui/ConfettiBurst';
 import { IconFruit, IconStar, IconPaw } from '@/components/ui/icons';
+import { AudioManager } from '@/audio/AudioManager';
+import { shouldNarrateHudLine } from '@/audio/narration';
+import { SettingsPanel } from '@/components/ui/SettingsPanel';
 import './Mission0Screen.css';
 
 /** Level 1 is the first of 5 story chapters shown as journey dots on the outro card. */
@@ -35,42 +38,66 @@ export function Mission0Screen() {
   const [loading, setLoading] = useState(true);
   const lang = useUIStore((s) => s.lang);
   const setScreen = useUIStore((s) => s.setScreen);
+  const muted = useUIStore((s) => s.muted);
+  const volume = useUIStore((s) => s.volume);
+  const ttsEnabled = useUIStore((s) => s.ttsEnabled);
+  const paused = useUIStore((s) => s.paused);
+  const setPaused = useUIStore((s) => s.setPaused);
+  const setShowSettings = useUIStore((s) => s.setShowSettings);
   const player = useGameStore((s) => s.player);
-  const addStars = useGameStore((s) => s.addStars);
   const addFriend = useGameStore((s) => s.addFriend);
   const completeLevel = useGameStore((s) => s.completeLevel);
 
   const finishToMap = () => {
+    AudioManager.sfx('click');
+    AudioManager.stopTts();
     try {
       localStorage.setItem('barsik_mission0_done', '1');
     } catch {
       /* ignore */
     }
-    addStars(Math.max(3, hud.stars || 3));
     addFriend({
-      id: 'gardener_l1',
+      id: 'gardener',
       name: lang === 'kk' ? 'Бағбан' : 'Садовник',
       description:
-        lang === 'kk' ? 'Алғашқы дос Фруктовом лесу' : 'Первый друг на поляне Фруктового леса',
+        lang === 'kk' ? 'Жеміс орманындағы алғашқы дос' : 'Первый друг на поляне Фруктового леса',
       rarity: 'common',
       chapter: 1,
       unlocked: true,
       asset: '',
     });
-    completeLevel(0, { stars: Math.max(1, hud.stars) });
+    const earnedStars = Math.max(hud.stars, 10);
+    completeLevel(0, { stars: earnedStars, friendId: 'gardener' });
+    AudioManager.stopMusic();
     setScreen('game');
   };
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const initAudio = () => {
+      AudioManager.init();
+      AudioManager.playMusic('forest');
+    };
+    window.addEventListener('pointerdown', initAudio, { once: true });
+    window.addEventListener('keydown', initAudio, { once: true });
     const scene = new Mission0Scene(canvas);
     sceneRef.current = scene;
     setLoading(true);
-    void scene.init(player?.nick || '', lang, setHud).then(() => setLoading(false));
+    let active = true;
+    void scene.init(player?.nick || '', lang, setHud).then(() => {
+      if (!active) return;
+      if (useUIStore.getState().paused) scene.setPaused(true);
+      setLoading(false);
+    });
     return () => {
+      active = false;
       scene.dispose();
       sceneRef.current = null;
+      AudioManager.stopTts();
+      AudioManager.stopMusic();
+      window.removeEventListener('pointerdown', initAudio);
+      window.removeEventListener('keydown', initAudio);
     };
   }, [lang, player?.nick]);
 
@@ -119,6 +146,48 @@ export function Mission0Screen() {
     };
   }, []);
 
+  useEffect(() => {
+    AudioManager.setMuted(muted);
+  }, [muted]);
+
+  useEffect(() => {
+    AudioManager.setVolume(volume);
+  }, [volume]);
+
+  useEffect(() => {
+    AudioManager.setTtsEnabled(ttsEnabled);
+  }, [ttsEnabled]);
+
+  useEffect(() => {
+    if (paused) AudioManager.stopTts();
+    sceneRef.current?.setPaused(paused);
+  }, [paused, lang, loading]);
+
+  const prevPhase = useRef('');
+  useEffect(() => {
+    if (loading || paused) return;
+    if (shouldNarrateHudLine(hud.line)) {
+      AudioManager.tts(hud.line, lang);
+    }
+    if (hud.phase !== prevPhase.current) {
+      if (hud.phase === 'outro') AudioManager.sfx('levelComplete');
+      else if (hud.phase.includes('pick') || hud.phase.includes('help')) AudioManager.sfx('found');
+      prevPhase.current = hud.phase;
+    }
+  }, [hud.line, hud.phase, loading, lang, paused]);
+
+  const prevStars = useRef(0);
+  useEffect(() => {
+    if (hud.stars > prevStars.current) AudioManager.sfx('collect');
+    prevStars.current = hud.stars;
+  }, [hud.stars]);
+
+  const prevCanInteract = useRef(false);
+  useEffect(() => {
+    if (hud.canInteract && !prevCanInteract.current) AudioManager.sfx('tick');
+    prevCanInteract.current = hud.canInteract;
+  }, [hud.canInteract]);
+
   const nick = player?.nick || '';
   const showKeys = hud.showMoveHint;
   const showStick = !hud.outro && hud.phase !== 'intro';
@@ -150,6 +219,23 @@ export function Mission0Screen() {
           <Chip icon={<IconStar size={16} />} tone="star" className="m0-stat">
             {hud.stars}
           </Chip>
+          {!loading && !hud.outro && (
+            <button
+              type="button"
+              className="m0-pause-btn"
+              onClick={() => {
+                setPaused(true);
+                setShowSettings(true);
+                AudioManager.sfx('click');
+              }}
+              aria-label={lang === 'kk' ? 'Кідірту' : 'Пауза'}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <rect x="6" y="5" width="4" height="14" rx="1" />
+                <rect x="14" y="5" width="4" height="14" rx="1" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -183,7 +269,10 @@ export function Mission0Screen() {
         <button
           type="button"
           className={`m0-action ${hud.canInteract ? 'is-ready' : ''}`}
-          onClick={() => sceneRef.current?.tryInteract()}
+          onClick={() => {
+            AudioManager.sfx('interact');
+            sceneRef.current?.tryInteract();
+          }}
           aria-label={lang === 'kk' ? 'Әрекет' : 'Действие'}
         >
           <span className="m0-action-paw">
@@ -191,7 +280,7 @@ export function Mission0Screen() {
           </span>
           <span className="m0-action-label">
             {lang === 'kk' ? 'Басу' : 'Нажми'}
-            <small>E</small>
+            <small className="m0-action-keys">E · Space</small>
           </span>
         </button>
       ) : null}
@@ -220,12 +309,12 @@ export function Mission0Screen() {
                 {hud.questFruits || 3}
               </Chip>
               <Chip icon={<IconStar size={18} />} tone="star" className="m0-reward-pill">
-                {hud.stars}
+                {Math.max(hud.stars, 10)}
               </Chip>
             </div>
             <div className="m0-progress">
               <div className="m0-progress-label">
-                {lang === 'kk' ? 'Фрукттар орманы' : 'Фруктовый лес'}
+                {lang === 'kk' ? 'Жеміс орманы' : 'Фруктовый лес'}
               </div>
               <StepDots total={JOURNEY_TOTAL_CHAPTERS} filled={1} />
             </div>
@@ -234,22 +323,9 @@ export function Mission0Screen() {
             </PlushButton>
           </div>
         </div>
-      ) : (
-        <button
-          type="button"
-          className="m0-skip"
-          onClick={() => {
-            try {
-              localStorage.setItem('barsik_mission0_done', '1');
-            } catch {
-              /* ignore */
-            }
-            setScreen('game');
-          }}
-        >
-          {lang === 'kk' ? 'Өткізу →' : 'Пропустить →'}
-        </button>
-      )}
+      ) : null}
+
+      <SettingsPanel />
     </div>
   );
 }

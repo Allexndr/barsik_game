@@ -1,0 +1,16 @@
+---
+description: Hallmark anti-AI-slop design — use for UI/landing redesigns
+globs: "**/WelcomeScreen.*,**/QuickStart*,**/NavBar.*,**/screens/*.css,**/ui/*.css"
+alwaysApply: false
+---
+
+# Hallmark for Barsik UI
+
+When designing or redesigning screens in this project:
+
+1. Read `barsik-game/design.md` first (locked system).
+2. Follow skill at `.agents/skills/hallmark/SKILL.md` — verbs: default build, `audit`, `redesign`, `study`.
+3. Genre: **playful** · theme: **Barsik Hum** (cream + pear + cyan + coral).
+4. Hard bans: purple/violet AI defaults, italic display headers, glassmorphism, gradient text, invented metrics, emoji-as-decoration replacing icons.
+5. Prefer in-place CSS/token edits; never delete route trees without explicit confirmation.
+6. Pre-emit critique stamp in CSS comment: `/* Hallmark · P? H? E? S? R? V? */`

@@ -1,305 +1,264 @@
-// Конфигурация уровней для первого сезона
-// Глава 1: Фруктовый лес (10 уровней)
+// Конфигурация уровней Сезона 1 (2 мира, 17 уровней 0..16).
+// ИСТОЧНИК ПРАВДЫ: обёртки MissionNScreen + docs/GDD_CHAPTER1_FRUIT_FOREST.md.
+// Раньше здесь были 40 рандомных заглушек и утёкший японский текст — удалено.
+// Мир 1 «Фруктовый лес» = уровни 0–9, мир 2 «Ледяная долина» = уровни 10–16.
 
-export const LEVEL_CONFIGS = [
-  // ГЛАВА 1: Фруктовый лес (уровни 0-9)
+export type Interactivity = 'explore' | 'find' | 'help' | 'choice' | 'timing';
+
+export interface LevelConfig {
+  id: number;
+  chapter: 1 | 2;
+  title: string;
+  description: string;
+  duration: number; // целевой хронометраж первого прохождения, сек
+  interactivity: Interactivity;
+  reward: { stars: number; friend: string | null };
+  narrative: { ru: string; kk: string };
+}
+
+export const LEVEL_CONFIGS: LevelConfig[] = [
+  // ── МИР 1: ФРУКТОВЫЙ ЛЕС (0–9) ──────────────────────────────
   {
     id: 0,
     chapter: 1,
-    title: "Первое утро",
-    description: "Проснись, научись ходить и помоги садовнику во Фруктовом лесу",
-    duration: 180,
-    interactivity: "explore",
-    reward: { stars: 10, friend: "gardener_l1" },
+    title: 'Первое утро',
+    description: 'Проснись, научись ходить и помоги садовнику во Фруктовом лесу',
+    duration: 300,
+    interactivity: 'explore',
+    reward: { stars: 10, friend: 'gardener' },
     narrative: {
-      ru: "Первое утро Барсика — это живая 3D-миссия (Mission 0), не текстовый таймер.",
-      kk: "Барсиктің алғашқы таңы — тірі 3D-миссия (Mission 0).",
+      ru: 'Барсик просыпается в своём домике. Садовник просит помочь собрать фрукты и покормить птичку.',
+      kk: 'Барсик өз үйінде оянады. Бағбан жеміс жинап, торғайды тамақтандыруға көмектесуді сұрайды.',
     },
   },
   {
     id: 1,
     chapter: 1,
-    title: "Первые шаги в лесу",
-    description: "Выйди на лесную тропинку и собери фрукты",
-    duration: 40,
-    interactivity: "find",
-    reward: { stars: 15, friend: null },
+    title: 'Первый друг',
+    description: 'Пройди по тропе, освободи застрявший фрукт и познакомься с Айей',
+    duration: 300,
+    interactivity: 'help',
+    reward: { stars: 15, friend: 'aya' },
     narrative: {
-      ru: "Лесная дорожка светит под лучами солнца. Нужно собрать яблоки...",
-      kk: "Ормандық жол күн сәулесінде жарқырайды. Алма жинау керек...",
+      ru: 'На лесной тропе застрял фрукт в липких нитях. Барсик освобождает его и знакомится со стеснительной Айей.',
+      kk: 'Орман жолында жеміс жабысқақ жіптерге ілінген. Барсик оны босатып, ұялшақ Айямен танысады.',
     },
   },
   {
     id: 2,
     chapter: 1,
-    title: "Фруктовая поляна",
-    description: "Помоги садовнику разложить фрукты по цветам",
-    duration: 35,
-    interactivity: "help",
+    title: 'Яблоневый сад',
+    description: 'Помоги садовнику разложить яблоки по цветам корзин',
+    duration: 300,
+    interactivity: 'help',
     reward: { stars: 12, friend: null },
     narrative: {
-      ru: "На поляне работает маленький Барсик-садовник. Помоги ему!",
-      kk: "Орынға кішіпе Барсик ауыл шаруашысы істеп жұмыс істеп тұр.",
+      ru: 'В старом саду нужно рассортировать яблоки: красные, жёлтые и зелёные — в свои корзины.',
+      kk: 'Ескі бақта алмаларды сұрыптау керек: қызыл, сары және жасыл — өз себеттеріне.',
     },
   },
   {
     id: 3,
     chapter: 1,
-    title: "Потерявшийся фрукт",
-    description: "Найди золотистый фрукт среди деревьев",
-    duration: 50,
-    interactivity: "find",
-    reward: { stars: 20, friend: null },
+    title: 'Потерявшийся ёжик',
+    description: 'Обыщи три сектора у старого дуба и найди ёжика',
+    duration: 300,
+    interactivity: 'find',
+    reward: { stars: 20, friend: 'hedgehog' },
     narrative: {
-      ru: "Кто-то потерял особый золотистый фрукт. Помоги найти его!",
-      kk: "Біреу ерекше алтын түсті жемісті жоғалтты. Табуға көмектес!",
+      ru: 'У старого дуба потерялся маленький ёжик. Проверь кусты, камни и поваленное дерево.',
+      kk: 'Ескі емен түбінде кішкентай кірпі жоғалып қалды. Бұталарды, тастарды және құлаған ағашты тексер.',
     },
   },
   {
     id: 4,
     chapter: 1,
-    title: "Лесной мостик",
-    description: "Осторожно пройди по качающемуся мостику",
-    duration: 30,
-    interactivity: "timing",
+    title: 'Качающийся мостик',
+    description: 'Перейди подвесной мост, двигаясь в спокойные моменты',
+    duration: 240,
+    interactivity: 'timing',
     reward: { stars: 15, friend: null },
     narrative: {
-      ru: "Мостик качается. Нужно идти очень осторожно...",
-      kk: "Көпірі тербелінеді. Өте сақ жүру керек...",
+      ru: 'Мост качается на ветру. Иди по секциям, когда они спокойны и светятся зелёным.',
+      kk: 'Көпір желде тербеледі. Секциялар тынышталып, жасыл жанғанда жүр.',
     },
   },
   {
     id: 5,
     chapter: 1,
-    title: "Помощь другу с корзиной",
-    description: "Помоги другому Барсику нести корзину",
-    duration: 35,
-    interactivity: "help",
-    reward: { stars: 18, friend: "gardener" },
+    title: 'Корзина для белочки',
+    description: 'Проводи белочку до норки, не отставая по пути',
+    duration: 260,
+    interactivity: 'help',
+    reward: { stars: 18, friend: 'squirrel' },
     narrative: {
-      ru: "Маленький Барсик устал нести корзину. Помоги ему!",
-      kk: "Кішіпе Барсик сәндегіні көліктеу ісінде шаршады. Оған көмектес!",
+      ru: 'Белочка устала нести тяжёлую корзину. Иди рядом до её норки — в награду жёлудь-ключ.',
+      kk: 'Тиін ауыр себетті көтеруден шаршады. Оның ініне дейін қасында жүр — сыйға емен-кілт.',
     },
   },
   {
     id: 6,
     chapter: 1,
-    title: "Лесная загадка",
-    description: "Выбери правильное дерево по загадке",
-    duration: 40,
-    interactivity: "choice",
+    title: 'Лесная загадка',
+    description: 'Отгадай загадку пенька и выбери правильное дерево',
+    duration: 240,
+    interactivity: 'choice',
     reward: { stars: 16, friend: null },
     narrative: {
-      ru: "На полянке три деревца. Какое любит красные яблоки?",
-      kk: "Орынға үш ағаш бар. Қайсысы қызыл алма ұнатады?",
+      ru: 'Пенёк-говорун загадывает загадки. Подойди к нужному дереву и нажми лапку.',
+      kk: 'Сөйлейтін томар жұмбақ айтады. Керек ағашқа барып, табанды бас.',
     },
   },
   {
     id: 7,
     chapter: 1,
-    title: "Встреча с первым другом",
-    description: "Познакомься с Путало, фотографом из леса",
-    duration: 60,
-    interactivity: "explore",
-    reward: { stars: 25, friend: "putalo" },
+    title: 'Встреча с Путало',
+    description: 'Подойди медленно и подружись с одиноким фотографом',
+    duration: 300,
+    interactivity: 'explore',
+    reward: { stars: 25, friend: 'putalo' },
     narrative: {
-      ru: "Барсик встречает Путало — стеснительного фотографа. Они становятся друзьями!",
-      kk: "Барсик Путало-ны кездестіреді — ұялшақ фотограф. Олар достар болады!",
+      ru: 'Путало прячется за камнем. Иди шагом, не беги — и он покажет свою лучшую фотографию заката.',
+      kk: 'Путало тас артына тығылады. Жүгірме, жай жүр — сонда ол ең әдемі суретін көрсетеді.',
     },
   },
   {
     id: 8,
     chapter: 1,
-    title: "Мини-праздник в лесу",
-    description: "Помоги украсить поляну к маленькому празднику",
-    duration: 45,
-    interactivity: "help",
+    title: 'Лесной праздник',
+    description: 'Развесь гирлянды, поставь фонарики и накрой стол с друзьями',
+    duration: 300,
+    interactivity: 'help',
     reward: { stars: 20, friend: null },
     narrative: {
-      ru: "Все друзья собрались! Нужно развесить гирлянды и украшения.",
-      kk: "Барлық достар жиналды! Гирляндалар мен безендіруді ілу керек.",
+      ru: 'Друзья устраивают праздник. Развесь гирлянды, зажги фонарики и собери фрукты на стол.',
+      kk: 'Достар мереке өткізеді. Гирляндаларды іл, шамдарды жақ және дастарханға жеміс жина.',
     },
   },
   {
     id: 9,
     chapter: 1,
-    title: "Первый QR-сундук",
-    description: "Открой волшебный сундук с первой наградой",
-    duration: 30,
-    interactivity: "explore",
-    reward: { stars: 30, friend: "rare_friend_1" },
+    title: 'QR-сундук',
+    description: 'Открой сундук жёлудём-ключом и заверши Фруктовый лес',
+    duration: 200,
+    interactivity: 'explore',
+    reward: { stars: 30, friend: 'yagodka_rare' },
     narrative: {
-      ru: "Барсик находит сияющий сундук! Это результат прохождения первой главы!",
-      kk: "Барсик сәлсіде сәндегі сундықты табады! Бұл бірінші бөлімді аяқтау құнды!",
+      ru: 'В конце леса стоит сундук с замком-жёлудем. Открой его ключом — внутри карта к снежным горам.',
+      kk: 'Орман шетінде емен-құлыпты сандық тұр. Кілтпен аш — ішінде қарлы тауларға апаратын карта.',
     },
   },
 
-  // ГЛАВА 2: Ледяная долина (уровни 10-19)
+  // ── МИР 2: ЛЕДЯНАЯ ДОЛИНА (10–16) ───────────────────────────
   {
     id: 10,
     chapter: 2,
-    title: "Дорога к снегу",
-    description: "Начни подъём к ледяной долине",
-    duration: 35,
-    interactivity: "explore",
+    title: 'Прощание с лесом',
+    description: 'Обойди знакомые места и попрощайся с друзьями леса',
+    duration: 260,
+    interactivity: 'explore',
     reward: { stars: 15, friend: null },
     narrative: {
-      ru: "Барсик и друзья выходят к подножию гор. Впереди видны заснеженные вершины!",
-      kk: "Барсик және достары таулар жалындағы аралыққа шығады. Алда қарды шыңдар көрінеді!",
+      ru: 'Пора в путь. Обойди дом, сад, мостик и поляну — попрощайся с каждым другом.',
+      kk: 'Жолға шығатын кез. Үйді, бақты, көпірді және алаңды аралап, әр досыңмен қоштас.',
     },
   },
   {
     id: 11,
     chapter: 2,
-    title: "Первые снежинки",
-    description: "Лови падающие снежинки в воздухе",
-    duration: 40,
-    interactivity: "timing",
+    title: 'Первые снежинки',
+    description: 'Лови падающие снежинки на снежном поле',
+    duration: 240,
+    interactivity: 'timing',
     reward: { stars: 18, friend: null },
     narrative: {
-      ru: "Идёт лёгкий снег. Барсик играет со снежинками, ловит их!",
-      kk: "Жеңіл қар идеді. Барсик қарсы снежинкалармен ойнайды!",
+      ru: 'Идёт первый снег. Айя впервые видит снежинки — поймай их, пока они на земле.',
+      kk: 'Алғашқы қар жауып тұр. Айя ұлпаларды алғаш көреді — жерде тұрғанда оларды ұста.',
     },
   },
   {
     id: 12,
     chapter: 2,
-    title: "Ледяная тропинка",
-    description: "Проходи осторожно по скользкой дорожке",
-    duration: 50,
-    interactivity: "timing",
+    title: 'Ледяная тропа',
+    description: 'Аккуратно пройди скользкую тропу и собери кристаллы',
+    duration: 300,
+    interactivity: 'timing',
     reward: { stars: 20, friend: null },
     narrative: {
-      ru: "Узкая ледяная тропинка. Нужно идти аккуратно, чтобы не поскользнуться!",
-      kk: "Тар мұз жолы.滑らないように注意が必要です。",
+      ru: 'Тропа скользкая — Барсик скользит после остановки. Пройди все пять сегментов осторожно.',
+      kk: 'Жол сырғанақ — Барсик тоқтағаннан кейін сырғанайды. Бес бөлікті де байқап өт.',
     },
   },
   {
     id: 13,
     chapter: 2,
-    title: "Ледяные фигурки",
-    description: "Помоги мастеру льда дорезать скульптуры",
-    duration: 40,
-    interactivity: "help",
-    reward: { stars: 16, friend: "ice_sculptor" },
+    title: 'Ледяные скульптуры',
+    description: 'Найди пять осколков льда для мастера скульптур',
+    duration: 260,
+    interactivity: 'help',
+    reward: { stars: 16, friend: 'ice_master' },
     narrative: {
-      ru: "Мастер льда создаёт красивые скульптуры! Давай поможем!",
-      kk: "Мұз ұста әдемі скульптуралар жасап жатыр! Көмектесейік!",
+      ru: 'Мастеру льда не хватает осколков. Собери пять и принеси — он вырежет скульптуру Барсика!',
+      kk: 'Мұз шеберіне сынықтар жетіспейді. Бесеуін жинап әкел — ол Барсиктің мүсінін жасайды!',
     },
   },
   {
     id: 14,
     chapter: 2,
-    title: "Холодно — делимся теплом",
-    description: "Помоги другу согреться, поделись шарфом",
-    duration: 35,
-    interactivity: "help",
+    title: 'Поделись теплом',
+    description: 'Найди тёплый шарф в сугробе и согрей Айю',
+    duration: 260,
+    interactivity: 'help',
     reward: { stars: 22, friend: null },
     narrative: {
-      ru: "Одному из друзей очень холодно. Поделись теплом и помощью!",
-      kk: "Бір достының өте суық. Жылылық пен көмекті бөліс!",
+      ru: 'Айе холодно. Найди шарф в сугробах и грейся у костра, если станет совсем зябко.',
+      kk: 'Айя тоңып тұр. Қар үйіндісінен орамал тап, мұздап кетсең — от басында жылын.',
     },
   },
   {
     id: 15,
     chapter: 2,
-    title: "Ледяная горка",
-    description: "Подготовь ледяную горку для катания",
-    duration: 45,
-    interactivity: "help",
-    reward: { stars: 18, friend: null },
+    title: 'Спасти снеговика',
+    description: 'Быстро принеси снег, пока снеговик не растаял',
+    duration: 260,
+    interactivity: 'timing',
+    reward: { stars: 20, friend: 'snowman' },
     narrative: {
-      ru: "Давай сделаем супер горку для катания! Это будет весело!",
-      kk: "Супер түскендік жасайық! Бұл қызық болады!",
+      ru: 'Солнце вышло, и снеговик тает. Принеси три куска снега, пока он не растаял совсем.',
+      kk: 'Күн шығып, аққала еріп барады. Толық ерімей тұрып, үш кесек қар әкел.',
     },
   },
   {
     id: 16,
     chapter: 2,
-    title: "Спасти снежного друга",
-    description: "Помоги спасти таящего снеговика",
-    duration: 40,
-    interactivity: "help",
-    reward: { stars: 20, friend: "snowman" },
+    title: 'Зимний QR-сундук',
+    description: 'Открой зимний сундук и заверши Сезон 1',
+    duration: 200,
+    interactivity: 'explore',
+    reward: { stars: 30, friend: 'ice_friend_rare' },
     narrative: {
-      ru: "Снеговик начинает таять! Нужно быстро его спасти!",
-      kk: "Қарлақал еріп барады! Оны тез құтқару керек!",
+      ru: 'Ледяной сундук с замком-снежинкой. Открой его — внутри карта к Горному озеру и общий снимок друзей.',
+      kk: 'Ұлпа-құлыпты мұз сандығы. Аш — ішінде Тау көліне карта және достардың ортақ суреті.',
     },
   },
-  {
-    id: 17,
-    chapter: 2,
-    title: "Ночная долина",
-    description: "Зажги фонарики, чтобы осветить ночной путь",
-    duration: 35,
-    interactivity: "help",
-    reward: { stars: 16, friend: null },
-    narrative: {
-      ru: "Наступила ночь. Давай зажжём фонарики для безопасности!",
-      kk: "Түн келді. Қауіпсіздік үшін фонарықтарды өшір!",
-    },
-  },
-  {
-    id: 18,
-    chapter: 2,
-    title: "Зимний хоровод",
-    description: "Танцуй в хороводе со всеми друзьями",
-    duration: 50,
-    interactivity: "explore",
-    reward: { stars: 25, friend: null },
-    narrative: {
-      ru: "Все друзья танцуют вместе! Присоединяйся к хороводу!",
-      kk: "Барлық достар бірге билейді! Хороводға қосыл!",
-    },
-  },
-  {
-    id: 19,
-    chapter: 2,
-    title: "Зимний QR-сундук",
-    description: "Открой зимний сундук с ледяной наградой",
-    duration: 30,
-    interactivity: "explore",
-    reward: { stars: 30, friend: "ice_friend" },
-    narrative: {
-      ru: "Вторая глава завершена! Ледяная долина подарила вам чудесного друга!",
-      kk: "Екінші бөлім аяқталды! Мұз аңғарасы сіздерге құдіректі досын берді!",
-    },
-  },
-
-  // TODO: ГЛАВА 3-6 аналогично (Город Колы, Радужная страна, Горы Барсика, Город Друзей)
-  // Пока создам заготовки
-  ...Array.from({ length: 40 }).map((_, i) => ({
-    id: 20 + i,
-    chapter: Math.floor((20 + i) / 10) + 1,
-    title: `Уровень ${21 + i}`,
-    description: `Эпизод ${21 + i}`,
-    duration: 30 + Math.random() * 30,
-    interactivity: ["explore", "find", "help", "choice", "timing"][Math.floor(Math.random() * 5)] as any,
-    reward: {
-      stars: 10 + Math.floor(Math.random() * 20),
-      friend: Math.random() > 0.7 ? `friend_${i}` : null,
-    },
-    narrative: {
-      ru: `Эпизод ${21 + i} - интересная история!`,
-      kk: `${21 + i}-эпизод - қызықты түрлі!`,
-    },
-  })),
 ];
 
-export function getLevelConfig(levelId: number) {
-  return LEVEL_CONFIGS[levelId];
+export function getLevelConfig(levelId: number): LevelConfig | undefined {
+  return LEVEL_CONFIGS.find((l) => l.id === levelId);
 }
 
-export function getLevelsByChapter(chapter: number) {
+export function getLevelsByChapter(chapter: 1 | 2) {
   return LEVEL_CONFIGS.filter((l) => l.chapter === chapter);
 }
 
-export function getChapterProgress(chapter: number, completedLevels: number[]) {
+export function getChapterProgress(chapter: 1 | 2, completedLevels: number[]) {
   const chapterLevels = getLevelsByChapter(chapter);
   const completed = chapterLevels.filter((l) => completedLevels.includes(l.id)).length;
   return {
     total: chapterLevels.length,
     completed,
-    percentage: Math.round((completed / chapterLevels.length) * 100),
+    percentage: chapterLevels.length
+      ? Math.round((completed / chapterLevels.length) * 100)
+      : 0,
   };
 }

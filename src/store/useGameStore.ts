@@ -1,15 +1,20 @@
 import { create } from 'zustand';
 import type { Player, Friend } from '@/types';
+import { SEASON1_FRIENDS } from '@/utils/season1Friends';
 
 export type { Player, Friend };
+export const GAME_SAVE_VERSION = 2;
 
 export interface GameState {
   player: Player | null;
   friends: Friend[];
   unlockedLevels: number[];
   currentLevel: number;
+  levelStars: Record<number, number>;
   cityObjects: Record<string, boolean>;
   stars: number;
+  /** True after winter finale (level 16) is completed at least once. */
+  season1Complete: boolean;
 
   setPlayer: (player: Player) => void;
   patchPlayer: (partial: Partial<Player>) => void;
@@ -33,8 +38,10 @@ export const useGameStore = create<GameState>((set) => ({
   friends: [],
   unlockedLevels: [],
   currentLevel: 0,
+  levelStars: {},
   cityObjects: {},
   stars: 0,
+  season1Complete: false,
 
   setPlayer: (player: Player) => {
     savePlayer(player);
@@ -69,7 +76,10 @@ export const useGameStore = create<GameState>((set) => ({
         friends,
         unlockedLevels: state.unlockedLevels,
         currentLevel: state.currentLevel,
+        levelStars: state.levelStars,
         stars: state.stars,
+        cityObjects: state.cityObjects,
+        season1Complete: state.season1Complete,
       });
       return { friends };
     }),
@@ -78,37 +88,58 @@ export const useGameStore = create<GameState>((set) => ({
     set((state: GameState) => {
       const unlockedLevels = [...new Set([...state.unlockedLevels, levelId])];
       const nextLevel = Math.max(state.currentLevel, levelId + 1);
+      const previousBest = state.levelStars[levelId] ?? 0;
+      const nextBest = Math.max(previousBest, reward.stars);
+      const levelStars = { ...state.levelStars, [levelId]: nextBest };
+      const earnedStars = nextBest - previousBest;
       let friends = state.friends;
       if (reward.friendId && !friends.some((f) => f.id === reward.friendId)) {
+        const catalogFriend = SEASON1_FRIENDS.find((friend) => friend.id === reward.friendId);
         friends = [
           ...friends,
           {
             id: reward.friendId,
-            name: friendDisplayName(reward.friendId),
+            name: catalogFriend?.name ?? reward.friendId,
             description: '',
-            rarity:
-              reward.friendId.includes('rare') || reward.friendId === 'putalo' ? 'rare' : 'common',
-            chapter: 1,
+            rarity: catalogFriend?.rarity ?? 'common',
+            chapter: catalogFriend?.chapter ?? (levelId >= 10 ? 2 : 1),
             unlocked: true,
             asset: '',
           },
         ];
       }
+      const season1Complete = state.season1Complete || levelId >= 16;
       const next = {
         unlockedLevels,
         currentLevel: nextLevel,
-        stars: state.stars + reward.stars,
+        levelStars,
+        stars: state.stars + earnedStars,
         friends,
+        season1Complete,
       };
-      persistProgress(next);
+      persistProgress({
+        ...next,
+        cityObjects: state.cityObjects,
+      });
       return next;
     }),
 
   buyCityObject: (objectId: string, cost: number) =>
-    set((state: GameState) => ({
-      cityObjects: { ...state.cityObjects, [objectId]: true },
-      stars: Math.max(0, state.stars - cost),
-    })),
+    set((state: GameState) => {
+      if (state.cityObjects[objectId] || state.stars < cost) return state;
+      const cityObjects = { ...state.cityObjects, [objectId]: true };
+      const stars = Math.max(0, state.stars - cost);
+      persistProgress({
+        friends: state.friends,
+        unlockedLevels: state.unlockedLevels,
+        currentLevel: state.currentLevel,
+        levelStars: state.levelStars,
+        stars,
+        cityObjects,
+        season1Complete: state.season1Complete,
+      });
+      return { cityObjects, stars };
+    }),
 
   addStars: (amount: number) =>
     set((state: GameState) => {
@@ -117,32 +148,29 @@ export const useGameStore = create<GameState>((set) => ({
         friends: state.friends,
         unlockedLevels: state.unlockedLevels,
         currentLevel: state.currentLevel,
+        levelStars: state.levelStars,
         stars,
+        cityObjects: state.cityObjects,
+        season1Complete: state.season1Complete,
       });
       return { stars };
     }),
 }));
 
-function friendDisplayName(id: string): string {
-  const map: Record<string, string> = {
-    putalo: 'Путало',
-    gardener: 'Садовник',
-    ice_sculptor: 'Мастер льда',
-    snowman: 'Снеговик',
-    ice_friend: 'Ледяной друг',
-    rare_friend_1: 'Ягодка',
-  };
-  return map[id] ?? id;
-}
-
 function persistProgress(data: {
   friends: Friend[];
   unlockedLevels: number[];
   currentLevel: number;
+  levelStars: Record<number, number>;
   stars: number;
+  cityObjects: Record<string, boolean>;
+  season1Complete?: boolean;
 }) {
   try {
-    localStorage.setItem('barsik_progress', JSON.stringify(data));
+    localStorage.setItem(
+      'barsik_progress',
+      JSON.stringify({ version: GAME_SAVE_VERSION, ...data }),
+    );
   } catch {
     /* ignore */
   }

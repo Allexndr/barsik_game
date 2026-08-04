@@ -90,6 +90,8 @@ const ru: Dict = {
   'reward.shirt': 'Футболка',
   'reward.backpack': 'Рюкзак',
   'reward.grand': 'Главный приз',
+  'reward.playForStars': 'Играть за звёзды',
+  'meta.toTravel': 'В путешествие',
 
   'doc.title': 'Путешествие Барсика',
 };
@@ -158,6 +160,8 @@ const kk: Dict = {
   'reward.shirt': 'Футболка',
   'reward.backpack': 'Рюкзак',
   'reward.grand': 'Бас жүлде',
+  'reward.playForStars': 'Жұлдыз жинауға ойна',
+  'meta.toTravel': 'Саяхатқа',
 
   'doc.title': 'Барсик саяхаты',
 };
