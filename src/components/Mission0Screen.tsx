@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { RotateHint } from './ui/RotateHint';
+import { DialoguePanel } from './ui/DialoguePanel';
 import { useUIStore } from '@/store/useUIStore';
 import { useGameStore } from '@/store/useGameStore';
 import { Mission0Scene, type L1Hud } from '@/three/scenes/Mission0Scene';
@@ -243,11 +244,12 @@ export function Mission0Screen() {
       </div>
 
       {!hud.outro ? (
-        <div className="m0-dialogue">
-          <div className="m0-speaker">{hud.speaker}</div>
-          <div className="m0-line">{hud.line}</div>
-          <div className="m0-objective">{hud.objective}</div>
-        </div>
+        <DialoguePanel
+          speaker={hud.speaker}
+          line={hud.line}
+          objective={hud.objective}
+          lang={lang}
+        />
       ) : null}
 
       {showKeys ? (
