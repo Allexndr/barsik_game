@@ -35,6 +35,20 @@
   padding: 0.4rem 0.85rem;
   border-radius: 999px;
   border: 3px solid #fff;
+  /* A wrapped two-line pill on a phone reads as a broken banner, and the
+     level name plus nickname is never worth two lines of a 375px screen. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(58vw, 22rem);
+}
+
+@media (max-width: 480px) {
+  .m0-title {
+    font-size: 0.85rem;
+    padding: 0.32rem 0.7rem;
+    border-width: 2px;
+  }
 }
 
 .m0-stats {
@@ -105,6 +119,24 @@
   color: #2d3436;
   line-height: 1.45;
   font-size: 1.12rem;
+}
+
+/*
+ * On a phone the tall frame leaves a band of empty foreground below the
+ * action that no camera angle removes without cropping the world. Sit the
+ * dialogue down into it so the panel covers the dead ground instead of
+ * floating above it with bare grass underneath.
+ */
+@media (max-width: 560px) {
+  .m0-dialogue {
+    bottom: max(18px, env(safe-area-inset-bottom));
+    width: calc(100vw - 20px);
+    border-radius: 1.25rem 1.25rem 1rem 1rem;
+  }
+
+  .m0-line {
+    font-size: 1.02rem;
+  }
 }
 
 .m0-objective {
