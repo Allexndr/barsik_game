@@ -2171,21 +2171,31 @@ export class Mission0Scene extends BaseLevelScene {
       // framing. It also sits the camera lower and aims it further out: at
       // the desktop pitch a phone spends its bottom third on empty ground
       // between the lens and the hero.
-      const pullback = this.portrait ? 1.2 : 1;
+      // Held-sideways phones get a flatter, slightly closer version of the
+      // same shot: the frame is short, so desktop pitch spends its lower
+      // third on foreground grass.
+      const landscapePhone = this.isPhoneLandscape();
+      const pullback = this.portrait ? 1.2 : landscapePhone ? 0.94 : 1;
       const target = introPos[idx].clone().multiplyScalar(pullback);
       if (this.portrait) target.y *= 0.82;
+      else if (landscapePhone) target.y *= 0.72;
       this.camera.position.lerp(target, 1 - Math.pow(0.02, dt));
       const look = introLook[idx].clone();
       if (this.portrait) look.y += 1.4;
+      else if (landscapePhone) look.y += 1.1;
       this.camera.lookAt(look);
     } else {
       const back = this.phase.startsWith('help') || this.phase === 'outro' ? 11 : 9.5;
       // Lower and slightly further back on a phone: a flatter angle fills the
       // tall frame with world instead of foreground grass.
-      const height = this.portrait ? 4.9 : 6.2;
+      const landscapePhone = this.isPhoneLandscape();
+      const height = this.portrait ? 4.9 : landscapePhone ? 4.4 : 6.2;
       const camOffsetX = this.portrait ? 0.9 : 0;
       // Clamp so the house at (-9, 12) never eats the camera (Level Design Book)
-      const camZ = Math.min(this.hero.position.z + back + (this.portrait ? 1.4 : 0), 20);
+      const camZ = Math.min(
+        this.hero.position.z + back + (this.portrait ? 1.4 : landscapePhone ? 1.8 : 0),
+        20,
+      );
       let camX = this.hero.position.x * 0.55 + camOffsetX;
       // Soft push away from house volume when hero is in the yard
       if (this.hero.position.z > 6 && this.hero.position.x < -2) {
@@ -2195,8 +2205,9 @@ export class Mission0Scene extends BaseLevelScene {
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
       this.camera.lookAt(
         this.hero.position.x - camOffsetX * 0.28,
-        this.heightAt(this.hero.position.x, this.hero.position.z) + (this.portrait ? 2.3 : 1.35),
-        this.hero.position.z - (this.portrait ? 3.2 : 0.8),
+        this.heightAt(this.hero.position.x, this.hero.position.z)
+          + (this.portrait ? 2.3 : landscapePhone ? 1.9 : 1.35),
+        this.hero.position.z - (this.portrait ? 3.2 : landscapePhone ? 2.4 : 0.8),
       );
     }
 

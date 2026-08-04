@@ -497,3 +497,82 @@
     transform: rotate(360deg);
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+ * Phone landscape.
+ *
+ * The game is played mainly on phones, and turning the phone sideways is
+ * the move that buys the most view of the world. But a landscape phone is
+ * only ~380px tall, so the portrait HUD does not simply rotate: the
+ * dialogue panel alone would eat a third of the height and the joystick
+ * would sit under the player's palm.
+ *
+ * Height-based, not orientation-based: `orientation: landscape` also
+ * matches a small desktop window, where none of this is wanted.
+ * ───────────────────────────────────────────────────────────── */
+@media (max-height: 480px) and (orientation: landscape) {
+  .m0-top {
+    top: max(6px, env(safe-area-inset-top));
+    padding-inline: max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-right));
+  }
+
+  .m0-title {
+    font-size: 0.78rem;
+    padding: 0.24rem 0.6rem;
+    border-width: 2px;
+    max-width: 34vw;
+  }
+
+  /* Dialogue becomes a slim banner pinned under the title bar, and is
+     capped so a long line scrolls instead of pushing into the play area. */
+  .m0-dialogue {
+    top: calc(44px + env(safe-area-inset-top));
+    width: min(56vw, 460px);
+    left: 50%;
+    padding: 0.5rem 0.75rem 0.45rem;
+    border-radius: 0.85rem;
+    max-height: 38vh;
+    overflow-y: auto;
+  }
+
+  .m0-speaker {
+    font-size: 0.68rem;
+    margin-bottom: 0.1rem;
+  }
+
+  .m0-line {
+    font-size: 0.86rem;
+    line-height: 1.32;
+  }
+
+  .m0-objective {
+    margin-top: 0.3rem;
+    font-size: 0.76rem;
+  }
+
+  /* Thumbs sit at the outer corners in landscape, not near the middle. */
+  .m0-stick {
+    width: 84px;
+    height: 84px;
+    left: max(10px, env(safe-area-inset-left));
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Very short landscape (older/smaller phones): drop the dialogue further
+   still, and let the objective line carry the instruction on its own. */
+@media (max-height: 380px) and (orientation: landscape) {
+  .m0-dialogue {
+    width: min(48vw, 380px);
+    max-height: 30vh;
+  }
+
+  .m0-line {
+    font-size: 0.8rem;
+  }
+
+  .m0-stick {
+    width: 72px;
+    height: 72px;
+  }
+}
