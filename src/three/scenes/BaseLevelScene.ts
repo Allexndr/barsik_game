@@ -620,6 +620,7 @@ export abstract class BaseLevelScene {
   protected camYaw = 0;
   protected orbitDragging = false;
   private orbitCleanup: (() => void) | null = null;
+  private orientationCleanup: (() => void) | null = null;
   protected disposed = false;
   protected raf = 0;
   protected yaw = 0;
@@ -1353,6 +1354,7 @@ export abstract class BaseLevelScene {
     addEventListener('keydown', down);
     addEventListener('keyup', up);
     this.bindCameraOrbitDrag();
+    this.bindOrientationChange();
     (this as unknown as { _kd: typeof down; _ku: typeof up })._kd = down;
     (this as unknown as { _kd: typeof down; _ku: typeof up })._ku = up;
   }
@@ -1495,7 +1497,12 @@ export abstract class BaseLevelScene {
   }
 
   protected isPortraitViewport() {
-    return this.camera.aspect < 0.86;
+    return this.viewport === 'portrait';
+  }
+
+  /** True when held sideways on a phone: short, wide, thumbs at the edges. */
+  protected isPhoneLandscape() {
+    return this.viewport === 'phone-landscape';
   }
 
   /**
@@ -1529,19 +1536,57 @@ export abstract class BaseLevelScene {
   }
 
   // ── Resize ───────────────────────────────────────────────────
+  /**
+   * Viewport shape the scene is currently rendering into.
+   *
+   * The game is played mainly on phones, where turning the device sideways
+   * is the cheapest way to see more of the world — so landscape has to be a
+   * first-class mode rather than "not portrait".
+   */
+  protected viewport: 'portrait' | 'phone-landscape' | 'wide' = 'wide';
+
   protected resize = () => {
     const p = this.canvas.parentElement;
     const w = p?.clientWidth || innerWidth;
     const h = p?.clientHeight || innerHeight;
-    const portrait = h > w * 1.15;
     this.isMobile = window.matchMedia('(pointer: coarse)').matches || w < 768;
+
+    // Keyed off height, not `orientation`: a small desktop window is also
+    // "landscape" but wants the desktop framing, not the phone one.
+    this.viewport = h > w * 1.15
+      ? 'portrait'
+      : (h <= 480 && this.isMobile) ? 'phone-landscape' : 'wide';
+
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.renderQuality.maxPixelRatio));
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / Math.max(h, 1);
-    this.camera.fov = portrait ? 61 : 53;
+    // Vertical FOV. A held-sideways phone is short, so a narrower vertical
+    // angle over a wide aspect is what actually widens the view rather than
+    // squashing the horizon into a letterbox.
+    this.camera.fov = this.viewport === 'portrait'
+      ? 61
+      : this.viewport === 'phone-landscape' ? 46 : 53;
     this.camera.updateProjectionMatrix();
     this.quality?.setSize(w, h);
   };
+
+  /**
+   * Some mobile browsers fire `orientationchange` without a usable resize,
+   * and report stale dimensions for a frame or two afterwards.
+   */
+  protected bindOrientationChange() {
+    const handler = () => {
+      this.resize();
+      setTimeout(this.resize, 120);
+      setTimeout(this.resize, 400);
+    };
+    window.addEventListener('orientationchange', handler);
+    screen.orientation?.addEventListener?.('change', handler);
+    this.orientationCleanup = () => {
+      window.removeEventListener('orientationchange', handler);
+      screen.orientation?.removeEventListener?.('change', handler);
+    };
+  }
 
   // ── Dispose ──────────────────────────────────────────────────
   private disposeSceneResources() {
@@ -1571,6 +1616,8 @@ export abstract class BaseLevelScene {
     if (self._ku) removeEventListener('keyup', self._ku);
     this.orbitCleanup?.();
     this.orbitCleanup = null;
+    this.orientationCleanup?.();
+    this.orientationCleanup = null;
     this.mixer?.stopAllAction();
     this.disposeSceneResources();
     this.quality?.dispose();
