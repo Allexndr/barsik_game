@@ -1260,6 +1260,12 @@ export class Mission0Scene extends BaseLevelScene {
 
     this.hero.position.set(0, 0, 12);
     this.scene.add(this.hero);
+    // The jump arc lands on `groundHeightAt`, which defaults to a flat zero.
+    // This level has its own sculpted valley and never pointed that at it, so
+    // every jump ended at y = 0 — sinking into the hill on the high ground and
+    // hanging above it on the low. Nothing depended on the jump here until the
+    // fruit that teaches it went in above the trail.
+    this.groundHeightAt = (x, z) => this.heightAt(x, z);
     this.bindKeys();
     this.resize();
     addEventListener('resize', this.resize);
@@ -1664,8 +1670,19 @@ export class Mission0Scene extends BaseLevelScene {
     // the tree and roll away before the player can pick it up.
     const tutorial = makeFruit(this.chasePath[0].clone().setY(0.4), 'tutorial');
     this.chaseApple = tutorial;
-    const trail1 = makeFruit(new THREE.Vector3(-2.5, 0.4, -10.5), 'trail', 0xff9f43);
-    const trail2 = makeFruit(new THREE.Vector3(3.2, 0.4, -12.0), 'trail', 0xff6b81);
+    // Three pickups, three different things to learn. Both of these used to
+    // sit on the ground a couple of metres apart, which taught the same verb
+    // twice: after the chase the player already knew how to walk up to a
+    // fruit and press the button.
+    //
+    // This one hangs above head height, right over the trail so the player
+    // runs under it. Interact range is a 3-D distance, so standing below it
+    // is out of reach and a jump brings it in — the jump teaches itself,
+    // with no line of text explaining a button.
+    const trail1 = makeFruit(new THREE.Vector3(0.4, 1.95, -10.5), 'trail', 0xff9f43);
+    // And this one is off the path entirely, behind the garden. It is the
+    // first time the level says the world is wider than the trail.
+    const trail2 = makeFruit(new THREE.Vector3(-7.6, 0.4, -14.5), 'trail', 0xff6b81);
     const q1 = makeFruit(new THREE.Vector3(-6.0, 0.4, -38.0), 'quest', 0xff4757);
     const q2 = makeFruit(new THREE.Vector3(1.5, 0.4, -42.0), 'quest', 0xffa502);
     const q3 = makeFruit(new THREE.Vector3(5.0, 0.4, -35.0), 'quest', 0xff6348);
@@ -1862,8 +1879,37 @@ export class Mission0Scene extends BaseLevelScene {
         line = this.copy('Ура! Теперь бегу легче — доброе дело заряжает!', 'Ура! Енді жеңіл жүгіреміз!');
       }
     } else if (p === 'pick2') {
-      line = this.copy('Ещё пару фруктов — пригодятся. Друзьям ведь тоже хочется сладкого.', 'Тағы жеміс жина — достарға да керек.');
-      objective = this.copy(`🍎 В рюкзаке: ${this.bag}`, `🍎 Рюкзакта: ${this.bag}`);
+      // The line names the verb the next fruit needs. Which fruit is next is
+      // decided by where the player actually is, not by a fixed order — a
+      // child who wanders off the path first should be told about the path,
+      // not about a branch behind them.
+      const hanging = this.fruits.find((f) => f.userData.alive && f.userData.kind === 'trail' && (f.userData.baseY ?? 0) > 1);
+      const offPath = this.fruits.find((f) => f.userData.alive && f.userData.kind === 'trail' && (f.userData.baseY ?? 0) <= 1);
+      const nearer = hanging && offPath
+        ? (this.hero.position.distanceTo(hanging.position) <= this.hero.position.distanceTo(offPath.position) ? hanging : offPath)
+        : (hanging ?? offPath);
+
+      if (nearer === hanging) {
+        line = this.copy(
+          'Этот висит высоко — подпрыгни за ним!',
+          'Бұл жоғарыда ілініп тұр — секіріп ал!',
+        );
+        objective = this.isMobile
+          ? this.copy('⬆️ Подпрыгни за яблоком', '⬆️ Алмаға секір')
+          : this.copy('⬆️ Пробел — прыжок', '⬆️ Бос орын — секіру');
+      } else if (nearer === offPath) {
+        line = this.copy(
+          'А один укатился с тропинки. Сойди с дорожки — там, за садом.',
+          'Біреуі соқпақтан домалап кетті. Жолдан шық — бақшаның артында.',
+        );
+        objective = this.copy('🔎 Найди фрукт за садом', '🔎 Бақша артынан жеміс тап');
+      } else {
+        line = this.copy('Ещё пару фруктов — пригодятся. Друзьям тоже хочется сладкого.', 'Тағы жеміс жина — достарға да керек.');
+        objective = this.copy(`🍎 В рюкзаке: ${this.bag}`, `🍎 Рюкзакта: ${this.bag}`);
+      }
+      if (performance.now() < this.praiseUntil) {
+        line = this.copy('Достал! Высоко прыгаешь.', 'Алдың! Биік секіресің.');
+      }
     } else if (p === 'give_bird') {
       speaker = this.copy('Жұлдыз', 'Жұлдыз');
       line = this.copy(
@@ -2065,15 +2111,27 @@ export class Mission0Scene extends BaseLevelScene {
       }
     }
 
-    // Bob fruits + beams
+    // Bob fruits + beams.
+    //
+    // Around each fruit's own height, not around a hardcoded 0.4: the fruit
+    // that hangs above the trail is the one that teaches the jump, and this
+    // loop used to drag it back down to knee height on the first frame.
     for (const f of this.fruits) {
       if (!f.userData.alive || !f.visible) continue;
-      f.position.y = 0.4 + Math.sin(now * 0.005 + f.position.x) * 0.12;
+      // The runaway apple owns its own height while it is rolling: it follows
+      // the ground down the hill, and this loop would pin it to a fixed
+      // height and leave it floating over the slope.
+      if (this.phase === 'chase' && f === this.chaseApple) continue;
+      if (f.userData.baseY === undefined) f.userData.baseY = f.position.y;
+      const baseY = f.userData.baseY as number;
+      f.position.y = baseY + Math.sin(now * 0.005 + f.position.x) * 0.12;
       f.rotation.y += dt * 1.2;
       const beam = f.userData.beam as THREE.Object3D | undefined;
       if (beam) {
         beam.position.x = f.position.x;
         beam.position.z = f.position.z;
+        // The beam marks the ground under a fruit, so a hanging one gets a
+        // shorter column rather than a pillar starting at its own height.
         beam.position.y = 1.5 + Math.sin(now * 0.004) * 0.1;
       }
     }
@@ -2214,12 +2272,12 @@ export class Mission0Scene extends BaseLevelScene {
       const idx = Math.min(this.introI, 2);
       const introPos = [
         new THREE.Vector3(3.4, 2.9, 16.6),
-        new THREE.Vector3(15, 13.5, 29),
+        new THREE.Vector3(13, 11.5, 27),
         new THREE.Vector3(1.5, 6.4, 20),
       ];
       const introLook = [
         new THREE.Vector3(-0.2, 2.35, 11.4),
-        new THREE.Vector3(-3, 2.2, 4),
+        new THREE.Vector3(-2, 4.4, -1),
         new THREE.Vector3(0, 1.5, 9),
       ];
       // Portrait crops the sides, so pull back to keep roughly the desktop
