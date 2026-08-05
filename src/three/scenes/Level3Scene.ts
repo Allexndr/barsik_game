@@ -31,7 +31,17 @@ import { placeAmbientCritters } from '../s1Place';
  * 2 sectors empty (with bonuses), 1 has hedgehog.
  */
 
-export type L4Phase = 'intro' | 'search' | 'found' | 'outro';
+// The search was three markers you could press in any order, with a gate that
+// refused the right one until you had checked two wrong ones — so a player who
+// went straight to the log was told «Пока рано…» for no reason they could see,
+// which reads as the game being broken rather than as a clue.
+//
+// The clue text already described a trail ("свежие следы уходят вправо"), so
+// the trail is now real: one sector at a time, each one pointing at the next.
+export type L4Phase = 'intro' | 'track1' | 'track2' | 'track3' | 'found' | 'outro';
+
+/** Phases in which the player is following the trail. */
+const TRACKING: readonly L4Phase[] = ['track1', 'track2', 'track3'];
 
 export interface L4Hud extends BaseHud {
   sectorsChecked: number;
@@ -197,7 +207,8 @@ export class Level3Scene extends BaseLevelScene {
   private clueUntil = 0;
   private lastClue: 'bushes' | 'rocks' | null = null;
   private revealStartedAt = 0;
-  private needMoreCluesUntil = 0;
+  /** How far along the trail we are: 0, 1, 2. */
+  private trailIndex = 0;
 
   protected currentPhase() { return this.phase; }
 
@@ -209,7 +220,7 @@ export class Level3Scene extends BaseLevelScene {
     const t = this.interactTarget;
     if (!t) return;
 
-    if (this.phase === 'search') {
+    if (this.isTracking()) {
       // Check sector
       const sector = this.sectors.find((s) => s.group === t);
       if (sector && !sector.checked) {
@@ -238,16 +249,16 @@ export class Level3Scene extends BaseLevelScene {
     }
   }
 
-  private checkSector(sector: SearchSector) {
-    const emptyChecked = this.sectors.filter((s) => s.checked && !s.hasHedgehog).length;
-    if (sector.hasHedgehog && emptyChecked < 2) {
-      this.needMoreCluesUntil = performance.now() + 2200;
-      this.spawnSparks(sector.group.position, 4, [0xa29bfe, 0xfdcb6e]);
-      AudioManager.sfx('tick');
-      this.pushHud();
-      return;
-    }
+  private isTracking() {
+    return TRACKING.includes(this.phase);
+  }
 
+  /** The one place on the trail the player can search right now. */
+  private currentSector(): SearchSector | null {
+    return this.sectors[this.trailIndex] ?? null;
+  }
+
+  private checkSector(sector: SearchSector) {
     sector.checked = true;
     if (sector.bubble) sector.bubble.visible = false;
 
@@ -268,9 +279,12 @@ export class Level3Scene extends BaseLevelScene {
       AudioManager.sfx('whoosh');
       this.lastClue = sector.label === 'bushes' || sector.label === 'rocks' ? sector.label : null;
       this.clueUntil = performance.now() + 2200;
+      this.stars += 2;
       if (sector.bonus) {
         sector.bonus.visible = true;
       }
+      this.trailIndex = Math.min(this.trailIndex + 1, this.sectors.length - 1);
+      this.phase = TRACKING[this.trailIndex] ?? 'track3';
     }
     this.pushHud();
   }
@@ -525,13 +539,18 @@ export class Level3Scene extends BaseLevelScene {
       ];
       line = lines[Math.min(this.introI, lines.length - 1)];
       objective = this.copy('🔍 Исследуй 3 сектора', '🔍 3 секторды зертте');
-    } else if (p === 'search') {
-      const checked = this.sectors.filter((s) => s.checked).length;
+    } else if (this.isTracking()) {
+      const leg = this.trailIndex + 1;
+      const where = [
+        this.copy('густые кусты', 'қалың бұталар'),
+        this.copy('груда камней', 'тас үйіндісі'),
+        this.copy('поваленное бревно', 'құлаған бөрене'),
+      ][this.trailIndex];
       line = this.copy(
-        `Проверено: ${checked}/3. Следы ведут к секторам!`,
-        `Тексерілді: ${checked}/3. Іздер секторларға әкеледі!`,
+        `Следы ведут дальше — туда, где ${where}.`,
+        `Іздер әрі қарай — ${where} жаққа.`,
       );
-      objective = this.copy(`🔍 Секторов проверено: ${checked}/3`, `🔍 Секторлар: ${checked}/3`);
+      objective = this.copy(`🐾 Иди по следам — ${leg}/3`, `🐾 Іздермен жүр — ${leg}/3`);
     } else if (p === 'found') {
       line = this.copy('Ёжик найден! Он так рад! Подойди и обними его!', 'Кірпі табылды! Ол қатты қуанды! Жақындап, оны құшақта!');
       speaker = this.copy('Ёжик', 'Кірпі');
@@ -546,12 +565,7 @@ export class Level3Scene extends BaseLevelScene {
       objective = this.copy('Ёжик найден!', 'Кірпі табылды!');
     }
 
-    if (performance.now() < this.needMoreCluesUntil && p === 'search') {
-      line = this.copy(
-        'Пока рано… Осмотри ещё кусты и камни — следы ведут дальше!',
-        'Әлі ерте… Бұталар мен тастарды қара — іздер әрі қарай жетеді!',
-      );
-    } else if (performance.now() < this.clueUntil && p === 'search' && this.lastClue) {
+    if (performance.now() < this.clueUntil && this.isTracking() && this.lastClue) {
       line = this.lastClue === 'bushes'
         ? this.copy('В кустах только листочек и звёздочка. Свежие следы уходят вправо!', 'Бұтада жапырақ пен жұлдызша ғана бар. Жаңа іздер оңға қарай кетеді!')
         : this.copy('Под камнями пусто, но шорох слышен у поваленного бревна!', 'Тастардың астында ешкім жоқ, бірақ құлаған бөрене жақтан сыбдыр естіледі!');
@@ -569,7 +583,7 @@ export class Level3Scene extends BaseLevelScene {
       foundHedgehog: this.hedgehogFound,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: !this.hasTakenFirstStep && p === 'search',
+      showMoveHint: !this.hasTakenFirstStep && this.isTracking(),
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
@@ -580,9 +594,9 @@ export class Level3Scene extends BaseLevelScene {
     let best: THREE.Object3D | null = null;
     let bestD = 2.0;
 
-    if (this.phase === 'search') {
-      for (const s of this.sectors) {
-        if (s.checked) continue;
+    if (this.isTracking()) {
+      const s = this.currentSector();
+      if (s && !s.checked) {
         const d = hp.distanceTo(new THREE.Vector3(s.x, 0, s.z));
         if (d < bestD) { bestD = d; best = s.group; }
       }
@@ -602,15 +616,9 @@ export class Level3Scene extends BaseLevelScene {
 
   private objectiveWorldPos(): THREE.Vector3 | null {
     const p = this.phase;
-    if (p === 'search') {
-      // Nearest unchecked sector
-      const nearest = this.sectors
-        .filter((s) => !s.checked)
-        .sort((a, b) =>
-          this.hero.position.distanceTo(new THREE.Vector3(a.x, 0, a.z)) -
-          this.hero.position.distanceTo(new THREE.Vector3(b.x, 0, b.z))
-        )[0];
-      return nearest ? new THREE.Vector3(nearest.x, 0, nearest.z) : null;
+    if (this.isTracking()) {
+      const s = this.currentSector();
+      return s && !s.checked ? new THREE.Vector3(s.x, 0, s.z) : null;
     }
     if (p === 'found' && this.hedgehogMesh) return this.hedgehogMesh.position.clone();
     return null;
@@ -627,7 +635,8 @@ export class Level3Scene extends BaseLevelScene {
     if (this.phase === 'intro' && now > this.nextAt) {
       this.introI += 1;
       if (this.introI >= 3) {
-        this.phase = 'search';
+        this.phase = 'track1';
+        this.trailIndex = 0;
         this.nextAt = now + 500;
         this.pushHud();
       } else {
@@ -640,6 +649,11 @@ export class Level3Scene extends BaseLevelScene {
     const speed = this.baseSpeed;
     this.updateMovement(dt, canMove, speed, -25, 25, -35, 8);
 
+    // Only the next place on the trail wears a question mark. Three of them at
+    // once said "search anywhere", which is what the level used to be.
+    for (const [i, s] of this.sectors.entries()) {
+      if (s.bubble) s.bubble.visible = !s.checked && this.isTracking() && i === this.trailIndex;
+    }
     // Bob question bubbles
     for (const s of this.sectors) {
       if (s.bubble && s.bubble.visible) {
