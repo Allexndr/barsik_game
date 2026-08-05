@@ -30,9 +30,7 @@ import { placeMany, placeS1Prop, placeS1Char } from '../s1Place';
  */
 export type L1Phase =
   | 'intro'
-  | 'move1'
-  | 'move2'
-  | 'move3'
+  | 'chase'
   | 'pick1'
   | 'pick2'
   | 'give_bird'
@@ -952,13 +950,23 @@ export class Mission0Scene extends BaseLevelScene {
   private birdMarker: THREE.Group | null = null;
   private gardenerMarker: THREE.Group | null = null;
   private butterflies: THREE.Group[] = [];
-  private checkpoints = [
-    new THREE.Vector3(0, 0, 6),
-    new THREE.Vector3(0, 0, -2),
-    new THREE.Vector3(0.3, 0, -8),
+  /**
+   * The runaway apple's route down the hill.
+   *
+   * This replaced three invisible checkpoints the player was told to walk to.
+   * A five-year-old does not walk to a marker because they were asked; they
+   * chase a thing that is getting away. The route is the same trail, but now
+   * something is rolling down it and the movement tutorial teaches itself.
+   */
+  private readonly chasePath = [
+    new THREE.Vector3(0.6, 0, 9),
+    new THREE.Vector3(0.1, 0, 5.5),
+    new THREE.Vector3(-0.9, 0, 1.5),
+    new THREE.Vector3(0.2, 0, -3),
+    new THREE.Vector3(0.3, 0, -7.6),
   ];
-  private cpIdx = 0;
-  private speedBoostShown = false;
+  private chaseT = 0;
+  private chaseApple: THREE.Object3D | null = null;
   private birdBaseY = 0.42;
   private gardenerBaseY = 0;
   private collectibles: THREE.Mesh[] = [];
@@ -1364,12 +1372,70 @@ export class Mission0Scene extends BaseLevelScene {
     }
   }
 
+  /**
+   * The runaway apple.
+   *
+   * It keeps a few metres ahead and slows as the player closes, so it is
+   * always catchable but never already caught — a child who dawdles still
+   * sees it waiting, and one who sprints still has to work for the last
+   * metre. It stops for good at the garden, where the level's next beat is.
+   */
+  private updateChase(dt: number, now: number) {
+    const apple = this.chaseApple;
+    if (!apple) {
+      // No apple in the scene means nothing to chase; do not strand the
+      // player in a phase with no exit.
+      this.phase = 'pick1';
+      this.pushHud();
+      return;
+    }
+
+    const path = this.chasePath;
+    const segment = Math.min(Math.floor(this.chaseT), path.length - 2);
+    const local = this.chaseT - segment;
+    const from = path[segment];
+    const to = path[segment + 1];
+    const at = from.clone().lerp(to, local);
+    const lead = this.hero.position.distanceTo(at);
+
+    // Rolls only while the player is coming. Standing still stops the chase
+    // rather than losing it for them.
+    const atEnd = this.chaseT >= path.length - 1 - 0.001;
+    if (!atEnd && this.hasTakenFirstStep) {
+      const urgency = THREE.MathUtils.clamp((lead - 2.4) / 3.5, 0, 1);
+      const step = (1.1 + urgency * 3.4) * dt;
+      const segLength = Math.max(0.001, from.distanceTo(to));
+      this.chaseT = Math.min(path.length - 1, this.chaseT + step / segLength);
+    }
+
+    apple.position.set(at.x, this.heightAt(at.x, at.z) + 0.24, at.z);
+    // Rolling, not sliding: the spin is tied to how far it actually moved.
+    apple.rotation.x -= dt * (atEnd ? 0 : 5.5);
+    if (atEnd) {
+      apple.position.y += Math.sin(now * 0.005) * 0.05;
+    }
+
+    // The pickup halo travels with it. These are separate scene objects placed
+    // where the fruit was built, so without this the apple rolls away and
+    // leaves its own glow standing at the top of the hill.
+    const ring = apple.userData.ring as THREE.Object3D | undefined;
+    const beam = apple.userData.beam as THREE.Object3D | undefined;
+    if (ring) ring.position.set(at.x, this.heightAt(at.x, at.z) + 0.03, at.z);
+    if (beam) beam.position.set(at.x, this.heightAt(at.x, at.z) + 1.1, at.z);
+
+    if (lead < 1.35) {
+      this.phase = 'pick1';
+      this.praiseUntil = now + 1400;
+      this.spawnSparks(apple.position);
+      AudioManager.sfx('success');
+      this.pushHud();
+    }
+  }
+
   private objectiveWorldPos(): THREE.Vector3 | null {
     const p = this.phase;
-    if (p === 'move1' || p === 'move2' || p === 'move3' || p === 'pick1') {
-      if ((p === 'move1' || p === 'move2' || p === 'move3') && this.checkpoints[this.cpIdx]) {
-        return this.checkpoints[this.cpIdx].clone();
-      }
+    if (p === 'chase' || p === 'pick1') {
+      if (p === 'chase' && this.chaseApple) return this.chaseApple.position.clone();
       const a = this.fruits.find((f) => f.userData.kind === 'tutorial' && f.userData.alive);
       return a ? a.position.clone() : new THREE.Vector3(0.2, 0, 0.4);
     }
@@ -1594,7 +1660,10 @@ export class Mission0Scene extends BaseLevelScene {
     }
 
     // Fruits — larger, beamed (Roblox collectible language)
-    const tutorial = makeFruit(new THREE.Vector3(0.3, 0.4, -8.0), 'tutorial');
+    // Starts at the top of the trail, not at the bottom: it has to fall from
+    // the tree and roll away before the player can pick it up.
+    const tutorial = makeFruit(this.chasePath[0].clone().setY(0.4), 'tutorial');
+    this.chaseApple = tutorial;
     const trail1 = makeFruit(new THREE.Vector3(-2.5, 0.4, -10.5), 'trail', 0xff9f43);
     const trail2 = makeFruit(new THREE.Vector3(3.2, 0.4, -12.0), 'trail', 0xff6b81);
     const q1 = makeFruit(new THREE.Vector3(-6.0, 0.4, -38.0), 'quest', 0xff4757);
@@ -1778,14 +1847,13 @@ export class Mission0Scene extends BaseLevelScene {
       ];
       line = lines[Math.min(this.introI, lines.length - 1)];
       objective = this.copy('📜 Первое утро', '📜 Бірінші таң');
-    } else if (p === 'move1' || p === 'move2' || p === 'move3') {
-      line = this.copy(
-        'Видишь большое яблоко? Это знак: мы на верном пути.',
-        'Үлкен алманы көріп тұрсың ба? Дұрыс жолдамыз.',
-      );
-      objective = this.copy('🎯 Следуй по тропе', '🎯 Жолмен жүр');
-      if (p === 'move1' && performance.now() < this.praiseUntil) {
-        line = this.copy('Вот так! Лапки помнят дорогу.', 'Осылай! Жақсы!');
+    } else if (p === 'chase') {
+      line = this.hasTakenFirstStep
+        ? this.copy('Догоняй! Оно катится к саду!', 'Қуып жет! Ол бақшаға домалап барады!')
+        : this.copy('Ой! Яблоко упало и покатилось. Лови его!', 'Ой! Алма құлап, домалап кетті. Ұста оны!');
+      objective = this.copy('🍎 Догони яблоко', '🍎 Алманы қуып жет');
+      if (performance.now() < this.praiseUntil) {
+        line = this.copy('Вот так! Лапки помнят дорогу.', 'Осылай! Табандар жолды біледі!');
       }
     } else if (p === 'pick1') {
       line = this.copy('Яблоко тёплое — только что с ветки. Возьми его в рюкзак.', 'Алма жылы — жаңа ғана түскен.');
@@ -1843,7 +1911,7 @@ export class Mission0Scene extends BaseLevelScene {
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
       showMoveHint:
-        (p === 'move1' || p === 'move2' || p === 'move3') && !this.hasTakenFirstStep,
+        p === 'chase' && !this.hasTakenFirstStep,
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
@@ -1904,7 +1972,7 @@ export class Mission0Scene extends BaseLevelScene {
     if (this.phase === 'intro' && now > this.nextAt) {
       this.introI += 1;
       if (this.introI >= 3) {
-        this.phase = 'move1';
+        this.phase = 'chase';
         if (this.guideArrow) this.guideArrow.visible = true;
         this.pushHud();
       } else {
@@ -1916,7 +1984,7 @@ export class Mission0Scene extends BaseLevelScene {
     const canMove = !['intro', 'outro'].includes(this.phase);
     const d = this.dir();
     const moving = canMove && d.lengthSq() > 0.01;
-    const speed = this.phase.startsWith('move') ? this.baseSpeed : this.runSpeed;
+    const speed = this.phase === 'chase' ? this.runSpeed : this.runSpeed;
     const cadenceMs = speed > this.baseSpeed + 0.2 ? 250 : 330;
     if (moving && now - this.lastStepAt > cadenceMs) {
       this.lastStepAt = now;
@@ -1949,30 +2017,7 @@ export class Mission0Scene extends BaseLevelScene {
       this.idleAction?.reset().fadeIn(0.15).play();
     }
 
-    if (this.phase === 'move1' && this.hero.position.distanceTo(this.checkpoints[0]) < 1.6) {
-      this.praiseUntil = now + 1000;
-      this.spawnSparks(this.hero.position);
-      this.cpIdx = 1;
-      this.phase = 'move2';
-      this.pushHud();
-    } else if (this.phase === 'move2' && this.hero.position.distanceTo(this.checkpoints[1]) < 1.8) {
-      this.praiseUntil = now + 1000;
-      this.spawnSparks(this.hero.position);
-      this.cpIdx = 2;
-      this.phase = 'move3';
-      this.pushHud();
-    } else if (this.phase === 'move3') {
-      const apple = this.fruits.find((f) => f.userData.kind === 'tutorial');
-      if (apple && this.hero.position.distanceTo(apple.position) < 1.55) {
-        this.phase = 'pick1';
-        if (!this.speedBoostShown) {
-          this.speedBoostShown = true;
-          this.spawnSparks(this.hero.position);
-          this.praiseUntil = now + 1600;
-        }
-        this.pushHud();
-      }
-    }
+    if (this.phase === 'chase') this.updateChase(dt, now);
 
     if (this.phase === 'help_collect') {
       for (const f of this.fruits) {
