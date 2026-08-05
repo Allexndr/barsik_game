@@ -686,14 +686,20 @@ export abstract class BaseLevelScene {
     // Stopping the loop when the tab is hidden saves a phone's battery, but
     // stopping it *silently* stranded the player: the scene froze while the
     // HUD went on showing the level as though it were live, and nothing
-    // offered a way back — setPaused was called straight on the scene, so the
-    // UI never learned it had happened. On a phone, which is the platform
-    // this is built for, one notification was enough to freeze the level
-    // until a reload. Going through the store raises the normal pause card,
-    // whose resume button already works. It deliberately does not resume by
-    // itself: dropping a child back into a timed bridge crossing they were
-    // not looking at is a good way to lose it for them.
-    if (document.hidden) useUIStore.getState().setPaused(true);
+    // offered a way back. On a phone, which is the platform this is built
+    // for, one notification was enough to freeze the level until a reload.
+    //
+    // Both flags, because the resume control lives in SettingsPanel and that
+    // panel renders on `showSettings`, not on `paused` — which is why the
+    // pause *button* sets both. Setting `paused` alone reproduces the same
+    // soft-lock through a different door: loop stopped, no card, no way out.
+    // It deliberately does not resume by itself: dropping a child back into a
+    // timed bridge crossing they were not looking at loses it for them.
+    if (document.hidden) {
+      const ui = useUIStore.getState();
+      ui.setPaused(true);
+      ui.setShowSettings(true);
+    }
   };
   /**
    * Centre line of the walkable route, as x for a given z. Scenes that have a
