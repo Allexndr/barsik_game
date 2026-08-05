@@ -5,7 +5,7 @@ import { Chip } from '@/components/ui/Chip';
 import { PlushButton } from '@/components/ui/PlushButton';
 import { IconFriends, IconStar } from '@/components/ui/icons';
 import { MetaScreenFooter } from '@/components/widgets/MetaScreenFooter';
-import { fetchLeaderboard, type LeaderboardRow } from '@/utils/leaderboard';
+import { fetchLeaderboard, scoreOf, type LeaderboardRow } from '@/utils/leaderboard';
 import './meta-screen.css';
 import './LeaderboardScreen.css';
 
@@ -36,9 +36,41 @@ export function LeaderboardScreen() {
     void load();
   }, [load]);
 
-  const youIndex = rows.findIndex(
-    (r) => player?.nick && r.name.toLowerCase() === player.nick.toLowerCase(),
+  // Place the player by their own star count rather than by looking for their
+  // name in the table. There is no submit path in the game — leaderboard.ts
+  // only reads — so a child could play the whole season and never appear, and
+  // the screen would keep showing them a ranking they cannot be part of.
+  // Ranking locally against the fetched rows is honest and always works.
+  const nick = player?.nick?.trim() || (lang === 'kk' ? 'Сен' : 'Ты');
+  const others = rows.filter(
+    (r) => !player?.nick || r.name.trim().toLowerCase() !== player.nick.trim().toLowerCase(),
   );
+  const youIndex = others.filter((r) => scoreOf(r) > stars).length;
+  const board: Array<LeaderboardRow & { isYou?: boolean }> = [
+    ...others.slice(0, youIndex),
+    { name: nick, stars, total_stars: stars, levels: 0, friends: friends.length, isYou: true },
+    ...others.slice(youIndex),
+  ];
+  // Who is directly above, and by how much — a target beats a static table.
+  const ahead = others[youIndex - 1];
+  const gap = ahead ? scoreOf(ahead) - stars : 0;
+  // Only promise an overtake that is actually within reach. A whole-season
+  // level is worth 10–30 stars, so about two levels' worth is a goal; the top
+  // of this table currently holds an impossible 1486, and «набери ещё 1366»
+  // is not encouragement, it is a wall.
+  const REACHABLE = 60;
+  const canCatch = Boolean(ahead) && gap <= REACHABLE;
+
+  // A child with 120 stars has no use for a table led by someone with 1486.
+  // Show the podium separately and then the player's own neighbourhood, which
+  // is the part they can move within.
+  // Hidden when the player is already inside the top three — the window below
+  // is then showing the same names, and a list printed twice reads as a bug.
+  const podium = youIndex >= 3 ? others.slice(0, 3) : [];
+  const WINDOW = 3;
+  const from = Math.max(0, youIndex - WINDOW);
+  const near = board.slice(from, youIndex + WINDOW + 1);
+  const nearStartRank = from + 1;
 
   return (
     <div className="screen screen-leaderboard screen-meta">
@@ -54,7 +86,11 @@ export function LeaderboardScreen() {
       </header>
 
       <div className="leaderboard-you">
-        <span className="leaderboard-you-label">{lang === 'kk' ? 'Қазір сен' : 'Ты сейчас'}</span>
+        <span className="leaderboard-you-label">
+          {state === 'ready'
+            ? lang === 'kk' ? `${youIndex + 1}-орын` : `${youIndex + 1}-е место`
+            : lang === 'kk' ? 'Қазір сен' : 'Ты сейчас'}
+        </span>
         <div className="leaderboard-you-stats">
           <Chip icon={<IconStar size={14} />} tone="star">
             {stars}
@@ -64,6 +100,40 @@ export function LeaderboardScreen() {
           </Chip>
         </div>
       </div>
+
+      {state === 'ready' && (
+        <p className="leaderboard-target">
+          {!ahead
+            ? lang === 'kk' ? 'Сен бірінші орындасың! 🏆' : 'Ты на первом месте! 🏆'
+            : canCatch
+              ? lang === 'kk'
+                ? `${ahead.name} озып тұр — тағы ${gap} жұлдыз жина!`
+                : `Впереди ${ahead.name} — ещё ${gap} ${starWord(gap)}, и ты обойдёшь!`
+              : lang === 'kk'
+                ? 'Әр деңгей — жаңа жұлдыздар. Жоғары көтеріл!'
+                : 'Каждый уровень — новые звёзды. Поднимайся выше!'}
+        </p>
+      )}
+
+      {state === 'ready' && podium.length > 0 && (
+        <div className="leaderboard-podium">
+          <span className="leaderboard-podium-label">
+            {lang === 'kk' ? 'Маусым көшбасшылары' : 'Лидеры сезона'}
+          </span>
+          <ol>
+            {podium.map((row, i) => (
+              <li key={`${row.name}-podium-${i}`}>
+                <span className={`leaderboard-medal medal-${i + 1}`}>{i + 1}</span>
+                <span className="leaderboard-name">{row.name}</span>
+                <span className="leaderboard-score">
+                  <IconStar size={12} />
+                  {scoreOf(row)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       <div className="leaderboard-panel">
         {state === 'loading' && (
@@ -98,15 +168,15 @@ export function LeaderboardScreen() {
 
         {state === 'ready' && (
           <ol className="leaderboard-list">
-            {rows.map((row, i) => {
-              const score = row.total_stars ?? row.stars ?? 0;
-              const isYou = i === youIndex;
+            {near.map((row, i) => {
+              const score = scoreOf(row);
+              const isYou = Boolean(row.isYou);
               return (
                 <li
                   key={`${row.name}-${i}`}
                   className={`leaderboard-row ${isYou ? 'is-you' : ''}`}
                 >
-                  <span className="leaderboard-rank">{i + 1}</span>
+                  <span className="leaderboard-rank">{nearStartRank + i}</span>
                   <div className="leaderboard-name-wrap">
                     <span className="leaderboard-name">{row.name}</span>
                     {isYou && (
@@ -127,10 +197,19 @@ export function LeaderboardScreen() {
       <MetaScreenFooter
         hint={
           lang === 'kk'
-            ? 'Ортақ рейтинг онлайн жүктеледі, ал сенің жетістігің осы құрылғыда сақталады.'
-            : 'Общий рейтинг загружается онлайн, а твой прогресс хранится на этом устройстве.'
+            ? 'Орның осы құрылғыдағы жұлдыздарың бойынша есептеледі.'
+            : 'Твоё место считается по звёздам с этого устройства.'
         }
       />
     </div>
   );
+}
+
+/** «1 звезду», «2 звезды», «5 звёзд» — a child notices when this is wrong. */
+function starWord(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'звезду';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'звезды';
+  return 'звёзд';
 }
