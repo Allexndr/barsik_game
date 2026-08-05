@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createBarsikAvatar, type AvatarLook, type AvatarPose, type BarsikAvatar } from './BarsikAvatar';
-import { WARDROBE_BY_ID, PAIRED_FEET, PAIRED_HANDS } from './wardrobe';
+import { dressAvatar, undressAvatar } from './dressAvatar';
 
 /**
  * The dressing-room renderer.
@@ -83,16 +83,7 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
   let worn: THREE.Object3D[] = [];
 
   function clearWorn() {
-    for (const o of worn) {
-      o.parent?.remove(o);
-      o.traverse((child) => {
-        const mesh = child as THREE.Mesh;
-        if (!mesh.isMesh) return;
-        mesh.geometry?.dispose();
-        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        for (const m of mats) m?.dispose();
-      });
-    }
+    undressAvatar(worn);
     worn = [];
   }
 
@@ -101,39 +92,7 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
 
     setOutfit(itemIds) {
       clearWorn();
-      // Colours reset to the default first, or removing a recolour would
-      // leave the previous one on: the palette is state, not a mesh.
-      avatar.setLook(baseLook);
-      for (const socket of ['head', 'face', 'neck', 'back', 'handL', 'handR', 'tail', 'footL', 'footR'] as const) {
-        avatar.equip(socket, null);
-      }
-
-      for (const id of itemIds) {
-        const item = WARDROBE_BY_ID.get(id);
-        if (!item) continue;
-        if (item.look) {
-          avatar.setLook(item.look);
-          continue;
-        }
-        if (!item.build || !item.socket) continue;
-
-        const mesh = item.build();
-        avatar.equip(item.socket, mesh);
-        worn.push(mesh);
-
-        // Footwear and mittens come in pairs; the catalogue names one socket
-        // and the other foot is mirrored here rather than duplicating every
-        // entry in the shop list.
-        if (PAIRED_FEET.has(id)) {
-          const other = item.build();
-          avatar.equip('footR', other);
-          worn.push(other);
-        } else if (PAIRED_HANDS.has(id)) {
-          const other = item.build();
-          avatar.equip('handR', other);
-          worn.push(other);
-        }
-      }
+      worn = dressAvatar(avatar, itemIds, baseLook);
     },
 
     setPose(pose) {
