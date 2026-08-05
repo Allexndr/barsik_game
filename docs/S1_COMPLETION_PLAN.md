@@ -290,7 +290,7 @@
 
 - [x] Atomic reward and per-level best.
 - [x] Versioned save schema + backward-compatible defaults.
-- [ ] Corrupt localStorage recovery.
+- [x] Corrupt localStorage recovery. `migrateProgress` validates and the catch clears the key.
 - [ ] Cloud save reconciliation rules.
 - [ ] Season complete flag.
 
@@ -306,15 +306,15 @@
 - [x] RU/KK metadata for all 9 friends.
 - [x] Friends appear at fixed places in City.
 - [x] Purchased city objects visibly change CityScene.
-- [ ] Shop confirms purchase and prevents accidental double tap.
-- [ ] Empty/complete states.
+- [x] Shop double tap cannot double-charge: `buyCityObject` is a functional `set` that no-ops on an already-owned id.
+- [x] Friends has a complete state and names the next friend; **City/Shop empty states not audited**.
 
 ### QR / leaderboard / privacy
 
 - [ ] Child-facing QR screen contains no purchase pressure.
 - [ ] Parent gate for external actions.
 - [ ] Leaderboard nickname sanitization and error/empty/loading.
-- [ ] No secret/service-role in client bundle.
+- [x] No secret/service-role in the client bundle — the only JWT shipped carries `role=anon`.
 
 ---
 
@@ -322,10 +322,10 @@
 
 - [ ] Перечень всех RU/KK строк; убрать mixed-language copy.
 - [ ] Носитель проверяет KK до release.
-- [ ] Minimum text size 18px mobile; dialogue 20px where possible.
-- [ ] Touch target ≥44×44 CSS px.
+- [x] Meta screens meet the 18px floor under 560px wide; **in-level HUD not yet audited**.
+- [x] Meta screens: buttons ≥44px under 560px. **Not audited elsewhere.**
 - [ ] Цвет не единственный сигнал.
-- [ ] `prefers-reduced-motion` для flash/confetti/camera.
+- [x] `prefers-reduced-motion` dims the full-screen photo flash and thins particle bursts.
 - [ ] Mute/volume/TTS сохраняются.
 - [ ] Subtitle remains even if TTS unavailable.
 
@@ -362,7 +362,7 @@
 - [ ] 10 consecutive scene transitions for memory leaks.
 - [x] `npm run lint`.
 - [x] `npm run type-check`.
-- [ ] `npm run build`.
+- [x] `npm run build`.
 
 ---
 
@@ -393,3 +393,52 @@ External blockers не должны мешать закончить gameplay, UI
 10. Полный release regression.
 
 Не начинать следующий уровень, пока текущий не проходит gameplay + visual + audio + adaptive + dispose + build + browser QA.
+
+---
+
+## 12. Аудит E–G — что проверено в коде (2026-08-05)
+
+Проверялось чтением кода и сборки, а не по галочкам выше. Разделы A–D в этот
+проход не пересматривались.
+
+### Закрыто и подтверждено
+
+| Пункт | Чем подтверждено |
+|---|---|
+| Corrupt localStorage recovery | `migrateProgress` валидирует форму, `catch` удаляет ключ |
+| Double-tap в магазине | `buyCityObject` — функциональный `set`, no-op на купленном id |
+| Нет service-role в бандле | единственный JWT в `dist` — `role=anon` |
+| reduced-motion для вспышки | пик 0.28 вместо 1.0, частиц ~⅓ |
+| 18px / 44px на мета-экранах | media-блок в `meta-screen.css` |
+| `npm run build` | зелёная |
+
+### Открыто, с измерением
+
+| Пункт | Что именно |
+|---|---|
+| **Нет записи в рейтинг** | `leaderboard.ts` только читает. Игрок не может попасть в таблицу; место считается локально. Нужна серверная функция с валидацией — клиентский insert только усугубит |
+| **Невозможный счёт в таблице** | 1486 звёзд при потолке сезона ~322 наградных. Следствие того же: таблица пишется без аутентификации |
+| **`dist/` в git** | 1201 файл. Каждая сборка мусорит в diff. Не трогал: Vercel может отдавать закоммиченный `dist`, это решение по деплою |
+| Cloud save reconciliation | не реализовано |
+| Карта: контраст состояний, портретные полосы | не проверялось |
+| KK-вычитка носителем | не делалась |
+| HUD внутри уровней: размеры текста и тач-таргеты | не проверялись |
+| FPS-бюджеты, время до первого уровня | не замерялись |
+| Финальная матрица прохождения | не проходилась |
+
+### Отдельно: длительность уровней
+
+Планка «5 минут» не достигнута ни одним уровнем. Минимальные маршруты
+(идеальный проход игрока, который знает карту):
+
+| Уровень | Маршрут | Чистая ходьба |
+|---|---|---|
+| L8 Лесной праздник | 216 м | ~68 с |
+| L10 Прощание | 153 м | ~48 с |
+| L6 Лесная загадка | 143 м | ~45 с |
+| L9 Сундук | 111 м | ~35 с |
+| L3 Ёжик | 80 м | ~25 с |
+| L7 Путало | 71 м | ~40 с (шаг замедлен) |
+
+С блужданием, диалогами и таймерами это примерно 1.5–4 минуты. До пяти нужны
+дополнительные beat'ы, а не большая карта.
