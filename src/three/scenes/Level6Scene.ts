@@ -2,15 +2,10 @@ import * as THREE from 'three';
 import {
   BaseLevelScene,
   type BaseHud,
-  mountain,
-  zoneDisc,
   spawnPad,
   butterfly,
   bush,
   tulip,
-  hill,
-  skyDome,
-  pathArrow,
   placeWoodSign,
   loadPropModel,
 } from './BaseLevelScene';
@@ -23,6 +18,31 @@ import { placeAmbientCritters } from '../s1Place';
  * Choice mechanic. Three magic trees, a talking stump asks riddles.
  * Walk to the correct tree and press E. Wrong = gentle shake, right = bloom + star.
  */
+
+// ── Layout ──────────────────────────────────────────────────────
+// The three magic trees stood five metres apart in one clearing, with their
+// three clues around them, inside a 28×26 box. Every answer was within a
+// couple of steps of every other, so a riddle could be brute-forced faster
+// than it could be read — and the whole level was one screen.
+//
+// The trees are landmarks in a wide triangle now. Each clue lies at the foot
+// of the tree it describes, so touring the clues is what teaches the answers,
+// and answering wrongly costs a real walk instead of a shrug.
+const SPAWN_Z = 14;
+/** The stump asks from the middle, in sight of all three. */
+const STUMP = { x: 0, z: 2 };
+// Tall enough to clear the scattered canopy, which tops out around ten metres
+// — a riddle about which tree is tallest cannot be answered from behind other
+// trees that are taller than all three.
+const TREES: Array<{ x: number; z: number; color: number; label: string; height: number; bird: boolean }> = [
+  { x: -13, z: -7, color: 0xe74c3c, label: 'Красное', height: 8.5, bird: false },
+  { x: 13, z: -10, color: 0xf1c40f, label: 'Жёлтое', height: 7.2, bird: true },
+  { x: -1, z: -22, color: 0x27ae60, label: 'Зелёное', height: 11.5, bird: false },
+];
+
+function routeX(z: number) {
+  return Math.sin((z - SPAWN_Z) * 0.06) * 2.6;
+}
 
 export type L7Phase = 'intro' | 'seek' | 'riddle1' | 'riddle2' | 'riddle3' | 'outro';
 
@@ -53,19 +73,29 @@ interface MagicTree {
 function makeMagicTree(x: number, z: number, color: number, label: string, height: number, hasBird: boolean, birdTailColor: number): MagicTree {
   const g = new THREE.Group();
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
-  const canopyMat = new THREE.MeshStandardMaterial({ color: 0x2d6a4f, roughness: 0.9, flatShading: true });
+  // The canopy carries the tree's own colour. Every magic tree used to be the
+  // same dark green, with the colour only in a ring on the ground and five
+  // 12 cm fruits — so "walk to the red tree" was unanswerable by looking, and
+  // the riddles came down to trying all three.
+  const tint = new THREE.Color(0x2d6a4f).lerp(new THREE.Color(color), 0.62);
+  const canopyMat = new THREE.MeshStandardMaterial({ color: tint, roughness: 0.9, flatShading: true });
 
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.55, height * 0.6, 8), trunkMat);
   trunk.position.y = height * 0.3;
   trunk.castShadow = true;
 
-  const canopy = new THREE.Mesh(new THREE.SphereGeometry(height * 0.4, 12, 10), canopyMat);
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(height * 0.4, 14, 12), canopyMat);
   canopy.position.y = height * 0.7;
   canopy.castShadow = true;
+  // A second, smaller lobe: three identical spheres on sticks read as one
+  // repeated prop, and these three are supposed to be told apart at a glance.
+  const crown = new THREE.Mesh(new THREE.SphereGeometry(height * 0.27, 12, 10), canopyMat);
+  crown.position.set(height * 0.1, height * 0.95, -height * 0.05);
+  crown.castShadow = true;
 
   // Aura ring
   const aura = new THREE.Mesh(
-    new THREE.RingGeometry(1.8, 2.2, 32),
+    new THREE.RingGeometry(height * 0.22, height * 0.28, 32),
     new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, side: THREE.DoubleSide }),
   );
   aura.rotation.x = -Math.PI / 2;
@@ -75,7 +105,7 @@ function makeMagicTree(x: number, z: number, color: number, label: string, heigh
   const fruits: THREE.Mesh[] = [];
   const fruitMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.2, roughness: 0.6 });
   for (let i = 0; i < 5; i++) {
-    const f = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), fruitMat.clone());
+    const f = new THREE.Mesh(new THREE.SphereGeometry(height * 0.045, 8, 8), fruitMat.clone());
     const angle = (i / 5) * Math.PI * 2;
     const r = height * 0.35;
     f.position.set(Math.cos(angle) * r, height * 0.65 + Math.sin(angle * 2) * 0.2, Math.sin(angle) * r);
@@ -84,7 +114,7 @@ function makeMagicTree(x: number, z: number, color: number, label: string, heigh
     canopy.add(f);
   }
 
-  g.add(trunk, canopy, aura);
+  g.add(trunk, canopy, crown, aura);
   g.position.set(x, 0, z);
 
   // Bird
@@ -267,41 +297,56 @@ export class Level6Scene extends BaseLevelScene {
     this.onHud = onHud;
     const loader = createGameGltfLoader();
 
-    this.camera.position.set(0, 7, 14);
-    await this.setupForestEnvironment(loader, { flatRadius: 20, flatCenterZ: -16 });
-    this.scene.add(skyDome());
-    this.setupClouds(6, 26, 50);
+    this.camera.position.set(10, 8, 20);
+    this.pathCorridor = routeX;
+    this.pathCorridorHalf = 2.2;
+    await this.setupForestEnvironment(loader, {
+      flatRadius: 10, flatCenterZ: -6,
+      terrain: {
+        playHalfExtent: 52, rimFalloff: 15, rimHeight: 3.2, seed: 6,
+        features: [
+          { kind: 'flat', x: 0, z: SPAWN_Z - 4, r: 8 },
+          { kind: 'flat', x: STUMP.x, z: STUMP.z, r: 7 },
+          ...TREES.map((t) => ({ kind: 'flat' as const, x: t.x, z: t.z, r: 5 })),
+        ],
+      },
+    });
 
-    // Hills
-    this.scene.add(hill(-22, -15, 10, 1.2));
-    this.scene.add(hill(24, -25, 12, 1.4));
-
-    // Mountains
-    for (const [x, z, h, w] of [
-      [-40, -60, 20, 14],
-      [0, -70, 26, 18],
-      [38, -55, 22, 15],
-    ] as const) {
-      this.scene.add(mountain(x, z, h, w));
+    this.reserve(0, SPAWN_Z, 5);
+    this.reserve(STUMP.x, STUMP.z, 6);
+    for (const t of TREES) {
+      this.reserve(t.x, t.z, 6);
+      // Keep the line from the stump to each tree clear. Spreading the trees
+      // out is worthless if the forest closes behind them: from the stump the
+      // player could see nothing but ordinary trees, and a riddle you cannot
+      // look at the answer to is a guess.
+      const steps = Math.ceil(Math.hypot(t.x - STUMP.x, t.z - STUMP.z) / 4);
+      for (let i = 1; i < steps; i++) {
+        const k = i / steps;
+        this.reserve(STUMP.x + (t.x - STUMP.x) * k, STUMP.z + (t.z - STUMP.z) * k, 3.6);
+      }
     }
 
-    // Zone discs
-    this.scene.add(zoneDisc(0, 6, 5, 0x66bb6a, 0.025)); // start
-    this.scene.add(zoneDisc(0, -6, 7, 0xffd700, 0.03)); // riddle area
-
-    // Spawn pad
-    this.scene.add(spawnPad(0, 6));
-
-    // Sign
-    this.scene.add(await placeWoodSign(loader, -2.5, 4, 0.3, 0xffd700));
+    const pad = spawnPad(0, SPAWN_Z);
+    pad.position.y = this.groundHeightAt(0, SPAWN_Z) + 0.01;
+    this.scene.add(pad);
+    this.scene.add(await placeWoodSign(loader, -2.8, SPAWN_Z - 2, 0.3, 0xffd700));
+    await this.layTrail(
+      loader,
+      Array.from({ length: 14 }, (_, i) => {
+        const z = SPAWN_Z - (i / 13) * (SPAWN_Z - STUMP.z);
+        return { x: routeX(z), z };
+      }),
+      { size: 1.2 },
+    );
 
     // Talking stump — moss Discover stump → Meshy stump → procedural
     const stumpGlb =
       (await loadPropModel(loader, 's1_stump_moss.glb', { height: 1.15 })) ??
       (await loadPropModel(loader, 'stump.glb', { height: 1.15 }));
     if (stumpGlb) {
-      stumpGlb.position.set(0, 0, 2);
-      groundY(stumpGlb);
+      stumpGlb.position.set(STUMP.x, 0, STUMP.z);
+      groundY(stumpGlb, this.groundHeightAt(STUMP.x, STUMP.z));
       const glow = new THREE.Mesh(
         new THREE.RingGeometry(1.0, 1.4, 24),
         new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.4, side: THREE.DoubleSide }),
@@ -313,33 +358,29 @@ export class Level6Scene extends BaseLevelScene {
       stumpGlb.userData.eyes = [];
       this.stump = stumpGlb;
     } else {
-      this.stump = makeTalkingStump(0, 2);
+      this.stump = makeTalkingStump(STUMP.x, STUMP.z);
     }
     this.scene.add(this.stump);
-    this.colliders.push({ kind: 'circle', x: 0, z: 2, r: 1.0 });
+    this.colliders.push({ kind: 'circle', x: STUMP.x, z: STUMP.z, r: 1.0 });
 
-    // Three magic trees
-    const treeConfigs: [number, number, number, string, number, boolean, number][] = [
-      [-5, -6, 0xe74c3c, 'Красное', 3.5, false, 0],
-      [0, -8, 0xf1c40f, 'Жёлтое', 3.0, true, 0xf1c40f],
-      [5, -6, 0x27ae60, 'Зелёное', 4.2, false, 0],
-    ];
-
-    for (let i = 0; i < treeConfigs.length; i++) {
-      const [x, z, color, label, height, hasBird, birdTail] = treeConfigs[i];
-      const tree = makeMagicTree(x, z, color, label, height, hasBird, birdTail);
+    // Three magic trees, tall enough to be read against the sky from the other
+    // side of the map — they are the navigation, so they have to be landmarks.
+    for (const [i, spec] of TREES.entries()) {
+      const tree = makeMagicTree(spec.x, spec.z, spec.color, spec.label, spec.height, spec.bird, spec.bird ? 0xf1c40f : 0);
       tree.index = i;
+      tree.group.position.y = this.groundHeightAt(spec.x, spec.z);
       this.trees.push(tree);
       this.scene.add(tree.group);
-      this.colliders.push({ kind: 'circle', x, z, r: 1.5 });
+      this.colliders.push({ kind: 'circle', x: spec.x, z: spec.z, r: 1.5 });
     }
 
-    // Clue trail — observe the grove before answering (adds explore beat)
-    const clueSpecs: Array<{ x: number; z: number; color: number; label: string }> = [
-      { x: -8, z: 2, color: 0xe74c3c, label: 'apple' },
-      { x: 8, z: -1, color: 0xf1c40f, label: 'feather' },
-      { x: 0, z: -12, color: 0x27ae60, label: 'leaf' },
-    ];
+    // A clue at the foot of each tree. Collecting them is the tour that
+    // teaches the answers: you cannot know which tree has the yellow-tailed
+    // bird without having stood under it.
+    const clueSpecs = TREES.map((t) => {
+      const toward = new THREE.Vector3(STUMP.x - t.x, 0, STUMP.z - t.z).normalize().multiplyScalar(2.6);
+      return { x: t.x + toward.x, z: t.z + toward.z, color: t.color };
+    });
     for (const c of clueSpecs) {
       const g = new THREE.Group();
       const gem = new THREE.Mesh(
@@ -354,58 +395,54 @@ export class Level6Scene extends BaseLevelScene {
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.04;
       g.add(gem, ring);
-      g.position.set(c.x, 0, c.z);
+      g.position.set(c.x, this.groundHeightAt(c.x, c.z), c.z);
       g.userData.isClue = true;
       g.userData.done = false;
       g.userData.bob = Math.random() * Math.PI * 2;
       this.clues.push(g);
       this.scene.add(g);
-      this.scene.add(zoneDisc(c.x, c.z, 2.2, c.color, 0.02));
-    }
-
-    // Path arrows
-    for (let i = 0; i < 5; i++) {
-      const a = pathArrow(0, 5 - i * 1.5, 0);
-      this.pathArrows.push(a);
-      this.scene.add(a);
     }
 
     // Decorative bushes and tulips
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 26; i++) {
       const side = i % 2 === 0 ? 1 : -1;
-      const z = 4 - (i / 15) * 14;
-      this.scene.add(bush(side * (6 + Math.random() * 3), z));
+      const z = SPAWN_Z - (i / 26) * 44;
+      this.scene.add(bush(routeX(z) + side * (5 + Math.random() * 5), z));
     }
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 14; i++) {
       const side = i % 2 === 0 ? 1 : -1;
-      const z = 4 - (i / 12) * 14;
-      this.scene.add(tulip(side * 4, z, [0xe74c3c, 0xf1c40f, 0xfd79a8, 0xa29bfe][i % 4]));
+      const z = SPAWN_Z - (i / 14) * 32;
+      this.scene.add(tulip(routeX(z) + side * 4, z, [0xe74c3c, 0xf1c40f, 0xfd79a8, 0xa29bfe][i % 4]));
     }
 
     // Butterflies
-    for (let i = 0; i < 5; i++) {
-      const bf = butterfly((Math.random() - 0.5) * 14, -4 - Math.random() * 8, [0xff7675, 0x74b9ff, 0xfdcb6e][i % 3]);
+    for (let i = 0; i < 8; i++) {
+      const bf = butterfly((Math.random() - 0.5) * 30, 4 - Math.random() * 34, [0xff7675, 0x74b9ff, 0xfdcb6e][i % 3]);
       this.butterflies.push(bf);
       this.scene.add(bf);
     }
 
     // Trees around
-    await this.loadTrees(loader, 20, 20, -16, 4.0);
-    await this.loadProps(loader, 6, 5, 20, -18);
+    await this.loadTrees(loader, 30, 30, -14, 4.6);
+    await this.loadProps(loader, 12, 7, 30, -12);
 
     await this.placeProps(loader, [
-      { key: 'mushroom', opts: { x: -3.2, z: 1.2, maxSize: 0.5 } },
-      { key: 'mushroom', opts: { x: 3.5, z: 0.8, maxSize: 0.4, rotY: 0.8 } },
-      { key: 'berry', opts: { x: -6.5, z: -3, maxSize: 0.35 } },
-      { key: 'pinecone', opts: { x: 6.2, z: -4, maxSize: 0.3 } },
+      { key: 'mushroom', opts: { x: -3.2, z: STUMP.z - 1, maxSize: 0.5 } },
+      { key: 'mushroom', opts: { x: 3.5, z: STUMP.z - 1.4, maxSize: 0.4, rotY: 0.8 } },
+      { key: 'berry', opts: { x: TREES[0].x + 3, z: TREES[0].z + 2, maxSize: 0.35 } },
+      { key: 'pinecone', opts: { x: TREES[1].x - 2.6, z: TREES[1].z + 2, maxSize: 0.3 } },
+      { key: 'stump', opts: { x: TREES[2].x + 3.4, z: TREES[2].z + 2.4, maxSize: 1.1 } },
+      { key: 'flowers', opts: { x: -7, z: -18, maxSize: 0.7 } },
     ]);
     await placeAmbientCritters(this.scene, loader, [
-      { key: 'frog', x: 1.8, z: 3.2, rotY: -2.2, h: 0.42 },
-      { key: 'owl', x: -8, z: -2, rotY: 0.9, h: 0.7 },
+      { key: 'frog', x: 1.8, z: SPAWN_Z - 3, rotY: -2.2, h: 0.42 },
+      { key: 'owl', x: TREES[0].x - 3, z: TREES[0].z - 2, rotY: 0.9, h: 0.7 },
+      { key: 'rabbit', x: TREES[2].x + 4, z: TREES[2].z + 4, rotY: 2.1, h: 0.5 },
     ]);
 
     // Hero
-    this.hero.position.set(0, 0, 6);
+    const start = this.devStart() ?? { x: 0, z: SPAWN_Z };
+    this.hero.position.set(start.x, this.groundHeightAt(start.x, start.z), start.z);
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
     this.activate(() => {
@@ -503,11 +540,9 @@ export class Level6Scene extends BaseLevelScene {
       const next = this.clues.find((c) => !c.userData.done);
       return next?.position.clone() ?? this.stump?.position.clone() ?? null;
     }
-    if (this.phase.startsWith('riddle')) {
-      const riddle = this.riddles[this.riddleIndex];
-      const tree = this.trees[riddle?.correct ?? 0];
-      return tree?.group.position.clone() ?? this.stump?.position.clone() ?? null;
-    }
+    // Deliberately nothing during a riddle. The arrow used to point straight
+    // at the correct tree, which answered the riddle before it was read — the
+    // thinking is the level, and an arrow to the answer deletes it.
     return null;
   }
 
@@ -538,13 +573,14 @@ export class Level6Scene extends BaseLevelScene {
     }
 
     const canMove = !['intro', 'outro'].includes(this.phase);
-    this.updateMovement(dt, canMove, this.baseSpeed, -14, 14, -16, 10);
+    this.updateMovement(dt, canMove, this.baseSpeed, -26, 26, -40, SPAWN_Z + 3);
 
     for (const c of this.clues) {
       if (c.userData.done) continue;
       const gem = c.children[0];
-      if (gem) gem.position.y = 0.55 + Math.sin(now * 0.005 + (c.userData.bob as number)) * 0.12;
-      gem?.rotation && (gem.rotation.y += dt * 1.4);
+      if (!gem) continue;
+      gem.position.y = 0.55 + Math.sin(now * 0.005 + (c.userData.bob as number)) * 0.12;
+      gem.rotation.y += dt * 1.4;
     }
 
     // Tree animations
