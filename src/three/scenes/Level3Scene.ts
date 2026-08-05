@@ -735,11 +735,22 @@ export class Level3Scene extends BaseLevelScene {
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
       this.camera.lookAt(introLook[idx]);
     } else {
-      const back = 9.0;
-      const height = 5.5;
-      const target = new THREE.Vector3(this.hero.position.x * 0.5, height, this.hero.position.z + back);
+      // Portrait and phone-landscape need a flatter, further-back camera:
+      // the desktop pitch puts the lower third of a tall frame into the
+      // ground right in front of the hero. cameraFraming() already existed
+      // and seven levels used it; this one did not.
+      const f = this.cameraFraming();
+      const target = new THREE.Vector3(
+        this.hero.position.x * 0.5 + f.lateral,
+        5.5 * f.heightMul,
+        this.hero.position.z + 9 + f.backAdd,
+      );
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
-      this.camera.lookAt(this.hero.position.x, 1.3, this.hero.position.z - 0.5);
+      this.camera.lookAt(
+        this.hero.position.x,
+        1.3 + f.lookUp,
+        this.hero.position.z - 0.5 - f.lookAhead,
+      );
     }
 
     this.renderFrame();

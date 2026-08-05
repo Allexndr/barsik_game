@@ -968,9 +968,22 @@ export class Level8Scene extends BaseLevelScene {
         dt,
       );
     } else {
+      // Portrait and phone-landscape need a flatter, further-back camera: the
+      // desktop pitch puts the lower third of a tall frame into the ground
+      // right in front of the hero. cameraFraming() already existed and seven
+      // levels used it; this one did not.
+      const f = this.cameraFraming();
       this.updateCamera(
-        new THREE.Vector3(this.hero.position.x * 0.35, this.hero.position.y + 5.4, this.hero.position.z + 9.5),
-        new THREE.Vector3(this.hero.position.x * 0.2, this.hero.position.y + 1.2, this.hero.position.z - 3),
+        new THREE.Vector3(
+          this.hero.position.x * 0.35 + f.lateral,
+          this.hero.position.y + 5.4 * f.heightMul,
+          this.hero.position.z + 9.5 + f.backAdd,
+        ),
+        new THREE.Vector3(
+          this.hero.position.x * 0.2,
+          this.hero.position.y + 1.2 + f.lookUp,
+          this.hero.position.z - 3 - f.lookAhead,
+        ),
         0.0015,
         dt,
       );

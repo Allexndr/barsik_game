@@ -712,3 +712,42 @@
     font-size: 0.78rem;
   }
 }
+
+/*
+ * Portrait phone: hit sizes and reading sizes.
+ *
+ * Measured at 375×812 before this block: pause 36×36, the three dialogue
+ * buttons 34×34, skip 40px tall, objective text 14px, pause and skip labels
+ * 13px. The accessibility floor is 44×44 and the plan sets 18px for body text.
+ *
+ * Scoped to portrait on purpose. The landscape rules above shrink the same
+ * elements deliberately, because a 380px-tall viewport has no room to spare —
+ * that trade-off is correct there and would be undone by a width-only query.
+ */
+@media (max-width: 560px) and (orientation: portrait) {
+  .m0-pause-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 0.95rem;
+  }
+
+  .m0-dialogue-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .m0-skip {
+    min-height: 44px;
+    font-size: 0.95rem;
+  }
+
+  .m0-objective {
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+
+  .m0-line {
+    font-size: 1.15rem;
+    line-height: 1.4;
+  }
+}
