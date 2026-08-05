@@ -125,3 +125,41 @@
   box-shadow: 0 8px 20px rgba(45, 27, 78, 0.25);
   animation: pop 0.35s ease-out;
 }
+
+/* ── Dressing room ─────────────────────────────────────────── */
+.shop-dressing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.shop-preview {
+  position: relative;
+  height: clamp(220px, 34vh, 320px);
+  border-radius: 20px;
+  background: linear-gradient(180deg, #eaf6ff 0%, #f7fbff 60%, #eef7f0 100%);
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.shop-preview-canvas { width: 100%; height: 100%; display: block; }
+.shop-preview-hint {
+  position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
+  font-size: 12px; color: #6b7a8c; background: rgba(255,255,255,0.75);
+  padding: 3px 10px; border-radius: 999px; pointer-events: none;
+}
+.shop-actions { display: flex; align-items: center; gap: 12px; }
+.shop-owned-count { font-size: 13px; color: #7a8a9a; margin-left: auto; }
+.shop-card { position: relative; cursor: pointer; text-align: left; }
+.shop-card.is-worn { outline: 3px solid #3dcc6e; outline-offset: -3px; }
+.shop-card-badge {
+  position: absolute; top: 6px; right: 6px;
+  font-size: 10px; text-transform: lowercase;
+  background: #3dcc6e; color: #fff; padding: 2px 7px; border-radius: 999px;
+}
+.shop-card.rarity-rare { box-shadow: inset 0 0 0 2px #74b9ff33; }
+.shop-card.rarity-epic { box-shadow: inset 0 0 0 2px #a29bfe55; }
+@media (min-width: 720px) {
+  .shop-dressing { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+  .shop-actions { flex-direction: column; align-items: stretch; }
+  .shop-owned-count { margin-left: 0; text-align: center; }
+}

@@ -11,7 +11,14 @@ export interface GameState {
   unlockedLevels: number[];
   currentLevel: number;
   levelStars: Record<number, number>;
+  /**
+   * Everything the player owns, keyed by id. Named for the city decorations
+   * it started as; wardrobe items share it rather than opening a second
+   * inventory that would need its own save migration.
+   */
   cityObjects: Record<string, boolean>;
+  /** Wardrobe item ids currently worn, in the order they were put on. */
+  outfit: string[];
   stars: number;
   /** True after winter finale (level 16) is completed at least once. */
   season1Complete: boolean;
@@ -22,6 +29,7 @@ export interface GameState {
   addFriend: (friend: Friend) => void;
   completeLevel: (levelId: number, reward: { stars: number; friendId?: string }) => void;
   buyCityObject: (objectId: string, cost: number) => void;
+  setOutfit: (itemIds: string[]) => void;
   addStars: (amount: number) => void;
 }
 
@@ -40,6 +48,7 @@ export const useGameStore = create<GameState>((set) => ({
   currentLevel: 0,
   levelStars: {},
   cityObjects: {},
+  outfit: ['cap_green', 'glasses_yellow'],
   stars: 0,
   season1Complete: false,
 
@@ -79,6 +88,7 @@ export const useGameStore = create<GameState>((set) => ({
         levelStars: state.levelStars,
         stars: state.stars,
         cityObjects: state.cityObjects,
+        outfit: state.outfit,
         season1Complete: state.season1Complete,
       });
       return { friends };
@@ -120,6 +130,7 @@ export const useGameStore = create<GameState>((set) => ({
       persistProgress({
         ...next,
         cityObjects: state.cityObjects,
+        outfit: state.outfit,
       });
       return next;
     }),
@@ -136,9 +147,25 @@ export const useGameStore = create<GameState>((set) => ({
         levelStars: state.levelStars,
         stars,
         cityObjects,
+        outfit: state.outfit,
         season1Complete: state.season1Complete,
       });
       return { cityObjects, stars };
+    }),
+
+  setOutfit: (itemIds: string[]) =>
+    set((state: GameState) => {
+      persistProgress({
+        friends: state.friends,
+        unlockedLevels: state.unlockedLevels,
+        currentLevel: state.currentLevel,
+        levelStars: state.levelStars,
+        stars: state.stars,
+        cityObjects: state.cityObjects,
+        outfit: itemIds,
+        season1Complete: state.season1Complete,
+      });
+      return { outfit: itemIds };
     }),
 
   addStars: (amount: number) =>
@@ -164,6 +191,7 @@ function persistProgress(data: {
   levelStars: Record<number, number>;
   stars: number;
   cityObjects: Record<string, boolean>;
+  outfit?: string[];
   season1Complete?: boolean;
 }) {
   try {
