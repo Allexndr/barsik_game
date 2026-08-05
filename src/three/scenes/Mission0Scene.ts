@@ -987,10 +987,10 @@ export class Mission0Scene extends BaseLevelScene {
 
   constructor(canvas: HTMLCanvasElement) {
     super(canvas);
-    // Must match introPos[0] in the loop. Starting on the -X side put the
-    // camera 11 units from the house at (-9, 12), so the opening seconds —
-    // before the dolly lerps anywhere — were a screenful of roof.
-    this.camera.position.set(11, 9.5, 25);
+    // Must match introPos[0] in the loop, or the first seconds are a lerp
+    // from nowhere. The opening frame is deliberately tight on the hero: the
+    // valley reveal that follows only lands if the shot before it was close.
+    this.camera.position.set(3.4, 2.9, 16.6);
 
     // Warm morning fog + sky (matches golden-hour sky dome). Fog starts well
     // inside the valley so distance separates; at near=48 nothing in the
@@ -2202,16 +2202,25 @@ export class Mission0Scene extends BaseLevelScene {
       // frame of the whole game was half roof. The approach now comes from
       // the open side, so the house reads as a landmark on the left, the yard
       // and the trail stay visible, and Barsik is never occluded.
+      // A reveal, not an approach.
+      //
+      // The three shots used to dolly *in* from far away, which is the least
+      // interesting thing an opening can do: the player watches a slow
+      // approach to a house they cannot see properly yet. It runs the other
+      // way now — tight and low on Barsik so the first thing on screen is who
+      // you are, then a wide, high pull-back over the whole valley so the
+      // second thing is where you are, then a settle into the gameplay
+      // framing so the third thing is that it is your turn.
       const idx = Math.min(this.introI, 2);
       const introPos = [
-        new THREE.Vector3(11, 9.5, 25),
-        new THREE.Vector3(6, 7.5, 19),
-        new THREE.Vector3(1.5, 6.4, 14.5),
+        new THREE.Vector3(3.4, 2.9, 16.6),
+        new THREE.Vector3(15, 13.5, 29),
+        new THREE.Vector3(1.5, 6.4, 20),
       ];
       const introLook = [
-        new THREE.Vector3(-3.5, 2.4, 11),
-        new THREE.Vector3(-1.5, 2.0, 9.5),
-        new THREE.Vector3(0, 1.5, 7.5),
+        new THREE.Vector3(-0.2, 2.35, 11.4),
+        new THREE.Vector3(-3, 2.2, 4),
+        new THREE.Vector3(0, 1.5, 9),
       ];
       // Portrait crops the sides, so pull back to keep roughly the desktop
       // framing. It also sits the camera lower and aims it further out: at
@@ -2225,7 +2234,11 @@ export class Mission0Scene extends BaseLevelScene {
       const target = introPos[idx].clone().multiplyScalar(pullback);
       if (this.portrait) target.y *= 0.82;
       else if (landscapePhone) target.y *= 0.72;
-      this.camera.position.lerp(target, 1 - Math.pow(0.02, dt));
+      // The pull-back is deliberately the slowest move of the three. A reveal
+      // that snaps is not a reveal; the wide shot has to be felt for a beat
+      // before the settle takes it away again.
+      const ease = idx === 1 ? 0.55 : idx === 2 ? 0.12 : 0.02;
+      this.camera.position.lerp(target, 1 - Math.pow(ease, dt));
       const look = introLook[idx].clone();
       if (this.portrait) look.y += 1.4;
       else if (landscapePhone) look.y += 1.1;
