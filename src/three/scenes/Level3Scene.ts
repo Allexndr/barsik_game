@@ -386,11 +386,16 @@ export class Level3Scene extends BaseLevelScene {
     this.colliders.push({ kind: 'circle', x: -11, z: -8, r: 1.6 });
 
     // 3 search sectors
+    // Spread to the corners of the map the level already has. They used to sit
+    // inside a 16×32 slice of a 50×43 clamp — fifty-one metres of trail on a
+    // board with room for eighty — so the "search" barely left the path.
     const sectorData = [
-      { x: -8, z: -18, hasHedgehog: false, label: 'bushes' },
-      { x: 8, z: -20, hasHedgehog: false, label: 'rocks' },
-      { x: 0, z: -28, hasHedgehog: true, label: 'log' },
+      { x: -17, z: -10, hasHedgehog: false, label: 'bushes' },
+      { x: 16, z: -19, hasHedgehog: false, label: 'rocks' },
+      { x: -4, z: -31, hasHedgehog: true, label: 'log' },
     ];
+    // Reserved so the scatter cannot bury a sector the player is sent to find.
+    for (const sd of sectorData) this.reserve(sd.x, sd.z, 4.5);
 
     for (const sd of sectorData) {
       const group = new THREE.Group();
