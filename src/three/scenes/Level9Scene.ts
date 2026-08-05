@@ -2,15 +2,11 @@ import * as THREE from 'three';
 import {
   BaseLevelScene,
   type BaseHud,
-  mountain,
-  zoneDisc,
   spawnPad,
   questMarker,
   butterfly,
   bush,
   tulip,
-  hill,
-  skyDome,
   pathArrow,
   placeWoodSign,
   loadCharModel,
@@ -27,6 +23,27 @@ import { CAST_PROP_GLB, KEY_ACORN, readFlag, writeFlag } from '../castModels';
  * Puzzle/reward mechanic. Use the acorn key (from Level 5) to open the chest.
  * Inside: stars, rare friend "Ягодка", and map to Chapter 2.
  */
+
+// ── Layout ──────────────────────────────────────────────────────
+// The chest is the payoff of the whole Fruit Forest world, and it used to sit
+// eight metres from the spawn pad with all three seals inside a 24×20 box —
+// 480 m², the smallest level in the season, against a median of about 2500.
+// Everything was visible from the start, so the climax of world one was over
+// in well under a minute.
+const SPAWN_Z = 8;
+/** Chest clearing, at the deep end of a forty-metre walk. */
+const CHEST_Z = -34;
+/** Each seal has a guardian, and each guardian lives somewhere different. */
+const SHRINES: Array<{ x: number; z: number; guard: 'owl' | 'fox' | 'deer'; rotY: number }> = [
+  { x: -17, z: -6, guard: 'fox', rotY: 1.1 },
+  { x: 18, z: -19, guard: 'owl', rotY: -0.9 },
+  { x: -9, z: -45, guard: 'deer', rotY: 0.3 },
+];
+
+/** Centre line of the walk from the forest edge to the chest clearing. */
+function routeX(z: number) {
+  return Math.sin((z - SPAWN_Z) * 0.07) * 3.6;
+}
 
 export type L10Phase = 'intro' | 'seals' | 'approach' | 'unlock' | 'open' | 'outro';
 
@@ -117,6 +134,8 @@ export class Level9Scene extends BaseLevelScene {
   private seals: THREE.Object3D[] = [];
   private sealsDone = 0;
   private readonly sealsTotal = 3;
+  /** Rest height of the floating key, so its bob rides the terrain. */
+  private keyBaseY = 2.5;
 
   protected currentPhase() { return this.phase; }
 
@@ -130,6 +149,8 @@ export class Level9Scene extends BaseLevelScene {
       if (!t?.userData.isSeal || t.userData.done) return;
       t.userData.done = true;
       t.visible = false;
+      const beacon = t.userData.beacon as THREE.Object3D | undefined;
+      if (beacon) beacon.visible = false;
       this.sealsDone += 1;
       this.stars += 3;
       this.spawnSparks(t.position, 12, [0xffd700, 0x00cec9]);
@@ -173,39 +194,53 @@ export class Level9Scene extends BaseLevelScene {
 
     const loader = createGameGltfLoader();
 
-    this.camera.position.set(0, 6, 14);
-    await this.setupForestEnvironment(loader, { flatRadius: 19, flatCenterZ: -12 });
-    this.scene.add(skyDome());
-    this.setupClouds(5, 26, 50);
+    this.camera.position.set(9, 8, 17);
+    this.pathCorridor = routeX;
+    this.pathCorridorHalf = 2.2;
+    await this.setupForestEnvironment(loader, {
+      flatRadius: 11,
+      flatCenterZ: CHEST_Z,
+      terrain: {
+        playHalfExtent: 58,
+        rimFalloff: 16,
+        rimHeight: 3.4,
+        seed: 9,
+        features: [
+          { kind: 'flat', x: 0, z: CHEST_Z, r: 11 },
+          { kind: 'flat', x: 0, z: SPAWN_Z - 3, r: 8 },
+        ],
+      },
+    });
 
-    this.scene.add(hill(-22, -15, 10, 1.2));
-    this.scene.add(hill(24, -25, 12, 1.4));
+    // Reserve the gameplay before anything is scattered over it.
+    this.reserve(0, CHEST_Z, 9);
+    this.reserve(0, SPAWN_Z, 5);
+    for (const sh of SHRINES) this.reserve(sh.x, sh.z, 4);
 
-    for (const [x, z, h, w] of [
-      [-40, -60, 20, 14],
-      [0, -70, 26, 18],
-      [38, -55, 22, 15],
-    ] as const) {
-      this.scene.add(mountain(x, z, h, w));
-    }
-
-    // Zone disc
-    this.scene.add(zoneDisc(0, 4, 5, 0xffd700, 0.03));
-    this.scene.add(zoneDisc(0, -4, 4, 0xffd700, 0.04));
-    this.scene.add(spawnPad(0, 4));
-    this.scene.add(await placeWoodSign(loader, -2.5, 2, 0.3, 0xffd700));
+    const pad = spawnPad(0, SPAWN_Z);
+    pad.position.y = this.groundHeightAt(0, SPAWN_Z) + 0.01;
+    this.scene.add(pad);
+    this.scene.add(await placeWoodSign(loader, -2.8, SPAWN_Z - 1.6, 0.3, 0xffd700));
+    await this.layTrail(
+      loader,
+      Array.from({ length: 24 }, (_, i) => {
+        const z = SPAWN_Z - (i / 23) * (SPAWN_Z - CHEST_Z + 2);
+        return { x: routeX(z), z };
+      }),
+      { size: 1.3 },
+    );
 
     // Chest — Meshy Discover treasure_chest → Kenney kit → procedural.
     // Lid animation stays procedural: GLB chests are single meshes, so we
     // keep a thin gold lid overlay for the open sequence.
-    this.chest = makeChest(0, -4);
+    this.chest = makeChest(0, CHEST_Z);
     const kit = this.assetKit(loader);
     const meshyChest = await loadPropModel(loader, 'treasure_chest.glb', { maxSize: 1.6 });
     const kitChest = meshyChest
       ? null
       : await kit.spawn('platformer', 'chest', {
           maxSize: 1.6,
-          position: [0, 0, -4],
+          position: [0, 0, CHEST_Z],
           rotationY: Math.PI,
         });
     const chestVisual = meshyChest ?? kitChest;
@@ -224,10 +259,14 @@ export class Level9Scene extends BaseLevelScene {
       this.chest.add(chestVisual);
     }
     this.scene.add(this.chest);
-    this.colliders.push({ kind: 'circle', x: 0, z: -4, r: 1.2 });
+    this.snapToGround(this.chest);
+    this.colliders.push({ kind: 'circle', x: 0, z: CHEST_Z, r: 1.2 });
 
-    // Three golden seals — must gather before the acorn key works (depth beat)
-    for (const [x, z] of [[-7, 1], [7, 0], [-2, -9]] as const) {
+    // Three golden seals, each at its own shrine with its own guardian, spread
+    // across the map so finding them is the level rather than a lap of the
+    // spawn pad.
+    for (const shrine of SHRINES) {
+      const { x, z } = shrine;
       const seal = new THREE.Group();
       const disk = new THREE.Mesh(
         new THREE.CylinderGeometry(0.28, 0.28, 0.08, 16),
@@ -240,18 +279,36 @@ export class Level9Scene extends BaseLevelScene {
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.03;
-      seal.add(disk, ring);
-      seal.position.set(x, 0, z);
+      // Plinth, so a seal reads as something enshrined rather than a coin
+      // dropped in the grass — and so it is visible over the undergrowth from
+      // far enough away to walk toward.
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.45, 0.58, 0.34, 12),
+        new THREE.MeshStandardMaterial({ color: 0x9e9384, roughness: 0.95 }),
+      );
+      base.position.y = 0.17;
+      base.castShadow = true;
+      seal.add(base, disk, ring);
+      seal.position.set(x, this.groundHeightAt(x, z), z);
       seal.userData.isSeal = true;
       seal.userData.done = false;
       this.seals.push(seal);
       this.scene.add(seal);
-      this.scene.add(zoneDisc(x, z, 2, 0xffd700, 0.025));
+      this.colliders.push({ kind: 'circle', x, z, r: 0.6 });
+      // A beam over each shrine. Three of them standing above the treeline is
+      // what turns "walk around until you find it" into "head for that one".
+      const beacon = questMarker(0xffd700, 0xff9f43);
+      beacon.position.set(x, this.groundHeightAt(x, z), z);
+      seal.userData.beacon = beacon;
+      this.scene.add(beacon);
     }
+    await placeAmbientCritters(this.scene, loader, SHRINES.map((sh) => ({
+      key: sh.guard, x: sh.x + 1.6, z: sh.z + 1.1, rotY: sh.rotY, h: 0.85,
+    })));
 
-    // Quest marker above chest
+    // Quest marker above the chest
     const marker = questMarker(0xffd700, 0xff9f43);
-    marker.position.set(0, 0, -4);
+    marker.position.set(0, this.groundHeightAt(0, CHEST_Z), CHEST_Z);
     this.scene.add(marker);
 
     // Acorn key — gen acorn → golden_key → Kenney → procedural
@@ -259,16 +316,17 @@ export class Level9Scene extends BaseLevelScene {
       (await loadPropModel(loader, CAST_PROP_GLB.acorn_key, { maxSize: 0.55 })) ??
       (await loadPropModel(loader, 'golden_key.glb', { maxSize: 0.55 }));
     if (meshyKey) {
-      meshyKey.position.set(0, 2.5, -4);
+      meshyKey.position.set(0, this.groundHeightAt(0, CHEST_Z) + 2.5, CHEST_Z);
       this.acornKey = meshyKey;
     } else {
       const kitKey = await kit.spawn('platformer', 'key', {
         maxSize: 0.55,
-        position: [0, 2.5, -4],
+        position: [0, this.groundHeightAt(0, CHEST_Z) + 2.5, CHEST_Z],
         ground: false,
       });
-      this.acornKey = kitKey ?? makeAcornKeyFloat(0, 2.5, -4);
+      this.acornKey = kitKey ?? makeAcornKeyFloat(0, this.groundHeightAt(0, CHEST_Z) + 2.5, CHEST_Z);
     }
+    this.keyBaseY = this.groundHeightAt(0, CHEST_Z) + 2.5;
     this.scene.add(this.acornKey);
 
     // Path arrows
@@ -297,20 +355,28 @@ export class Level9Scene extends BaseLevelScene {
       this.scene.add(bf);
     }
 
-    await this.loadTrees(loader, 15, 20, -12, 4.0);
-    await this.loadProps(loader, 5, 4, 20, -14);
+    await this.loadTrees(loader, 28, 20, -18, 4.6);
+    await this.loadProps(loader, 12, 6, 34, -18);
 
     await this.placeProps(loader, [
-      { key: 'map_scroll', opts: { x: -3.2, z: -2, maxSize: 0.6, y: 0.15 } },
-      { key: 'lantern', opts: { x: 3.5, z: -1.5, maxSize: 0.7 } },
-      { key: 'pinecone', opts: { x: 2.2, z: 1.5, maxSize: 0.3 } },
+      { key: 'map_scroll', opts: { x: -3.2, z: SPAWN_Z - 4, maxSize: 0.6, y: 0.15 } },
+      { key: 'lantern', opts: { x: 3.5, z: SPAWN_Z - 3.5, maxSize: 0.7 } },
+      { key: 'pinecone', opts: { x: 2.2, z: SPAWN_Z - 2, maxSize: 0.3 } },
+      { key: 'stump', opts: { x: -5.5, z: -14, maxSize: 1.1 } },
+      { key: 'mushroom', opts: { x: 6.2, z: -9, maxSize: 0.5 } },
+      { key: 'berry', opts: { x: -7.5, z: -26, maxSize: 0.4 } },
+      { key: 'flowers', opts: { x: 5.5, z: -30, maxSize: 0.7 } },
+      { key: 'lantern_wood', opts: { x: -4.6, z: CHEST_Z + 5, maxSize: 0.7 } },
+      { key: 'lantern_wood', opts: { x: 4.6, z: CHEST_Z + 5, maxSize: 0.7 } },
     ]);
     await placeAmbientCritters(this.scene, loader, [
       { key: 'squirrel', x: 5, z: -6, rotY: -1.0, h: 0.9 },
-      { key: 'owl', x: -6, z: -5, rotY: 0.7, h: 0.7 },
+      { key: 'rabbit', x: -6, z: -20, rotY: 0.7, h: 0.5 },
+      { key: 'bird', x: 7, z: -28, rotY: -0.4, h: 0.55 },
     ]);
 
-    this.hero.position.set(0, 0, 4);
+    const start = this.devStart() ?? { x: 0, z: SPAWN_Z };
+    this.hero.position.set(start.x, this.groundHeightAt(start.x, start.z), start.z);
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
     this.activate(() => {
@@ -491,7 +557,7 @@ export class Level9Scene extends BaseLevelScene {
     }
 
     const canMove = !['intro', 'outro'].includes(this.phase);
-    this.updateMovement(dt, canMove, this.baseSpeed, -12, 12, -12, 8);
+    this.updateMovement(dt, canMove, this.baseSpeed, -26, 26, CHEST_Z - 16, SPAWN_Z + 2);
 
     // Chest glow pulse
     if (this.chest) {
@@ -514,7 +580,7 @@ export class Level9Scene extends BaseLevelScene {
 
     // Acorn key bobbing
     if (this.acornKey && this.acornKey.visible) {
-      this.acornKey.position.y = 2.5 + Math.sin(now * 0.003) * 0.15;
+      this.acornKey.position.y = this.keyBaseY + Math.sin(now * 0.003) * 0.15;
       this.acornKey.rotation.y += dt * 1.5;
     }
 
@@ -541,18 +607,32 @@ export class Level9Scene extends BaseLevelScene {
     // Camera
     if (this.phase === 'intro') {
       const idx = Math.min(this.introI, 2);
+      // Open on the depth of the forest, then come down behind the hero. The
+      // old reveal looked at z = 0 to −4, which was the whole level when the
+      // level was twenty metres deep and is now the first two seconds of it.
       const introPos = [
-        new THREE.Vector3(0, 6, 14),
-        new THREE.Vector3(0, 5.5, 12),
-        new THREE.Vector3(0, 5, 10),
+        new THREE.Vector3(9, 8, 17),
+        new THREE.Vector3(3.5, 4.4, 13),
+        new THREE.Vector3(0, 5.4, SPAWN_Z + 7),
       ];
       const introLook = [
-        new THREE.Vector3(0, 1, 0),
-        new THREE.Vector3(0, 1, -2),
-        new THREE.Vector3(0, 0.5, -4),
+        new THREE.Vector3(0, 1.6, CHEST_Z + 8),
+        new THREE.Vector3(routeX(-6), 1.2, -6),
+        new THREE.Vector3(0, 1.1, SPAWN_Z - 3),
       ];
-      this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
+      const ease = idx === 0 ? 0.35 : idx === 1 ? 0.1 : 0.02;
+      this.camera.position.lerp(introPos[idx], 1 - Math.pow(ease, dt));
       this.camera.lookAt(introLook[idx]);
+    } else if (this.phase === 'unlock' || this.phase === 'open' || this.phase === 'outro') {
+      // Hold the opening on the chest, not on the hero's back.
+      this.updateCamera(
+        // Off to the side, because the hero opens the chest from directly in
+        // front of it and a head-on shot puts his back across the payoff.
+        new THREE.Vector3(3.4, this.groundHeightAt(0, CHEST_Z) + 3.6, CHEST_Z + 6.2),
+        new THREE.Vector3(0, this.groundHeightAt(0, CHEST_Z) + 1.2, CHEST_Z - 0.4),
+        0.02,
+        dt,
+      );
     } else {
       const target = new THREE.Vector3(this.hero.position.x * 0.3, 5.5, this.hero.position.z + 9);
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
