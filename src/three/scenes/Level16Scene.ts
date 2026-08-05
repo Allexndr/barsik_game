@@ -18,6 +18,9 @@ import { useGameStore } from '@/store/useGameStore';
  * Ice key opens snowflake lock. Group photo finale. Season 1 complete → Chapter 3 teaser.
  */
 
+/** The cave sits at the far end of the climb, not four metres from spawn. */
+const CHEST_Z = -34;
+
 export type L16Phase = 'intro' | 'prep' | 'approach' | 'unlock' | 'open' | 'outro';
 export interface L16Hud extends BaseHud {
   chestOpen: boolean;
@@ -113,15 +116,21 @@ export class Level16Scene extends BaseLevelScene {
     await this.setupWinterEnvironment(loader, {
       sky: ['#3a5a7a', '#6a8aaa', '#b0d0e8'],
       backdrop: 'finale',
+      // The default play extent of 30 puts the rim lift — a 3.4 m wall of
+      // hillside — across everything past z = -16. With the finale moved to
+      // the end of a forty-metre climb, the chest and all seven friends would
+      // have been standing on that slope.
+      terrain: { playHalfExtent: 52, rimFalloff: 16 },
+      decorCenterZ: -22,
     });
 
     this.scene.add(zoneDisc(0, 4, 6, 0x4fc3f7, 0.04));
-    this.scene.add(zoneDisc(0, -4, 5, 0xffd700, 0.05));
+    this.scene.add(zoneDisc(0, CHEST_Z, 6.5, 0xffd700, 0.05));
     this.scene.add(spawnPad(0, 4));
     this.scene.add(await placeWoodSign(loader, -2.5, 2, 0.3, 0x4fc3f7));
 
     this.chest = this.makeChest();
-    this.chest.position.set(0, 0, -4);
+    this.chest.position.set(0, 0, CHEST_Z);
     const meshyChest = await loadPropModel(loader, 'treasure_chest.glb', { maxSize: 1.6 });
     if (meshyChest) {
       for (const child of [...this.chest.children]) {
@@ -138,7 +147,10 @@ export class Level16Scene extends BaseLevelScene {
     this.colliders.push({ kind: 'circle', x: 0, z: -4, r: 1.2 });
 
     // Party prep pads — place 3 presents before opening the season chest
-    for (const [x, z] of [[-5, 2], [5, 1], [0, -8]] as const) {
+    // Spread along the climb, not clustered around the spawn pad. All three
+    // used to sit within eight metres of where the player starts, so the
+    // season's last errand was three steps and a turn.
+    for (const [x, z] of [[-7.5, -6], [8, -17], [-5.5, -27]] as const) {
       const pad = new THREE.Group();
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(0.55, 0.85, 24),
@@ -162,7 +174,7 @@ export class Level16Scene extends BaseLevelScene {
     }
 
     const marker = questMarker(0x4fc3f7, 0x81d4fa);
-    marker.position.set(0, 0, -4);
+    marker.position.set(0, 0, CHEST_Z);
     this.scene.add(marker);
 
     // Floating ice key (from L13 master) — ice_key prop → golden tinted → procedural
@@ -201,17 +213,17 @@ export class Level16Scene extends BaseLevelScene {
     const crystalTpl = await loadPropModel(loader, CAST_PROP_GLB.ice_crystal, { maxSize: 0.5 });
     for (let i = 0; i < 8; i++) {
       const angle = (i / 8) * Math.PI * 2;
-      const r = 3.2;
+      const r = 5.4;
       let crystal: THREE.Object3D;
       if (crystalTpl) {
         crystal = crystalTpl.clone(true);
-        crystal.position.set(Math.cos(angle) * r, 0.5, -4 + Math.sin(angle) * r);
+        crystal.position.set(Math.cos(angle) * r, 0.5, CHEST_Z + Math.sin(angle) * r);
       } else {
         crystal = new THREE.Mesh(
           new THREE.OctahedronGeometry(0.28),
           new THREE.MeshStandardMaterial({ color: 0x4fc3f7, emissive: 0x4fc3f7, emissiveIntensity: 0.45, transparent: true, opacity: 0.85 }),
         );
-        crystal.position.set(Math.cos(angle) * r, 0.5, -4 + Math.sin(angle) * r);
+        crystal.position.set(Math.cos(angle) * r, 0.5, CHEST_Z + Math.sin(angle) * r);
         crystal.castShadow = true;
       }
       crystal.userData.spin = i;
@@ -241,7 +253,15 @@ export class Level16Scene extends BaseLevelScene {
     unlocked.add('gardener');
     unlocked.add('aya');
     const friendIds = ['gardener', 'aya', 'hedgehog', 'squirrel', 'putalo', 'ice_master', 'ice_friend_rare'] as const;
-    const friendPositions: [number, number][] = [[-2.5, -2], [2.5, -2], [-3.5, -5], [3.5, -5], [-1.5, -6.5], [1.5, -6.5], [0, -7.5]];
+    // A wide arc around the chest rather than a 7x6 huddle in front of the
+    // spawn. Everyone Barsik met across the season is standing at the end of
+    // the walk, which is the shot the finale is for.
+    const friendPositions: [number, number][] = [
+      [-7.4, CHEST_Z + 3.4], [7.4, CHEST_Z + 3.4],
+      [-8.6, CHEST_Z - 1.2], [8.6, CHEST_Z - 1.2],
+      [-5.2, CHEST_Z - 5.4], [5.2, CHEST_Z - 5.4],
+      [0, CHEST_Z - 7.2],
+    ];
     const friendColors = [0xa29bfe, 0xfdcb6e, 0x55efc4, 0xff7675, 0x74b9ff, 0xe17055, 0x81ecec];
     for (let i = 0; i < friendPositions.length; i++) {
       const [x, z] = friendPositions[i];
@@ -260,7 +280,7 @@ export class Level16Scene extends BaseLevelScene {
         else f = makeFriendSilhouette(friendColors[i], x, z);
       }
       f.position.set(x, 0, z);
-      f.rotation.y = Math.atan2(-x, 4 + z);
+      f.rotation.y = Math.atan2(-x, CHEST_Z - z);
       groundY(f);
       f.visible = false;
       f.userData.unlockedFriend = isUnlocked;
@@ -268,8 +288,7 @@ export class Level16Scene extends BaseLevelScene {
       this.scene.add(f);
     }
 
-    this.scene.add(pathArrow(0, 0, 0));
-    this.scene.add(pathArrow(0, -2, 0));
+    for (let z = 0; z > CHEST_Z + 6; z -= 3.5) this.scene.add(pathArrow(0, z, 0));
 
     this.hero.position.set(0, 0, 4);
     this.scene.add(this.hero);
@@ -474,7 +493,7 @@ export class Level16Scene extends BaseLevelScene {
     }
 
     const canMove = !['intro', 'outro', 'open'].includes(this.phase);
-    this.updateMovement(dt, canMove, this.baseSpeed, -10, 10, -10, 8);
+    this.updateMovement(dt, canMove, this.baseSpeed, -22, 22, CHEST_Z - 11, 8);
 
     if (this.chest) {
       const glow = this.chest.userData.glow as THREE.Mesh;
@@ -516,14 +535,24 @@ export class Level16Scene extends BaseLevelScene {
 
     if (this.phase === 'intro') {
       const idx = Math.min(this.introI, 2);
-      const introPos = [new THREE.Vector3(0, 6, 14), new THREE.Vector3(0, 5.5, 12), new THREE.Vector3(0, 5, 10)];
-      const introLook = [new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 1, -2), new THREE.Vector3(0, 0.5, -4)];
+      // The last intro shot looks all the way down the valley to the cave, so
+      // the goal of the season's final level is visible before the first step.
+      const introPos = [new THREE.Vector3(0, 6, 14), new THREE.Vector3(0, 6.5, 13), new THREE.Vector3(0, 8, 12)];
+      const introLook = [
+        new THREE.Vector3(0, 1, 2),
+        new THREE.Vector3(0, 1.4, -6),
+        new THREE.Vector3(0, 2.2, -18),
+      ];
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
       this.camera.lookAt(introLook[idx]);
     } else if (this.phase === 'open' || this.phase === 'outro') {
-      const target = new THREE.Vector3(0, 5.5, 2);
+      // Framed on the chest and the arc of friends behind it. This was pinned
+      // to z = 2 looking at z = -5, which is where the chest used to be — with
+      // the finale moved to the end of the climb it would have shot thirty
+      // metres of empty snow for the most important frame of the season.
+      const target = new THREE.Vector3(0, 5.8, CHEST_Z + 11);
       this.camera.position.lerp(target, 1 - Math.pow(0.002, dt));
-      this.camera.lookAt(0, 1.2, -5);
+      this.camera.lookAt(0, 1.3, CHEST_Z - 2.5);
     } else {
       const target = new THREE.Vector3(this.hero.position.x * 0.3, 5.5, this.hero.position.z + 9);
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
