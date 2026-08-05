@@ -24,3 +24,47 @@
   font-size: 0.92rem;
   line-height: 1.35;
 }
+
+/*
+ * Phone typography for the meta screens.
+ *
+ * The game is played mainly on phones and the plan sets a 18px floor for body
+ * text, but these screens had no responsive rules at all: labels sat at 11–14px
+ * on a 16px root, which is fine on a laptop and small for a six-year-old at
+ * arm's length on a phone. Raised on narrow viewports only, so the desktop
+ * density is untouched.
+ *
+ * Touch targets go with it — 44px is the accessibility floor, and a chip a
+ * child cannot reliably hit is a chip that reads as broken.
+ */
+@media (max-width: 560px) {
+  .screen-meta {
+    font-size: 1.05rem;
+  }
+
+  .screen-meta .meta-screen-sub,
+  .screen-meta .friend-role,
+  .screen-meta .city-prop-name,
+  .screen-meta .qr-info-body,
+  .screen-meta .leaderboard-target,
+  .screen-meta .meta-screen-footer-hint {
+    font-size: 1rem;
+    line-height: 1.45;
+  }
+
+  .screen-meta .friend-rarity,
+  .screen-meta .city-prop-owned,
+  .screen-meta .city-owned-count,
+  .screen-meta .leaderboard-you-tag,
+  .screen-meta .travel-legend,
+  .screen-meta .qr-info-soft,
+  .screen-meta .leaderboard-podium-label {
+    font-size: 0.86rem;
+  }
+
+  .screen-meta button,
+  .screen-meta [role='button'],
+  .screen-meta .shop-tab {
+    min-height: 44px;
+  }
+}

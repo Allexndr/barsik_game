@@ -161,7 +161,7 @@ function FriendTiltCard({
           <h3>{name}</h3>
           <p className="friend-role">{role}</p>
           <span className="friend-rarity">{rarityLabel(rarity, lang)}</span>
-          <div className="friend-flip-hint">{lang === 'kk' ? 'бас' : 'нажми'}</div>
+          <div className="friend-flip-hint" aria-hidden>↻</div>
         </div>
         <div className={`friend-face friend-face-back rarity-${rarity}`}>
           <div className="friend-avatar friend-avatar-sm">
@@ -169,7 +169,7 @@ function FriendTiltCard({
           </div>
           <h3>{name}</h3>
           <p className="friend-role">{blurb}</p>
-          <div className="friend-flip-hint">{lang === 'kk' ? 'артқа' : 'назад'}</div>
+          <div className="friend-flip-hint" aria-hidden>↺</div>
         </div>
       </button>
     </div>
