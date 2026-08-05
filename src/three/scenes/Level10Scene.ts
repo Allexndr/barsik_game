@@ -20,6 +20,7 @@ import { createPlushSquirrel, createPlushHedgehog } from '../PlushAnimals';
 import { createPlushCharacter } from '../PlushCharacter';
 import { ZHULDYZ_LOOK } from '../characterLooks';
 import { createGameGltfLoader } from '../createGameGltfLoader';
+import { makeOldOak } from './Level3Scene';
 import { placeAmbientCritters } from '../s1Place';
 
 /**
@@ -208,12 +209,20 @@ export class Level10Scene extends BaseLevelScene {
     this.scene.add(this.giftPile);
     this.scene.add(zoneDisc(0, -4, 2.5, 0xe84393, 0.03));
 
-    // 4 farewell spots — circular route revisiting known places
+    // Four farewell spots, spread across the forest rather than huddled.
+    //
+    // They used to sit inside a 12x10 box with the gift pile in the middle,
+    // so all four were visible from spawn and the "tour" was over in twenty
+    // seconds. The spec calls this a lap of the places the player has been —
+    // that beat only lands if you actually walk the world one last time, so
+    // each spot now sits where its level was: the gardener by the house, the
+    // stump on its riddle clearing, the hedgehog at the old oak, the squirrel
+    // out by her burrow on the way to the mountains.
     const spotConfigs: [number, number, string, string, string, string, string | null][] = [
-      [-6, 0, 'Садовник', 'Бағбан', 'Береги наш сад, Барсик. Мы будем ждать!', 'Бағбаны сақта, Барсик. Күтеміз!', 'zhuldyz.glb'],
-      [6, -2, 'Пенёк', 'Түпкі', 'Приходи — загадки не кончаются!', 'Кел — жұмбақтар бітпейді!', null],
-      [-5, -8, 'Ёжик', 'Кірпі', 'Спасибо, что нашёл меня тогда!', 'Сол кезде мені тапқаның үшін рахмет!', 'hedgehog.glb'],
-      [5, -10, 'Белочка', 'Тиін', 'Жёлудь сработал! Увидимся в горах!', 'Жаңғақ жарамды! Тауда кездесеміз!', 'squirrel.glb'],
+      [-16, 4, 'Садовник', 'Бағбан', 'Береги наш сад, Барсик. Мы будем ждать!', 'Бағбаны сақта, Барсик. Күтеміз!', 'zhuldyz.glb'],
+      [15, -9, 'Пенёк', 'Түпкі', 'Приходи — загадки не кончаются!', 'Кел — жұмбақтар бітпейді!', null],
+      [-13, -21, 'Ёжик', 'Кірпі', 'Спасибо, что нашёл меня тогда!', 'Сол кезде мені тапқаның үшін рахмет!', 'hedgehog.glb'],
+      [12, -30, 'Белочка', 'Тиін', 'Жёлудь сработал! Увидимся в горах!', 'Жаңғақ жарамды! Тауда кездесеміз!', 'squirrel.glb'],
     ];
 
     for (let i = 0; i < spotConfigs.length; i++) {
@@ -305,15 +314,39 @@ export class Level10Scene extends BaseLevelScene {
       this.scene.add(bf);
     }
 
-    await this.loadTrees(loader, 18, 22, -14, 4.0);
-    await this.loadProps(loader, 5, 4, 22, -16);
+    // The literal oak from L3, not a stand-in: the place has to be the one
+    // the player remembers.
+    const oak = makeOldOak(-15.5, -23);
+    oak.scale.setScalar(0.72);
+    this.snapToGround(oak);
+    this.scene.add(oak);
+    this.colliders.push({ kind: 'circle', x: -15.5, z: -23, r: 1.2 });
 
-    // Farewell clearing — stump landmark + forest friends peeking
+    for (const [x, z] of [[-16, 4], [15, -9], [-13, -21], [12, -30], [0, -35]] as const) {
+      this.reserve(x, z, 4.5);
+    }
+    await this.loadTrees(loader, 26, 26, -16, 4.0);
+    await this.loadProps(loader, 9, 6, 30, -18);
+
+    // A landmark at each farewell spot, so the place is recognisable as the
+    // one from its own level rather than an NPC standing on blank grass.
     await this.placeProps(loader, [
-      { key: 'stump', opts: { x: -4.5, z: -2, maxSize: 1.2 } },
-      { key: 'mushroom', opts: { x: -3.2, z: -1.2, maxSize: 0.4 } },
-      { key: 'berry', opts: { x: 5, z: -4, maxSize: 0.35 } },
-      { key: 'map_scroll', opts: { x: 0, z: -8, maxSize: 0.55, y: 0.12 } },
+      // Gardener — the house and its garden fence (L0).
+      { key: 'cabin', opts: { x: -19, z: 7, maxSize: 3.4, rotY: 0.5 } },
+      { key: 'fence', opts: { x: -13, z: 5, maxSize: 1.6, rotY: 0.2 } },
+      { key: 'basket_red', opts: { x: -14.5, z: 3, maxSize: 0.7 } },
+      // Stump — the riddle clearing (L6).
+      { key: 'stump', opts: { x: 15, z: -9, maxSize: 1.4 } },
+      { key: 'mushroom', opts: { x: 16.4, z: -7.8, maxSize: 0.45 } },
+      { key: 'mushroom', opts: { x: 13.6, z: -10.4, maxSize: 0.4 } },
+      // Hedgehog — the old oak he was found under (L3).
+      { key: 'berry', opts: { x: -11.5, z: -20, maxSize: 0.35 } },
+      // Squirrel — her burrow on the road out (L5).
+      { key: 'treehouse', opts: { x: 14.5, z: -32, maxSize: 3.0, rotY: -0.4 } },
+      { key: 'acorn_key', opts: { x: 10.5, z: -29, maxSize: 0.5 } },
+      // The map that sends everyone to the mountains sits at the exit.
+      { key: 'map_scroll', opts: { x: 0, z: -35, maxSize: 0.6, y: 0.12 } },
+      { key: 'wood_sign', opts: { x: 2.5, z: -34, maxSize: 1.3, rotY: 0.3 } },
     ]);
     await placeAmbientCritters(this.scene, loader, [
       { key: 'fox', x: 6.5, z: -6, rotY: -1.2, h: 0.85 },
@@ -470,7 +503,7 @@ export class Level10Scene extends BaseLevelScene {
     }
 
     const canMove = !['intro', 'outro'].includes(this.phase);
-    this.updateMovement(dt, canMove, this.baseSpeed, -12, 12, -16, 8);
+    this.updateMovement(dt, canMove, this.baseSpeed, -26, 26, -38, 10);
 
     for (const b of this.butterflies) {
       const ph = (b.userData.phase as number) + now * 0.001;

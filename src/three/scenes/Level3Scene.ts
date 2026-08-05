@@ -115,7 +115,8 @@ async function loadHedgehog(loader: GLTFLoader): Promise<THREE.Group> {
   return wrapper;
 }
 
-function makeOldOak(x: number, z: number): THREE.Group {
+/** The old oak from L3. Exported so L10 can revisit the same landmark. */
+export function makeOldOak(x: number, z: number): THREE.Group {
   const g = new THREE.Group();
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 1 });
   const leafMat = new THREE.MeshStandardMaterial({ color: 0x2d6a4f, roughness: 0.9, flatShading: true });
