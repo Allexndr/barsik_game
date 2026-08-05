@@ -43,6 +43,12 @@ Placement helper: `src/three/s1Place.ts` · map: `src/three/castModels.ts` · lo
 
 Meshy credits blocked fence/bench/scarf gens → used packs instead.
 
+**Эти файлы лежат в подпапке своего кита** — `props/<kit>/s1_kit_*.glb`, звери в
+`chars/pets/`. Не переносить их в корень `props/`: GLB ссылается на
+`Textures/colormap.png` относительно себя, а атлас у каждого из восьми китов
+свой. Ровно так они и были сломаны — 26 моделей грузились без текстур, потому
+что их скопировали в общую папку без `Textures/`.
+
 | Alias | Source | Wired |
 |-------|--------|-------|
 | fence / fence_gate / bench | nature + town | M0, City, L3 |

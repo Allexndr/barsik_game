@@ -6,6 +6,7 @@ import { createPlushBarsik, updatePlushLocomotion } from '../PlushBarsik';
 import { isUsableHeroGlb } from '../heroQuality';
 import { markStaticHeroBaseY, updateStaticHeroLocomotion } from '../staticHeroLocomotion';
 import { AudioManager } from '@/audio/AudioManager';
+import { useUIStore } from '@/store/useUIStore';
 import { createFireflies, type Fireflies } from '../Fireflies';
 import { createLevelTerrain, type LevelTerrain, type LevelTerrainOptions } from '../LevelTerrain';
 import { createWindGrass, type WindGrass } from '../WindGrass';
@@ -502,6 +503,21 @@ export async function loadCharModel(
       if (std?.map) std.map.colorSpace = THREE.SRGBColorSpace;
     }
   });
+
+  // Stand the character on its own origin.
+  //
+  // fitHeight grounds the model by writing the offset into position.y — and
+  // every one of the seventeen call sites then does `position.set(x, 0, z)`,
+  // which throws that offset away. For a model whose pivot sits at its centre,
+  // like aya.glb, that buried the character to the shoulders: she was in the
+  // scene, lit, and visible, and still read as a rock from five metres off.
+  // Moving the offset inside a wrapper puts it somewhere position.set cannot
+  // reach, so y = 0 means "standing here" for every caller.
+  if (Math.abs(gltf.scene.position.y) > 1e-4) {
+    const feetAtOrigin = new THREE.Group();
+    feetAtOrigin.add(gltf.scene);
+    return feetAtOrigin;
+  }
   return gltf.scene;
 }
 
@@ -667,7 +683,17 @@ export abstract class BaseLevelScene {
   protected reserved: Array<{ x: number; z: number; r: number }> = [];
   private fpsSampler = createFpsSampler('level');
   private onVisibility = () => {
-    if (document.hidden) this.setPaused(true);
+    // Stopping the loop when the tab is hidden saves a phone's battery, but
+    // stopping it *silently* stranded the player: the scene froze while the
+    // HUD went on showing the level as though it were live, and nothing
+    // offered a way back — setPaused was called straight on the scene, so the
+    // UI never learned it had happened. On a phone, which is the platform
+    // this is built for, one notification was enough to freeze the level
+    // until a reload. Going through the store raises the normal pause card,
+    // whose resume button already works. It deliberately does not resume by
+    // itself: dropping a child back into a timed bridge crossing they were
+    // not looking at is a good way to lose it for them.
+    if (document.hidden) useUIStore.getState().setPaused(true);
   };
   /**
    * Centre line of the walkable route, as x for a given z. Scenes that have a
@@ -1579,6 +1605,23 @@ export abstract class BaseLevelScene {
   protected updateCamera(target: THREE.Vector3, look: THREE.Vector3, lerp = 0.0015, dt = 0.016) {
     this.camera.position.lerp(target, 1 - Math.pow(lerp, dt));
     this.camera.lookAt(look);
+  }
+
+  /**
+   * Dev-only start override: `?at=x,z` drops the hero somewhere other than the
+   * spawn pad, and the level picks the phase that belongs to that spot.
+   *
+   * Season 1 levels run three to six minutes each, so checking the last act of
+   * one otherwise means replaying the first two every single time — which in
+   * practice means it does not get checked. Guarded by import.meta.env.DEV, so
+   * it is dead code in a production build.
+   */
+  protected devStart(): { x: number; z: number } | null {
+    if (!import.meta.env.DEV || typeof location === 'undefined') return null;
+    const raw = new URLSearchParams(location.search).get('at');
+    if (!raw) return null;
+    const [x, z] = raw.split(',').map(Number);
+    return Number.isFinite(x) && Number.isFinite(z) ? { x, z } : null;
   }
 
   protected isPortraitViewport() {
