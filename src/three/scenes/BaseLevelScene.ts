@@ -709,6 +709,17 @@ export abstract class BaseLevelScene {
   protected levelTerrain: LevelTerrain | null = null;
   protected windGrass: WindGrass[] = [];
   /**
+   * Key lights, kept so a level can move its own time of day.
+   *
+   * setupLighting used to build these and drop every reference, which meant
+   * the only way to change the light after setup was to walk the scene graph
+   * guessing at types. A level that wants dusk to fall now interpolates these
+   * directly.
+   */
+  protected sunLight: THREE.DirectionalLight | null = null;
+  protected hemiLight: THREE.HemisphereLight | null = null;
+  protected ambientLight: THREE.AmbientLight | null = null;
+  /**
    * Grass options staged by setupForestEnvironment and built in activate(),
    * once the level has reserved its gameplay zones.
    */
@@ -782,9 +793,12 @@ export abstract class BaseLevelScene {
     // Fog starts inside the play area so distance actually reads. At near=58
     // nothing in a ~50-unit level was ever touched by it.
     this.scene.fog = new THREE.Fog(fogColor, 26, 150);
-    this.scene.add(new THREE.HemisphereLight(hemiSky, hemiGround, 0.58));
+    const hemi = new THREE.HemisphereLight(hemiSky, hemiGround, 0.58);
+    this.hemiLight = hemi;
+    this.scene.add(hemi);
 
     const sun = new THREE.DirectionalLight(sunColor, sunIntensity);
+    this.sunLight = sun;
     sun.position.set(-14, 24, 12);
     sun.castShadow = true;
     sun.shadow.mapSize.set(this.renderQuality.shadowMapSize, this.renderQuality.shadowMapSize);
@@ -805,7 +819,9 @@ export abstract class BaseLevelScene {
     fill.position.set(16, 8, 12);
     const rim = new THREE.DirectionalLight(0xdcefff, 0.62);
     rim.position.set(4, 12, -20);
-    this.scene.add(fill, rim, new THREE.AmbientLight(0xffffff, 0.06));
+    const ambient = new THREE.AmbientLight(0xffffff, 0.06);
+    this.ambientLight = ambient;
+    this.scene.add(fill, rim, ambient);
   }
 
   protected setupGround(texture: THREE.Texture, size = 300, color = 0xffffff) {

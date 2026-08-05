@@ -1,0 +1,18 @@
+tmp/
+output/
+.codebase-memory/
+.claude/
+docs/refs/
+docs/baseline_*.png
+docs/mission0_*.png
+*.zip
+
+# Not part of the site. The deploy was uploading a gigabyte and taking ten
+# minutes because these were never excluded: `assets/` is the raw source art
+# (2.1 GB of Blender/Meshy originals that get exported into public/), tools/
+# and .venv-bg/ are the local asset pipeline, and vendor/ is reference code.
+assets/
+tools/
+.venv-bg/
+vendor/
+.codebase-memory/
