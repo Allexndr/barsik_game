@@ -28,12 +28,36 @@ function headers(): HeadersInit {
   };
 }
 
+export function scoreOf(row: LeaderboardRow): number {
+  return row.total_stars ?? row.stars ?? 0;
+}
+
+/**
+ * Best row per player.
+ *
+ * The table has one row per submission rather than per player, so the same
+ * name appears several times — «Гульмира» sat at ranks 3 and 4 with the same
+ * 13 stars. Two rows for one child is not a ranking, and it pushes everyone
+ * below them down a place for nothing.
+ */
+function dedupeByName(rows: LeaderboardRow[]): LeaderboardRow[] {
+  const best = new Map<string, LeaderboardRow>();
+  for (const row of rows) {
+    const key = row.name.trim().toLowerCase();
+    const seen = best.get(key);
+    if (!seen || scoreOf(row) > scoreOf(seen)) best.set(key, row);
+  }
+  return [...best.values()].sort((a, b) => scoreOf(b) - scoreOf(a));
+}
+
 export async function fetchLeaderboard(limit = 20): Promise<LeaderboardRow[]> {
-  const url = `${SUPABASE_URL}/rest/v1/barsik_leaderboard?select=name,stars,total_stars,levels,friends&order=total_stars.desc&limit=${limit}`;
+  // Over-fetch, because de-duplicating after the fact shrinks the list and a
+  // short board looks broken.
+  const url = `${SUPABASE_URL}/rest/v1/barsik_leaderboard?select=name,stars,total_stars,levels,friends&order=total_stars.desc&limit=${limit * 3}`;
   const res = await fetch(url, { headers: headers() });
   if (!res.ok) {
     throw new Error(`leaderboard_${res.status}`);
   }
   const rows = (await res.json()) as LeaderboardRow[];
-  return Array.isArray(rows) ? rows : [];
+  return Array.isArray(rows) ? dedupeByName(rows).slice(0, limit) : [];
 }

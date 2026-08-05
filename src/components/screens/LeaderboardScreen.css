@@ -120,3 +120,76 @@
   font-weight: 700;
   color: var(--text-dark);
 }
+
+/* The one line on this screen that tells a child what to do next, so it is
+   given the weight of a goal rather than of a caption. */
+.leaderboard-target {
+  margin: 0 0 var(--spacing-sm);
+  padding: 0.55rem 0.9rem;
+  border-radius: var(--radius-md, 14px);
+  background: rgba(108, 92, 231, 0.08);
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 0.92rem;
+  text-align: center;
+}
+
+/* Season leaders, kept apart from the player's own neighbourhood: a child with
+   120 stars has no use for being ranked directly against 1486, but they still
+   want to see who is winning. */
+.leaderboard-podium {
+  margin-top: var(--spacing-sm);
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-md, 14px);
+  background: rgba(253, 203, 110, 0.12);
+  border: 1px solid rgba(253, 203, 110, 0.4);
+}
+
+.leaderboard-podium-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-light);
+  margin-bottom: 0.4rem;
+}
+
+.leaderboard-podium ol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.leaderboard-podium li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+}
+
+.leaderboard-podium .leaderboard-score {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-weight: 800;
+}
+
+.leaderboard-medal {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #6b4a00;
+  background: #ffe08a;
+}
+
+.leaderboard-medal.medal-2 { background: #e3e7ec; color: #4a5560; }
+.leaderboard-medal.medal-3 { background: #f0c9a6; color: #6b4326; }
