@@ -1492,7 +1492,21 @@ export abstract class BaseLevelScene {
   }
 
   // ── Spark/particle effects ───────────────────────────────────
+  /**
+   * Peak opacity for a full-screen camera flash.
+   *
+   * A white frame at full opacity is the textbook photosensitivity trigger,
+   * and the plan asks for reduced-motion to cover flash and confetti. Dimmed
+   * rather than removed: the flash is how the player knows the photograph was
+   * taken, so the beat still has to land.
+   */
+  protected get flashPeak() {
+    return this.prefersReducedMotion ? 0.28 : 1;
+  }
+
   protected spawnSparks(at: THREE.Vector3, count = 12, colors: [number, number] = [0xf1c40f, 0xe84393]) {
+    // Fewer particles when motion is reduced, for the same reason.
+    if (this.prefersReducedMotion) count = Math.max(3, Math.round(count * 0.35));
     for (let i = 0; i < count; i++) {
       const s = new THREE.Mesh(
         new THREE.SphereGeometry(0.09, 6, 6),

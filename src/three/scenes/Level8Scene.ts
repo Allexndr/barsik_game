@@ -877,7 +877,7 @@ export class Level8Scene extends BaseLevelScene {
         this.praiseUntil = now + 4000;
         this.spawnSparks(new THREE.Vector3(0, 2.2, GLADE_Z), 44, [0xffd700, 0xff6b6b]);
         this.spawnSparks(new THREE.Vector3(0, 1.6, FIRE_Z), 24, [0x48dbfb, 0xfeca57]);
-        if (this.flashMesh) (this.flashMesh.material as THREE.MeshBasicMaterial).opacity = 1;
+        if (this.flashMesh) (this.flashMesh.material as THREE.MeshBasicMaterial).opacity = this.flashPeak;
         AudioManager.sfx('success');
         this.stars += 6;
         this.nextAt = now + 3600;
@@ -921,7 +921,8 @@ export class Level8Scene extends BaseLevelScene {
 
     if (this.flashMesh && this.phase === 'celebrate') {
       const elapsed = now - this.celebrateAt;
-      (this.flashMesh.material as THREE.MeshBasicMaterial).opacity = elapsed < 420 ? 1 - elapsed / 420 : 0;
+      (this.flashMesh.material as THREE.MeshBasicMaterial).opacity =
+        elapsed < 420 ? this.flashPeak * (1 - elapsed / 420) : 0;
     }
 
     for (const b of this.butterflies) {

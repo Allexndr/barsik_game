@@ -591,7 +591,7 @@ export class Level7Scene extends BaseLevelScene {
       this.photoTime = now;
       this.putaloState = 'talking';
       if (this.flashMesh) {
-        (this.flashMesh.material as THREE.MeshBasicMaterial).opacity = 1;
+        (this.flashMesh.material as THREE.MeshBasicMaterial).opacity = this.flashPeak;
       }
       this.spawnSparks(this.putalo!.position, 20, [0xffd700, 0xfd79a8]);
       this.pushHud();
@@ -675,7 +675,7 @@ export class Level7Scene extends BaseLevelScene {
     if (this.flashMesh && this.phase === 'photo') {
       const elapsed = now - this.photoTime;
       if (elapsed < 350) {
-        (this.flashMesh.material as THREE.MeshBasicMaterial).opacity = 1 - elapsed / 350;
+        (this.flashMesh.material as THREE.MeshBasicMaterial).opacity = this.flashPeak * (1 - elapsed / 350);
       } else {
         (this.flashMesh.material as THREE.MeshBasicMaterial).opacity = 0;
       }
