@@ -124,3 +124,13 @@
   background: rgba(108, 92, 231, 0.1);
   color: var(--primary);
 }
+
+/* The flip affordance. A glyph, not the word «нажми» printed nine times —
+   that was the same repetition the locked cards were guilty of. */
+.friend-flip-hint {
+  margin-top: 0.35rem;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--text-light);
+  opacity: 0.55;
+}
