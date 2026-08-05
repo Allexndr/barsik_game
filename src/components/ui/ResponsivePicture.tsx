@@ -30,7 +30,10 @@ export function ResponsivePicture({
         alt={alt}
         draggable={false}
         decoding="async"
-        fetchPriority="high"
+        // Lowercase: React 18 does not know the camelCase form and passes it
+        // straight through, which warns on every render of the welcome screen
+        // and buries anything else in the console. React 19 accepts either.
+        {...{ fetchpriority: 'high' }}
         loading="eager"
         aria-hidden={alt === '' ? true : undefined}
       />
