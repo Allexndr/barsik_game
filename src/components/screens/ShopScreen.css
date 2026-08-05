@@ -4,10 +4,31 @@
   gap: var(--spacing-md);
 }
 
+/*
+ * One scrolling row, not a wrapping block. Nine categories wrapped to two
+ * rows on a phone, and those two rows sat between the preview and the first
+ * item — so the screen opened on a character, a price and a pile of filters,
+ * with the wardrobe itself entirely below the fold.
+ */
 .shop-tabs {
   display: flex;
-  flex-wrap: wrap;
+  /* 0 0 auto, or the strip shrinks to a 2px sliver: .screen-shop is a column
+     flex container and an overflowing child is fair game for flex-shrink. */
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   gap: 0.45rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
+.shop-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.shop-tab {
+  flex: 0 0 auto;
 }
 
 .shop-tab {
@@ -142,8 +163,10 @@
   touch-action: pan-y;
 }
 .shop-preview-canvas { width: 100%; height: 100%; display: block; }
+/* Top-left, not bottom-centre: centred at the bottom it sat across the
+   character's feet, which is the one part of him the boots have to show. */
 .shop-preview-hint {
-  position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
+  position: absolute; left: 8px; top: 8px;
   font-size: 12px; color: #6b7a8c; background: rgba(255,255,255,0.75);
   padding: 3px 10px; border-radius: 999px; pointer-events: none;
 }
@@ -162,4 +185,34 @@
   .shop-dressing { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
   .shop-actions { flex-direction: column; align-items: stretch; }
   .shop-owned-count { margin-left: 0; text-align: center; }
+}
+
+/*
+ * Phone. Everything above the grid competes with the grid for the same 812
+ * pixels, and the grid is the reason the child opened the screen — so the
+ * preview gives up height and the cards get two to a row.
+ */
+@media (max-width: 560px) {
+  .shop-preview {
+    height: clamp(170px, 26vh, 240px);
+  }
+
+  .shop-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .shop-card {
+    padding: 0.6rem;
+    min-height: 44px;
+  }
+
+  .shop-card h3 {
+    font-size: 0.92rem;
+  }
+
+  .shop-tab {
+    min-height: 40px;
+    font-size: 0.9rem;
+  }
 }

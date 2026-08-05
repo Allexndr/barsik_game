@@ -119,16 +119,20 @@ export function ShopScreen() {
 
   return (
     <div className="screen screen-shop screen-meta">
+      {/*
+        No star chip here. The app header carries the balance on every screen,
+        and putting a second identical «★ 200» fifty pixels below the first one
+        cost a phone a whole row before the child saw a single item.
+      */}
       <header className="meta-screen-header">
         <div>
           <h2>{lang === 'kk' ? 'Киім бөлмесі' : 'Гардероб'}</h2>
           <p className="meta-screen-sub">
             {lang === 'kk'
-              ? 'Барсикті киіндір — алдымен көр, содан кейін ал'
-              : 'Одень Барсика — сначала примерь, потом покупай'}
+              ? 'Алдымен көр, содан кейін ал'
+              : 'Сначала примерь, потом покупай'}
           </p>
         </div>
-        <Chip icon={<IconStar size={16} />} tone="star">{stars}</Chip>
       </header>
 
       <div className="shop-dressing">
