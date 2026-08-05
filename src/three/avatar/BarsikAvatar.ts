@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { fabricMap, furMaps } from './furTexture';
 
 /**
  * Barsik as a rig, not a mesh.
@@ -118,6 +119,108 @@ function socketAt(parent: THREE.Object3D, x: number, y: number, z: number): THRE
 }
 
 /**
+ * Push a sphere's vertices into a shape.
+ *
+ * Scaling a sphere can only ever produce an ellipsoid, and an ellipsoid head
+ * on an ellipsoid body is exactly the "колобок" read. Moving the vertices
+ * themselves costs nothing at runtime — it happens once, at build — and is the
+ * difference between a ball with a face drawn on it and a skull.
+ */
+function deform(geo: THREE.BufferGeometry, fn: (v: THREE.Vector3) => void): THREE.BufferGeometry {
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    fn(v);
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Flat crown, broad cheeks, narrow chin, flattened back of the skull. */
+function shapeSkull(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+  return deform(geo, (v) => {
+    const up = v.y / 0.265; // −1 at the chin, +1 at the crown
+    // Crown flattens; a perfect dome is what makes a head read as a bauble.
+    v.y *= 1.0 - Math.max(0, up) * 0.07;
+    // Widest at the cheekbones, tapering to the chin.
+    const widen = 1 + 0.06 * Math.exp(-((up + 0.15) ** 2) / 0.4) - Math.max(0, -up - 0.45) * 0.3;
+    v.x *= widen;
+    // Back of the skull is flatter than the front, so the profile is not a
+    // circle and the ears have somewhere to sit.
+    if (v.z < 0) v.z *= 0.88;
+    else v.z *= 1.04;
+  });
+}
+
+/**
+ * A repeating copy of a shared texture.
+ *
+ * The coat maps are cached and shared between every avatar in the scene, so
+ * setting `repeat` on one directly would rescale the markings on all of them.
+ */
+function tile(source: THREE.Texture, x: number, y: number): THREE.Texture {
+  const t = source.clone();
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(x, y);
+  t.needsUpdate = true;
+  return t;
+}
+
+/** Torso: broad chest, drawn in at the waist, flat down the front. */
+function shapeTorso(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+  return deform(geo, (v) => {
+    const up = v.y / 0.19; // −1 at the hem, +1 at the collar
+    const chest = 1 + 0.09 * Math.exp(-((up - 0.45) ** 2) / 0.5);
+    const waist = 1 - 0.1 * Math.exp(-((up + 0.4) ** 2) / 0.35);
+    v.x *= chest * waist;
+    v.z *= chest * waist * 0.84;
+    v.y *= 1.15;
+  });
+}
+
+/** Muzzle: wide at the base, rounded and slightly dropped at the tip. */
+function shapeMuzzle(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+  return deform(geo, (v) => {
+    const fwd = THREE.MathUtils.clamp(v.z / 0.119, -1, 1);
+    v.x *= 1.2 - Math.max(0, fwd) * 0.25;
+    v.y *= 0.78;
+    v.y -= Math.max(0, fwd) * 0.012;
+    v.z *= 0.95;
+  });
+}
+
+/**
+ * One eye: sclera, iris and pupil as concentric spheres of falling radius,
+ * each pushed forward so it breaks the surface of the one behind it.
+ *
+ * The previous eye was five flat discs stacked along z, which is why they
+ * read as buttons pinned to the face — there was no eyeball, only a target.
+ */
+function makeEye(mats: {
+  sclera: THREE.Material; eye: THREE.Material; pupil: THREE.Material; glint: THREE.Material;
+}): THREE.Group {
+  const g = new THREE.Group();
+  const sclera = new THREE.Mesh(new THREE.SphereGeometry(0.062, 16, 14), mats.sclera);
+  sclera.scale.set(1, 1.06, 0.85);
+  const iris = new THREE.Mesh(new THREE.SphereGeometry(0.042, 14, 12), mats.eye);
+  iris.scale.set(1, 1, 0.62);
+  iris.position.z = 0.031;
+  const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.021, 12, 10), mats.pupil);
+  // Vertical slit, the way a cat's pupil actually is.
+  pupil.scale.set(0.62, 1.35, 0.5);
+  pupil.position.z = 0.049;
+  const glint = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 8), mats.glint);
+  glint.position.set(-0.017, 0.021, 0.056);
+  const glintB = new THREE.Mesh(new THREE.SphereGeometry(0.006, 6, 6), mats.glint);
+  glintB.position.set(0.016, -0.014, 0.055);
+  g.add(sclera, iris, pupil, glint, glintB);
+  return g;
+}
+
+/**
  * Pose library.
  *
  * A pose is a set of joint rotations plus, for the cyclic ones, a function of
@@ -126,18 +229,18 @@ function socketAt(parent: THREE.Object3D, x: number, y: number, z: number): THRE
  */
 const POSES: Record<AvatarPose, PoseTargets> = {
   idle: {
-    shoulderL: { z: 0.22 }, shoulderR: { z: -0.22 },
+    shoulderL: { z: -0.26 }, shoulderR: { z: 0.26 },
     elbowL: { x: -0.18 }, elbowR: { x: -0.18 },
     hipL: {}, hipR: {}, kneeL: {}, kneeR: {},
     torso: {}, head: {}, tailA: { x: 0.55 }, tailB: { x: 0.35 },
   },
   walk: {
-    shoulderL: { z: 0.2 }, shoulderR: { z: -0.2 },
+    shoulderL: { z: -0.22 }, shoulderR: { z: 0.22 },
     elbowL: { x: -0.25 }, elbowR: { x: -0.25 },
     tailA: { x: 0.5 }, tailB: { x: 0.3 },
   },
   run: {
-    shoulderL: { z: 0.16 }, shoulderR: { z: -0.16 },
+    shoulderL: { z: -0.16 }, shoulderR: { z: 0.16 },
     elbowL: { x: -0.7 }, elbowR: { x: -0.7 },
     torso: { x: 0.16 },
     tailA: { x: 0.85 }, tailB: { x: 0.2 },
@@ -152,13 +255,13 @@ const POSES: Record<AvatarPose, PoseTargets> = {
   sit: {
     hipL: { x: -1.5 }, hipR: { x: -1.5 },
     kneeL: { x: 1.5 }, kneeR: { x: 1.5 },
-    shoulderL: { z: 0.35 }, shoulderR: { z: -0.35 },
+    shoulderL: { z: -0.3 }, shoulderR: { z: 0.3 },
     elbowL: { x: -0.4 }, elbowR: { x: -0.4 },
     torso: { x: 0.08 }, tailA: { x: 0.2 }, tailB: { x: 0.6 },
   },
   wave: {
     shoulderR: { z: -2.5, x: 0.2 }, elbowR: { x: -0.3 },
-    shoulderL: { z: 0.22 }, elbowL: { x: -0.18 },
+    shoulderL: { z: -0.26 }, elbowL: { x: -0.18 },
     head: { z: -0.12 },
     tailA: { x: 0.7 }, tailB: { x: 0.3 },
   },
@@ -175,7 +278,7 @@ const POSES: Record<AvatarPose, PoseTargets> = {
   },
   point: {
     shoulderR: { z: -1.6, x: -0.9 }, elbowR: { x: 0 },
-    shoulderL: { z: 0.22 }, elbowL: { x: -0.18 },
+    shoulderL: { z: -0.26 }, elbowL: { x: -0.18 },
     head: { y: -0.2 },
     tailA: { x: 0.55 }, tailB: { x: 0.35 },
   },
@@ -189,6 +292,13 @@ const POSES: Record<AvatarPose, PoseTargets> = {
   },
 };
 
+// Sign convention, which was wrong for every resting pose: a *positive* z on
+// the left shoulder swings that arm toward the body's centre line, not away
+// from it. Both arms were therefore tucked in, and the paws ended up hanging
+// between the thighs. Away from the body is negative on the left, positive on
+// the right. The raised-arm emotes use large angles that pass through the top
+// of the arc, so their signs are correct as written and are left alone.
+
 /** Poses whose cyclic motion is driven per-frame rather than held. */
 const CYCLIC = new Set<AvatarPose>(['walk', 'run', 'idle', 'dance', 'wave', 'cheer']);
 
@@ -198,15 +308,42 @@ export function createBarsikAvatar(
   const { height = 1.45 } = opts;
   const look: AvatarLook = { ...DEFAULT_LOOK, ...opts.look };
 
+  // Two coats: the body carries dense small rosettes, the head fewer and
+  // larger. A single density looks wrong on both — a head textured at body
+  // scale turns into a spotted golf ball.
+  const coatBody = furMaps(look.fur, look.spots, 1.35);
+  const coatHead = furMaps(look.fur, look.spots, 0.6);
+
   const mats = {
-    fur: new THREE.MeshStandardMaterial({ color: look.fur, roughness: 0.82 }),
-    belly: new THREE.MeshStandardMaterial({ color: look.belly, roughness: 0.85 }),
+    fur: new THREE.MeshStandardMaterial({
+      map: coatBody.map, bumpMap: coatBody.bumpMap, bumpScale: 0.35, roughness: 0.92,
+    }),
+    // Paws, feet and ears are a tenth the size of the torso, so the same map
+    // wrapped onto them put one giant rosette on each. Repeating it shrinks the
+    // markings to match the part.
+    furSmall: new THREE.MeshStandardMaterial({
+      map: tile(coatBody.map, 3.2, 2.6), bumpMap: tile(coatBody.bumpMap, 3.2, 2.6),
+      bumpScale: 0.3, roughness: 0.92,
+    }),
+    furHead: new THREE.MeshStandardMaterial({
+      map: coatHead.map, bumpMap: coatHead.bumpMap, bumpScale: 0.3, roughness: 0.92,
+    }),
+    belly: new THREE.MeshStandardMaterial({
+      color: look.belly, bumpMap: coatBody.bumpMap, bumpScale: 0.22, roughness: 0.94,
+    }),
     spots: new THREE.MeshStandardMaterial({ color: look.spots, roughness: 0.9 }),
-    nose: new THREE.MeshStandardMaterial({ color: look.nose, roughness: 0.7 }),
-    eye: new THREE.MeshStandardMaterial({ color: look.eye, roughness: 0.35 }),
-    pupil: new THREE.MeshStandardMaterial({ color: 0x1e2a3a, roughness: 0.3 }),
-    hoodie: new THREE.MeshStandardMaterial({ color: look.hoodie, roughness: 0.78 }),
-    trousers: new THREE.MeshStandardMaterial({ color: look.trousers, roughness: 0.85 }),
+    nose: new THREE.MeshStandardMaterial({ color: look.nose, roughness: 0.55 }),
+    // Sclera, not the iris colour: eyes were five stacked spheres with the
+    // iris doing duty as the eyeball, which is why they read as buttons.
+    sclera: new THREE.MeshStandardMaterial({ color: 0xfbfbfd, roughness: 0.22 }),
+    eye: new THREE.MeshStandardMaterial({ color: look.eye, roughness: 0.18 }),
+    pupil: new THREE.MeshStandardMaterial({ color: 0x121a26, roughness: 0.15 }),
+    glint: new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    hoodie: new THREE.MeshStandardMaterial({ map: fabricMap(look.hoodie), roughness: 0.86 }),
+    hoodieDark: new THREE.MeshStandardMaterial({
+      map: fabricMap(look.hoodie), color: 0xc9c9c9, roughness: 0.9,
+    }),
+    trousers: new THREE.MeshStandardMaterial({ map: fabricMap(look.trousers), roughness: 0.9 }),
   };
 
   const root = new THREE.Group();
@@ -216,19 +353,31 @@ export function createBarsikAvatar(
   // ── Skeleton ──────────────────────────────────────────────
   // Positions are the joint centres. Meshes hang off them with an offset, so
   // a rotation on the joint swings the limb from the right place.
-  const hips = joint(rig, 0, 0.56, 0);
+  // Proportions are budgeted rather than tuned one number at a time, because
+  // adjusting them piecemeal is how the torso ended up as wide as the skull —
+  // a 0.60-wide body under a 0.68-wide head, with the arms swallowed by it.
+  //
+  //   head    0.54 wide, 0.50 tall   — the chibi read, and the widest part
+  //   torso   0.41 wide, 0.44 tall   — clearly smaller than the head
+  //   arms    0.10 wide              — must clear the torso to be legible
+  //
+  const hips = joint(rig, 0, 0.54, 0);
   const torso = joint(hips, 0, 0, 0);
   const head = joint(torso, 0, 0.56, 0.02);
-  const earL = joint(head, -0.17, 0.23, -0.03);
-  const earR = joint(head, 0.17, 0.23, -0.03);
-  const shoulderL = joint(torso, -0.31, 0.32, 0);
-  const shoulderR = joint(torso, 0.31, 0.32, 0);
-  const elbowL = joint(shoulderL, 0, -0.22, 0);
-  const elbowR = joint(shoulderR, 0, -0.22, 0);
-  const hipL = joint(hips, -0.13, -0.02, 0);
-  const hipR = joint(hips, 0.13, -0.02, 0);
-  const kneeL = joint(hipL, 0, -0.24, 0);
-  const kneeR = joint(hipR, 0, -0.24, 0);
+  // Ears sit on the skull, not beside it. At ±0.17 they cleared the head
+  // entirely and read as two balloons tied to the sides.
+  const earL = joint(head, -0.125, 0.17, -0.015);
+  const earR = joint(head, 0.125, 0.17, -0.015);
+  // Just inside the torso's half-width, so the arm joins the body instead of
+  // hanging in the air beside it — but not so far in that it disappears.
+  const shoulderL = joint(torso, -0.2, 0.29, 0);
+  const shoulderR = joint(torso, 0.2, 0.29, 0);
+  const elbowL = joint(shoulderL, 0, -0.225, 0);
+  const elbowR = joint(shoulderR, 0, -0.225, 0);
+  const hipL = joint(hips, -0.098, -0.03, 0);
+  const hipR = joint(hips, 0.098, -0.03, 0);
+  const kneeL = joint(hipL, 0, -0.23, 0);
+  const kneeR = joint(hipR, 0, -0.23, 0);
   const tailA = joint(hips, 0, 0.14, -0.22);
   const tailB = joint(tailA, 0, 0, -0.3);
 
@@ -245,109 +394,151 @@ export function createBarsikAvatar(
     return mesh;
   };
 
-  // Torso. Narrower than the shoulders on purpose: the arms hang outside the
-  // body silhouette. The first build had shoulders at 0.25 and a torso radius
-  // of 0.275, which buried both arms inside the chest and turned the whole
-  // character into a featureless blob.
-  const torsoMesh = add(torso, new THREE.Mesh(new THREE.SphereGeometry(0.26, 20, 16), mats.hoodie));
-  torsoMesh.scale.set(1.0, 1.16, 0.9);
-  torsoMesh.position.y = 0.18;
+  // Torso, to the width budget above: 0.19 base, widened at the chest to about
+  // 0.205 half-width. Narrower than the head on purpose — the head is the
+  // silhouette, the body is what hangs under it.
+  const torsoMesh = add(torso, new THREE.Mesh(shapeTorso(new THREE.SphereGeometry(0.19, 22, 18)), mats.hoodie));
+  torsoMesh.position.y = 0.2;
   // Hood, sitting behind the neck. It is what says "hoodie" from behind, and
   // it fills the gap between a big head and a small body.
-  const hood = add(torso, new THREE.Mesh(new THREE.SphereGeometry(0.19, 14, 12), mats.hoodie));
-  hood.scale.set(1.15, 0.8, 0.85);
-  hood.position.set(0, 0.42, -0.12);
-  const belly = add(torso, new THREE.Mesh(new THREE.SphereGeometry(0.155, 14, 12), mats.belly), false);
-  belly.scale.set(1.05, 1.0, 0.6);
-  belly.position.set(0, 0.13, 0.19);
+  const hood = add(torso, new THREE.Mesh(new THREE.SphereGeometry(0.142, 16, 14), mats.hoodie));
+  hood.scale.set(1.25, 0.8, 0.8);
+  hood.position.set(0, 0.4, -0.1);
+  // Hem, so the hoodie ends somewhere instead of fading into the trousers.
+  const hem = add(torso, new THREE.Mesh(new THREE.CylinderGeometry(0.152, 0.146, 0.035, 20), mats.hoodie), false);
+  hem.position.y = -0.005;
+  // Pocket — a single detail that says "garment" louder than any amount of
+  // shading, because clothes have construction and a painted sphere does not.
+  const pocket = add(torso, new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.075, 0.05), mats.hoodieDark), false);
+  pocket.position.set(0, 0.075, 0.128);
+  pocket.rotation.x = -0.12;
+  // No belly patch. The character is wearing a hoodie, so a ball of white fur
+  // bulging out of the chest was fur rendered on top of the clothing.
 
   // Head. Wider than the shoulders — the chibi read the reference model has,
   // and the reason it now clears the torso instead of sinking into it.
-  const headMesh = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.3, 22, 18), mats.fur));
-  headMesh.scale.set(1, 0.94, 0.98);
+  add(head, new THREE.Mesh(shapeSkull(new THREE.SphereGeometry(0.265, 28, 22)), mats.furHead));
+  // Neck. The head used to float directly on the torso with a visible gap
+  // under the jaw at every angle except dead-on.
+  const neck = add(torso, new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.105, 0.15, 14), mats.fur), false);
+  neck.position.set(0, 0.44, 0.005);
   // Muzzle, pushed clear of the skull so there is a face in profile.
-  const snout = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.135, 14, 12), mats.belly), false);
-  snout.scale.set(1.15, 0.78, 0.95);
-  snout.position.set(0, -0.07, 0.24);
-  const nose = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), mats.nose), false);
-  nose.position.set(0, -0.02, 0.37);
-  const mouth = add(head, new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.011, 6, 12, Math.PI), mats.pupil), false);
-  mouth.position.set(0, -0.1, 0.35);
+  const snout = add(head, new THREE.Mesh(shapeMuzzle(new THREE.SphereGeometry(0.119, 18, 14)), mats.belly), false);
+  snout.position.set(0, -0.066, 0.207);
+  // Nose leather: a wedge, not a ball. A sphere on the end of a muzzle is the
+  // single clearest "toy" tell on an animal face.
+  const nose = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.037, 12, 10), mats.nose), false);
+  nose.scale.set(1.25, 0.82, 0.75);
+  nose.position.set(0, -0.016, 0.322);
+  const nostrilGap = add(head, new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.02, 0.02), mats.pupil), false);
+  nostrilGap.position.set(0, -0.04, 0.328);
+  const mouth = add(head, new THREE.Mesh(new THREE.TorusGeometry(0.031, 0.009, 6, 14, Math.PI), mats.pupil), false);
+  mouth.position.set(0, -0.086, 0.307);
   mouth.rotation.z = Math.PI;
+  // Brow ridges. Without them the eyes sit on a bare dome and the face has no
+  // expression at all — this is most of what reads as "a character looking at
+  // you" rather than "spheres arranged on a ball".
+  for (const side of [-1, 1] as const) {
+    const brow = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.064, 12, 10), mats.furHead), false);
+    brow.scale.set(1.15, 0.42, 0.55);
+    brow.position.set(side * 0.11, 0.119, 0.19);
+    brow.rotation.z = side * 0.22;
+  }
+  // Cheek ruffs: snow leopards have wide, soft cheeks, and they give the head
+  // a silhouette that is not a circle from the front.
+  for (const side of [-1, 1] as const) {
+    const cheek = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.093, 14, 12), mats.furHead), false);
+    cheek.scale.set(0.72, 0.95, 0.8);
+    cheek.position.set(side * 0.177, -0.053, 0.102);
+  }
 
   for (const [side, ear] of [[-1, earL], [1, earR]] as const) {
     // Rounded, not spiky: a snow-leopard cub's ears are little domes. Sized
     // to clear the skull — the first pair poked out by 8 cm of 27 and read
     // as nothing at all.
-    const cone = add(ear, new THREE.Mesh(new THREE.SphereGeometry(0.105, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), mats.fur));
-    cone.scale.set(1, 1.25, 0.7);
-    cone.rotation.z = side * -0.26;
-    const inner = add(ear, new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), mats.nose), false);
-    inner.scale.set(1, 1.2, 0.5);
-    inner.position.set(side * 0.004, 0.006, 0.035);
-    inner.rotation.z = side * -0.26;
+    const cone = add(ear, new THREE.Mesh(new THREE.SphereGeometry(0.073, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.66), mats.furSmall));
+    cone.scale.set(1.05, 1.15, 0.5);
+    cone.rotation.z = side * -0.34;
+    const inner = add(ear, new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), mats.nose), false);
+    inner.scale.set(1, 1.1, 0.42);
+    inner.position.set(side * 0.006, 0.004, 0.028);
+    inner.rotation.z = side * -0.34;
   }
 
+  const eyes: THREE.Group[] = [];
   for (const side of [-1, 1] as const) {
-    // Dark patches around the eyes: the marking that makes a snow leopard
-    // read as a snow leopard rather than a white cat.
-    const patch = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.095, 12, 10), mats.spots), false);
-    patch.scale.set(0.92, 0.86, 0.3);
-    patch.position.set(side * 0.125, 0.055, 0.23);
-    const white = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.072, 12, 10), mats.belly), false);
-    white.scale.set(1, 1, 0.6);
-    white.position.set(side * 0.125, 0.055, 0.265);
-    const iris = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), mats.eye), false);
-    iris.position.set(side * 0.128, 0.055, 0.285);
-    const pupil = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), mats.pupil), false);
-    pupil.position.set(side * 0.13, 0.058, 0.315);
-    const glint = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 6), mats.belly), false);
-    glint.position.set(side * 0.145, 0.088, 0.322);
-  }
+    // Dark mask around the eye: the marking that makes a snow leopard read as
+    // a snow leopard rather than a white cat.
+    const patch = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.082, 14, 12), mats.spots), false);
+    patch.scale.set(0.95, 0.8, 0.28);
+    patch.position.set(side * 0.113, 0.046, 0.207);
+    patch.rotation.z = side * 0.18;
 
-  // Snow-leopard rosettes, on the parts that move so they travel with them.
-  for (const [parent, x, y, z, r] of [
-    [head, -0.19, 0.16, 0.12, 0.055], [head, 0.16, 0.21, -0.02, 0.05],
-    [head, 0.05, 0.26, 0.16, 0.042],
-    [torso, -0.15, 0.3, 0.08, 0.05], [torso, 0.17, 0.12, -0.05, 0.045],
-  ] as const) {
-    const s = add(parent, new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), mats.spots), false);
-    s.position.set(x, y, z);
-    s.scale.set(1, 1, 0.35);
+    const eye = makeEye(mats);
+    eye.scale.setScalar(0.88);
+    eye.position.set(side * 0.113, 0.049, 0.226);
+    // Toe-in, so the pair converges on whatever is in front of the character
+    // instead of staring off to both sides.
+    eye.rotation.y = side * -0.16;
+    head.add(eye);
+    eyes.push(eye);
+  }
+  // Rosettes are painted into the coat map now. They used to be five squashed
+  // spheres at hand-picked spots, which is too few to read as a coat and
+  // obviously stuck-on from close up.
+
+  // Whiskers. Three a side, thin and pale — almost subliminal at gameplay
+  // distance, and unmistakable in the dressing room.
+  for (const side of [-1, 1] as const) {
+    for (const [i, tilt] of [0.22, 0.02, -0.16].entries()) {
+      const w = add(head, new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.001, 0.175, 4), mats.belly), false);
+      w.position.set(side * 0.062, -0.044 + i * 0.019, 0.278);
+      w.rotation.z = side * (Math.PI / 2 - 0.35);
+      w.rotation.x = tilt;
+    }
   }
 
   // Arms: upper arm from the shoulder, forearm and paw from the elbow.
   for (const [shoulder, elbow] of [[shoulderL, elbowL], [shoulderR, elbowR]] as const) {
-    const upper = add(shoulder, new THREE.Mesh(new THREE.CapsuleGeometry(0.078, 0.15, 6, 10), mats.hoodie));
-    upper.position.y = -0.1;
-    const fore = add(elbow, new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.13, 6, 10), mats.hoodie));
-    fore.position.y = -0.09;
+    // Shoulder cap: rounds the join so the arm grows out of the body rather
+    // than being a tube parked against it.
+    const cap = add(shoulder, new THREE.Mesh(new THREE.SphereGeometry(0.058, 12, 10), mats.hoodie), false);
+    cap.scale.set(1, 0.9, 1);
+    const upper = add(shoulder, new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.16, 6, 12), mats.hoodie));
+    upper.position.y = -0.108;
+    const fore = add(elbow, new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.14, 6, 12), mats.hoodie));
+    fore.position.y = -0.096;
     // Cuff, so the paw reads as a paw coming out of a sleeve.
-    const cuff = add(elbow, new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.035, 10), mats.belly), false);
-    cuff.position.y = -0.155;
-    const paw = add(elbow, new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), mats.fur));
-    paw.position.y = -0.205;
+    const cuff = add(elbow, new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.048, 0.028, 12), mats.belly), false);
+    cuff.position.y = -0.163;
+    const paw = add(elbow, new THREE.Mesh(new THREE.SphereGeometry(0.056, 12, 10), mats.furSmall));
+    paw.scale.set(1, 1.12, 1.05);
+    paw.position.y = -0.206;
   }
 
   // Legs: thigh from the hip, shin and foot from the knee.
   for (const [hip, knee] of [[hipL, kneeL], [hipR, kneeR]] as const) {
-    const thigh = add(hip, new THREE.Mesh(new THREE.CapsuleGeometry(0.085, 0.16, 6, 8), mats.trousers));
-    thigh.position.y = -0.12;
-    const shin = add(knee, new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.14, 6, 8), mats.trousers));
-    shin.position.y = -0.1;
-    const foot = add(knee, new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), mats.fur));
-    foot.scale.set(1.05, 0.62, 1.35);
-    foot.position.set(0, -0.2, 0.04);
+    const thigh = add(hip, new THREE.Mesh(new THREE.CapsuleGeometry(0.062, 0.15, 6, 10), mats.trousers));
+    thigh.position.y = -0.115;
+    const shin = add(knee, new THREE.Mesh(new THREE.CapsuleGeometry(0.054, 0.13, 6, 10), mats.trousers));
+    shin.position.y = -0.095;
+    // Trouser cuff, matching the sleeves — the paw comes out of the leg the
+    // same way the hand comes out of the arm.
+    const legCuff = add(knee, new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.056, 0.028, 12), mats.trousers), false);
+    legCuff.position.y = -0.158;
+    const foot = add(knee, new THREE.Mesh(new THREE.SphereGeometry(0.066, 12, 10), mats.furSmall));
+    foot.scale.set(1.05, 0.7, 1.45);
+    foot.position.set(0, -0.188, 0.032);
   }
 
   // Tail in two segments so it can curl rather than swing as one stick.
   // A snow leopard's tail is nearly as thick as its leg and almost as long as
   // its body — the first one was a 6 cm wire at hip height, hidden behind the
   // legs from every angle a player ever sees.
-  const tailSegA = add(tailA, new THREE.Mesh(new THREE.CapsuleGeometry(0.088, 0.22, 6, 12), mats.fur));
+  const tailSegA = add(tailA, new THREE.Mesh(new THREE.CapsuleGeometry(0.068, 0.2, 6, 12), mats.furSmall));
   tailSegA.position.z = -0.15;
   tailSegA.rotation.x = Math.PI / 2;
-  const tailSegB = add(tailB, new THREE.Mesh(new THREE.CapsuleGeometry(0.072, 0.2, 6, 12), mats.fur));
+  const tailSegB = add(tailB, new THREE.Mesh(new THREE.CapsuleGeometry(0.056, 0.18, 6, 12), mats.furSmall));
   tailSegB.position.z = -0.14;
   tailSegB.rotation.x = Math.PI / 2;
   const tailTip = add(tailB, new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), mats.spots), false);
@@ -365,13 +556,13 @@ export function createBarsikAvatar(
     // Sockets follow the skull, so they moved when it grew. The face socket
     // was left inside the head by the resize and the glasses — the brand's
     // single most recognisable cue — simply vanished into it.
-    head: socketAt(head, 0, 0.27, 0),
-    face: socketAt(head, 0, 0.055, 0.305),
+    head: socketAt(head, 0, 0.155, 0),
+    face: socketAt(head, 0, 0.049, 0.27),
     neck: socketAt(torso, 0, 0.4, 0.04),
     body: socketAt(torso, 0, 0.16, 0.12),
     back: socketAt(torso, 0, 0.2, -0.2),
-    handL: socketAt(elbowL, 0, -0.24, 0),
-    handR: socketAt(elbowR, 0, -0.24, 0),
+    handL: socketAt(elbowL, 0, -0.216, 0),
+    handR: socketAt(elbowR, 0, -0.216, 0),
     tail: socketAt(tailB, 0, 0, -0.24),
     footL: socketAt(kneeL, 0, -0.22, 0.04),
     footR: socketAt(kneeR, 0, -0.22, 0.04),
