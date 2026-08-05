@@ -218,19 +218,19 @@ export function createBarsikAvatar(
   // a rotation on the joint swings the limb from the right place.
   const hips = joint(rig, 0, 0.56, 0);
   const torso = joint(hips, 0, 0, 0);
-  const head = joint(torso, 0, 0.44, 0.02);
-  const earL = joint(head, -0.16, 0.2, -0.02);
-  const earR = joint(head, 0.16, 0.2, -0.02);
-  const shoulderL = joint(torso, -0.25, 0.3, 0);
-  const shoulderR = joint(torso, 0.25, 0.3, 0);
+  const head = joint(torso, 0, 0.56, 0.02);
+  const earL = joint(head, -0.17, 0.23, -0.03);
+  const earR = joint(head, 0.17, 0.23, -0.03);
+  const shoulderL = joint(torso, -0.31, 0.32, 0);
+  const shoulderR = joint(torso, 0.31, 0.32, 0);
   const elbowL = joint(shoulderL, 0, -0.22, 0);
   const elbowR = joint(shoulderR, 0, -0.22, 0);
   const hipL = joint(hips, -0.13, -0.02, 0);
   const hipR = joint(hips, 0.13, -0.02, 0);
   const kneeL = joint(hipL, 0, -0.24, 0);
   const kneeR = joint(hipR, 0, -0.24, 0);
-  const tailA = joint(hips, 0, 0.04, -0.2);
-  const tailB = joint(tailA, 0, 0, -0.26);
+  const tailA = joint(hips, 0, 0.14, -0.22);
+  const tailB = joint(tailA, 0, 0, -0.3);
 
   const joints: Joints = {
     hips, torso, head, earL, earR,
@@ -245,59 +245,88 @@ export function createBarsikAvatar(
     return mesh;
   };
 
-  // Torso: hoodie body with a pale belly patch.
-  const torsoMesh = add(torso, new THREE.Mesh(new THREE.SphereGeometry(0.27, 20, 16), mats.hoodie));
-  torsoMesh.scale.set(1.02, 1.2, 0.94);
+  // Torso. Narrower than the shoulders on purpose: the arms hang outside the
+  // body silhouette. The first build had shoulders at 0.25 and a torso radius
+  // of 0.275, which buried both arms inside the chest and turned the whole
+  // character into a featureless blob.
+  const torsoMesh = add(torso, new THREE.Mesh(new THREE.SphereGeometry(0.26, 20, 16), mats.hoodie));
+  torsoMesh.scale.set(1.0, 1.16, 0.9);
   torsoMesh.position.y = 0.18;
-  const belly = add(torso, new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 12), mats.belly), false);
-  belly.scale.set(1.05, 0.95, 0.62);
-  belly.position.set(0, 0.13, 0.18);
+  // Hood, sitting behind the neck. It is what says "hoodie" from behind, and
+  // it fills the gap between a big head and a small body.
+  const hood = add(torso, new THREE.Mesh(new THREE.SphereGeometry(0.19, 14, 12), mats.hoodie));
+  hood.scale.set(1.15, 0.8, 0.85);
+  hood.position.set(0, 0.42, -0.12);
+  const belly = add(torso, new THREE.Mesh(new THREE.SphereGeometry(0.155, 14, 12), mats.belly), false);
+  belly.scale.set(1.05, 1.0, 0.6);
+  belly.position.set(0, 0.13, 0.19);
 
-  // Head.
-  const headMesh = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.27, 20, 16), mats.fur));
-  headMesh.scale.set(1, 0.96, 1);
-  const snout = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), mats.fur), false);
-  snout.scale.set(1.15, 0.72, 0.95);
-  snout.position.set(0, -0.06, 0.22);
-  const nose = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), mats.nose), false);
-  nose.position.set(0, -0.03, 0.31);
+  // Head. Wider than the shoulders — the chibi read the reference model has,
+  // and the reason it now clears the torso instead of sinking into it.
+  const headMesh = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.3, 22, 18), mats.fur));
+  headMesh.scale.set(1, 0.94, 0.98);
+  // Muzzle, pushed clear of the skull so there is a face in profile.
+  const snout = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.135, 14, 12), mats.belly), false);
+  snout.scale.set(1.15, 0.78, 0.95);
+  snout.position.set(0, -0.07, 0.24);
+  const nose = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), mats.nose), false);
+  nose.position.set(0, -0.02, 0.37);
+  const mouth = add(head, new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.011, 6, 12, Math.PI), mats.pupil), false);
+  mouth.position.set(0, -0.1, 0.35);
+  mouth.rotation.z = Math.PI;
 
   for (const [side, ear] of [[-1, earL], [1, earR]] as const) {
-    const cone = add(ear, new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.16, 9), mats.fur));
-    cone.position.y = 0.06;
-    cone.rotation.z = side * -0.3;
-    const inner = add(ear, new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 8), mats.nose), false);
-    inner.position.set(side * 0.008, 0.05, 0.03);
-    inner.rotation.z = side * -0.3;
+    // Rounded, not spiky: a snow-leopard cub's ears are little domes. Sized
+    // to clear the skull — the first pair poked out by 8 cm of 27 and read
+    // as nothing at all.
+    const cone = add(ear, new THREE.Mesh(new THREE.SphereGeometry(0.105, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), mats.fur));
+    cone.scale.set(1, 1.25, 0.7);
+    cone.rotation.z = side * -0.26;
+    const inner = add(ear, new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), mats.nose), false);
+    inner.scale.set(1, 1.2, 0.5);
+    inner.position.set(side * 0.004, 0.006, 0.035);
+    inner.rotation.z = side * -0.26;
   }
 
   for (const side of [-1, 1] as const) {
-    const white = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10), mats.belly), false);
-    white.position.set(side * 0.11, 0.03, 0.21);
-    const iris = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), mats.eye), false);
-    iris.position.set(side * 0.115, 0.03, 0.26);
-    const pupil = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), mats.pupil), false);
-    pupil.position.set(side * 0.118, 0.035, 0.295);
+    // Dark patches around the eyes: the marking that makes a snow leopard
+    // read as a snow leopard rather than a white cat.
+    const patch = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.095, 12, 10), mats.spots), false);
+    patch.scale.set(0.92, 0.86, 0.3);
+    patch.position.set(side * 0.125, 0.055, 0.23);
+    const white = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.072, 12, 10), mats.belly), false);
+    white.scale.set(1, 1, 0.6);
+    white.position.set(side * 0.125, 0.055, 0.265);
+    const iris = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), mats.eye), false);
+    iris.position.set(side * 0.128, 0.055, 0.285);
+    const pupil = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), mats.pupil), false);
+    pupil.position.set(side * 0.13, 0.058, 0.315);
+    const glint = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 6), mats.belly), false);
+    glint.position.set(side * 0.145, 0.088, 0.322);
   }
 
   // Snow-leopard rosettes, on the parts that move so they travel with them.
-  for (const [parent, x, y, z] of [
-    [head, -0.14, 0.14, 0.08], [head, 0.12, 0.18, -0.04],
-    [torso, -0.13, 0.28, 0.1], [torso, 0.16, 0.1, -0.06],
+  for (const [parent, x, y, z, r] of [
+    [head, -0.19, 0.16, 0.12, 0.055], [head, 0.16, 0.21, -0.02, 0.05],
+    [head, 0.05, 0.26, 0.16, 0.042],
+    [torso, -0.15, 0.3, 0.08, 0.05], [torso, 0.17, 0.12, -0.05, 0.045],
   ] as const) {
-    const s = add(parent, new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), mats.spots), false);
+    const s = add(parent, new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), mats.spots), false);
     s.position.set(x, y, z);
-    s.scale.set(1, 1, 0.5);
+    s.scale.set(1, 1, 0.35);
   }
 
   // Arms: upper arm from the shoulder, forearm and paw from the elbow.
   for (const [shoulder, elbow] of [[shoulderL, elbowL], [shoulderR, elbowR]] as const) {
-    const upper = add(shoulder, new THREE.Mesh(new THREE.CapsuleGeometry(0.068, 0.16, 6, 8), mats.hoodie));
-    upper.position.y = -0.11;
-    const fore = add(elbow, new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.14, 6, 8), mats.hoodie));
-    fore.position.y = -0.1;
-    const paw = add(elbow, new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), mats.fur));
-    paw.position.y = -0.21;
+    const upper = add(shoulder, new THREE.Mesh(new THREE.CapsuleGeometry(0.078, 0.15, 6, 10), mats.hoodie));
+    upper.position.y = -0.1;
+    const fore = add(elbow, new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.13, 6, 10), mats.hoodie));
+    fore.position.y = -0.09;
+    // Cuff, so the paw reads as a paw coming out of a sleeve.
+    const cuff = add(elbow, new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.035, 10), mats.belly), false);
+    cuff.position.y = -0.155;
+    const paw = add(elbow, new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), mats.fur));
+    paw.position.y = -0.205;
   }
 
   // Legs: thigh from the hip, shin and foot from the knee.
@@ -312,22 +341,35 @@ export function createBarsikAvatar(
   }
 
   // Tail in two segments so it can curl rather than swing as one stick.
-  const tailSegA = add(tailA, new THREE.Mesh(new THREE.CapsuleGeometry(0.062, 0.2, 6, 10), mats.fur));
-  tailSegA.position.z = -0.13;
+  // A snow leopard's tail is nearly as thick as its leg and almost as long as
+  // its body — the first one was a 6 cm wire at hip height, hidden behind the
+  // legs from every angle a player ever sees.
+  const tailSegA = add(tailA, new THREE.Mesh(new THREE.CapsuleGeometry(0.088, 0.22, 6, 12), mats.fur));
+  tailSegA.position.z = -0.15;
   tailSegA.rotation.x = Math.PI / 2;
-  const tailSegB = add(tailB, new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.18, 6, 10), mats.fur));
-  tailSegB.position.z = -0.12;
+  const tailSegB = add(tailB, new THREE.Mesh(new THREE.CapsuleGeometry(0.072, 0.2, 6, 12), mats.fur));
+  tailSegB.position.z = -0.14;
   tailSegB.rotation.x = Math.PI / 2;
+  const tailTip = add(tailB, new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), mats.spots), false);
+  tailTip.position.z = -0.25;
+  for (const [i, z] of [-0.1, -0.19].entries()) {
+    const band = add(tailB, new THREE.Mesh(new THREE.SphereGeometry(0.074 - i * 0.004, 10, 8), mats.spots), false);
+    band.scale.set(1, 1, 0.28);
+    band.position.z = z;
+  }
 
   // ── Clothing sockets ──────────────────────────────────────
   // Each one hangs off the joint that owns that part of the body, so a hat
   // stays on the head while the head turns.
   const sockets: Record<AvatarSocket, THREE.Group> = {
-    head: socketAt(head, 0, 0.24, 0),
-    face: socketAt(head, 0, 0.04, 0.24),
-    neck: socketAt(torso, 0, 0.34, 0.02),
+    // Sockets follow the skull, so they moved when it grew. The face socket
+    // was left inside the head by the resize and the glasses — the brand's
+    // single most recognisable cue — simply vanished into it.
+    head: socketAt(head, 0, 0.27, 0),
+    face: socketAt(head, 0, 0.055, 0.305),
+    neck: socketAt(torso, 0, 0.4, 0.04),
     body: socketAt(torso, 0, 0.16, 0.12),
-    back: socketAt(torso, 0, 0.18, -0.18),
+    back: socketAt(torso, 0, 0.2, -0.2),
     handL: socketAt(elbowL, 0, -0.24, 0),
     handR: socketAt(elbowR, 0, -0.24, 0),
     tail: socketAt(tailB, 0, 0, -0.24),
