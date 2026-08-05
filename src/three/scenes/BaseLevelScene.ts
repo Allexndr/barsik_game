@@ -14,7 +14,7 @@ import { createWindGrass, type WindGrass } from '../WindGrass';
 import { AssetKit } from '../AssetKit';
 import { placePatch, ringAnchors, type PatchSpec } from '../sceneComposition';
 import { placeMany, setPlacementGround } from '../s1Place';
-import { disposeObject3DResources, fitHeight, fitMaxSize, groundY } from '../modelUtils';
+import { disposeObject3DResources, fitHeight, fitMaxSize, groundY, measurePlinthFraction } from '../modelUtils';
 import { createFpsSampler } from '@/dev/fpsSampler';
 import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
 
@@ -504,6 +504,22 @@ export async function loadCharModel(
   const gltf = await loadGlb(loader, CHARS + file);
   if (!gltf) return null;
   fitHeight(gltf.scene, height);
+  // Sink any presentation plinth below the ground, and grow the model back so
+  // the character itself — not the character plus its trophy base — is the
+  // requested height. fitHeight has already made the whole model `height`
+  // tall, so the plinth is `height * fraction` and the body is the rest.
+  const plinthFraction = measurePlinthFraction(gltf.scene);
+  if (plinthFraction > 0) {
+    const grow = 1 / (1 - plinthFraction);
+    gltf.scene.scale.multiplyScalar(grow);
+    const box = new THREE.Box3().setFromObject(gltf.scene);
+    // Ground the model, then drop it by the plinth's new height plus half a
+    // measuring slab. The detector works at 1/20 of the model's height, so the
+    // top it reports can sit up to one slab low — and an under-measured plinth
+    // leaves a bright rim of slab showing wherever the ground dips under its
+    // corners. Half a slab covers the quantisation; it is under 3cm of foot.
+    gltf.scene.position.y -= box.min.y + height * (plinthFraction * grow + 0.025);
+  }
   gltf.scene.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh) return;
@@ -1779,8 +1795,23 @@ export abstract class BaseLevelScene {
       this.pendingGrass = null;
     }
     document.addEventListener('visibilitychange', this.onVisibility);
+    // Dev QA handle. The completion plan asks for a way to check a level's
+    // later acts without replaying the earlier ones, and `?at=` only moves the
+    // hero — it cannot advance a phase or read back what the scene thinks is
+    // true. Guarded by import.meta.env.DEV, so it is absent from a build.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __level?: BaseLevelScene }).__level = this;
+    }
     start();
     return true;
+  }
+
+  /**
+   * Teleport for QA: moves the hero and sits them on the ground properly,
+   * which `hero.position.set` from a console does not.
+   */
+  devTeleport(x: number, z: number) {
+    this.hero.position.set(x, this.groundHeightAt(x, z), z);
   }
 
   // ── Resize ───────────────────────────────────────────────────

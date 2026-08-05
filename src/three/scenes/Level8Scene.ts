@@ -98,10 +98,13 @@ const DAY = {
   hemi: new THREE.Color(0xfff6e0),
   fog: new THREE.Color(0x81c784),
 };
+// Blue evening, not a purple one. The first pass leaned magenta and the fog
+// carried that tint onto the grass, so the whole glade read as lit through a
+// party gel rather than as dusk.
 const DUSK = {
-  sun: new THREE.Color(0xffa45c),
-  hemi: new THREE.Color(0x6a72a8),
-  fog: new THREE.Color(0x3f4a72),
+  sun: new THREE.Color(0xffb070),
+  hemi: new THREE.Color(0x5c6a92),
+  fog: new THREE.Color(0x33456b),
 };
 
 // ── Built pieces ────────────────────────────────────────────────
@@ -296,6 +299,8 @@ export class Level8Scene extends BaseLevelScene {
   private flashMesh: THREE.Mesh | null = null;
   private celebrateAt = 0;
   private gatherAt = 0;
+  /** Where the hero stood when the last fruit landed, so he can walk into shot. */
+  private heroFrom = new THREE.Vector3();
 
   /** 0 = afternoon, 1 = the lit-up evening the festival happens in. */
   private dusk = 0;
@@ -402,6 +407,7 @@ export class Level8Scene extends BaseLevelScene {
     if (this.fruitsDone >= FRUIT_SPOTS.length) {
       this.phase = 'gather';
       this.gatherAt = performance.now();
+      this.heroFrom.copy(this.hero.position);
       this.stars += 4;
     }
     this.pushHud();
@@ -441,7 +447,7 @@ export class Level8Scene extends BaseLevelScene {
     dusk.geometry = new THREE.SphereGeometry(176, 32, 24);
     const duskMat = dusk.material as THREE.MeshBasicMaterial;
     duskMat.map?.dispose();
-    duskMat.map = makeSkyTexture('#1b2450', '#7d4f86', '#f0a05a');
+    duskMat.map = makeSkyTexture('#16224a', '#4a5288', '#f2a765');
     duskMat.transparent = true;
     duskMat.opacity = 0;
     duskMat.depthWrite = false;
@@ -511,6 +517,11 @@ export class Level8Scene extends BaseLevelScene {
 
     // Act 2 — three real trees, placed by hand, with a coil at each foot.
     const kit = this.assetKit(loader);
+    // One anchor height for all three, taken from the highest tree foot. Hung
+    // at ground + 4.1 each, the three trunks' own height differences tilted
+    // every span; a level triangle is what a strung garland actually looks
+    // like, and it keeps the lowest sag clear of the hero's head.
+    const anchorY = Math.max(...GARLAND_TREES.map(([x, z]) => this.groundHeightAt(x, z))) + 4.3;
     const anchors: THREE.Vector3[] = [];
     for (const [x, z] of GARLAND_TREES) {
       const [tree] = await kit.scatter('nature', ['tree_oak'], [{ x, z, height: 6.4 }]);
@@ -519,7 +530,7 @@ export class Level8Scene extends BaseLevelScene {
         this.scene.add(tree);
         this.colliders.push({ kind: 'circle', x, z, r: 1.3 });
       }
-      anchors.push(new THREE.Vector3(x, this.groundHeightAt(x, z) + 4.1, z));
+      anchors.push(new THREE.Vector3(x, anchorY, z));
     }
     for (let i = 0; i < GARLAND_TREES.length; i++) {
       const [x, z] = GARLAND_TREES[i];
@@ -666,8 +677,8 @@ export class Level8Scene extends BaseLevelScene {
   private pushHud() {
     const n = this.nick;
     let speaker = 'Барсик';
-    let line = '';
-    let objective = '';
+    let line: string;
+    let objective: string;
     const p = this.phase;
 
     if (p === 'intro') {
@@ -833,6 +844,18 @@ export class Level8Scene extends BaseLevelScene {
       this.pushHud();
     }
 
+    if (this.phase === 'celebrate' && now > this.nextAt) {
+      this.phase = 'outro';
+      this.pushHud();
+    }
+
+    const canMove = this.phase === 'lanterns' || this.phase === 'garlands' || this.phase === 'harvest';
+    this.updateMovement(dt, canMove, this.baseSpeed, -19, 19, -34, 9);
+    this.updateDelivery();
+
+    // After updateMovement, not before: with canMove false it clears `walking`
+    // and cross-fades to idle, which would have left the hero sliding to his
+    // mark in an idle pose.
     if (this.phase === 'gather') {
       const t = THREE.MathUtils.clamp((now - this.gatherAt) / 3400, 0, 1);
       const ease = t * t * (3 - 2 * t);
@@ -840,6 +863,14 @@ export class Level8Scene extends BaseLevelScene {
         g.model.position.lerpVectors(g.from, g.to, ease);
         if (t < 1) g.model.position.y += Math.abs(Math.sin(now * 0.012 + i)) * 0.06;
       }
+      // It is Barsik's party — he has to be in the photograph. He may have
+      // delivered that last fruit from any side of the table, so he walks to
+      // the front of the group and turns to face the camera.
+      this.hero.position.x = THREE.MathUtils.lerp(this.heroFrom.x, 0, ease);
+      this.hero.position.z = THREE.MathUtils.lerp(this.heroFrom.z, GLADE_Z + 3.4, ease);
+      this.hero.position.y = this.groundHeightAt(this.hero.position.x, this.hero.position.z);
+      this.hero.rotation.y = THREE.MathUtils.lerp(this.yaw, 0, ease);
+      this.walking = t < 0.96;
       if (t >= 1) {
         this.phase = 'celebrate';
         this.celebrateAt = now;
@@ -853,15 +884,6 @@ export class Level8Scene extends BaseLevelScene {
         this.pushHud();
       }
     }
-
-    if (this.phase === 'celebrate' && now > this.nextAt) {
-      this.phase = 'outro';
-      this.pushHud();
-    }
-
-    const canMove = this.phase === 'lanterns' || this.phase === 'garlands' || this.phase === 'harvest';
-    this.updateMovement(dt, canMove, this.baseSpeed, -19, 19, -34, 9);
-    this.updateDelivery();
 
     // Evening eases in rather than stepping, so lighting a lantern reads as a
     // moment rather than a light switch.

@@ -23,7 +23,84 @@ export function fitMaxSize(root: THREE.Object3D, s: number) {
   root.position.y -= b2.min.y;
 }
 
-/** Drop an object so its lowest point sits on y=0. */
+/**
+ * Height of the display plinth a generated character is standing on, as a
+ * fraction of the model's total height. 0 when there is no plinth.
+ *
+ * Returned as a fraction on purpose: the mesh's world scale is not settled at
+ * the point a loader wants this answer (the model is not in the scene graph
+ * yet, so matrixWorld is stale), and reading it there silently mixes local and
+ * world units. A fraction is the same number in both.
+ *
+ * Meshy hands back figures posed on a little presentation slab. It is welded
+ * into the same mesh as the character, with the same material, so it cannot be
+ * removed by deleting a child — and in game it reads as every friend standing
+ * on a gold trophy base.
+ *
+ * Found by the *step* in vertex density, not by its level. A plinth is a few
+ * quads spanning the full footprint, and it ends in a flat top, so the slab
+ * above it jumps by an order of magnitude — Aya goes 154 → 1243 across that
+ * line, Путало 82 → 1049. A real body has no such edge: the hedgehog's
+ * densest bottom transition is 3× and the squirrel's is 1.5×.
+ *
+ * Absolute density alone does not separate them. The hedgehog's bottom slab is
+ * as sparse as Aya's, so any threshold low enough to catch Путало's base also
+ * buries the hedgehog to the knees. The width guard is kept as well: a plinth
+ * spans the model's whole footprint, so a bird on thin legs cannot qualify.
+ */
+export function measurePlinthFraction(root: THREE.Object3D): number {
+  const meshes: THREE.Mesh[] = [];
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.isMesh && m.geometry?.attributes?.position) meshes.push(m);
+  });
+  if (meshes.length !== 1) return 0; // a separable base is not this problem
+
+  const mesh = meshes[0];
+  const pos = mesh.geometry.attributes.position as THREE.BufferAttribute;
+  mesh.geometry.computeBoundingBox();
+  const bb = mesh.geometry.boundingBox!;
+  const h = bb.max.y - bb.min.y;
+  if (h <= 0) return 0;
+
+  const SLABS = 20;
+  const counts = new Array(SLABS).fill(0);
+  const widths = new Array(SLABS).fill(0);
+  const cx = (bb.max.x + bb.min.x) / 2;
+  const cz = (bb.max.z + bb.min.z) / 2;
+  for (let i = 0; i < pos.count; i++) {
+    const slab = Math.min(SLABS - 1, Math.floor(((pos.getY(i) - bb.min.y) / h) * SLABS));
+    counts[slab]++;
+    widths[slab] = Math.max(widths[slab], Math.hypot(pos.getX(i) - cx, pos.getZ(i) - cz));
+  }
+
+  const widest = Math.max(...widths);
+  const maxSlab = Math.floor(SLABS * 0.3); // a plinth is never a third of a character
+
+  // Cumulative, not per-slab. A slab box leaves whole empty layers between its
+  // bottom face and its top one, and per-slab ratios read those gaps as the
+  // step: Aya's 2-vertex layer scored 77× against her real edge of 8×.
+  let top = 0;
+  let below = 0;
+  for (let i = 1; i <= maxSlab; i++) {
+    const next = below + counts[i - 1];
+    if (next > pos.count * 0.04) break;
+    // Empty layers carry no width to judge, so they are skipped rather than
+    // failing the test.
+    if (counts[i - 1] > 0 && widths[i - 1] < widest * 0.6) break;
+    below = next;
+    top = i;
+  }
+  if (top === 0) return 0;
+
+  // The layer above must be dramatically denser than the base's own average —
+  // that edge is what a flat plinth top is, and what a body never has.
+  if (counts[top] < 5 * (below / top)) return 0;
+
+  const fraction = top / SLABS;
+  return fraction < 0.05 ? 0 : fraction;
+}
+
 /** Sit an object's lowest point on `base` (terrain height, or 0 for a plane). */
 export function groundY(o: THREE.Object3D, base = 0) {
   const b = new THREE.Box3().setFromObject(o);
