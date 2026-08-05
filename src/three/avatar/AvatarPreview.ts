@@ -35,9 +35,12 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 40);
-  camera.position.set(0, 1.05, 4.1);
-  camera.lookAt(0, 0.78, 0);
+  // Framed tight on purpose. The panel is wide and short, and at a wider
+  // angle the character sat small in the middle of it — a dressing room
+  // where you cannot see the clothes is not doing its job.
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 40);
+  camera.position.set(0, 0.95, 3.15);
+  camera.lookAt(0, 0.8, 0);
 
   // Three-point rig: the same key/fill/rim ratio the levels use, so an item
   // does not look like a different game once it is worn outside the shop.

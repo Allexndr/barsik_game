@@ -120,6 +120,13 @@ function migrateProgress(raw: unknown) {
       data.cityObjects && typeof data.cityObjects === 'object'
         ? (data.cityObjects as Record<string, boolean>)
         : {},
+    // Saves written before the wardrobe existed have no outfit; those players
+    // get the starter cap and glasses rather than a bare Barsik. Without this
+    // the outfit was persisted correctly and then thrown away on every
+    // reload, because whatever this function omits is left at its default.
+    outfit: Array.isArray(data.outfit)
+      ? data.outfit.filter((id): id is string => typeof id === 'string')
+      : ['cap_green', 'glasses_yellow'],
     season1Complete:
       data.season1Complete === true ||
       (Number.isFinite(data.currentLevel) && Number(data.currentLevel) >= 17) ||
@@ -184,6 +191,23 @@ export function App() {
         });
         applyLang(requestedLang);
         useUIStore.getState().startEpisode(missionId);
+      }
+
+      // `?tab=shop` opens a navbar page directly. The meta screens sit behind
+      // the welcome flow, so checking one otherwise means clicking through
+      // onboarding every time — which in practice means they get checked far
+      // less often than the levels do.
+      const tab = params.get('tab');
+      const tabs = ['travel', 'friends', 'city', 'shop', 'leaderboard', 'qr'] as const;
+      type Tab = (typeof tabs)[number];
+      if (tab && (tabs as readonly string[]).includes(tab)) {
+        const existingPlayer = useGameStore.getState().player;
+        useGameStore.setState({
+          player:
+            existingPlayer ??
+            migratePlayer({ id: 'qa-player', nick: 'Тест', gender: 'boy', lang: 'ru' }),
+        });
+        useUIStore.setState({ currentScreen: 'game', activeTab: tab as Tab });
       }
     }
   }, []);
