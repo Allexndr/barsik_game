@@ -2,17 +2,13 @@ import * as THREE from 'three';
 import {
   BaseLevelScene,
   type BaseHud,
-  mountain,
-  zoneDisc,
   spawnPad,
   butterfly,
   bush,
-  hill,
-  skyDome,
-  pathArrow,
   placeWoodSign,
   loadCharModel,
 } from './BaseLevelScene';
+import { AudioManager } from '@/audio/AudioManager';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeAmbientCritters } from '../s1Place';
 
@@ -22,6 +18,26 @@ import { placeAmbientCritters } from '../s1Place';
  * If you run, Putalo hides behind the rock. Two dialogue choices, both positive.
  */
 
+// ── Layout ──────────────────────────────────────────────────────
+// The stealth was one fourteen-metre walk with a binary run/walk check: get
+// within three metres without holding Shift and the level was over. Putalo now
+// photographs butterflies at three spots in turn, each deeper into the forest,
+// and earning his trust at one is what makes him lead you to the next.
+const SPAWN_Z = 12;
+const HIDES: Array<{ x: number; z: number }> = [
+  { x: -11, z: -2 },
+  { x: 13, z: -17 },
+  { x: -5, z: -34 },
+];
+/** He watches from here; run inside it and he ducks. */
+const NOTICE = 10;
+/** Trust only builds this close — near enough that he can see you are calm. */
+const CLOSE = 4.5;
+
+function routeX(z: number) {
+  return Math.sin((z - SPAWN_Z) * 0.06) * 3.2;
+}
+
 export type L8Phase = 'intro' | 'approach' | 'slow' | 'hiding' | 'dialogue' | 'photo' | 'outro';
 
 export interface L8Hud extends BaseHud {
@@ -29,6 +45,10 @@ export interface L8Hud extends BaseHud {
   walkSpeed: 'slow' | 'fast';
   dialogueChoice: number;
   dialogueStep: number;
+  /** 0–1 for the current approach, so the HUD can show it filling. */
+  trust: number;
+  approachesDone: number;
+  approachesTotal: number;
 }
 
 function makePutalo(x: number, z: number): THREE.Group {
@@ -120,7 +140,6 @@ export class Level7Scene extends BaseLevelScene {
   private putaloState: 'hiding' | 'peeking' | 'out' | 'talking' = 'hiding';
   private putaloTargetX = 0;
   private putaloTargetZ = -8;
-  private rock: THREE.Group | null = null;
   private dialogueChoice = 0;
   private dialogueStep = 0;
   private pendingChoice = 0;
@@ -129,6 +148,10 @@ export class Level7Scene extends BaseLevelScene {
   private butterflies: THREE.Group[] = [];
   private strands: THREE.Mesh[] = [];
   private photos: THREE.Group[] = [];
+  private hideIndex = 0;
+  private trust = 0;
+  private spookedUntil = 0;
+  private readonly approachesTotal = HIDES.length;
 
   protected currentPhase() { return this.phase; }
 
@@ -204,96 +227,102 @@ export class Level7Scene extends BaseLevelScene {
     this.onHud = onHud;
     const loader = createGameGltfLoader();
 
-    this.camera.position.set(0, 6, 14);
-    await this.setupForestEnvironment(loader, { fogColor: 0x4a5d4a, sunColor: 0xfff3e0, sunIntensity: 1.75, hemiSky: 0x6b8e6b, hemiGround: 0x2d4a2d, sky: ['#e8a25c', '#f0c48a', '#f6e2c4'], flatRadius: 18, flatCenterZ: -10, fireflies: true });
-    this.scene.add(skyDome('#3a5a3a', '#5a7a5a', '#8aaa8a'));
-    this.setupClouds(4, 22, 40);
+    this.camera.position.set(8, 7, 20);
+    this.pathCorridor = routeX;
+    this.pathCorridorHalf = 2.2;
+    await this.setupForestEnvironment(loader, {
+      fogColor: 0x4a5d4a, sunColor: 0xfff3e0, sunIntensity: 1.75,
+      hemiSky: 0x6b8e6b, hemiGround: 0x2d4a2d,
+      sky: ['#e8a25c', '#f0c48a', '#f6e2c4'],
+      flatRadius: 12, flatCenterZ: -16, fireflies: true,
+      terrain: {
+        playHalfExtent: 52, rimFalloff: 15, rimHeight: 3.2, seed: 7,
+        features: HIDES.map((h) => ({ kind: 'flat' as const, x: h.x, z: h.z, r: 6 }))
+          .concat([{ kind: 'flat' as const, x: 0, z: SPAWN_Z - 3, r: 7 }]),
+      },
+    });
 
-    // Darker atmosphere hills
-    this.scene.add(hill(-20, -12, 10, 1.0));
-    this.scene.add(hill(22, -20, 12, 1.2));
+    this.reserve(0, SPAWN_Z, 5);
+    for (const h of HIDES) this.reserve(h.x, h.z, 5);
 
-    // Mountains
-    for (const [x, z, h, w] of [
-      [-40, -55, 18, 12],
-      [35, -50, 20, 14],
-    ] as const) {
-      this.scene.add(mountain(x, z, h, w));
+    const pad = spawnPad(0, SPAWN_Z);
+    pad.position.y = this.groundHeightAt(0, SPAWN_Z) + 0.01;
+    this.scene.add(pad);
+    this.scene.add(await placeWoodSign(loader, -2.8, SPAWN_Z - 1.8, 0.3, 0x8d6e63));
+    await this.layTrail(
+      loader,
+      Array.from({ length: 20 }, (_, i) => {
+        const z = SPAWN_Z - (i / 19) * 34;
+        return { x: routeX(z), z };
+      }),
+      { size: 1.2 },
+    );
+
+    // A rock at every hide, because "he ducks behind the rock" needs a rock
+    // wherever he is standing — there used to be exactly one, at the only
+    // place he ever stood.
+    for (const h of HIDES) {
+      const rock = makeRock(h.x, h.z - 1.8, 1.5);
+      this.snapToGround(rock);
+      this.scene.add(rock);
+      this.colliders.push({ kind: 'circle', x: h.x, z: h.z - 1.8, r: 1.5 });
     }
 
-    // Zone discs
-    this.scene.add(zoneDisc(0, 6, 5, 0x4a7c4a, 0.025));
-    this.scene.add(zoneDisc(0, -8, 5, 0x8d6e63, 0.03));
-
-    // Spawn pad
-    this.scene.add(spawnPad(0, 6));
-
-    // Sign
-    this.scene.add(await placeWoodSign(loader, -2.5, 4, 0.3, 0x8d6e63));
-
-    // Rock (Putalo hides behind)
-    this.rock = makeRock(0, -6, 1.5);
-    this.scene.add(this.rock);
-    this.colliders.push({ kind: 'circle', x: 0, z: -6, r: 1.5 });
-
-    // Putalo behind rock — Meshy GLB when present, procedural fallback otherwise
+    // Putalo behind the first rock — Meshy GLB when present, procedural otherwise
     const putaloGlb = await loadCharModel(loader, 'putalo.glb', 1.35);
-    this.putalo = putaloGlb ?? makePutalo(0, -8);
-    if (putaloGlb) this.putalo.position.set(0, 0, -8);
-    this.putaloTargetX = 0;
-    this.putaloTargetZ = -8;
+    this.putalo = putaloGlb ?? makePutalo(HIDES[0].x, HIDES[0].z);
+    this.putalo.position.set(HIDES[0].x, this.groundHeightAt(HIDES[0].x, HIDES[0].z), HIDES[0].z);
+    this.putaloTargetX = HIDES[0].x;
+    this.putaloTargetZ = HIDES[0].z;
     this.scene.add(this.putalo);
 
     // Sticky strands (decorative)
-    for (let i = 0; i < 12; i++) {
-      const x = (Math.random() - 0.5) * 16;
-      const z = -2 - Math.random() * 12;
+    for (let i = 0; i < 18; i++) {
+      const x = (Math.random() - 0.5) * 34;
+      const z = 6 - Math.random() * 44;
       const h = 2 + Math.random() * 2;
       const s = makeStickyStrand(x, h, z);
       this.strands.push(s);
       this.scene.add(s);
     }
 
-    // Photos on trees
-    for (let i = 0; i < 6; i++) {
-      const x = (Math.random() - 0.5) * 14;
-      const z = -3 - Math.random() * 10;
+    // Photos on trees — his trail through the forest, so the route reads as
+    // somebody's territory rather than empty ground between two markers.
+    for (let i = 0; i < 12; i++) {
+      const x = (Math.random() - 0.5) * 28;
+      const z = 4 - Math.random() * 42;
       const p = makePhoto(x, 1.5 + Math.random() * 1.5, z, Math.random() * Math.PI * 2);
       this.photos.push(p);
       this.scene.add(p);
     }
 
-    // Path arrows
-    for (let i = 0; i < 6; i++) {
-      const a = pathArrow(0, 5 - i * 1.5, 0);
-      this.pathArrows.push(a);
-      this.scene.add(a);
-    }
-
-    // Bushes (darker)
-    for (let i = 0; i < 12; i++) {
+    // Bushes, thinned along the route so cover reads as cover
+    for (let i = 0; i < 22; i++) {
       const side = i % 2 === 0 ? 1 : -1;
-      const z = 4 - (i / 12) * 14;
-      this.scene.add(bush(side * (5 + Math.random() * 3), z));
+      const z = SPAWN_Z - (i / 22) * 46;
+      this.scene.add(bush(routeX(z) + side * (5 + Math.random() * 4), z));
     }
 
     // Butterflies (Putalo photographs them)
-    for (let i = 0; i < 4; i++) {
-      const bf = butterfly((Math.random() - 0.5) * 12, -5 - Math.random() * 6, [0xff7675, 0x74b9ff, 0xfdcb6e][i % 3]);
+    for (let i = 0; i < 8; i++) {
+      const bf = butterfly(HIDES[i % 3].x + (Math.random() - 0.5) * 5, HIDES[i % 3].z + (Math.random() - 0.5) * 5, [0xff7675, 0x74b9ff, 0xfdcb6e][i % 3]);
       this.butterflies.push(bf);
       this.scene.add(bf);
     }
 
     // Trees (denser, darker area)
-    await this.loadTrees(loader, 25, 18, -10, 4.0);
-    await this.loadProps(loader, 5, 4, 18, -14);
+    await this.loadTrees(loader, 30, 18, -14, 4.4);
+    await this.loadProps(loader, 12, 6, 32, -14);
 
     // Putalo's photo kit + quiet forest extras
     await this.placeProps(loader, [
-      { key: 'camera', opts: { x: 2.4, z: -1.5, maxSize: 0.55, y: 0.05 } },
-      { key: 'mushroom_cottage', opts: { x: -9, z: -8, maxSize: 2.2, rotY: 0.4 } },
-      { key: 'lantern', opts: { x: -2.8, z: -6, maxSize: 0.65 } },
-      { key: 'berry', opts: { x: 5, z: -4, maxSize: 0.35 } },
+      { key: 'camera', opts: { x: 2.4, z: SPAWN_Z - 5, maxSize: 0.55, y: 0.05 } },
+      { key: 'mushroom_cottage', opts: { x: -14, z: -22, maxSize: 2.2, rotY: 0.4 } },
+      { key: 'lantern', opts: { x: HIDES[0].x + 2.4, z: HIDES[0].z + 1.4, maxSize: 0.65 } },
+      { key: 'lantern_wood', opts: { x: HIDES[1].x - 2.2, z: HIDES[1].z + 1.6, maxSize: 0.65 } },
+      { key: 'lantern_hang', opts: { x: HIDES[2].x + 2.6, z: HIDES[2].z + 1.2, maxSize: 0.6, y: 1.7 } },
+      { key: 'berry', opts: { x: 6, z: -9, maxSize: 0.35 } },
+      { key: 'stump', opts: { x: -8, z: -26, maxSize: 1.1 } },
     ]);
     await placeAmbientCritters(this.scene, loader, [
       { key: 'owl', x: 7.5, z: -7, rotY: -1.4, h: 0.72 },
@@ -330,6 +359,12 @@ export class Level7Scene extends BaseLevelScene {
     });
   }
 
+  /** Five blocks, because a number from 0 to 1 means nothing to a six-year-old. */
+  private trustBar() {
+    const filled = Math.round(this.trust * 5);
+    return '▰'.repeat(filled) + '▱'.repeat(5 - filled);
+  }
+
   private pushHud() {
     const n = this.nick;
     let speaker = 'Барсик';
@@ -344,22 +379,26 @@ export class Level7Scene extends BaseLevelScene {
         this.copy('Иди медленно — если побежишь, он испугается!', 'Жай жүр — жүгірсең, қорықпай қашып кетеді!'),
       ];
       line = lines[Math.min(this.introI, lines.length - 1)];
-      objective = this.copy('🤫 Подойди медленно к камню', '🤫 Тасқа жай жақында');
+      objective = this.copy('🤫 Подойди медленно — не беги', '🤫 Жай жақында — жүгірме');
     } else if (p === 'approach' || p === 'slow') {
       const dist = this.putalo ? this.hero.position.distanceTo(this.putalo.position) : 99;
       if (dist < 3) {
         speaker = this.copy('Путало', 'Путало');
-        line = this.copy('Ты... ты не боишься меня?', 'Сен... менен қорықпайсың ба?');
+        line = this.hideIndex === 0
+          ? this.copy('Ты... ты не боишься меня?', 'Сен... менен қорықпайсың ба?')
+          : this.hideIndex === 1
+            ? this.copy('Пойдём, тут бабочки красивее...', 'Жүр, мұнда көбелектер әдемірек...')
+            : this.copy('Здесь моё самое тихое место.', 'Мұнда менің ең тыныш жерім.');
         objective = this.isMobile
           ? this.copy('Поговори — нажми лапку', 'Сөйлесу үшін табанды бас')
           : this.copy('Поговори — нажми E', 'Сөйлесу үшін E пернесін бас');
       } else {
         line = this.copy('Иди медленно... не торопись.', 'Жай жүр... асықпа.');
-        objective = this.copy('🤫 Подходи медленно', '🤫 Жай жақында');
+        objective = `${this.copy('🤫 Путало привыкает', '🤫 Путало үйренуде')} ${this.trustBar()}  ·  ${this.hideIndex + 1}/${this.approachesTotal}`;
       }
     } else if (p === 'hiding') {
       line = this.copy('Ой, он спрятался! Иди медленнее.', 'Ой, ол жасырынды! Жайырақ жүр.');
-      objective = this.copy('🐢 Подходи шагом, не беги', '🐢 Ақырын жүр, жүгірме');
+      objective = `${this.copy('🐢 Шагом, не беги', '🐢 Ақырын, жүгірме')} ${this.trustBar()}  ·  ${this.hideIndex + 1}/${this.approachesTotal}`;
     } else if (p === 'dialogue') {
       if (this.dialogueStep === 0) {
         speaker = this.copy('Путало', 'Путало');
@@ -412,6 +451,9 @@ export class Level7Scene extends BaseLevelScene {
       walkSpeed,
       dialogueChoice: this.dialogueChoice,
       dialogueStep: this.dialogueStep,
+      trust: this.trust,
+      approachesDone: this.hideIndex,
+      approachesTotal: this.approachesTotal,
       stars: this.stars,
       canInteract: this.phase === 'dialogue' && (this.dialogueStep === 0 || this.dialogueStep === 1),
       showMoveHint: !this.hasTakenFirstStep && p === 'intro',
@@ -436,6 +478,91 @@ export class Level7Scene extends BaseLevelScene {
     return null;
   }
 
+  /**
+   * The stealth rule, as a method rather than forty lines inside the loop.
+   *
+   * Extracted so it can be exercised directly: the loop only advances on a
+   * requestAnimationFrame, and a backgrounded tab never gets one, so anything
+   * that only happens in there cannot be checked at all.
+   */
+  private updateStealth(dt: number, now: number) {
+    // Check running state
+    const distToPutalo = this.putalo ? this.hero.position.distanceTo(this.putalo.position) : 99;
+    const isRunningStealth = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
+      || (Math.abs(this.joy.x) > 0.75 || Math.abs(this.joy.y) > 0.75);
+
+    // Stealth: trust, not a tripwire.
+    //
+    // The old rule was one comparison — inside three metres without Shift and
+    // the level ended. Nothing accumulated, nothing was at stake on the way in,
+    // and it happened once. Trust has to be *earned* by staying calm near him,
+    // and it is spent instantly by bolting, so the approach is the gameplay.
+    const inApproach = this.phase === 'approach' || this.phase === 'slow' || this.phase === 'hiding';
+    if (inApproach && this.putalo) {
+      const spooked = now < this.spookedUntil;
+      const hide = HIDES[this.hideIndex];
+
+      if (isRunningStealth && distToPutalo < NOTICE) {
+        if (this.trust > 0 || this.putaloState !== 'hiding') {
+          this.trust = 0;
+          this.spookedUntil = now + 1400;
+          this.putaloState = 'hiding';
+          this.phase = 'hiding';
+          // Ducks behind his rock rather than teleporting: the rock is at
+          // z − 1.8 of every hide, so this is the same move at all three.
+          this.putaloTargetX = hide.x;
+          this.putaloTargetZ = hide.z - 1.3;
+          AudioManager.sfx('whoosh');
+          this.pushHud();
+        }
+      } else if (!spooked) {
+        if (distToPutalo < CLOSE) {
+          // About two and a half seconds of calm at each hide.
+          const before = this.trust;
+          this.trust = Math.min(1, this.trust + dt * 0.42);
+          if (this.putaloState !== 'out') {
+            this.putaloState = 'out';
+            this.phase = 'slow';
+            this.putaloTargetX = hide.x;
+            this.putaloTargetZ = hide.z + 0.6;
+            this.pushHud();
+          }
+          if (before < 1 && this.trust >= 1) {
+            this.stars += 6;
+            this.spawnSparks(this.putalo.position, 14, [0xfdcb6e, 0x74b9ff]);
+            AudioManager.sfx('found');
+            if (this.hideIndex < HIDES.length - 1) {
+              // He trusts you enough to show you the next spot.
+              this.hideIndex += 1;
+              this.trust = 0;
+              this.putaloState = 'peeking';
+              this.phase = 'approach';
+              this.putaloTargetX = HIDES[this.hideIndex].x;
+              this.putaloTargetZ = HIDES[this.hideIndex].z;
+            } else {
+              this.phase = 'dialogue';
+              this.dialogueStep = 0;
+            }
+            this.pushHud();
+          } else if (Math.floor(before * 10) !== Math.floor(this.trust * 10)) {
+            this.pushHud();
+          }
+        } else if (distToPutalo < NOTICE) {
+          if (this.putaloState === 'hiding') {
+            this.putaloState = 'peeking';
+            this.phase = 'slow';
+            this.putaloTargetX = hide.x;
+            this.putaloTargetZ = hide.z;
+            this.pushHud();
+          }
+        } else if (this.trust > 0 && this.trust < 1) {
+          // Wandering off lets it ebb, but slowly — this is not a punishment.
+          this.trust = Math.max(0, this.trust - dt * 0.12);
+        }
+      }
+    }
+  }
+
   protected loop = () => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
@@ -456,41 +583,7 @@ export class Level7Scene extends BaseLevelScene {
       }
     }
 
-    // Check running state
-    const distToPutalo = this.putalo ? this.hero.position.distanceTo(this.putalo.position) : 99;
-    const isRunningStealth = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
-      || (Math.abs(this.joy.x) > 0.75 || Math.abs(this.joy.y) > 0.75);
-
-    // Stealth mechanic during approach
-    const inApproach = this.phase === 'approach' || this.phase === 'slow' || this.phase === 'hiding';
-    if (inApproach) {
-      if (isRunningStealth && distToPutalo > 3 && distToPutalo < 12) {
-        // Running near Putalo — he hides
-        if (this.putaloState !== 'hiding') {
-          this.putaloState = 'hiding';
-          this.phase = 'hiding';
-          this.putaloTargetZ = -9;
-          this.pushHud();
-        }
-      } else if (!isRunningStealth && distToPutalo < 10) {
-        // Walking — Putalo peeks
-        if (this.putaloState === 'hiding') {
-          this.putaloState = 'peeking';
-          this.phase = 'slow';
-          this.putaloTargetZ = -7.5;
-          this.pushHud();
-        }
-      }
-
-      // Close enough for dialogue
-      if (distToPutalo < 3 && !isRunningStealth && this.phase !== 'dialogue' && this.phase !== 'photo') {
-        this.putaloState = 'out';
-        this.putaloTargetZ = -6.5;
-        this.phase = 'dialogue';
-        this.dialogueStep = 0;
-        this.pushHud();
-      }
-    }
+    this.updateStealth(dt, now);
 
     // Photo phase transition (from dialogue response or timed)
     if (this.phase === 'dialogue' && this.dialogueStep === 2 && now > this.nextAt) {
@@ -523,12 +616,16 @@ export class Level7Scene extends BaseLevelScene {
     const isRunning = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
       || (Math.abs(this.joy.x) > 0.75 || Math.abs(this.joy.y) > 0.75);
     const moveSpeed = inStealth && !isRunning ? this.baseSpeed * 0.55 : (isRunning ? this.runSpeed : this.baseSpeed);
-    this.updateMovement(dt, canMove, moveSpeed, -12, 12, -14, 10);
+    this.updateMovement(dt, canMove, moveSpeed, -24, 24, -46, SPAWN_Z + 3);
 
     // Putalo movement (smooth lerp to target)
     if (this.putalo) {
-      this.putalo.position.x += (this.putaloTargetX - this.putalo.position.x) * dt * 2;
-      this.putalo.position.z += (this.putaloTargetZ - this.putalo.position.z) * dt * 2;
+      // Faster when relocating between hides, so he does not drift across the
+      // forest at ducking speed.
+      const rate = this.phase === 'approach' && this.putaloState === 'peeking' ? 1.1 : 2.4;
+      this.putalo.position.x += (this.putaloTargetX - this.putalo.position.x) * dt * rate;
+      this.putalo.position.z += (this.putaloTargetZ - this.putalo.position.z) * dt * rate;
+      this.putalo.position.y = this.groundHeightAt(this.putalo.position.x, this.putalo.position.z);
 
       // Putalo faces hero when out
       if (this.putaloState === 'out' || this.putaloState === 'talking') {
