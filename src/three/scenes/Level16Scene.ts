@@ -554,9 +554,21 @@ export class Level16Scene extends BaseLevelScene {
       this.camera.position.lerp(target, 1 - Math.pow(0.002, dt));
       this.camera.lookAt(0, 1.3, CHEST_Z - 2.5);
     } else {
-      const target = new THREE.Vector3(this.hero.position.x * 0.3, 5.5, this.hero.position.z + 9);
+      // Same framing as the rest of the season: a tall or short frame needs a
+      // flatter, further-back camera, or the desktop pitch spends the lower
+      // third of the screen on ground directly in front of the hero.
+      const f = this.cameraFraming();
+      const target = new THREE.Vector3(
+        this.hero.position.x * 0.3 + f.lateral,
+        5.5 * f.heightMul,
+        this.hero.position.z + 9 + f.backAdd,
+      );
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
-      this.camera.lookAt(this.hero.position.x * 0.2, 1.15, this.hero.position.z - 0.5);
+      this.camera.lookAt(
+        this.hero.position.x * 0.2,
+        1.15 + f.lookUp,
+        this.hero.position.z - 0.5 - f.lookAhead,
+      );
     }
 
     this.renderFrame();
