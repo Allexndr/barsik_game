@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { QualityPipeline } from '../QualityPipeline';
 import { stylizeHeroGlb } from '../stylizeHeroGlb';
 import { createPlushBarsik, updatePlushLocomotion } from '../PlushBarsik';
+import { createBarsikAvatar, type BarsikAvatar } from '../avatar/BarsikAvatar';
 import { isUsableHeroGlb } from '../heroQuality';
 import { markStaticHeroBaseY, updateStaticHeroLocomotion } from '../staticHeroLocomotion';
 import { AudioManager } from '@/audio/AudioManager';
@@ -18,6 +19,15 @@ import { createFpsSampler } from '@/dev/fpsSampler';
 import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
+
+/**
+ * `?hero=glb` falls back to the old GLB path. Kept so the two can be compared
+ * side by side in a browser without a rebuild — the static model still looks
+ * better standing still, and that trade is worth being able to re-check.
+ */
+const DISABLE_AVATAR_HERO =
+  typeof location !== 'undefined'
+  && new URLSearchParams(location.search).get('hero') === 'glb';
 
 // ─── Shared types ───────────────────────────────────────────────
 export type Collider = 
@@ -469,7 +479,7 @@ export function skyDome(top = '#66c8f5', mid = '#94d8ef', bot = '#e8faf3') {
   return mesh;
 }
 
-export type HeroAnimMode = 'rigged' | 'static' | 'plush';
+export type HeroAnimMode = 'rigged' | 'static' | 'plush' | 'avatar';
 
 export interface HeroRig {
   model: THREE.Object3D;
@@ -477,6 +487,8 @@ export interface HeroRig {
   mixer: THREE.AnimationMixer | null;
   walkAction: THREE.AnimationAction | null;
   idleAction: THREE.AnimationAction | null;
+  /** Present in 'avatar' mode: the jointed rig, driven per frame. */
+  avatar: BarsikAvatar | null;
 }
 
 // Prefer bipedal Meshy barsik.glb. Quad Meshy/TRELLIS reads as a cat on
@@ -569,6 +581,26 @@ export async function placeWoodSign(
 }
 
 export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.45): Promise<HeroRig> {
+  // The jointed avatar first, ahead of every GLB.
+  //
+  // barsik.glb has no skin and no animation clips, so for sixteen levels the
+  // hero stood with his arms spread and slid across the ground. No amount of
+  // shader or lighting work fixes a character that cannot move; a child reads
+  // it as broken before they read anything else as good. The procedural rig
+  // walks, runs, jumps, sits, waves and wears clothes, which is worth more
+  // than the extra polish of a model that does none of those things.
+  if (!DISABLE_AVATAR_HERO) {
+    const avatar = createBarsikAvatar({ height });
+    return {
+      model: avatar.root,
+      animMode: 'avatar',
+      mixer: null,
+      walkAction: null,
+      idleAction: null,
+      avatar,
+    };
+  }
+
   for (const file of HERO_CANDIDATES) {
     const gltf = await loadGlb(loader, CHARS + file);
     if (!gltf) continue;
@@ -584,7 +616,7 @@ export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.45): Prom
       const walkAction = mixer.clipAction(walk);
       const idleAction = mixer.clipAction(idle);
       idleAction.play();
-      return { model: gltf.scene, animMode: 'rigged', mixer, walkAction, idleAction };
+      return { model: gltf.scene, animMode: 'rigged', mixer, walkAction, idleAction, avatar: null };
     }
 
     // Last resort: any loaded textured/mesh barsik.glb (Meshy static)
@@ -610,6 +642,7 @@ export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.45): Prom
           mixer: null,
           walkAction: null,
           idleAction: null,
+          avatar: null,
         };
       }
     }
@@ -617,7 +650,7 @@ export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.45): Prom
 
   const plush = createPlushBarsik();
   fitHeight(plush, height * 0.93);
-  return { model: plush, animMode: 'plush', mixer: null, walkAction: null, idleAction: null };
+  return { model: plush, animMode: 'plush', mixer: null, walkAction: null, idleAction: null, avatar: null };
 }
 
 // ─── Base scene class ───────────────────────────────────────────
@@ -640,6 +673,8 @@ export abstract class BaseLevelScene {
   protected readonly gravity = 12.2;
   /** Player camera orbit around the hero, radians. */
   protected camYaw = 0;
+  /** Where the orbit is heading; camYaw eases toward it. */
+  protected camYawTarget = 0;
   protected orbitDragging = false;
   private orbitCleanup: (() => void) | null = null;
   private orientationCleanup: (() => void) | null = null;
@@ -648,6 +683,9 @@ export abstract class BaseLevelScene {
   protected yaw = 0;
   protected walking = false;
   protected heroAnimMode: HeroAnimMode = 'plush';
+  protected heroAvatar: BarsikAvatar | null = null;
+  /** True while the movement speed is the run speed, so the rig can pick a gait. */
+  protected running = false;
   protected stars = 0;
   protected colliders: Collider[] = [];
   protected sparks: THREE.Mesh[] = [];
@@ -1101,25 +1139,48 @@ export abstract class BaseLevelScene {
    * rigidly about the hero, so framing, pitch and distance are preserved and
    * no level needed changing.
    */
-  private applyCameraOrbit() {
-    if (Math.abs(this.camYaw) < 0.0005) return;
+  /**
+   * Orbit as a view transform, applied at render and undone straight after.
+   *
+   * It used to rotate the camera's stored position and leave it rotated. Every
+   * level then lerped that already-rotated position back toward a target
+   * computed without the orbit, and the next frame rotated the result again by
+   * the full angle. So the rotation compounded while something pulled against
+   * it — which is what "очень резко и неровно" is. Saving and restoring keeps
+   * every level's own camera maths in un-orbited space, where it was written,
+   * and makes the orbit a pure look-around.
+   */
+  private withCameraOrbit(render: () => void) {
+    if (Math.abs(this.camYaw) < 0.0005) {
+      render();
+      return;
+    }
+    const pos = this.camera.position.clone();
+    const quat = this.camera.quaternion.clone();
     const q = new THREE.Quaternion().setFromAxisAngle(WORLD_UP, this.camYaw);
-    const offset = this.camera.position.clone().sub(this.hero.position).applyQuaternion(q);
+    const offset = pos.clone().sub(this.hero.position).applyQuaternion(q);
     this.camera.position.copy(this.hero.position).add(offset);
     this.camera.quaternion.premultiply(q);
+    render();
+    this.camera.position.copy(pos);
+    this.camera.quaternion.copy(quat);
   }
 
   /** Q/E on desktop, drag anywhere outside the joystick on touch. */
   protected updateCameraOrbit(dt: number) {
-    const rate = 1.5;
-    if (this.keys.has('KeyQ')) this.camYaw += rate * dt;
-    if (this.keys.has('KeyE')) this.camYaw -= rate * dt;
+    const rate = 1.6;
+    if (this.keys.has('KeyQ')) this.camYawTarget += rate * dt;
+    if (this.keys.has('KeyE')) this.camYawTarget -= rate * dt;
     // Ease back to behind-the-hero so a child who spins the view is never
     // left disoriented, but only once they stop steering it.
     if (!this.orbitDragging && !this.keys.has('KeyQ') && !this.keys.has('KeyE')) {
-      this.camYaw *= Math.pow(0.55, dt);
+      this.camYawTarget *= Math.pow(0.6, dt);
     }
-    this.camYaw = THREE.MathUtils.clamp(this.camYaw, -Math.PI * 0.75, Math.PI * 0.75);
+    this.camYawTarget = THREE.MathUtils.clamp(this.camYawTarget, -Math.PI * 0.75, Math.PI * 0.75);
+    // The angle itself is eased rather than set. Pressing a key used to move
+    // the view by a fixed step every frame, which starts and stops dead — the
+    // camera has weight now, so it accelerates in and settles out.
+    this.camYaw += (this.camYawTarget - this.camYaw) * (1 - Math.pow(0.0005, dt));
   }
 
   protected bindCameraOrbitDrag() {
@@ -1134,7 +1195,7 @@ export abstract class BaseLevelScene {
     };
     const move = (e: PointerEvent) => {
       if (!this.orbitDragging) return;
-      this.camYaw -= (e.clientX - lastX) * 0.006;
+      this.camYawTarget -= (e.clientX - lastX) * 0.006;
       lastX = e.clientX;
     };
     const end = (e: PointerEvent) => {
@@ -1154,9 +1215,10 @@ export abstract class BaseLevelScene {
   }
 
   protected renderFrame() {
-    this.applyCameraOrbit();
-    if (this.quality) this.quality.render();
-    else this.renderer.render(this.scene, this.camera);
+    this.withCameraOrbit(() => {
+      if (this.quality) this.quality.render();
+      else this.renderer.render(this.scene, this.camera);
+    });
   }
 
   setPaused(value: boolean) {
@@ -1217,6 +1279,7 @@ export abstract class BaseLevelScene {
       return false;
     }
     this.heroAnimMode = rig.animMode;
+    this.heroAvatar = rig.avatar;
     this.hero.add(rig.model);
     this.mixer = rig.mixer;
     this.walkAction = rig.walkAction;
@@ -1460,6 +1523,7 @@ export abstract class BaseLevelScene {
     const moving = canMove && d.lengthSq() > 0.01;
     const now = performance.now();
     const isRunning = speed > this.baseSpeed + 0.2;
+    this.running = isRunning;
     const cadenceMs = this.footstepSurface === 'snow'
       ? (isRunning ? 300 : 390)
       : this.footstepSurface === 'stone'
@@ -1585,11 +1649,24 @@ export abstract class BaseLevelScene {
       }
     }
     this.mixer?.update(dt);
-    const heroModel = this.hero.children.find((c) => !c.userData.isGuideArrow);
-    if (heroModel) {
-      const t = now * 0.001;
-      if (this.heroAnimMode === 'plush') updatePlushLocomotion(heroModel, this.walking, t);
-      else if (this.heroAnimMode === 'static') updateStaticHeroLocomotion(heroModel, this.walking, t);
+    if (this.heroAvatar) {
+      // Pose follows what the hero is actually doing, so the rig never claims
+      // to be walking while the character stands still — the exact mismatch
+      // that made the old static model read as broken.
+      this.heroAvatar.setPose(
+        this.airborne ? 'jump'
+          : this.praiseUntil > now ? 'cheer'
+            : this.walking ? (this.running ? 'run' : 'walk')
+              : 'idle',
+      );
+      this.heroAvatar.update(dt, now * 0.001);
+    } else {
+      const heroModel = this.hero.children.find((c) => !c.userData.isGuideArrow);
+      if (heroModel) {
+        const t = now * 0.001;
+        if (this.heroAnimMode === 'plush') updatePlushLocomotion(heroModel, this.walking, t);
+        else if (this.heroAnimMode === 'static') updateStaticHeroLocomotion(heroModel, this.walking, t);
+      }
     }
   }
 
