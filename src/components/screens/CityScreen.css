@@ -8,13 +8,16 @@
   align-items: center;
 }
 
-.city-stage-badge {
+.city-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: var(--spacing-sm) var(--spacing-md);
   background: linear-gradient(135deg, var(--primary), var(--primary-light));
   color: white;
   border-radius: var(--radius-lg);
-  font-weight: 700;
-  font-size: 0.9rem;
+  font-weight: 800;
+  font-size: 0.95rem;
   flex-shrink: 0;
 }
 
@@ -33,19 +36,154 @@
   width: 100%;
   height: 100%;
   display: block;
+  touch-action: manipulation;
 }
+
+.city-canvas-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 0.5rem;
+  transform: translateX(-50%);
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-lg);
+  background: rgba(0, 0, 0, 0.42);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+/* The card sits over the canvas so the resident stays visible behind it. */
+.city-resident-card {
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.6rem 2rem 0.6rem 0.6rem;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.city-resident-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.city-resident-text strong {
+  font-size: 0.98rem;
+  color: var(--text-dark);
+}
+
+.city-resident-role {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.city-resident-text p {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--text-light);
+}
+
+.city-resident-met {
+  margin-top: 0.2rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+.city-resident-close {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-light);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* --- Next unlock --- */
+
+.city-next {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: var(--spacing-md);
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border);
+  background: rgba(108, 92, 231, 0.06);
+}
+
+.city-next-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.city-next-head h3 {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-light);
+}
+
+.city-next-name {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.city-next-promise {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--text-dark);
+}
+
+.city-bar {
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.09);
+  overflow: hidden;
+}
+
+.city-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--primary), var(--primary-light));
+  transition: width 0.4s ease;
+}
+
+.city-next-togo {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+/* --- Residents --- */
 
 .city-section {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-}
-
-.city-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
 }
 
 .city-section-title {
@@ -55,94 +193,78 @@
   color: var(--primary);
 }
 
-.city-owned-count {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--text-light);
+.city-residents {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 0.5rem;
 }
 
-.city-friends-strip {
+.city-resident {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.5rem 0.3rem;
+  min-height: 44px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border);
+  background: var(--surface, #fff);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
-.city-friend-chip {
-  font-size: 0.9rem;
-  padding: 0.45rem 0.85rem;
+.city-resident.is-selected {
+  border-color: var(--primary);
+  transform: translateY(-2px);
 }
 
-.city-empty-props {
+.city-resident-name {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.city-empty {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.65rem;
+  gap: 0.7rem;
   padding: var(--spacing-md);
   border-radius: var(--radius-lg);
   border: 2px dashed var(--border);
   background: rgba(0, 0, 0, 0.02);
 }
 
-.city-empty-props p {
+.city-empty p {
   margin: 0;
   color: var(--text-light);
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   line-height: 1.4;
-}
-
-.city-props-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 0.55rem;
-}
-
-.city-prop-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
-  padding: 0.55rem 0.45rem;
-  border-radius: var(--radius-md);
-  border: 2px solid rgba(39, 174, 96, 0.35);
-  background: rgba(39, 174, 96, 0.06);
-  text-align: center;
-}
-
-.city-prop-emoji {
-  font-size: 1.5rem;
-  line-height: 1;
-}
-
-.city-prop-name {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--text-dark);
-}
-
-.city-prop-owned {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15rem;
-  font-size: 0.68rem;
-  font-weight: 800;
-  color: #27ae60;
-  text-transform: uppercase;
-}
-
-.city-hint {
-  margin: 0;
-  color: var(--text-light);
-  font-size: 0.88rem;
-  text-align: center;
-}
-
-.city-hint-empty {
-  padding: 0.35rem 0;
 }
 
 @media (max-width: 768px) {
   .city-3d-viewer {
     min-height: 200px;
     max-height: 36vh;
+  }
+}
+
+@media (max-width: 560px) {
+  .city-next-promise,
+  .city-empty p {
+    font-size: 1rem;
+  }
+
+  .city-resident-name {
+    font-size: 0.82rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .city-bar span,
+  .city-resident {
+    transition: none;
   }
 }
