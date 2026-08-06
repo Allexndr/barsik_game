@@ -483,6 +483,10 @@ export class Level9Scene extends BaseLevelScene {
       // 0 built twelve bushes scaled to nothing, which is why the first pass
       // rendered a berry hovering over bare grass.
       const shrub = bush(0, 0, 1.1);
+      // bush() now grounds itself, but this one is a child of a group that is
+      // already at the berry's ground height — leaving it would add the
+      // terrain height at world (0, 0) on top.
+      shrub.position.set(0, 0, 0);
       g.add(shrub);
       // A ring on the ground under the bush. `bush()` is the same helper the
       // environment scatters by the hundred, so without this a bush holding a
