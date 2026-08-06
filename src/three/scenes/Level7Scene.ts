@@ -27,18 +27,57 @@ const SPAWN_Z = 12;
 const HIDES: Array<{ x: number; z: number }> = [
   { x: -11, z: -2 },
   { x: 13, z: -17 },
-  { x: -5, z: -34 },
+  { x: -8, z: -31 },
+  { x: 10, z: -43 },
 ];
 /** He watches from here; run inside it and he ducks. */
 const NOTICE = 10;
 /** Trust only builds this close — near enough that he can see you are calm. */
 const CLOSE = 4.5;
 
+/**
+ * The watch cycle — «море волнуется раз», with a camera.
+ *
+ * Trust used to fill on one condition: stand within 4.5m and do not hold
+ * Shift. Two and a half seconds later the hide was over. Nothing happened
+ * during those seconds, there was nothing to read and nothing to react to, and
+ * a level budgeted at 300s finished in about 70.
+ *
+ * Now he is doing what the fiction says he is doing. While his eye is at the
+ * viewfinder he is absorbed and you can close the distance. When he lowers the
+ * camera and looks round, you have to be still — moving while he looks costs
+ * the trust you have built. It is the oldest playground game there is, it is
+ * legible to a five-year-old without a word of explanation, and it turns the
+ * approach into something you play rather than something you wait out.
+ */
+const SHOOTING_MS: [number, number] = [2600, 4200];
+/** Camera coming down. The warning, so being caught is never a surprise. */
+const LIFTING_MS = 700;
+const WATCHING_MS: [number, number] = [1500, 2400];
+/** Below this the hero counts as standing still while he watches. */
+const STILL_SPEED = 0.35;
+
 function routeX(z: number) {
   return Math.sin((z - SPAWN_Z) * 0.06) * 3.2;
 }
 
-export type L8Phase = 'intro' | 'approach' | 'slow' | 'hiding' | 'dialogue' | 'photo' | 'outro';
+/**
+ * Where the wind takes his photographs.
+ *
+ * The level was one verb — approach — repeated four times, and even with the
+ * look-up beat it ran about half its 300s budget. This is the second verb, and
+ * it is the one the story has been setting up: he marks beautiful places and
+ * is afraid of forgetting them, so losing three of those marks to the wind is
+ * the thing he would actually mind. Now that he trusts you, you can run.
+ */
+const LOST_PHOTOS: Array<{ x: number; z: number }> = [
+  { x: -6, z: -38 },
+  { x: 18, z: -33 },
+  { x: 4, z: -20 },
+];
+
+export type L8Phase =
+  | 'intro' | 'approach' | 'slow' | 'hiding' | 'dialogue' | 'photo' | 'gather' | 'outro';
 
 export interface L8Hud extends BaseHud {
   putaloState: 'hiding' | 'peeking' | 'out' | 'talking';
@@ -47,8 +86,12 @@ export interface L8Hud extends BaseHud {
   dialogueStep: number;
   /** 0–1 for the current approach, so the HUD can show it filling. */
   trust: number;
+  /** Where he is in the shoot / look-up cycle. */
+  watch: 'shooting' | 'lifting' | 'watching';
   approachesDone: number;
   approachesTotal: number;
+  photosFound: number;
+  photosTotal: number;
 }
 
 function makePutalo(x: number, z: number): THREE.Group {
@@ -152,6 +195,18 @@ export class Level7Scene extends BaseLevelScene {
   private trust = 0;
   private spookedUntil = 0;
   private readonly approachesTotal = HIDES.length;
+  /** Where he is in the shoot / look-up cycle, and when it next turns. */
+  private watch: 'shooting' | 'lifting' | 'watching' = 'shooting';
+  private watchUntil = 0;
+  /** Hero speed in m/s, measured between frames — the joystick can be held
+   *  at any magnitude, so intent is not a reliable stand-in for movement. */
+  private heroSpeed = 0;
+  private lastHeroPos = new THREE.Vector3();
+  private caughtUntil = 0;
+  /** The three blown-away photographs, and how many are back in his hands. */
+  private lostPhotos: THREE.Group[] = [];
+  private photosFound = 0;
+  private readonly photosTotal = LOST_PHOTOS.length;
 
   protected currentPhase() { return this.phase; }
 
@@ -160,6 +215,27 @@ export class Level7Scene extends BaseLevelScene {
   }
 
   tryInteract() {
+    if (this.phase === 'gather') {
+      const target = this.interactTarget;
+      if (!target) return;
+      if (target === this.putalo) {
+        if (this.photosFound < this.photosTotal) return;
+        this.phase = 'outro';
+        this.stars += 15;
+        this.spawnSparks(this.putalo.position, 22, [0xffd700, 0xfd79a8]);
+        AudioManager.sfx('found');
+        this.pushHud();
+        return;
+      }
+      target.visible = false;
+      this.photosFound += 1;
+      this.stars += 5;
+      this.spawnSparks(target.position, 14, [0xfff176, 0x81d4fa]);
+      AudioManager.sfx('found');
+      this.interactTarget = null;
+      this.pushHud();
+      return;
+    }
     if (this.phase === 'dialogue') {
       if (this.dialogueStep === 0) {
         this.dialogueStep = 1;
@@ -296,16 +372,33 @@ export class Level7Scene extends BaseLevelScene {
       this.scene.add(p);
     }
 
+    // The three the wind took. Built now and hidden, so the gather phase does
+    // not have to load anything at the moment it starts.
+    for (const spot of LOST_PHOTOS) {
+      const p = makePhoto(spot.x, this.groundHeightAt(spot.x, spot.z) + 0.55, spot.z, Math.random() * Math.PI * 2);
+      p.visible = false;
+      p.userData.lost = true;
+      this.lostPhotos.push(p);
+      this.scene.add(p);
+    }
+
     // Bushes, thinned along the route so cover reads as cover
     for (let i = 0; i < 22; i++) {
       const side = i % 2 === 0 ? 1 : -1;
-      const z = SPAWN_Z - (i / 22) * 46;
+      const z = SPAWN_Z - (i / 22) * 58;
       this.scene.add(bush(routeX(z) + side * (5 + Math.random() * 4), z));
     }
 
-    // Butterflies (Putalo photographs them)
-    for (let i = 0; i < 8; i++) {
-      const bf = butterfly(HIDES[i % 3].x + (Math.random() - 0.5) * 5, HIDES[i % 3].z + (Math.random() - 0.5) * 5, [0xff7675, 0x74b9ff, 0xfdcb6e][i % 3]);
+    // Butterflies (Putalo photographs them). Three per hide, and indexed off
+    // HIDES.length — at a hardcoded `% 3` the fourth hide had none, which is
+    // an odd place to find a butterfly photographer.
+    for (let i = 0; i < HIDES.length * 3; i++) {
+      const hide = HIDES[i % HIDES.length];
+      const bf = butterfly(
+        hide.x + (Math.random() - 0.5) * 5,
+        hide.z + (Math.random() - 0.5) * 5,
+        [0xff7675, 0x74b9ff, 0xfdcb6e][i % 3],
+      );
       this.butterflies.push(bf);
       this.scene.add(bf);
     }
@@ -359,6 +452,43 @@ export class Level7Scene extends BaseLevelScene {
     });
   }
 
+  /**
+   * Step the shoot / look-up cycle. Returns true when the state changed, so
+   * the caller can push a HUD line only on the turn rather than every frame.
+   */
+  private advanceWatch(now: number): boolean {
+    if (now < this.watchUntil) return false;
+    const span = ([lo, hi]: [number, number]) => lo + Math.random() * (hi - lo);
+    if (this.watch === 'shooting') {
+      this.watch = 'lifting';
+      this.watchUntil = now + LIFTING_MS;
+    } else if (this.watch === 'lifting') {
+      this.watch = 'watching';
+      this.watchUntil = now + span(WATCHING_MS);
+    } else {
+      this.watch = 'shooting';
+      this.watchUntil = now + span(SHOOTING_MS);
+    }
+    return true;
+  }
+
+  /**
+   * Butterflies bolt when he is startled.
+   *
+   * The consequence has to be something a child can see. A trust bar dropping
+   * by a third is a number moving on a strip of text; twelve butterflies
+   * scattering off the flowers is the forest reacting, and it says "too fast"
+   * without any words at all.
+   */
+  private scatterButterflies() {
+    for (const bf of this.butterflies) {
+      const a = Math.random() * Math.PI * 2;
+      bf.userData.fleeX = Math.cos(a) * 3.4;
+      bf.userData.fleeZ = Math.sin(a) * 3.4;
+      bf.userData.fleeUntil = performance.now() + 1600;
+    }
+  }
+
   /** Five blocks, because a number from 0 to 1 means nothing to a six-year-old. */
   private trustBar() {
     const filled = Math.round(this.trust * 5);
@@ -377,6 +507,10 @@ export class Level7Scene extends BaseLevelScene {
         this.copy('Темно здесь... но красиво.', 'Бұл жер қараңғы... бірақ әдемі.'),
         this.copy(`Кто-то за камнем, ${n}. Подойдём тихо?`, `Тастың артында біреу бар, ${n}. Жайымен жақындаймыз ба?`),
         this.copy('Иди медленно — если побежишь, он испугается!', 'Жай жүр — жүгірсең, қорықпай қашып кетеді!'),
+        this.copy(
+          'Смотри: он снимает бабочек. Поднял голову — замри!',
+          'Қара: ол көбелектерді түсіріп жатыр. Басын көтерсе — қатып қал!',
+        ),
       ];
       line = lines[Math.min(this.introI, lines.length - 1)];
       objective = this.copy('🤫 Подойди медленно — не беги', '🤫 Жай жақында — жүгірме');
@@ -392,9 +526,15 @@ export class Level7Scene extends BaseLevelScene {
         objective = this.isMobile
           ? this.copy('Поговори — нажми лапку', 'Сөйлесу үшін табанды бас')
           : this.copy('Поговори — нажми E', 'Сөйлесу үшін E пернесін бас');
+      } else if (this.watch === 'watching') {
+        line = this.copy('Он смотрит! Не двигайся...', 'Ол қарап тұр! Қозғалма...');
+        objective = `${this.copy('🧍 Замри — он смотрит', '🧍 Қатып қал — ол қарап тұр')} ${this.trustBar()}  ·  ${this.hideIndex + 1}/${this.approachesTotal}`;
+      } else if (this.watch === 'lifting') {
+        line = this.copy('Он поднимает голову...', 'Ол басын көтеріп жатыр...');
+        objective = `${this.copy('👀 Сейчас посмотрит — стой', '👀 Қазір қарайды — тоқта')} ${this.trustBar()}  ·  ${this.hideIndex + 1}/${this.approachesTotal}`;
       } else {
-        line = this.copy('Иди медленно... не торопись.', 'Жай жүр... асықпа.');
-        objective = `${this.copy('🤫 Путало привыкает', '🤫 Путало үйренуде')} ${this.trustBar()}  ·  ${this.hideIndex + 1}/${this.approachesTotal}`;
+        line = this.copy('Снимает бабочек — иди сейчас!', 'Көбелектерді түсіріп жатыр — қазір жүр!');
+        objective = `${this.copy('📷 Он снимает — подходи', '📷 Ол түсіріп жатыр — жақында')} ${this.trustBar()}  ·  ${this.hideIndex + 1}/${this.approachesTotal}`;
       }
     } else if (p === 'hiding') {
       line = this.copy('Ой, он спрятался! Иди медленнее.', 'Ой, ол жасырынды! Жайырақ жүр.');
@@ -431,9 +571,25 @@ export class Level7Scene extends BaseLevelScene {
       speaker = this.copy('Путало', 'Путало');
       line = this.copy(`Спасибо, ${n}! Смотри — мой лучший снимок: закат над лесом!`, `Рахмет, ${n}! Қара — менің үздік суретім: орман үстіндегі күн батуы!`);
       objective = this.copy('📸 Путало показывает фото', '📸 Путало сурет көрсетеді');
+    } else if (p === 'gather') {
+      const left = this.photosTotal - this.photosFound;
+      if (left > 0) {
+        speaker = this.copy('Путало', 'Путало');
+        line = this.copy(
+          'Ой! Ветер... мои снимки улетели! Помоги их найти?',
+          'Ой! Жел... суреттерім ұшып кетті! Табуға көмектес!',
+        );
+        objective = `${this.copy('🖼 Собери снимки', '🖼 Суреттерді жина')} ${this.photosFound}/${this.photosTotal}  ·  ${this.copy('теперь можно бежать', 'енді жүгіруге болады')}`;
+      } else {
+        speaker = 'Барсик';
+        line = this.copy('Все три! Держи, Путало.', 'Үшеуі де! Мә, Путало.');
+        objective = this.isMobile
+          ? this.copy('🖼 Отнеси снимки Путало — нажми лапку', '🖼 Суреттерді Путалоға апар — табанды бас')
+          : this.copy('🖼 Отнеси снимки Путало — нажми E', '🖼 Суреттерді Путалоға апар — E пернесін бас');
+      }
     } else if (p === 'outro') {
       speaker = this.copy('Путало', 'Путало');
-      line = this.copy('Я... я могу сфотографировать ваш праздник!', 'Мен... сіздің мерекені түсіре аламын!');
+      line = this.copy('Спасибо! Я... я могу сфотографировать ваш праздник!', 'Рахмет! Мен... сіздің мерекені түсіре аламын!');
       objective = this.copy('🎉 Путало — новый друг!', '🎉 Путало — жаңа дос!');
     }
 
@@ -452,10 +608,14 @@ export class Level7Scene extends BaseLevelScene {
       dialogueChoice: this.dialogueChoice,
       dialogueStep: this.dialogueStep,
       trust: this.trust,
+      watch: this.watch,
       approachesDone: this.hideIndex,
       approachesTotal: this.approachesTotal,
+      photosFound: this.photosFound,
+      photosTotal: this.photosTotal,
       stars: this.stars,
-      canInteract: this.phase === 'dialogue' && (this.dialogueStep === 0 || this.dialogueStep === 1),
+      canInteract: (this.phase === 'dialogue' && (this.dialogueStep === 0 || this.dialogueStep === 1))
+        || (this.phase === 'gather' && Boolean(this.interactTarget)),
       showMoveHint: !this.hasTakenFirstStep && p === 'intro',
       showActionHint: this.phase === 'dialogue' ? this.dialogueStep < 2 : Boolean(this.interactTarget),
       outro: p === 'outro',
@@ -468,12 +628,40 @@ export class Level7Scene extends BaseLevelScene {
       const d = hp.distanceTo(this.putalo.position);
       if (d < 2.5) return this.putalo;
     }
+    if (this.phase === 'gather') {
+      let best: THREE.Object3D | null = null;
+      let bestD = 2.4;
+      for (const p of this.lostPhotos) {
+        if (!p.visible) continue;
+        const d = hp.distanceTo(p.position);
+        if (d < bestD) { bestD = d; best = p; }
+      }
+      if (best) return best;
+      // Only once all three are in hand, so «отдать» never competes with
+      // «подобрать» for the same button.
+      if (this.putalo && this.photosFound >= this.photosTotal
+        && hp.distanceTo(this.putalo.position) < 2.8) {
+        return this.putalo;
+      }
+    }
     return null;
   }
 
   private objectiveWorldPos(): THREE.Vector3 | null {
     if (this.putalo && (this.phase === 'approach' || this.phase === 'slow' || this.phase === 'hiding')) {
       return this.putalo.position.clone();
+    }
+    if (this.phase === 'gather') {
+      // Nearest photo still out there, then him. One arrow, one next thing.
+      let best: THREE.Object3D | null = null;
+      let bestD = Infinity;
+      for (const p of this.lostPhotos) {
+        if (!p.visible) continue;
+        const d = this.hero.position.distanceTo(p.position);
+        if (d < bestD) { bestD = d; best = p; }
+      }
+      if (best) return best.position.clone();
+      if (this.putalo) return this.putalo.position.clone();
     }
     return null;
   }
@@ -502,6 +690,32 @@ export class Level7Scene extends BaseLevelScene {
       const spooked = now < this.spookedUntil;
       const hide = HIDES[this.hideIndex];
 
+      // Measured, not inferred. A joystick held at 0.3 is real movement and
+      // no key is down for it, so "is Shift pressed" cannot answer "is the
+      // child moving" — and the whole look-up beat rests on that question.
+      this.heroSpeed = this.lastHeroPos.distanceTo(this.hero.position) / Math.max(dt, 1e-4);
+      this.lastHeroPos.copy(this.hero.position);
+
+      if (this.advanceWatch(now) && this.watch === 'watching') this.pushHud();
+
+      // Caught moving while he is looking. Costs trust and a beat, but does
+      // not send him back to the rock — losing the whole approach to one
+      // half-step is the kind of thing that makes a child stop playing.
+      if (
+        this.watch === 'watching'
+        && !spooked
+        && distToPutalo < NOTICE
+        && this.heroSpeed > STILL_SPEED
+        && now > this.caughtUntil
+      ) {
+        this.trust = Math.max(0, this.trust - 0.34);
+        this.caughtUntil = now + 900;
+        this.putaloState = 'peeking';
+        this.scatterButterflies();
+        AudioManager.sfx('whoosh');
+        this.pushHud();
+      }
+
       if (isRunningStealth && distToPutalo < NOTICE) {
         if (this.trust > 0 || this.putaloState !== 'hiding') {
           this.trust = 0;
@@ -517,9 +731,13 @@ export class Level7Scene extends BaseLevelScene {
         }
       } else if (!spooked) {
         if (distToPutalo < CLOSE) {
-          // About two and a half seconds of calm at each hide.
+          // Only while his eye is at the viewfinder, and about six seconds of
+          // it rather than two and a half. With the look-ups interrupting, a
+          // hide is now twenty-odd seconds of actual play instead of a wait.
           const before = this.trust;
-          this.trust = Math.min(1, this.trust + dt * 0.42);
+          if (this.watch === 'shooting') {
+            this.trust = Math.min(1, this.trust + dt * 0.16);
+          }
           if (this.putaloState !== 'out') {
             this.putaloState = 'out';
             this.phase = 'slow';
@@ -535,6 +753,11 @@ export class Level7Scene extends BaseLevelScene {
               // He trusts you enough to show you the next spot.
               this.hideIndex += 1;
               this.trust = 0;
+              // Fresh shooting window at the new spot: arriving into a
+              // look-up the child could not have seen coming is a loss they
+              // cannot read as their own doing.
+              this.watch = 'shooting';
+              this.watchUntil = now + SHOOTING_MS[1];
               this.putaloState = 'peeking';
               this.phase = 'approach';
               this.putaloTargetX = HIDES[this.hideIndex].x;
@@ -573,7 +796,7 @@ export class Level7Scene extends BaseLevelScene {
     // Intro progression
     if (this.phase === 'intro' && now > this.nextAt) {
       this.introI += 1;
-      if (this.introI >= 3) {
+      if (this.introI >= 4) {
         this.phase = 'approach';
         this.nextAt = now + 500;
         this.pushHud();
@@ -598,8 +821,10 @@ export class Level7Scene extends BaseLevelScene {
     }
 
     if (this.phase === 'photo' && now > this.photoTime + 3000) {
-      this.phase = 'outro';
-      this.stars += 15;
+      this.phase = 'gather';
+      for (const p of this.lostPhotos) p.visible = true;
+      AudioManager.sfx('whoosh');
+      this.scatterButterflies();
       this.pushHud();
     }
 
@@ -681,13 +906,31 @@ export class Level7Scene extends BaseLevelScene {
       }
     }
 
-    // Butterflies
+    // Butterflies. The flee offset decays back to zero over its window, so
+    // they burst outward when startled and drift home rather than snapping.
     for (const b of this.butterflies) {
       const ph = (b.userData.phase as number) + now * 0.001;
-      b.position.x = (b.userData.ox as number) + Math.sin(ph) * 1.5;
-      b.position.z = (b.userData.oz as number) + Math.cos(ph * 0.8) * 1.5;
-      b.position.y = 1.0 + Math.sin(ph * 1.5) * 0.4;
+      const fleeUntil = (b.userData.fleeUntil as number) ?? 0;
+      const k = fleeUntil > now ? (fleeUntil - now) / 1600 : 0;
+      b.position.x = (b.userData.ox as number) + Math.sin(ph) * 1.5
+        + ((b.userData.fleeX as number) ?? 0) * k;
+      b.position.z = (b.userData.oz as number) + Math.cos(ph * 0.8) * 1.5
+        + ((b.userData.fleeZ as number) ?? 0) * k;
+      b.position.y = 1.0 + Math.sin(ph * 1.5) * 0.4 + k * 0.9;
       b.rotation.y = ph;
+    }
+
+    // The three lost photos bob and turn. Twelve of his old ones are pinned
+    // to trees as scenery and use the same mesh, so the pickups have to move
+    // to say "this one is for you" — the genre convention does the work.
+    if (this.phase === 'gather') {
+      for (let i = 0; i < this.lostPhotos.length; i++) {
+        const p = this.lostPhotos[i];
+        if (!p.visible) continue;
+        const spot = LOST_PHOTOS[i];
+        p.position.y = this.groundHeightAt(spot.x, spot.z) + 0.55 + Math.sin(now * 0.003 + i) * 0.14;
+        p.rotation.y = now * 0.0011 + i;
+      }
     }
 
     // Strand shimmer
