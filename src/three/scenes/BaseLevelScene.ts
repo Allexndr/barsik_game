@@ -16,6 +16,8 @@ import { placePatch, ringAnchors, type PatchSpec } from '../sceneComposition';
 import { placeMany, placementGround, setPlacementGround } from '../s1Place';
 import { disposeObject3DResources, fitHeight, fitMaxSize, groundY, measurePlinthFraction, repairDefaultMaterial } from '../modelUtils';
 import { createFpsSampler } from '@/dev/fpsSampler';
+// Registers window.__audit under import.meta.env.DEV; absent from a build.
+import '@/dev/levelAudit';
 import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
@@ -246,41 +248,49 @@ export function questMarker(color = 0xffeaa7, emissive = 0xfdcb6e) {
  * offset inside it, so `rotation.y` folds it about the body the way a wing
  * folds, instead of sliding it sideways. `updateAmbient` drives the flap.
  */
+/**
+ * Shared across every butterfly in a level.
+ *
+ * The first version built two circle geometries, a capsule, two cylinders and
+ * a fresh pair of materials per butterfly — eight meshes each. A meadow of
+ * twenty-six of them is 208 draw calls where the flat two-disc version was 52,
+ * and the game started dropping frames on the levels with the most of them.
+ * One wing geometry and one body geometry, shared, and a material cached per
+ * colour: three meshes each.
+ */
+const WING_GEO = new THREE.PlaneGeometry(0.3, 0.34);
+const BODY_GEO = new THREE.CapsuleGeometry(0.022, 0.15, 3, 6);
+const BODY_MAT = new THREE.MeshStandardMaterial({ color: 0x40352c, roughness: 0.75 });
+const wingMats = new Map<number, THREE.MeshStandardMaterial>();
+
 export function butterfly(x: number, z: number, color: number) {
   const g = new THREE.Group();
-  const wingMat = new THREE.MeshStandardMaterial({
-    color, emissive: color, emissiveIntensity: 0.28, roughness: 0.7, side: THREE.DoubleSide,
-  });
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x40352c, roughness: 0.75 });
+  let wingMat = wingMats.get(color);
+  if (!wingMat) {
+    wingMat = new THREE.MeshStandardMaterial({
+      color, emissive: color, emissiveIntensity: 0.28, roughness: 0.7, side: THREE.DoubleSide,
+    });
+    wingMats.set(color, wingMat);
+  }
 
   const hinges: THREE.Group[] = [];
   for (const side of [-1, 1]) {
     const hinge = new THREE.Group();
-    // Fore and hind wing, so the silhouette is a butterfly rather than a dot.
-    const fore = new THREE.Mesh(new THREE.CircleGeometry(0.15, 10), wingMat);
-    fore.position.set(side * 0.15, 0.03, 0.02);
-    fore.scale.set(1, 0.82, 1);
-    const hind = new THREE.Mesh(new THREE.CircleGeometry(0.1, 8), wingMat);
-    hind.position.set(side * 0.12, -0.08, -0.01);
-    hind.scale.set(0.95, 0.8, 1);
-    for (const w of [fore, hind]) { w.castShadow = false; w.receiveShadow = false; }
-    hinge.add(fore, hind);
+    const wing = new THREE.Mesh(WING_GEO, wingMat);
+    // Offset inside the hinge so `rotation.z` folds it about the body rather
+    // than spinning it about its own middle.
+    wing.position.set(side * 0.15, 0, 0);
+    wing.castShadow = false; wing.receiveShadow = false;
+    hinge.add(wing);
     hinge.userData.side = side;
     hinges.push(hinge);
     g.add(hinge);
   }
 
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.022, 0.13, 3, 6), bodyMat);
+  const body = new THREE.Mesh(BODY_GEO, BODY_MAT);
   body.rotation.x = Math.PI / 2;
   body.castShadow = false; body.receiveShadow = false;
   g.add(body);
-  for (const side of [-1, 1]) {
-    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.004, 0.09, 3), bodyMat);
-    antenna.position.set(side * 0.02, 0.06, 0.07);
-    antenna.rotation.set(-0.5, 0, side * 0.35);
-    antenna.castShadow = false; antenna.receiveShadow = false;
-    g.add(antenna);
-  }
 
   g.position.set(x, 1.2 + Math.random(), z);
   g.userData.phase = Math.random() * Math.PI * 2;
