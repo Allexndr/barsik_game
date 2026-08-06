@@ -438,9 +438,11 @@ export class Level6Scene extends BaseLevelScene {
     );
 
     // Talking stump — moss Discover stump → Meshy stump → procedural
+    // A stump is a wide thing. Anything more than twice as tall as it is
+    // broad is not one, whatever the filename says — see loadPropModel.
     const stumpGlb =
-      (await loadPropModel(loader, 's1_stump_moss.glb', { height: 1.15 })) ??
-      (await loadPropModel(loader, 'stump.glb', { height: 1.15 }));
+      (await loadPropModel(loader, 's1_stump_moss.glb', { height: 1.15, aspectMax: 2 })) ??
+      (await loadPropModel(loader, 'stump.glb', { height: 1.15, aspectMax: 2 }));
     if (stumpGlb) {
       stumpGlb.position.set(STUMP.x, 0, STUMP.z);
       groundY(stumpGlb, this.groundHeightAt(STUMP.x, STUMP.z));

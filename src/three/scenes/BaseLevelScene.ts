@@ -625,10 +625,27 @@ export async function loadCharModel(
 }
 
 /** Load a prop GLB from /props. Prefer maxSize for wide props (signs, chests). */
+/**
+ * Load a prop, and refuse one that is not the shape a prop should be.
+ *
+ * `s1_stump_moss.glb` is a tree stump by its filename and a **vertical
+ * sliver** by its geometry: 0.32 × 1.88 × 0.18 in its own units, which
+ * `fitHeight(1.15)` turns into something 20 cm wide and 1.15 m tall. Standing
+ * in the gold glow ring the level draws around its talking stump, dark
+ * because its metallic-roughness texture made it metal, it read to the person
+ * playing as a thin black figure watching them from the grass. In a game for
+ * five-year-olds.
+ *
+ * The level already has `makeTalkingStump()` for when the GLB is missing. The
+ * GLB was not missing — it loaded fine and was wrong — so nothing fell back.
+ * `aspectMax` closes that: a caller that knows roughly how chunky its prop
+ * should be can say so, and a generation that came out as a splinter is
+ * treated the same as one that failed to download.
+ */
 export async function loadPropModel(
   loader: GLTFLoader,
   file: string,
-  opts: { height?: number; maxSize?: number } = {},
+  opts: { height?: number; maxSize?: number; aspectMax?: number } = {},
 ): Promise<THREE.Object3D | null> {
   const gltf = await loadGlb(loader, PROPS + file);
   if (!gltf) return null;
@@ -636,6 +653,21 @@ export async function loadPropModel(
     fitMaxSize(gltf.scene, opts.maxSize);
   } else if (opts.height !== undefined) {
     fitHeight(gltf.scene, opts.height);
+  }
+
+  const size = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3());
+  const footprint = Math.max(size.x, size.z, 1e-4);
+  const aspect = size.y / footprint;
+  if (opts.aspectMax !== undefined && aspect > opts.aspectMax) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        `[prop] rejecting "${file}" — ${aspect.toFixed(1)}:1 tall against a ` +
+        `${opts.aspectMax}:1 limit (${size.x.toFixed(2)}×${size.y.toFixed(2)}×${size.z.toFixed(2)}). ` +
+        `Using the caller's fallback.`,
+      );
+    }
+    disposeObject3DResources(gltf.scene);
+    return null;
   }
   gltf.scene.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
