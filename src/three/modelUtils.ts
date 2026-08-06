@@ -156,11 +156,33 @@ export function repairDefaultMaterial(mesh: THREE.Mesh) {
   for (const mat of mats) {
     const std = mat as THREE.MeshStandardMaterial;
     if (!std?.isMeshStandardMaterial) continue;
+
+    // Decided before anything is changed. The clamp below zeroes metalness,
+    // and this test asks whether metalness *was* 1 — reading it afterwards
+    // would mean it never fires again.
     const bare =
       std.metalness === 1 &&
       std.roughness === 1 &&
       !std.map && !std.metalnessMap && !std.roughnessMap && !std.normalMap &&
       std.color.getHex() === 0xffffff;
+
+    // ── Metal with nothing to reflect ────────────────────────────
+    // There is no environment map anywhere in this game, so a metallic
+    // surface reflects nothing and renders black or near-black. Every CC0
+    // and Kenney model in the project ships `metallicFactor: 1` — verified
+    // by reading the glTF material blocks — and that is why a black
+    // silhouette kept appearing in the grass.
+    //
+    // AssetKit and Mission 0 have each been clamping this for a while via
+    // `normalizeKitMaterial`. `loadGlb`, which loads every prop and
+    // character in levels 1–16, was not. The colour and every texture are
+    // left exactly as authored; only the reflectivity changes.
+    if (std.metalness > 0.5 && !std.metalnessMap && !std.envMap) {
+      std.metalness = 0;
+      if (std.roughness > 0.95) std.roughness = 0.85;
+      std.needsUpdate = true;
+    }
+
     if (!bare) continue;
     // Matte and off-white: it reads as an untextured toy rather than as a
     // hole in the world, and it stays obviously a placeholder to anyone

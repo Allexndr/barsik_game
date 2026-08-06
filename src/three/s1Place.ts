@@ -106,6 +106,34 @@ export async function placeMany(
   return out;
 }
 
+/** Triangles a piece of scenery may cost before it stops being worth it. */
+const AMBIENT_TRIANGLE_BUDGET = 12_000;
+
+function triangleCount(root: THREE.Object3D): number {
+  let n = 0;
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    const pos = m.geometry?.attributes?.position;
+    if (!m.isMesh || !pos) return;
+    n += (m.geometry.index ? m.geometry.index.count : pos.count) / 3;
+  });
+  return n;
+}
+
+/**
+ * Scenery: a squirrel on a stump, a rabbit in the grass. Nobody interacts with
+ * these, and nobody misses one that is not there.
+ *
+ * Which is why they get a budget. `s1_rabbit.glb` is **126 898 triangles** —
+ * measured in a running level, where that one decorative rabbit accounted for
+ * 47% of everything the level drew. On a phone that is the difference between
+ * a game that runs and a game that stutters, and it buys a rabbit nobody
+ * looks at twice.
+ *
+ * Skipping is the right call here precisely because this is decoration. The
+ * real repair is a remesh of the model — `scripts/probe-glb.mjs` flags it —
+ * but until then the level should not pay for it.
+ */
 export async function placeAmbientCritters(
   scene: THREE.Scene,
   loader: GLTFLoader,
@@ -118,6 +146,17 @@ export async function placeAmbientCritters(
       rotY: s.rotY ?? Math.random() * Math.PI * 2,
       height: s.h ?? 0.8,
     });
-    if (o) scene.add(o);
+    if (!o) continue;
+    const tris = triangleCount(o);
+    if (tris > AMBIENT_TRIANGLE_BUDGET) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[ambient] skipping "${s.key}" — ${Math.round(tris)} triangles against a ` +
+          `${AMBIENT_TRIANGLE_BUDGET} budget. Remesh it and it comes back.`,
+        );
+      }
+      continue;
+    }
+    scene.add(o);
   }
 }
