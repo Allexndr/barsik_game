@@ -11,7 +11,8 @@ import {
 } from './BaseLevelScene';
 import { groundY } from '../modelUtils';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeAmbientCritters } from '../s1Place';
+import { AudioManager } from '@/audio/AudioManager';
+import { placeAmbientCritters, placeS1Char } from '../s1Place';
 
 /**
  * Level 7 «Лесная загадка» — GDD Chapter 1 Level 6:
@@ -34,10 +35,30 @@ const STUMP = { x: 0, z: 2 };
 // Tall enough to clear the scattered canopy, which tops out around ten metres
 // — a riddle about which tree is tallest cannot be answered from behind other
 // trees that are taller than all three.
-const TREES: Array<{ x: number; z: number; color: number; label: string; height: number; bird: boolean }> = [
-  { x: -13, z: -7, color: 0xe74c3c, label: 'Красное', height: 8.5, bird: false },
-  { x: 13, z: -10, color: 0xf1c40f, label: 'Жёлтое', height: 7.2, bird: true },
-  { x: -1, z: -22, color: 0x27ae60, label: 'Зелёное', height: 11.5, bird: false },
+/**
+ * `nests` and `hedgehog` are the facts the riddles ask about, and both are
+ * placed so that they cannot be seen from the stump.
+ *
+ * That is the point of the rewrite. Two of the three riddles used to name
+ * their own answer — «Какое дерево любит красные яблоки?» is answered
+ * «Красное», and «На каком дереве птичка с жёлтым хвостом?» is answered
+ * «Жёлтое» — so a child who never once looked at the forest scored two out of
+ * three by matching a colour word in the question to a colour word in the
+ * list. In a level called «Лесная загадка», whose whole mechanic is `choice`,
+ * the choice carried no information.
+ */
+const TREES: Array<{
+  x: number; z: number; color: number; label: string; height: number; bird: boolean;
+  /** How many nests, and how far round the trunk the far ones sit. */
+  nests: number;
+  hedgehog: boolean;
+}> = [
+  // Each tree is the answer to exactly one riddle: green is tallest, yellow
+  // has the most nests, red hides the hedgehog. Two riddles sharing an answer
+  // would let a child repeat the last one that worked and be right.
+  { x: -13, z: -7, color: 0xe74c3c, label: 'Красное', height: 8.5, bird: false, nests: 2, hedgehog: true },
+  { x: 13, z: -10, color: 0xf1c40f, label: 'Жёлтое', height: 7.2, bird: true, nests: 4, hedgehog: false },
+  { x: -1, z: -22, color: 0x27ae60, label: 'Зелёное', height: 11.5, bird: false, nests: 1, hedgehog: false },
 ];
 
 function routeX(z: number) {
@@ -68,6 +89,59 @@ interface MagicTree {
   birdTailColor: number;
   bloomScale: number;
   shakeTime: number;
+}
+
+/**
+ * A nest: the countable thing the second riddle asks about.
+ *
+ * A torus reads as a nest from ten metres and does not need a texture, and
+ * the eggs give it a light spot against dark foliage so it is countable
+ * rather than merely present.
+ */
+function makeNest(): THREE.Group {
+  const g = new THREE.Group();
+  const twig = new THREE.MeshStandardMaterial({ color: 0x8d6e4a, roughness: 1 });
+  const bowl = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.09, 6, 12), twig);
+  bowl.rotation.x = Math.PI / 2;
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(0.2, 12), twig);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -0.04;
+  g.add(bowl, floor);
+  const shell = new THREE.MeshStandardMaterial({ color: 0xf3ece0, roughness: 0.6 });
+  for (const [ex, ez] of [[-0.07, 0.03], [0.06, -0.04], [0.01, 0.08]]) {
+    const egg = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), shell);
+    egg.scale.y = 1.25;
+    egg.position.set(ex, 0.02, ez);
+    g.add(egg);
+  }
+  return g;
+}
+
+/** Fallback if hedgehog.glb is missing — the riddle must still be answerable. */
+function makeSmallHedgehog(): THREE.Group {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(0.24, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0x6b5545, roughness: 0.95 }),
+  );
+  body.scale.set(1.15, 0.85, 1);
+  body.position.y = 0.22;
+  const snout = new THREE.Mesh(
+    new THREE.ConeGeometry(0.09, 0.18, 8),
+    new THREE.MeshStandardMaterial({ color: 0xc9a98c, roughness: 0.9 }),
+  );
+  snout.rotation.x = Math.PI / 2;
+  snout.position.set(0, 0.2, 0.26);
+  g.add(body, snout);
+  const spine = new THREE.MeshStandardMaterial({ color: 0x4a3b2f, roughness: 1 });
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2;
+    const q = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.16, 4), spine);
+    q.position.set(Math.sin(a) * 0.16, 0.36, Math.cos(a) * 0.14);
+    q.rotation.set(Math.cos(a) * 0.5, 0, -Math.sin(a) * 0.5);
+    g.add(q);
+  }
+  return g;
 }
 
 function makeMagicTree(x: number, z: number, color: number, label: string, height: number, hasBird: boolean, birdTailColor: number): MagicTree {
@@ -188,34 +262,40 @@ export class Level6Scene extends BaseLevelScene {
   private clues: THREE.Object3D[] = [];
   private cluesDone = 0;
   private readonly cluesTotal = 3;
+  /** Kept so he can breathe — a motionless animal reads as a prop. */
+  private hedgehog: THREE.Object3D | null = null;
+  /** Owed a trip back to the stump after a wrong answer. */
+  private mustReturnToStump = false;
+
+  /**
+   * Every answer is a thing seen in the world, never a word in the question.
+   *
+   * Ordered easiest first. The tallest tree can be judged from the stump —
+   * it is the one that teaches a five-year-old what kind of question this
+   * is. Counting nests needs a walk round each trunk, because some nests are
+   * on the far side. Finding the hedgehog needs the closest look of all.
+   */
+  private readonly CHOICES = [
+    { label: 'Красное', color: 0xe74c3c },
+    { label: 'Жёлтое', color: 0xf1c40f },
+    { label: 'Зелёное', color: 0x27ae60 },
+  ];
 
   private riddles = [
     {
-      question: { ru: 'Какое дерево любит красные яблоки?', kk: 'Қызыл алманы қай ағаш ұнатады?' },
-      correct: 0,
-      choices: [
-        { label: 'Красное', color: 0xe74c3c },
-        { label: 'Жёлтое', color: 0xf1c40f },
-        { label: 'Зелёное', color: 0x27ae60 },
-      ],
-    },
-    {
-      question: { ru: 'На каком дереве сидит птичка с жёлтым хвостом?', kk: 'Сары құйрықты құс қай ағашта отыр?' },
-      correct: 1,
-      choices: [
-        { label: 'Красное', color: 0xe74c3c },
-        { label: 'Жёлтое', color: 0xf1c40f },
-        { label: 'Зелёное', color: 0x27ae60 },
-      ],
-    },
-    {
-      question: { ru: 'Какое дерево самое высокое?', kk: 'Қай ағаш ең биік?' },
+      question: { ru: 'Какое дерево тянется выше всех?', kk: 'Қай ағаш бәрінен биік созылған?' },
       correct: 2,
-      choices: [
-        { label: 'Красное', color: 0xe74c3c },
-        { label: 'Жёлтое', color: 0xf1c40f },
-        { label: 'Зелёное', color: 0x27ae60 },
-      ],
+      choices: this.CHOICES,
+    },
+    {
+      question: { ru: 'На каком дереве больше всего гнёзд? Обойди кругом — не все видно сразу.', kk: 'Қай ағашта ұя көп? Айналып шық — бәрі бірден көрінбейді.' },
+      correct: 1,
+      choices: this.CHOICES,
+    },
+    {
+      question: { ru: 'Под каким деревом спрятался ёжик?', kk: 'Кірпі қай ағаштың астына тығылған?' },
+      correct: 0,
+      choices: this.CHOICES,
     },
   ];
 
@@ -249,9 +329,21 @@ export class Level6Scene extends BaseLevelScene {
     const t = this.interactTarget;
     if (!t) return;
 
+    // Back at the stump after a wrong answer: it re-asks, and the trees
+    // become answerable again.
+    if (t === this.stump) {
+      if (!this.mustReturnToStump) return;
+      this.mustReturnToStump = false;
+      this.spawnSparks(this.stump!.position, 12, [0xffd700, 0xe17055]);
+      AudioManager.sfx('interact');
+      this.pushHud();
+      return;
+    }
+
     // Find which tree
     const tree = this.trees.find(tr => tr.group === t);
     if (!tree) return;
+    if (this.mustReturnToStump) return;
 
     const riddle = this.riddles[this.riddleIndex];
     if (tree.index === riddle.correct) {
@@ -283,10 +375,15 @@ export class Level6Scene extends BaseLevelScene {
         this.nextAt = performance.now() + 2500;
       }
     } else {
-      // Wrong — gentle shake, soft fail (no penalty)
+      // Wrong. No stars are taken — losing points is the wrong lesson for a
+      // five-year-old who was guessing bravely — but the stump calls you
+      // back, so the cost is the walk. With three choices and no cost at all,
+      // brute force was three taps and the riddle was a formality.
       tree.shakeTime = performance.now();
       this.wrongAttempts++;
+      this.mustReturnToStump = true;
       this.spawnSparks(tree.group.position, 4, [0xb2bec3, 0x636e72]);
+      AudioManager.sfx('stumble');
     }
     this.pushHud();
   }
@@ -369,6 +466,44 @@ export class Level6Scene extends BaseLevelScene {
       const tree = makeMagicTree(spec.x, spec.z, spec.color, spec.label, spec.height, spec.bird, spec.bird ? 0xf1c40f : 0);
       tree.index = i;
       tree.group.position.y = this.groundHeightAt(spec.x, spec.z);
+
+      // Nests, spread all the way round the trunk. The angles start from the
+      // side facing away from the stump on purpose: a count you can take
+      // standing at the stump is not a count, it is a glance, and the whole
+      // riddle is "go and look".
+      const away = Math.atan2(spec.x - STUMP.x, spec.z - STUMP.z);
+      for (let k = 0; k < spec.nests; k++) {
+        const a = away + (k / spec.nests) * Math.PI * 2;
+        const nest = makeNest();
+        // On the trunk, below the canopy. The canopy is a sphere of radius
+        // 0.4·height centred at 0.7·height, so its underside is at
+        // 0.3·height — 2.16 m on the shortest tree. The first pass put nests
+        // at 0.45–0.73·height, which is inside the foliage: a riddle about
+        // counting things that cannot be seen.
+        nest.position.set(
+          Math.sin(a) * 0.8,
+          1.05 + (k % 4) * 0.3,
+          Math.cos(a) * 0.8,
+        );
+        tree.group.add(nest);
+      }
+
+      if (spec.hedgehog) {
+        // Tucked against the far side of the trunk, low down. Visible only
+        // once the player has walked round — which is the answer to the
+        // third riddle being earned rather than guessed.
+        const hog = (await placeS1Char(loader, 'hedgehog', {
+          x: spec.x - Math.sin(away) * 1.5,
+          z: spec.z - Math.cos(away) * 1.5,
+          rotY: away + Math.PI,
+          height: 0.55,
+        })) ?? makeSmallHedgehog();
+        hog.position.x = spec.x - Math.sin(away) * 1.5;
+        hog.position.z = spec.z - Math.cos(away) * 1.5;
+        this.scene.add(hog);
+        this.hedgehog = hog;
+      }
+
       this.trees.push(tree);
       this.scene.add(tree.group);
       this.colliders.push({ kind: 'circle', x: spec.x, z: spec.z, r: 1.5 });
@@ -483,10 +618,18 @@ export class Level6Scene extends BaseLevelScene {
       objective = this.copy(`🔍 Улики: ${this.cluesDone}/${this.cluesTotal}`, `🔍 Белгі: ${this.cluesDone}/${this.cluesTotal}`);
     } else if (p.startsWith('riddle')) {
       speaker = this.copy('Пенёк', 'Түпкі');
-      line = this.lang === 'kk' ? riddle.question.kk : riddle.question.ru;
-      objective = this.isMobile
-        ? this.copy('Подойди к правильному дереву и нажми лапку', 'Дұрыс ағашқа жақындап, табанды бас')
-        : this.copy('Подойди к правильному дереву и нажми E', 'Дұрыс ағашқа жақындап, E пернесін бас');
+      if (this.mustReturnToStump) {
+        line = this.copy(
+          'Не то дерево! Вернись ко мне — загадаю ещё раз.',
+          'Ол ағаш емес! Маған қайт — тағы бір айтамын.',
+        );
+        objective = this.copy('↩️ Вернись к пеньку', '↩️ Түпкіге қайт');
+      } else {
+        line = this.lang === 'kk' ? riddle.question.kk : riddle.question.ru;
+        objective = this.isMobile
+          ? this.copy('Иди смотреть и нажми лапку у дерева', 'Барып қара да, ағаштың қасында табанды бас')
+          : this.copy('Иди смотреть и нажми E у дерева', 'Барып қара да, ағаштың қасында E пернесін бас');
+      }
     } else if (p === 'outro') {
       speaker = this.copy('Пенёк', 'Түпкі');
       line = this.copy(`А ты умный, ${n}! Там за поляной кто-то фотографирует...`, `Сен ақылды екенсің, ${n}! Алаңның ар жағында біреу түсіріп жатыр...`);
@@ -527,8 +670,20 @@ export class Level6Scene extends BaseLevelScene {
       return best;
     }
 
+    // Owed a trip back to the stump: only the stump answers until it has
+    // re-asked, so walking up to a tree and pressing does nothing.
+    if (this.mustReturnToStump) {
+      if (!this.stump) return null;
+      const d = Math.hypot(hp.x - this.stump.position.x, hp.z - this.stump.position.z);
+      return d < 2.5 ? this.stump : null;
+    }
+
     for (const tree of this.trees) {
-      const d = hp.distanceTo(tree.group.position);
+      // On the ground plane. The trees sit on flattened pads, but measuring
+      // in 3D against a group whose origin is at the foot would still charge
+      // the player for any slope between them — the same shape of bug that
+      // made L3's last stop unreachable.
+      const d = Math.hypot(hp.x - tree.group.position.x, hp.z - tree.group.position.z);
       if (d < bestD) { bestD = d; best = tree.group; }
     }
 
@@ -540,6 +695,9 @@ export class Level6Scene extends BaseLevelScene {
       const next = this.clues.find((c) => !c.userData.done);
       return next?.position.clone() ?? this.stump?.position.clone() ?? null;
     }
+    // After a wrong answer the arrow points back at the stump — the walk is
+    // the cost, but finding the stump again should not also be a puzzle.
+    if (this.mustReturnToStump) return this.stump?.position.clone() ?? null;
     // Deliberately nothing during a riddle. The arrow used to point straight
     // at the correct tree, which answered the riddle before it was read — the
     // thinking is the level, and an arrow to the answer deletes it.
@@ -648,6 +806,13 @@ export class Level6Scene extends BaseLevelScene {
     }
 
     // Butterflies
+    // The hedgehog breathes and looks about. He is the answer to a riddle, so
+    // he has to read as an animal hiding rather than as a stone by the trunk.
+    if (this.hedgehog) {
+      this.hedgehog.scale.y = 1 + Math.sin(now * 0.0028) * 0.035;
+      this.hedgehog.rotation.y += Math.sin(now * 0.0006) * dt * 0.35;
+    }
+
     for (const b of this.butterflies) {
       const ph = (b.userData.phase as number) + now * 0.001;
       b.position.x = (b.userData.ox as number) + Math.sin(ph) * 1.5;
