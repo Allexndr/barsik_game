@@ -4,6 +4,7 @@ import { useUIStore } from '@/store/useUIStore';
 import type { Player } from '@/types';
 import { t } from '@/i18n';
 import { registerNick, validateNick } from '@/utils/nicks';
+import { hasFinishedIntro } from '@/three/inventory';
 import { PlushButton } from '@/components/ui/PlushButton';
 import { IconChevronLeft, IconCheck } from '@/components/ui/icons';
 import './QuickStartScreen.css';
@@ -46,8 +47,7 @@ export function QuickStartScreen() {
 
     setPlayer(player);
     useUIStore.setState({ sessionPlayMs: 0 });
-    const done = localStorage.getItem('barsik_mission0_done') === '1';
-    setScreen(done ? 'game' : 'mission0');
+    setScreen(hasFinishedIntro() ? 'game' : 'mission0');
   };
 
   return (

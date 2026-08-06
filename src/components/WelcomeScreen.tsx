@@ -3,6 +3,7 @@ import { useGameStore } from '@/store/useGameStore';
 import type { Lang } from '@/i18n';
 import { useState } from 'react';
 import { SettingsModal } from '@/components/SettingsModal';
+import { hasFinishedIntro } from '@/three/inventory';
 import { ResponsivePicture } from '@/components/ui/ResponsivePicture';
 import './WelcomeScreen.css';
 
@@ -55,7 +56,7 @@ export function WelcomeScreen() {
       play();
       return;
     }
-    setScreen(localStorage.getItem('barsik_mission0_done') === '1' ? 'game' : 'mission0');
+    setScreen(hasFinishedIntro() ? 'game' : 'mission0');
   };
 
   const copy = lang === 'kk'
