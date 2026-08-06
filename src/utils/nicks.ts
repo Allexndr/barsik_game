@@ -1,5 +1,6 @@
 import type { Lang } from '@/i18n';
 import { t } from '@/i18n';
+import { checkText, moderationMessage } from './moderation';
 
 /** Soft nick uniqueness via local cache (device). Later: Supabase unique check. */
 
@@ -66,6 +67,13 @@ export function validateNick(
   if (trimmed.length > 16) return { ok: false, message: t(lang, 'nick.long') };
   if (!/^[\p{L}\p{N}_ -]+$/u.test(trimmed)) {
     return { ok: false, message: t(lang, 'nick.chars') };
+  }
+  // The nickname is shown to other children on the leaderboard, and until now
+  // nothing looked at what it said. Length and character class are not a
+  // content check.
+  const safety = checkText(trimmed, { minLength: 2, maxLength: 16 });
+  if (!safety.ok) {
+    return { ok: false, message: moderationMessage(safety.reason, lang === 'kk' ? 'kk' : 'ru') };
   }
   if (isNickTaken(trimmed)) {
     const suggestion = suggestNick(trimmed);
