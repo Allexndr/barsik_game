@@ -177,7 +177,11 @@ export function repairDefaultMaterial(mesh: THREE.Mesh) {
     // `normalizeKitMaterial`. `loadGlb`, which loads every prop and
     // character in levels 1–16, was not. The colour and every texture are
     // left exactly as authored; only the reflectivity changes.
-    if (std.metalness > 0.5 && !std.metalnessMap && !std.envMap) {
+    // A metalness *map* does not save it. The map modulates the factor, and
+    // with no environment to reflect the lit result is still dark — which is
+    // how the talking stump in L6 ended up a black sliver despite carrying
+    // four textures. Nothing in this game is meant to look like metal.
+    if (std.metalness > 0 && !std.envMap) {
       std.metalness = 0;
       if (std.roughness > 0.95) std.roughness = 0.85;
       std.needsUpdate = true;
