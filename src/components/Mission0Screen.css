@@ -274,6 +274,26 @@
   border: 2px solid #fff;
 }
 
+/* ── Touch devices ───────────────────────────────────────────────
+   Keyed off `pointer: coarse` rather than width, because a narrow desktop
+   window still has a keyboard and a mouse. (The «E · Space» hint is already
+   hidden here by the rule further down — it looked broken only because the
+   browser pane this was checked in reports `pointer: fine`.) */
+@media (pointer: coarse) {
+  /* «Выйти на карту» sat 48 px below the action button and overlapped it
+     horizontally — measured at 375×812. The action button is pressed dozens
+     of times a level; this one throws the level away. A thumb that slips
+     half its own width quits.
+
+     The pause menu already offers the identical action — `handleQuit` calls
+     `setScreen('game')`, the same destination — behind a deliberate two-tap,
+     which is the right shape for something destructive. So on touch this
+     floating copy simply goes. */
+  .m0-skip {
+    display: none;
+  }
+}
+
 .m0-stick-hidden {
   opacity: 0;
   pointer-events: none;
