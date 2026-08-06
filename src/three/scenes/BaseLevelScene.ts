@@ -55,6 +55,44 @@ export const PLAYER_RADIUS = 0.45;
 // ─── Shared utility functions ───────────────────────────────────
 export { fitHeight, groundY, disposeObject3DResources };
 
+/**
+ * Rescue a mesh that arrived with no material at all.
+ *
+ * A glTF primitive may omit `material`, and GLTFLoader then hands it three.js's
+ * default: `MeshStandardMaterial` with **`metalness: 1`** and no environment
+ * map. A fully metallic surface shows only what it reflects, and with nothing
+ * to reflect it renders pure black. Two of the season's characters ship that
+ * way — `s1_owl.glb` and `s1_rabbit.glb` both report `materials: 0,
+ * textures: 0` — so instead of an owl the level showed a black silhouette
+ * standing in the grass, which is exactly as unsettling in a game for
+ * five-year-olds as it sounds.
+ *
+ * The test is deliberately narrow: metalness exactly 1, roughness exactly 1,
+ * white base colour, and no maps of any kind is the loader's default and not
+ * something an artist authors. Code-built metals in this project (the golden
+ * seals, the chest trim) never pass through here.
+ */
+function repairDefaultMaterial(mesh: THREE.Mesh) {
+  const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  for (const mat of mats) {
+    const std = mat as THREE.MeshStandardMaterial;
+    if (!std?.isMeshStandardMaterial) continue;
+    const bare =
+      std.metalness === 1 &&
+      std.roughness === 1 &&
+      !std.map && !std.metalnessMap && !std.roughnessMap && !std.normalMap &&
+      std.color.getHex() === 0xffffff;
+    if (!bare) continue;
+    // Matte and off-white: it reads as an untextured toy rather than as a
+    // hole in the world, and it stays obviously a placeholder to anyone
+    // looking for one.
+    std.metalness = 0;
+    std.roughness = 0.85;
+    std.color.setHex(0xd8cfc2);
+    std.needsUpdate = true;
+  }
+}
+
 export async function loadGlb(loader: GLTFLoader, url: string) {
   try {
     const g = await Promise.race([
@@ -66,6 +104,7 @@ export async function loadGlb(loader: GLTFLoader, url: string) {
       if (m.isMesh) {
         m.castShadow = true;
         m.receiveShadow = true;
+        repairDefaultMaterial(m);
       }
     });
     if (url.includes('barsik.glb')) stylizeHeroGlb(g.scene);
@@ -236,20 +275,60 @@ export function questMarker(color = 0xffeaa7, emissive = 0xfdcb6e) {
   return g;
 }
 
+/**
+ * Butterfly. Two flat discs used to be the whole thing — no body, no
+ * antennae, and wings that never moved, so what drifted through the meadow
+ * was a pair of coloured coins.
+ *
+ * The wings are now hinged: each is a Group at the spine with the wing mesh
+ * offset inside it, so `rotation.y` folds it about the body the way a wing
+ * folds, instead of sliding it sideways. `updateAmbient` drives the flap.
+ */
 export function butterfly(x: number, z: number, color: number) {
   const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.35, side: THREE.DoubleSide });
-  const w1 = new THREE.Mesh(new THREE.CircleGeometry(0.18, 8), mat);
-  const w2 = w1.clone();
-  w1.position.x = -0.12;
-  w2.position.x = 0.12;
-  w1.castShadow = false; w1.receiveShadow = false;
-  w2.castShadow = false; w2.receiveShadow = false;
-  g.add(w1, w2);
+  const wingMat = new THREE.MeshStandardMaterial({
+    color, emissive: color, emissiveIntensity: 0.28, roughness: 0.7, side: THREE.DoubleSide,
+  });
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x40352c, roughness: 0.75 });
+
+  const hinges: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const hinge = new THREE.Group();
+    // Fore and hind wing, so the silhouette is a butterfly rather than a dot.
+    const fore = new THREE.Mesh(new THREE.CircleGeometry(0.15, 10), wingMat);
+    fore.position.set(side * 0.15, 0.03, 0.02);
+    fore.scale.set(1, 0.82, 1);
+    const hind = new THREE.Mesh(new THREE.CircleGeometry(0.1, 8), wingMat);
+    hind.position.set(side * 0.12, -0.08, -0.01);
+    hind.scale.set(0.95, 0.8, 1);
+    for (const w of [fore, hind]) { w.castShadow = false; w.receiveShadow = false; }
+    hinge.add(fore, hind);
+    hinge.userData.side = side;
+    hinges.push(hinge);
+    g.add(hinge);
+  }
+
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.022, 0.13, 3, 6), bodyMat);
+  body.rotation.x = Math.PI / 2;
+  body.castShadow = false; body.receiveShadow = false;
+  g.add(body);
+  for (const side of [-1, 1]) {
+    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.004, 0.09, 3), bodyMat);
+    antenna.position.set(side * 0.02, 0.06, 0.07);
+    antenna.rotation.set(-0.5, 0, side * 0.35);
+    antenna.castShadow = false; antenna.receiveShadow = false;
+    g.add(antenna);
+  }
+
   g.position.set(x, 1.2 + Math.random(), z);
   g.userData.phase = Math.random() * Math.PI * 2;
   g.userData.ox = x;
   g.userData.oz = z;
+  g.userData.isButterfly = true;
+  g.userData.hinges = hinges;
+  // Each one flaps at its own tempo; a meadow of synchronised butterflies
+  // reads as one object with many parts.
+  g.userData.flapRate = 9 + Math.random() * 5;
   return g;
 }
 
@@ -721,6 +800,8 @@ export abstract class BaseLevelScene {
   protected sparks: THREE.Mesh[] = [];
   protected clouds: THREE.Group[] = [];
   protected pathArrows: THREE.Group[] = [];
+  /** Filled on the first ambient frame; butterflies are never added later. */
+  private butterflyCache: THREE.Group[] | null = null;
   protected snowfall: THREE.Points | null = null;
   protected fireflies: Fireflies | null = null;
   protected guideArrow: THREE.Group | null = null;
@@ -1669,6 +1750,26 @@ export abstract class BaseLevelScene {
     this.updateCameraOrbit(dt);
     this.updateJump(dt);
     const motionScale = this.prefersReducedMotion ? 0.25 : 1;
+
+    // Wings. Collected from the scene once rather than threaded through
+    // seven levels that each keep their own butterfly array — the flap is a
+    // property of the butterfly, not of any level.
+    if (!this.butterflyCache) {
+      this.butterflyCache = [];
+      this.scene.traverse((o) => {
+        if (o.userData.isButterfly) this.butterflyCache!.push(o as THREE.Group);
+      });
+    }
+    for (const b of this.butterflyCache) {
+      const hinges = b.userData.hinges as THREE.Group[];
+      const beat = Math.sin(now * 0.001 * (b.userData.flapRate as number) + (b.userData.phase as number));
+      // Up to nearly vertical, down to almost flat: a shallow flap looks like
+      // a twitch, and a full fold makes the butterfly vanish edge-on.
+      const fold = (0.55 + beat * 0.75) * motionScale;
+      for (const h of hinges) h.rotation.z = -(h.userData.side as number) * fold;
+      // Bank into the turn, so drifting sideways looks like flying.
+      b.rotation.z = Math.sin(now * 0.0008 + (b.userData.phase as number)) * 0.25 * motionScale;
+    }
     // Only the next few arrows stay lit. A long emissive trail piles up at the
     // vanishing point and bloom fuses it into one glowing blob on the horizon.
     for (const a of this.pathArrows) {
@@ -1751,9 +1852,29 @@ export abstract class BaseLevelScene {
     }
   }
 
+  /** Smoothed aim point. Null until the first frame, then it trails `look`. */
+  private camLook: THREE.Vector3 | null = null;
+
+  /**
+   * Follow camera.
+   *
+   * The aim point is smoothed as well as the position, and that is the whole
+   * point of this function. Before, the position lerped toward the target
+   * while `lookAt` snapped to the exact look point every frame — so the moment
+   * the hero walked onto a slope, the aim point dropped or rose instantly
+   * while the camera was still catching up, and the pitch swung. Walking
+   * downhill tipped the whole frame forward; cresting a rise threw it back.
+   * Two smoothings at the same rate keep the angle between them steady, so the
+   * horizon stays where the player put it.
+   *
+   * The aim point is smoothed slightly faster than the position, or the camera
+   * arrives before its own gaze and briefly looks past the hero.
+   */
   protected updateCamera(target: THREE.Vector3, look: THREE.Vector3, lerp = 0.0015, dt = 0.016) {
     this.camera.position.lerp(target, 1 - Math.pow(lerp, dt));
-    this.camera.lookAt(look);
+    if (!this.camLook) this.camLook = look.clone();
+    else this.camLook.lerp(look, 1 - Math.pow(lerp * 0.5, dt));
+    this.camera.lookAt(this.camLook);
   }
 
   /**

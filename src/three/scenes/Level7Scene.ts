@@ -916,7 +916,7 @@ export class Level7Scene extends BaseLevelScene {
         + ((b.userData.fleeX as number) ?? 0) * k;
       b.position.z = (b.userData.oz as number) + Math.cos(ph * 0.8) * 1.5
         + ((b.userData.fleeZ as number) ?? 0) * k;
-      b.position.y = 1.0 + Math.sin(ph * 1.5) * 0.4 + k * 0.9;
+      b.position.y = this.groundHeightAt(b.position.x, b.position.z) + 1.0 + Math.sin(ph * 1.5) * 0.4 + k * 0.9;
       b.rotation.y = ph;
     }
 
