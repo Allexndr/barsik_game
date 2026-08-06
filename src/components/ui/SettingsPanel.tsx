@@ -128,7 +128,11 @@ export function SettingsPanel() {
               {ru ? 'Продолжить' : 'Жалғастыру'}
             </PlushButton>
             <PlushButton variant="ghost" size="md" onClick={handleQuit}>
-              {ru ? 'Выйти в меню' : 'Мәзірге шығу'}
+              {/* Names the place it actually goes. `handleQuit` calls
+                  setScreen('game'), which is the travel map — not a menu.
+                  On a phone this is now the only way out of a level, so it
+                  had better say where it leads. */}
+              {ru ? 'Выйти на карту' : 'Картаға шығу'}
             </PlushButton>
           </div>
         )}
