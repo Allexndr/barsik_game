@@ -70,9 +70,6 @@ import { CAST_PROP_GLB } from '../castModels';
 // following. Roughly 150 m of path with the beats spaced along it.
 const SPAWN_Z = 20;
 const YURT = { x: 2, z: -46 };
-/** Where the stream cuts the path. */
-const STREAM_Z = -22;
-
 /** The path's centre line. Two gentle bends, no switchbacks a child can lose. */
 function routeX(z: number) {
   return Math.sin((z - SPAWN_Z) * 0.045) * 5.2;
@@ -90,19 +87,43 @@ const LANTERNS: Array<{ x: number; z: number; rotZ: number }> = [
 ];
 
 /**
- * Where the path actually is at the crossing. The first pass centred the
- * stream bed, the water and the reserve on x = 0 while `routeX(-22)` puts the
- * path at −4.9 — so the river was dug next to the road instead of across it,
- * and the walk had no crossing in it at all.
+ * Everything about the crossing is placed relative to `routeX(z)`.
+ *
+ * An earlier version centred the bed, the water and the reserve on x = 0 while
+ * the path at that z is at −4.9, so the river ran alongside the road instead
+ * of across it and the walk had no crossing in it at all.
  */
-const STREAM_X = routeX(STREAM_Z);
 
-/** Stepping stones across the stream, spaced so each gap needs a jump. */
-const STONES: Array<{ x: number; z: number }> = [
-  { x: routeX(STREAM_Z + 3.2) - 0.3, z: STREAM_Z + 3.2 },
-  { x: routeX(STREAM_Z + 1.1) + 0.5, z: STREAM_Z + 1.1 },
-  { x: routeX(STREAM_Z - 1.1) - 0.4, z: STREAM_Z - 1.1 },
-  { x: routeX(STREAM_Z - 3.2) + 0.3, z: STREAM_Z - 3.2 },
+/**
+ * The crossing, as an actual platforming section.
+ *
+ * The first version was four stones over seven metres — three hops and it was
+ * behind you. The brief is a real bit of difficulty you spend half a minute
+ * on, so the stream is a long bend rather than a strip: twelve stones over
+ * thirty metres of water, with the gaps growing, a couple of stones that sink
+ * under you if you dawdle, and a checkpoint on the near bank.
+ *
+ * `sink` marks a stone that starts dropping the moment it takes weight. It is
+ * the only pressure in the level and it is gentle: you get about a second and
+ * a half, and it floats back up once you are off it, so a child who freezes
+ * loses nothing but the hop.
+ */
+const CROSSING_FROM = -14;
+const CROSSING_TO = -44;
+
+const STONES: Array<{ x: number; z: number; sink?: boolean }> = [
+  { x: 0.0, z: -16.0 },
+  { x: 2.6, z: -18.4 },
+  { x: 0.4, z: -20.9, sink: true },
+  { x: -2.8, z: -23.0 },
+  { x: -0.6, z: -25.6 },
+  { x: 2.9, z: -27.8, sink: true },
+  { x: 0.8, z: -30.4 },
+  { x: -2.6, z: -32.6 },
+  { x: -0.2, z: -35.2, sink: true },
+  { x: 3.1, z: -37.4 },
+  { x: 0.6, z: -39.9 },
+  { x: -2.2, z: -42.2 },
 ];
 
 /** Loose felt panels round the yurt. Three, spread so mending is a lap. */
@@ -359,14 +380,22 @@ export class Level0Scene extends BaseLevelScene {
           // dig, so the first pass put the water below the terrain and the
           // stepping stones on dry grass — a river crossing with no river.
           // `basin` is the one that carves.
-          { kind: 'basin', x: STREAM_X, z: STREAM_Z, r: 8, depth: 3.0 },
+          // A channel, not a puddle: overlapping basins down the length of
+          // the crossing, so the water runs the whole thirty metres.
+          ...Array.from({ length: 9 }, (_, i) => {
+            const z = CROSSING_FROM - (i / 8) * (CROSSING_FROM - CROSSING_TO);
+            return { kind: 'basin' as const, x: routeX(z), z, r: 7.5, depth: 3.0 };
+          }),
         ],
       },
     });
 
     this.reserve(0, SPAWN_Z, 5);
     this.reserve(YURT.x, YURT.z, 8);
-    this.reserve(STREAM_X, STREAM_Z, 7);
+    for (let i = 0; i <= 8; i++) {
+      const z = CROSSING_FROM - (i / 8) * (CROSSING_FROM - CROSSING_TO);
+      this.reserve(routeX(z), z, 6.5);
+    }
     for (const l of LANTERNS) this.reserve(l.x, l.z, 2.5);
     for (const p of PEGS) this.reserve(p.x, p.z, 2);
 
@@ -392,15 +421,19 @@ export class Level0Scene extends BaseLevelScene {
     // came out *above* the near bank — a river flooding the meadow. Sampling
     // both banks and sitting partway between them cannot do that, whatever
     // the basin generator decides to produce.
-    const bedY = this.groundHeightAt(STREAM_X, STREAM_Z);
+    const midZ = (CROSSING_FROM + CROSSING_TO) / 2;
+    const bedY = this.groundHeightAt(routeX(midZ), midZ);
     const bankY = Math.min(
-      this.groundHeightAt(routeX(STREAM_Z + 6.5), STREAM_Z + 6.5),
-      this.groundHeightAt(routeX(STREAM_Z - 6.5), STREAM_Z - 6.5),
+      this.groundHeightAt(routeX(CROSSING_FROM + 4), CROSSING_FROM + 4),
+      this.groundHeightAt(routeX(CROSSING_TO - 4), CROSSING_TO - 4),
     );
     const waterY = bedY + Math.max(0.25, (bankY - bedY) * 0.5);
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(46, 8.5, 24, 6), streamMat);
+    const water = new THREE.Mesh(
+      new THREE.PlaneGeometry(22, Math.abs(CROSSING_TO - CROSSING_FROM) + 10, 12, 30),
+      streamMat,
+    );
     water.rotation.x = -Math.PI / 2;
-    water.position.set(STREAM_X, waterY, STREAM_Z);
+    water.position.set(routeX(midZ), waterY, midZ);
     this.scene.add(water);
     this.water = water;
 
@@ -413,8 +446,11 @@ export class Level0Scene extends BaseLevelScene {
         new THREE.CylinderGeometry(0.74, 0.9, h, 9),
         new THREE.MeshStandardMaterial({ color: 0x9aa3a8, roughness: 0.95 }),
       );
-      stone.position.set(s.x, waterY + 0.28 - h / 2, s.z);
+      stone.position.set(routeX(s.z) + s.x, waterY + 0.28 - h / 2, s.z);
       stone.castShadow = true;
+      stone.userData.restY = stone.position.y;
+      stone.userData.sink = !!s.sink;
+      stone.userData.sunk = 0;
       this.stones.push(stone);
       this.scene.add(stone);
     }
@@ -490,6 +526,10 @@ export class Level0Scene extends BaseLevelScene {
     this.dombra.position.set(YURT.x - 0.5, this.groundHeightAt(YURT.x - 0.5, gz) + 0.55, gz + 0.35);
     this.dombra.rotation.set(0.35, 0.4, -0.5);
     this.scene.add(this.dombra);
+    // Solid. Without this the hero walks straight through the instrument and
+    // stands inside the gardener, which reads as the world being made of
+    // scenery rather than of things.
+    this.colliders.push({ kind: 'circle', x: YURT.x - 0.9, z: gz + 0.2, r: 1.0 });
 
     // ── Dressing ─────────────────────────────────────────────────
     for (let i = 0; i < 24; i++) {
@@ -515,6 +555,10 @@ export class Level0Scene extends BaseLevelScene {
       { key: 'squirrel', x: routeX(4) + 6, z: 4, rotY: -1.1, h: 0.85 },
       { key: 'bird', x: routeX(-30) - 5.5, z: -30, rotY: 0.6, h: 0.5 },
     ]);
+
+    // The wall. Planted last, so it can read the corridor and every room the
+    // level reserved and hug the outside of both.
+    await this.encloseWithForest(loader, { zFrom: YURT.z - 8, zTo: SPAWN_Z + 4 });
 
     const start = this.devStart() ?? { x: 0, z: SPAWN_Z };
     this.hero.position.set(start.x, this.groundHeightAt(start.x, start.z), start.z);
@@ -761,27 +805,53 @@ export class Level0Scene extends BaseLevelScene {
       }
       pos.needsUpdate = true;
     }
-    // A miss is a splash, not a failure: the hero is nudged back to the near
-    // bank and shakes off. Canon says a mistake is a thing you learn from.
-    if (this.phase === 'crossing' && !this.airborne) {
+    // ── The crossing ─────────────────────────────────────────────
+    if (this.phase === 'crossing') {
       const h = this.hero.position;
-      const inStream = Math.abs(h.z - STREAM_Z) < 3.4;
-      const onStone = this.stones.some(
-        (s) => Math.hypot(h.x - s.position.x, h.z - s.position.z) < 0.95,
+      const standing = this.stones.find(
+        (s) => Math.hypot(h.x - s.position.x, h.z - s.position.z) < 1.0,
       );
-      if (inStream && !onStone && now > this.wetUntil) {
-        this.wetUntil = now + 1600;
+
+      // Sinking stones. The only pressure in the level, and deliberately
+      // gentle: about a second and a half of standing before it goes under,
+      // and it floats back the moment you are off it. A child who freezes
+      // loses a hop, not the section.
+      for (const s of this.stones) {
+        if (!s.userData.sink) continue;
+        const loaded = s === standing && !this.airborne;
+        const target = loaded ? Math.min(1, (s.userData.sunk as number) + dt / 1.5) : 0;
+        s.userData.sunk = loaded ? target : Math.max(0, (s.userData.sunk as number) - dt * 1.6);
+        s.position.y = (s.userData.restY as number) - (s.userData.sunk as number) * 0.75;
+      }
+      const sunkUnder = standing && (standing.userData.sunk as number) > 0.92;
+
+      const inChannel = h.z < CROSSING_FROM + 1.5 && h.z > CROSSING_TO - 1.5;
+      const wet = inChannel && (!standing || sunkUnder) && !this.airborne;
+      if (wet && now > this.wetUntil) {
+        this.wetUntil = now + 1500;
         AudioManager.sfx('stumble');
-        this.spawnSparks(h.clone(), 16, [0x2aa8d8, 0xffffff]);
-        h.z = STREAM_Z + 4.0;
+        this.spawnSparks(h.clone(), 18, [0x2aa8d8, 0xffffff]);
+        // Back to the near bank of this section, not to the level start. The
+        // cost of a miss is the stones you had already crossed, which is what
+        // makes them worth crossing carefully — and nothing else is taken.
+        h.z = CROSSING_FROM + 2.6;
         h.x = routeX(h.z);
+        h.y = this.groundHeightAt(h.x, h.z);
+        this.jumpVelocity = 0;
+        this.airborne = false;
+        for (const s of this.stones) {
+          s.userData.sunk = 0;
+          s.position.y = s.userData.restY as number;
+        }
         this.pushHud();
       }
-      if (!this.crossed && h.z < STREAM_Z - 4.2) {
+
+      if (!this.crossed && h.z < CROSSING_TO - 1.0) {
         this.crossed = true;
         this.phase = 'mend';
-        this.stars += 4;
+        this.stars += 8;
         AudioManager.sfx('success');
+        this.spawnSparks(h.clone(), 24, [0xf0d24a, 0x5fbf7a]);
         this.pushHud();
       }
     }
