@@ -27,8 +27,8 @@ import { placeAmbientCritters } from '../s1Place';
 
 /**
  * Level 4 «Потерявшийся ёжик» — GDD Chapter 1 Level 3:
- * Search mechanic. Explore 3 sectors, find hedgehog by tracks and "?" bubbles.
- * 2 sectors empty (with bonuses), 1 has hedgehog.
+ * Tracking. Follow the footprints from stop to stop; the last one has the
+ * hedgehog, the rest hold a bonus star and a clue to the next.
  */
 
 // The search was three markers you could press in any order, with a gate that
@@ -38,10 +38,12 @@ import { placeAmbientCritters } from '../s1Place';
 //
 // The clue text already described a trail ("свежие следы уходят вправо"), so
 // the trail is now real: one sector at a time, each one pointing at the next.
-export type L4Phase = 'intro' | 'track1' | 'track2' | 'track3' | 'found' | 'outro';
-
-/** Phases in which the player is following the trail. */
-const TRACKING: readonly L4Phase[] = ['track1', 'track2', 'track3'];
+// One tracking phase with a leg counter, not one phase per leg. `track1 |
+// track2 | track3` fixed the trail at three stops in the type system: the
+// clue copy indexed a three-element array by trailIndex and the objective
+// said «1/3» in a string literal, so adding a stop meant an out-of-bounds
+// read and a lie in the HUD. The leg is data; the phase is not.
+export type L4Phase = 'intro' | 'tracking' | 'found' | 'outro';
 
 export interface L4Hud extends BaseHud {
   sectorsChecked: number;
@@ -56,7 +58,7 @@ interface SearchSector {
   checked: boolean;
   hasHedgehog: boolean;
   bubble: THREE.Group | null;
-  tracks: THREE.Mesh[];
+  tracks: THREE.Group[];
   bonus: THREE.Mesh | null;
   hedgehog: THREE.Object3D | null;
   label: 'bushes' | 'rocks' | 'log';
@@ -93,14 +95,45 @@ function makeQuestionBubble(x: number, z: number): THREE.Group {
   return g;
 }
 
-function makeTrack(x: number, z: number): THREE.Mesh {
-  const m = new THREE.Mesh(
-    new THREE.CircleGeometry(0.12, 10),
-    new THREE.MeshBasicMaterial({ color: 0x5d4037, transparent: true, opacity: 0.82 }),
-  );
-  m.rotation.x = -Math.PI / 2;
-  m.position.set(x, 0.03, z);
-  return m;
+/**
+ * One footprint: a pad and three toes, turned to face the way it is going.
+ *
+ * It used to be a flat 0.12m circle at y = 0.03 — a 24cm brown disc lying in
+ * grass whose blades are taller than it is. Rendered from straight overhead at
+ * 22 metres it was not visible at all, and at the level's own camera distance
+ * it was two or three pixels. The whole level is «иди по следам», so a trail
+ * the child cannot see is the level not working.
+ *
+ * A paw shape rather than a bigger dot, because the shape is what says
+ * "an animal went through here", and pointing it along the route makes the
+ * print itself the direction clue.
+ */
+function makeTrack(x: number, z: number, heading = 0): THREE.Group {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x4e342e,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+  });
+
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(0.19, 14), mat);
+  pad.scale.set(1, 1.15, 1);
+  g.add(pad);
+
+  for (const [tx, ty, r] of [[-0.15, 0.24, 0.075], [0, 0.29, 0.085], [0.15, 0.24, 0.075]]) {
+    const toe = new THREE.Mesh(new THREE.CircleGeometry(r, 10), mat);
+    toe.position.set(tx, ty, 0.001);
+    g.add(toe);
+  }
+
+  for (const child of g.children) child.renderOrder = 2;
+  g.rotation.x = -Math.PI / 2;
+  // Rotating the group after the -90° X tilt turns the print in the ground
+  // plane; z is the in-plane axis once the group is laid flat.
+  g.rotation.z = -heading;
+  g.position.set(x, 0.06, z);
+  return g;
 }
 
 /**
@@ -207,7 +240,7 @@ export class Level3Scene extends BaseLevelScene {
   private clueUntil = 0;
   private lastClue: 'bushes' | 'rocks' | null = null;
   private revealStartedAt = 0;
-  /** How far along the trail we are: 0, 1, 2. */
+  /** How far along the trail we are — index into `sectors`. */
   private trailIndex = 0;
 
   protected currentPhase() { return this.phase; }
@@ -250,12 +283,25 @@ export class Level3Scene extends BaseLevelScene {
   }
 
   private isTracking() {
-    return TRACKING.includes(this.phase);
+    return this.phase === 'tracking';
   }
 
   /** The one place on the trail the player can search right now. */
   private currentSector(): SearchSector | null {
     return this.sectors[this.trailIndex] ?? null;
+  }
+
+  /**
+   * Show the footprints for one leg and hide the rest.
+   *
+   * Every print visible at once is a map, not a trail — the player reads the
+   * whole route off the ground and the search is over before it starts. One
+   * leg at a time is the difference between tracking and sightseeing.
+   */
+  private revealLeg(index: number) {
+    for (const [i, s] of this.sectors.entries()) {
+      for (const t of s.tracks) t.visible = i === index;
+    }
   }
 
   private checkSector(sector: SearchSector) {
@@ -284,7 +330,8 @@ export class Level3Scene extends BaseLevelScene {
         sector.bonus.visible = true;
       }
       this.trailIndex = Math.min(this.trailIndex + 1, this.sectors.length - 1);
-      this.phase = TRACKING[this.trailIndex] ?? 'track3';
+      this.phase = 'tracking';
+      this.revealLeg(this.trailIndex);
     }
     this.pushHud();
   }
@@ -389,15 +436,20 @@ export class Level3Scene extends BaseLevelScene {
     // Spread to the corners of the map the level already has. They used to sit
     // inside a 16×32 slice of a 50×43 clamp — fifty-one metres of trail on a
     // board with room for eighty — so the "search" barely left the path.
+    // Five stops, not three. Three legs is 80m of walking on a level budgeted
+    // at 300s; five zigzag across the clamp for about 130m and give the trail
+    // somewhere to build.
     const sectorData = [
-      { x: -17, z: -10, hasHedgehog: false, label: 'bushes' },
-      { x: 16, z: -19, hasHedgehog: false, label: 'rocks' },
-      { x: -4, z: -31, hasHedgehog: true, label: 'log' },
+      { x: -17, z: -6, hasHedgehog: false, label: 'bushes' },
+      { x: 18, z: -14, hasHedgehog: false, label: 'rocks' },
+      { x: -14, z: -22, hasHedgehog: false, label: 'bushes' },
+      { x: 12, z: -29, hasHedgehog: false, label: 'rocks' },
+      { x: -3, z: -33, hasHedgehog: true, label: 'log' },
     ];
     // Reserved so the scatter cannot bury a sector the player is sent to find.
     for (const sd of sectorData) this.reserve(sd.x, sd.z, 4.5);
 
-    for (const sd of sectorData) {
+    for (const [index, sd] of sectorData.entries()) {
       const group = new THREE.Group();
       group.position.set(sd.x, 0, sd.z);
       this.scene.add(group);
@@ -435,15 +487,37 @@ export class Level3Scene extends BaseLevelScene {
       const bubble = makeQuestionBubble(sd.x, sd.z);
       this.scene.add(bubble);
 
-      // Tracks on ground leading to sector
-      const tracks: THREE.Mesh[] = [];
-      const trackStart = { x: 0, z: -8 };
-      const trackEnd = { x: sd.x, z: sd.z };
-      for (let i = 0; i < 6; i++) {
-        const t = i / 5;
-        const tx = trackStart.x + (trackEnd.x - trackStart.x) * t + (Math.random() - 0.5) * 0.3;
-        const tz = trackStart.z + (trackEnd.z - trackStart.z) * t + (Math.random() - 0.5) * 0.3;
-        const track = makeTrack(tx, tz);
+      // Footprints leading to this sector *from the previous one*.
+      //
+      // Every set used to start at (0, -8), so at the spawn the player saw
+      // three fans of prints radiating from one point with nothing to choose
+      // between them — a trail that cannot be followed, under a clue line
+      // that says «свежие следы уходят вправо». Chained, they are the trail.
+      const tracks: THREE.Group[] = [];
+      const from = index === 0
+        ? { x: 0, z: -8 }
+        : { x: sectorData[index - 1].x, z: sectorData[index - 1].z };
+      const steps = Math.max(6, Math.round(Math.hypot(sd.x - from.x, sd.z - from.z) / 2.6));
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        // A gentle S rather than a ruled line: an animal does not walk a
+        // straight segment between two points, and neither does a child.
+        const nx = -(sd.z - from.z);
+        const nz = sd.x - from.x;
+        const len = Math.hypot(nx, nz) || 1;
+        const bow = Math.sin(t * Math.PI) * 1.8;
+        const tx = from.x + (sd.x - from.x) * t + (nx / len) * bow + (Math.random() - 0.5) * 0.3;
+        const tz = from.z + (sd.z - from.z) * t + (nz / len) * bow + (Math.random() - 0.5) * 0.3;
+        // Heading toward the next print, so the paw points the way.
+        const ahead = Math.min(t + 1 / steps, 1);
+        const ax = from.x + (sd.x - from.x) * ahead + (nx / len) * Math.sin(ahead * Math.PI) * 1.8;
+        const az = from.z + (sd.z - from.z) * ahead + (nz / len) * Math.sin(ahead * Math.PI) * 1.8;
+        const track = makeTrack(tx, tz, Math.atan2(ax - tx, az - tz));
+        // Ride the sculpted ground: at a flat y = 0.03 a print sinks into
+        // every rise the terrain has.
+        track.position.y = this.groundHeightAt(tx, tz) + 0.03;
+        // Only the leg being walked is visible; revealLeg turns each on.
+        track.visible = index === 0;
         tracks.push(track);
         this.scene.add(track);
       }
@@ -543,19 +617,27 @@ export class Level3Scene extends BaseLevelScene {
           : this.copy('Ищи следы и знаки вопроса! У куста нажми E.', 'Іздер мен сұрақ белгілерін ізде! Бұтаның жанында E пернесін бас.'),
       ];
       line = lines[Math.min(this.introI, lines.length - 1)];
-      objective = this.copy('🔍 Исследуй 3 сектора', '🔍 3 секторды зертте');
+      objective = this.copy(
+        `🔍 Иди по следам — ${this.sectors.length} остановок`,
+        `🔍 Іздермен жүр — ${this.sectors.length} аялдама`,
+      );
     } else if (this.isTracking()) {
       const leg = this.trailIndex + 1;
-      const where = [
-        this.copy('густые кусты', 'қалың бұталар'),
-        this.copy('груда камней', 'тас үйіндісі'),
-        this.copy('поваленное бревно', 'құлаған бөрене'),
-      ][this.trailIndex];
+      const total = this.sectors.length;
+      // Read off the sector the trail actually leads to. This used to index a
+      // three-element array by trailIndex, so the clue and the destination
+      // agreed only as long as nobody changed the route.
+      const label = this.currentSector()?.label ?? 'bushes';
+      const where = label === 'bushes'
+        ? this.copy('густые кусты', 'қалың бұталар')
+        : label === 'rocks'
+          ? this.copy('груда камней', 'тас үйіндісі')
+          : this.copy('поваленное бревно', 'құлаған бөрене');
       line = this.copy(
         `Следы ведут дальше — туда, где ${where}.`,
         `Іздер әрі қарай — ${where} жаққа.`,
       );
-      objective = this.copy(`🐾 Иди по следам — ${leg}/3`, `🐾 Іздермен жүр — ${leg}/3`);
+      objective = this.copy(`🐾 Иди по следам — ${leg}/${total}`, `🐾 Іздермен жүр — ${leg}/${total}`);
     } else if (p === 'found') {
       line = this.copy('Ёжик найден! Он так рад! Подойди и обними его!', 'Кірпі табылды! Ол қатты қуанды! Жақындап, оны құшақта!');
       speaker = this.copy('Ёжик', 'Кірпі');
@@ -571,9 +653,27 @@ export class Level3Scene extends BaseLevelScene {
     }
 
     if (performance.now() < this.clueUntil && this.isTracking() && this.lastClue) {
+      // Direction read off the route, not written into the string. «Свежие
+      // следы уходят вправо» was hardcoded, and on a trail that zigzags it
+      // was wrong at half the stops — a clue that points the wrong way is
+      // worse than no clue.
+      const from = this.sectors[this.trailIndex - 1];
+      const to = this.currentSector();
+      const dx = to && from ? to.x - from.x : 0;
+      const dir = Math.abs(dx) < 4
+        ? this.copy('дальше вперёд', 'әрі қарай')
+        : dx > 0
+          ? this.copy('вправо', 'оңға')
+          : this.copy('влево', 'солға');
       line = this.lastClue === 'bushes'
-        ? this.copy('В кустах только листочек и звёздочка. Свежие следы уходят вправо!', 'Бұтада жапырақ пен жұлдызша ғана бар. Жаңа іздер оңға қарай кетеді!')
-        : this.copy('Под камнями пусто, но шорох слышен у поваленного бревна!', 'Тастардың астында ешкім жоқ, бірақ құлаған бөрене жақтан сыбдыр естіледі!');
+        ? this.copy(
+            `В кустах только листочек и звёздочка. Свежие следы уходят ${dir}!`,
+            `Бұтада жапырақ пен жұлдызша ғана бар. Жаңа іздер ${dir} кетеді!`,
+          )
+        : this.copy(
+            `Под камнями пусто, но следы уходят ${dir}!`,
+            `Тастардың астында ешкім жоқ, бірақ іздер ${dir} кетеді!`,
+          );
     } else if (performance.now() < this.praiseUntil && p !== 'intro' && p !== 'outro') {
       line = this.copy('Так держать!', 'Жарайсың!');
     }
@@ -602,7 +702,12 @@ export class Level3Scene extends BaseLevelScene {
     if (this.isTracking()) {
       const s = this.currentSector();
       if (s && !s.checked) {
-        const d = hp.distanceTo(new THREE.Vector3(s.x, 0, s.z));
+        // On the ground plane, not in 3D. Measuring to a point at y = 0 while
+        // the hero stands on sculpted terrain counts his elevation as
+        // distance: at the fallen log the ground is 2.28m up, so standing
+        // 1.2m from the marker measured 2.58m and the last stop on the trail
+        // could not be searched at all.
+        const d = Math.hypot(hp.x - s.x, hp.z - s.z);
         if (d < bestD) { bestD = d; best = s.group; }
       }
       // Also check bonuses
@@ -640,8 +745,9 @@ export class Level3Scene extends BaseLevelScene {
     if (this.phase === 'intro' && now > this.nextAt) {
       this.introI += 1;
       if (this.introI >= 3) {
-        this.phase = 'track1';
+        this.phase = 'tracking';
         this.trailIndex = 0;
+        this.revealLeg(0);
         this.nextAt = now + 500;
         this.pushHud();
       } else {

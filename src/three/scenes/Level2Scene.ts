@@ -797,7 +797,10 @@ export class Level2Scene extends BaseLevelScene {
         }
       } else if (this.phase === 'sort') {
         for (const b of this.baskets) {
-          const d = hp.distanceTo(new THREE.Vector3(b.x, 0, b.z));
+          // Ground plane, like the apples two branches up. A 3D distance to a
+          // point pinned at y = 0 charges the player for standing on a rise,
+          // so a basket on high ground needs to be walked into to be reached.
+          const d = Math.hypot(hp.x - b.x, hp.z - b.z);
           if (d < bestD) {
             bestD = d;
             best = b.group;
