@@ -13,7 +13,7 @@ import { createLevelTerrain, type LevelTerrain, type LevelTerrainOptions } from 
 import { createWindGrass, type WindGrass } from '../WindGrass';
 import { AssetKit } from '../AssetKit';
 import { placePatch, ringAnchors, type PatchSpec } from '../sceneComposition';
-import { placeMany, setPlacementGround } from '../s1Place';
+import { placeMany, placementGround, setPlacementGround } from '../s1Place';
 import { disposeObject3DResources, fitHeight, fitMaxSize, groundY, measurePlinthFraction } from '../modelUtils';
 import { createFpsSampler } from '@/dev/fpsSampler';
 import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
@@ -248,6 +248,15 @@ export function butterfly(x: number, z: number, color: number) {
   return g;
 }
 
+/**
+ * Scatter bush. The third argument is a **scale**, not a height — passing a y
+ * there builds a bush of that size, and passing 0 builds nothing at all.
+ *
+ * Rides the terrain. It used to end at absolute world zero, which was correct
+ * only while levels sat on a plane: on L7, 21 of 22 bushes were off the
+ * ground and the worst was 1.49 m under it, which for a bush 1 m tall means
+ * buried outright.
+ */
 export function bush(x: number, z: number, scale = 1) {
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
@@ -257,7 +266,7 @@ export function bush(x: number, z: number, scale = 1) {
     s.castShadow = false; s.receiveShadow = false;
     g.add(s);
   }
-  g.position.set(x, 0, z);
+  g.position.set(x, placementGround(x, z), z);
   return g;
 }
 
@@ -307,7 +316,7 @@ export function tulip(x: number, z: number, color: number) {
     part.receiveShadow = false;
   }
   g.add(stem, petals, centre);
-  g.position.set(x, 0, z);
+  g.position.set(x, placementGround(x, z), z);
   g.rotation.y = Math.random() * Math.PI * 2;
   return g;
 }

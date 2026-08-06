@@ -33,6 +33,18 @@ export function setPlacementGround(sampler: ((x: number, z: number) => number) |
   groundSampler = sampler;
 }
 
+/**
+ * Terrain height for helpers that build their own geometry rather than loading
+ * a model — `bush`, `tulip` and friends in BaseLevelScene, which each end with
+ * `position.set(x, 0, z)` and so sat at absolute world zero.
+ *
+ * Returns 0 when no scene has registered a sampler, which is exactly the old
+ * behaviour on a flat level.
+ */
+export function placementGround(x: number, z: number): number {
+  return groundSampler ? groundSampler(x, z) : 0;
+}
+
 async function placeFile(
   loader: GLTFLoader,
   kind: 'prop' | 'char',
