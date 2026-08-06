@@ -15,7 +15,7 @@ import {
 import { AudioManager } from '@/audio/AudioManager';
 import { groundY } from '../modelUtils';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeAmbientCritters } from '../s1Place';
+import { placeAmbientCritters, placeS1Char } from '../s1Place';
 import { CAST_PROP_GLB, KEY_ACORN } from '../castModels';
 import { resolveKey } from '../inventory';
 
@@ -34,25 +34,110 @@ import { resolveKey } from '../inventory';
 const SPAWN_Z = 8;
 /** Chest clearing, at the deep end of a forty-metre walk. */
 const CHEST_Z = -34;
-/** Each seal has a guardian, and each guardian lives somewhere different. */
-const SHRINES: Array<{ x: number; z: number; guard: 'owl' | 'fox' | 'deer'; rotY: number }> = [
-  { x: -17, z: -6, guard: 'fox', rotY: 1.1 },
-  { x: 18, z: -19, guard: 'owl', rotY: -0.9 },
-  { x: -9, z: -45, guard: 'deer', rotY: 0.3 },
+
+/** The mark on a seal, on its guardian's shrine, and on the chest's lock. */
+type Sigil = 'sun' | 'leaf' | 'drop';
+
+/**
+ * Each seal has a guardian, and each guardian lives somewhere different.
+ *
+ * The guardians were already modelled and already standing beside the shrines
+ * doing nothing while the player picked the seal up off the plinth in front of
+ * them. They now want something for it, which is where most of this level's
+ * running time comes from — and it costs no new art.
+ */
+const SHRINES: Array<{
+  x: number;
+  z: number;
+  guard: 'owl' | 'fox' | 'deer';
+  rotY: number;
+  sigil: Sigil;
+  name: { ru: string; kk: string };
+}> = [
+  { x: -17, z: -6, guard: 'fox', rotY: 1.1, sigil: 'sun', name: { ru: 'Лиса', kk: 'Түлкі' } },
+  { x: 18, z: -19, guard: 'owl', rotY: -0.9, sigil: 'leaf', name: { ru: 'Сова', kk: 'Үкі' } },
+  { x: -9, z: -45, guard: 'deer', rotY: 0.3, sigil: 'drop', name: { ru: 'Оленёнок', kk: 'Бұғы' } },
 ];
+
+/** What each guardian asks for before it parts with its seal. */
+const BERRIES_PER_GUARD = 3;
+
+/**
+ * Twelve berries for nine needed.
+ *
+ * The slack is deliberate. With exactly nine, one berry that ends up inside a
+ * rock or outside the walkable rim is a level that cannot be finished, and
+ * that is the same soft-lock the acorn key just had. Three spare also means a
+ * child who walks past a bush is not punished for it.
+ */
+const BERRY_SPOTS: Array<{ x: number; z: number }> = [
+  { x: 7, z: -2 }, { x: -21, z: -3 }, { x: -12, z: -13 },
+  { x: 21, z: -8 }, { x: -22, z: -18 }, { x: 13, z: -27 },
+  { x: 22, z: -29 }, { x: -17, z: -31 }, { x: 5, z: -41 },
+  { x: -20, z: -42 }, { x: 16, z: -40 }, { x: -3, z: -22 },
+];
+
+/**
+ * The lock: three pillars in front of the chest, pressed in the order the
+ * lock face shows rather than left to right.
+ *
+ * A matching puzzle, not a memory one — the required order stays lit on the
+ * chest the whole time. Five-year-olds are in this game's audience and asking
+ * them to hold a sequence in their head would lock them out; asking them to
+ * copy one they can see is exactly the right shape.
+ */
+const PILLARS: Array<{ x: number; z: number; sigil: Sigil }> = [
+  { x: -2.6, z: CHEST_Z + 3.4, sigil: 'drop' },
+  { x: 0, z: CHEST_Z + 4.0, sigil: 'sun' },
+  { x: 2.6, z: CHEST_Z + 3.4, sigil: 'leaf' },
+];
+
+/** Order the lock asks for — the order the shrines are met on the way down. */
+const LOCK_ORDER: Sigil[] = ['sun', 'leaf', 'drop'];
+
+const SIGIL_COLOR: Record<Sigil, number> = { sun: 0xffc93c, leaf: 0x6ab04c, drop: 0x4aa3df };
+
+/**
+ * A sigil as a small solid, not a texture: three silhouettes a child can tell
+ * apart at a glance and from across a clearing.
+ */
+function makeSigil(kind: Sigil, size = 1): THREE.Mesh {
+  const mat = new THREE.MeshStandardMaterial({
+    color: SIGIL_COLOR[kind],
+    emissive: SIGIL_COLOR[kind],
+    emissiveIntensity: 0.45,
+    roughness: 0.4,
+    metalness: 0.2,
+  });
+  let geo: THREE.BufferGeometry;
+  if (kind === 'sun') geo = new THREE.SphereGeometry(0.22 * size, 14, 10);
+  else if (kind === 'drop') geo = new THREE.ConeGeometry(0.2 * size, 0.46 * size, 12);
+  else geo = new THREE.TetrahedronGeometry(0.28 * size);
+  const mesh = new THREE.Mesh(geo, mat);
+  if (kind === 'drop') mesh.rotation.x = Math.PI; // point down, like a drop
+  return mesh;
+}
 
 /** Centre line of the walk from the forest edge to the chest clearing. */
 function routeX(z: number) {
   return Math.sin((z - SPAWN_Z) * 0.07) * 3.6;
 }
 
-export type L10Phase = 'intro' | 'seals' | 'approach' | 'unlock' | 'open' | 'outro';
+/**
+ * `quest` is gathering and trading at once, on purpose. Splitting them would
+ * mean "pick nine berries, then do three laps back" — the same ground walked
+ * twice, which is padding. Trading whenever you happen to pass a guardian is
+ * the same distance with a decision in it.
+ */
+export type L10Phase = 'intro' | 'quest' | 'lock' | 'unlock' | 'open' | 'outro';
 
 export interface L10Hud extends BaseHud {
   hasAcornKey: boolean;
   chestOpen: boolean;
   sealsDone: number;
   sealsTotal: number;
+  berries: number;
+  lockDone: number;
 }
 
 function makeChest(x: number, z: number): THREE.Group {
@@ -135,6 +220,18 @@ export class Level9Scene extends BaseLevelScene {
   private readonly sealsTotal = 3;
   /** Rest height of the floating key, so its bob rides the terrain. */
   private keyBaseY = 2.5;
+  private berries: THREE.Object3D[] = [];
+  /** Picked and not yet traded. Guardians only take whole sets of three. */
+  private berryCount = 0;
+  private guardians: THREE.Object3D[] = [];
+  private pillars: THREE.Group[] = [];
+  /** How much of LOCK_ORDER is already pressed. Reset by a wrong pillar. */
+  private lockDone = 0;
+  private lockWrongAt = 0;
+  /** Once they have got it wrong, the arrow starts pointing at the answer. */
+  private lockFailures = 0;
+  private lockFace: THREE.Group | null = null;
+  private chestMarker: THREE.Object3D | null = null;
 
   protected currentPhase() { return this.phase; }
 
@@ -143,40 +240,91 @@ export class Level9Scene extends BaseLevelScene {
   }
 
   tryInteract() {
-    if (this.phase === 'seals') {
-      const t = this.interactTarget;
-      if (!t?.userData.isSeal || t.userData.done) return;
-      t.userData.done = true;
-      t.visible = false;
-      const beacon = t.userData.beacon as THREE.Object3D | undefined;
-      if (beacon) beacon.visible = false;
-      this.sealsDone += 1;
-      this.stars += 3;
-      this.spawnSparks(t.position, 12, [0xffd700, 0x00cec9]);
-      AudioManager.sfx('interact');
-      if (this.sealsDone >= this.sealsTotal) {
-        this.phase = 'approach';
-        this.spawnSparks(this.chest?.position ?? this.hero.position, 18, [0xffd700, 0xff9f43]);
+    const now = performance.now();
+    const t = this.interactTarget;
+
+    if (this.phase === 'quest') {
+      if (!t || t.userData.done) return;
+
+      if (t.userData.isBerry) {
+        t.userData.done = true;
+        t.visible = false;
+        this.berryCount += 1;
+        this.stars += 1;
+        this.spawnSparks(t.position, 8, [0xe84393, 0xff7675]);
+        AudioManager.sfx('interact');
+        this.praiseUntil = now + 500;
+        this.pushHud();
+        return;
+      }
+
+      if (t.userData.isSeal) {
+        // The guardian only trades a whole handful. Saying so and doing
+        // nothing is the correct answer to two berries — the alternative is
+        // taking them and leaving the child with a debt they cannot see.
+        if (this.berryCount < BERRIES_PER_GUARD) {
+          AudioManager.sfx('click');
+          this.pushHud();
+          return;
+        }
+        this.berryCount -= BERRIES_PER_GUARD;
+        t.userData.done = true;
+        t.visible = false;
+        const beacon = t.userData.beacon as THREE.Object3D | undefined;
+        if (beacon) beacon.visible = false;
+        this.sealsDone += 1;
+        this.stars += 3;
+        // The seal it just gave up now waits on its pillar by the chest.
+        const sigil = t.userData.sigil as Sigil;
+        const pillar = this.pillars.find((p) => p.userData.sigil === sigil);
+        if (pillar) pillar.userData.armed = true;
+        this.spawnSparks(t.position, 14, [0xffd700, 0x00cec9]);
         AudioManager.sfx('found');
+        this.praiseUntil = now + 900;
+        if (this.sealsDone >= this.sealsTotal) {
+          this.phase = 'lock';
+          this.spawnSparks(this.chest?.position ?? this.hero.position, 18, [0xffd700, 0xff9f43]);
+        }
+        this.pushHud();
+      }
+      return;
+    }
+
+    if (this.phase === 'lock') {
+      if (!t?.userData.isPillar || t.userData.set) return;
+      const sigil = t.userData.sigil as Sigil;
+      if (sigil === LOCK_ORDER[this.lockDone]) {
+        t.userData.set = true;
+        this.lockDone += 1;
+        this.stars += 2;
+        this.spawnSparks(t.position, 12, [SIGIL_COLOR[sigil], 0xffffff]);
+        AudioManager.sfx('success');
+        if (this.lockDone >= LOCK_ORDER.length) {
+          if (!this.hasAcornKey) {
+            // Everything the level asked for is done and the chest still
+            // will not open. Not reachable from a normal save — L9 is behind
+            // L5 — but if it ever happens the player should be standing in
+            // front of a lock that is visibly complete, not stuck earlier.
+            this.pushHud();
+            return;
+          }
+          this.phase = 'unlock';
+          this.stars += 10;
+          this.spawnSparks(this.chest?.position ?? this.hero.position, 16, [0xffd700, 0x00cec9]);
+          this.nextAt = now + 1500;
+        }
+      } else {
+        // Wrong pillar: everything comes back out, nothing is taken away.
+        // Costing stars here would punish the five-year-olds this puzzle is
+        // shaped for and teach the eight-year-olds not to experiment.
+        this.lockDone = 0;
+        this.lockFailures += 1;
+        this.lockWrongAt = now;
+        for (const p of this.pillars) p.userData.set = false;
+        AudioManager.sfx('click');
       }
       this.pushHud();
-      return;
     }
-
-    if (this.phase !== 'approach') return;
-    if (!this.interactTarget || !this.chest) return;
-    if (!this.hasAcornKey) {
-      this.pushHud();
-      return;
-    }
-
-    // Unlock the chest
-    this.phase = 'unlock';
-    this.stars += 10;
-    this.spawnSparks(this.chest.position, 16, [0xffd700, 0x00cec9]);
-    AudioManager.sfx('success');
-    this.nextAt = performance.now() + 1500;
-    this.pushHud();
   }
 
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: L10Hud) => void) {
@@ -293,10 +441,17 @@ export class Level9Scene extends BaseLevelScene {
       );
       base.position.y = 0.17;
       base.castShadow = true;
-      seal.add(base, disk, ring);
+      // The seal wears its guardian's mark, so the pillar it belongs on later
+      // is something the player has already seen rather than a fresh rule.
+      const mark = makeSigil(shrine.sigil, 0.8);
+      mark.position.y = 0.62;
+      seal.add(base, disk, ring, mark);
       seal.position.set(x, this.groundHeightAt(x, z), z);
       seal.userData.isSeal = true;
       seal.userData.done = false;
+      seal.userData.sigil = shrine.sigil;
+      seal.userData.name = shrine.name;
+      seal.userData.mark = mark;
       this.seals.push(seal);
       this.scene.add(seal);
       this.colliders.push({ kind: 'circle', x, z, r: 0.6 });
@@ -307,14 +462,142 @@ export class Level9Scene extends BaseLevelScene {
       seal.userData.beacon = beacon;
       this.scene.add(beacon);
     }
-    await placeAmbientCritters(this.scene, loader, SHRINES.map((sh) => ({
-      key: sh.guard, x: sh.x + 1.6, z: sh.z + 1.1, rotY: sh.rotY, h: 0.85,
-    })));
+    for (const sh of SHRINES) {
+      // Placed one at a time rather than through `placeAmbientCritters`, which
+      // returns nothing: the guardians are no longer scenery and the level
+      // needs to be able to turn them to face the player it is talking to.
+      const guard = await placeS1Char(loader, sh.guard, {
+        x: sh.x + 1.6, z: sh.z + 1.1, rotY: sh.rotY, height: 0.95,
+      });
+      if (guard) {
+        this.guardians.push(guard);
+        this.scene.add(guard);
+      }
+    }
 
-    // Quest marker above the chest
+    // Twelve berries, in bushes, spread over the whole play area — this is
+    // where the level's walking comes from.
+    for (const spot of BERRY_SPOTS) {
+      const g = new THREE.Group();
+      // bush(x, z, scale) — the third argument is the scale, not a y. Passing
+      // 0 built twelve bushes scaled to nothing, which is why the first pass
+      // rendered a berry hovering over bare grass.
+      const shrub = bush(0, 0, 1.1);
+      g.add(shrub);
+      // A ring on the ground under the bush. `bush()` is the same helper the
+      // environment scatters by the hundred, so without this a bush holding a
+      // berry looks exactly like the ninety that do not, and the guide arrow
+      // becomes the only way to find one — which is not finding it.
+      // Wider than the foliage: at 0.5–0.78 the ring was drawn underneath the
+      // bush and invisible from every angle a player stands at.
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(1.02, 1.34, 22),
+        new THREE.MeshBasicMaterial({ color: 0xe84393, transparent: true, opacity: 0.4, side: THREE.DoubleSide }),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.03;
+      g.add(ring);
+      const fruit =
+        (await loadPropModel(loader, CAST_PROP_GLB.berry, { maxSize: 0.46 })) ??
+        new THREE.Mesh(
+          new THREE.SphereGeometry(0.22, 12, 10),
+          new THREE.MeshStandardMaterial({ color: 0xe84393, roughness: 0.45, emissive: 0x8e2f5f, emissiveIntensity: 0.3 }),
+        );
+      // `loadPropModel` writes its own grounding offset into position.y, so
+      // only x and z may be assigned here — setting y outright is what buried
+      // L2's apples.
+      fruit.position.x = 0;
+      fruit.position.z = 0;
+      // Clear of the foliage. `bush()` builds spheres of up to 0.7 radius
+      // centred at 0.385, so anything below about 1.1 is inside the bush.
+      fruit.position.y += 1.25;
+      g.add(fruit);
+      g.position.set(spot.x, this.groundHeightAt(spot.x, spot.z), spot.z);
+      g.userData.isBerry = true;
+      g.userData.done = false;
+      g.userData.fruit = fruit;
+      g.userData.ring = ring;
+      this.berries.push(g);
+      this.scene.add(g);
+    }
+
+    // The lock: three pillars in front of the chest.
+    for (const p of PILLARS) {
+      const g = new THREE.Group();
+      const shaft = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.26, 0.34, 1.15, 10),
+        new THREE.MeshStandardMaterial({ color: 0x8d8378, roughness: 0.95 }),
+      );
+      shaft.position.y = 0.57;
+      shaft.castShadow = true;
+      const cup = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.32, 0.26, 0.12, 12),
+        new THREE.MeshStandardMaterial({ color: 0x6d6459, roughness: 0.9 }),
+      );
+      cup.position.y = 1.2;
+      const mark = makeSigil(p.sigil);
+      // Just clear of the cup's rim. At 1.52 it hung with a visible gap under
+      // it and read as a mesh that had come loose rather than as a mark
+      // resting on a plinth.
+      mark.position.y = 1.38;
+      const halo = new THREE.Mesh(
+        new THREE.RingGeometry(0.36, 0.52, 20),
+        new THREE.MeshBasicMaterial({ color: SIGIL_COLOR[p.sigil], transparent: true, opacity: 0.0, side: THREE.DoubleSide }),
+      );
+      halo.rotation.x = -Math.PI / 2;
+      halo.position.y = 0.04;
+      g.add(shaft, cup, mark, halo);
+      g.position.set(p.x, this.groundHeightAt(p.x, p.z), p.z);
+      g.userData.isPillar = true;
+      g.userData.sigil = p.sigil;
+      /** Armed once its seal has been traded for; only then can it be pressed. */
+      g.userData.armed = false;
+      g.userData.set = false;
+      g.userData.mark = mark;
+      g.userData.halo = halo;
+      this.pillars.push(g);
+      this.scene.add(g);
+      this.colliders.push({ kind: 'circle', x: p.x, z: p.z, r: 0.45 });
+    }
+
+    // The lock face: the order to press, lit on the chest for the whole
+    // puzzle. Reading it off the chest is the puzzle; remembering it is not.
+    const lockFace = new THREE.Group();
+    // A backing board first, so the row reads as one sign rather than three
+    // ornaments that happen to hang near the chest.
+    const board = new THREE.Mesh(
+      new THREE.BoxGeometry(1.9, 0.72, 0.1),
+      new THREE.MeshStandardMaterial({ color: 0x4a3b2a, roughness: 0.9 }),
+    );
+    board.position.z = -0.2;
+    lockFace.add(board);
+    LOCK_ORDER.forEach((sigil, i) => {
+      // Sigils are children 1, 3, 5 — the loop over LOCK_ORDER in `loop()`
+      // indexes them as `1 + i * 2`, so nothing may be inserted between them.
+      const s = makeSigil(sigil, 0.9);
+      s.position.set((i - 1) * 0.56, 0, 0.08);
+      lockFace.add(s);
+      const plate = new THREE.Mesh(
+        new THREE.CircleGeometry(0.26, 16),
+        new THREE.MeshBasicMaterial({ color: 0x1d1710, transparent: true, opacity: 0.7 }),
+      );
+      plate.position.set((i - 1) * 0.56, 0, -0.1);
+      lockFace.add(plate);
+    });
+    // Above the chest rather than across it: at 1.6 the row sat on the lid and
+    // the two read as one cluttered object from the approach.
+    lockFace.position.set(0, this.groundHeightAt(0, CHEST_Z) + 2.15, CHEST_Z + 0.55);
+    this.scene.add(lockFace);
+    this.lockFace = lockFace;
+
+    // Quest marker above the chest. Hidden once the lock is the thing to
+    // read: the beam is vertical at x = 0 and goes straight through the middle
+    // of the board, which turns the one sign the puzzle depends on into
+    // clutter exactly when it starts to matter.
     const marker = questMarker(0xffd700, 0xff9f43);
     marker.position.set(0, this.groundHeightAt(0, CHEST_Z), CHEST_Z);
     this.scene.add(marker);
+    this.chestMarker = marker;
 
     // Acorn key — gen acorn → golden_key → Kenney → procedural
     const meshyKey =
@@ -369,7 +652,9 @@ export class Level9Scene extends BaseLevelScene {
       { key: 'pinecone', opts: { x: 2.2, z: SPAWN_Z - 2, maxSize: 0.3 } },
       { key: 'stump', opts: { x: -5.5, z: -14, maxSize: 1.1 } },
       { key: 'mushroom', opts: { x: 6.2, z: -9, maxSize: 0.5 } },
-      { key: 'berry', opts: { x: -7.5, z: -26, maxSize: 0.4 } },
+      // A decorative berry used to stand at (-7.5, -26). Now that berries are
+      // the thing the level asks for, one that cannot be picked is a trap —
+      // the same defect as L7's twelve decorative photographs.
       { key: 'flowers', opts: { x: 5.5, z: -30, maxSize: 0.7 } },
       { key: 'lantern_wood', opts: { x: -4.6, z: CHEST_Z + 5, maxSize: 0.7 } },
       { key: 'lantern_wood', opts: { x: 4.6, z: CHEST_Z + 5, maxSize: 0.7 } },
@@ -414,26 +699,51 @@ export class Level9Scene extends BaseLevelScene {
             this.copy('Вернись к белочке или открой уровень 5!', 'Тиінге орал немесе 5-деңгейді аш!'),
           ]
         : [
-            this.copy('Сундук охраняют три золотые печати!', 'Сандықты үш алтын мөр қорғайды!'),
-            this.copy(`Собери печати вокруг поляны, ${n}.`, `Алаңдағы мөрлерді жина, ${n}.`),
-            this.copy('Потом жёлудь-ключ откроет замок!', 'Сосын жаңғақ-кілт құлыпты ашады!'),
+            this.copy('Сундук охраняют три лесных стража!', 'Сандықты үш орман күзетшісі қорғайды!'),
+            this.copy(`Они отдадут печати за ягоды, ${n}. Три ягоды за печать.`, `Олар мөрді жидекке айырбастайды, ${n}. Мөрге үш жидек.`),
+            this.copy('Ягоды растут в кустах по всему лесу — ищи!', 'Жидек орман бұталарында өседі — ізде!'),
           ];
       line = lines[Math.min(this.introI, lines.length - 1)];
       objective = !this.hasAcornKey
         ? this.copy('Нужен жёлудь-ключ (ур. 5)', 'Жаңғақ-кілт керек (5-деңгей)')
-        : this.copy('🥇 Собери 3 печати', '🥇 3 мөр жина');
-    } else if (p === 'seals') {
-      line = this.copy('Ищи золотые круги у кустов — это печати сундука.', 'Бұталардағы алтын шеңберлерді ізде — сандық мөрлері.');
-      objective = this.copy(`🥇 Печати: ${this.sealsDone}/${this.sealsTotal}`, `🥇 Мөр: ${this.sealsDone}/${this.sealsTotal}`);
-    } else if (p === 'approach') {
-      line = this.hasAcornKey
-        ? this.copy('Печати на месте! Жёлудь-ключ подходит — открой сундук!', 'Мөрлер орнында! Жаңғақ-кілт сәйкес — сандықты аш!')
-        : this.copy('Без жёлудь-ключа сундук не откроется.', 'Жаңғақ-кілтсіз сандық ашылмайды.');
-      objective = this.hasAcornKey
-        ? (this.isMobile
-          ? this.copy('Нажми лапку, чтобы открыть', 'Ашу үшін табан түймесін бас')
-          : this.copy('Нажми E, чтобы открыть', 'Ашу үшін E пернесін бас'))
-        : this.copy('Найди ключ на уровне 5', 'Кілтті 5-деңгейден тап');
+        : this.copy('🫐 Собери ягоды для стражей', '🫐 Күзетшілерге жидек жина');
+    } else if (p === 'quest') {
+      const target = this.interactTarget;
+      if (target?.userData.isSeal) {
+        const guard = target.userData.name as { ru: string; kk: string };
+        speaker = this.copy(guard.ru, guard.kk);
+        line = this.berryCount >= BERRIES_PER_GUARD
+          ? this.copy('Три ягоды — и печать твоя!', 'Үш жидек — мөр сенікі!')
+          : this.copy(
+              `Принеси три ягоды. У тебя ${this.berryCount}.`,
+              `Үш жидек әкел. Сенде ${this.berryCount}.`,
+            );
+      } else if (this.berryCount >= BERRIES_PER_GUARD) {
+        line = this.copy('Ягод хватает! Иди к стражу за печатью.', 'Жидек жетеді! Мөр үшін күзетшіге бар.');
+      } else {
+        line = this.copy('Ягоды прячутся в кустах по всему лесу.', 'Жидектер орман бұталарында тығылған.');
+      }
+      objective = this.copy(
+        `🫐 ${this.berryCount}/${BERRIES_PER_GUARD}   🥇 ${this.sealsDone}/${this.sealsTotal}`,
+        `🫐 ${this.berryCount}/${BERRIES_PER_GUARD}   🥇 ${this.sealsDone}/${this.sealsTotal}`,
+      );
+    } else if (p === 'lock') {
+      const want = LOCK_ORDER[this.lockDone];
+      const shrine = SHRINES.find((s) => s.sigil === want);
+      const wrongRecently = performance.now() - this.lockWrongAt < 2200;
+      line = wrongRecently
+        ? this.copy('Не тот столб! Смотри на замок и начни сначала.', 'Бағана дұрыс емес! Құлыпқа қара да қайта баста.')
+        : this.copy(
+            'Замок показывает порядок. Нажимай столбы так же!',
+            'Құлып кезекті көрсетеді. Бағаналарды солай бас!',
+          );
+      objective =
+        this.lockFailures > 0 && shrine
+          ? this.copy(
+              `🔒 ${this.lockDone}/3 — сейчас знак ${this.copy(shrine.name.ru, shrine.name.kk)}`,
+              `🔒 ${this.lockDone}/3 — қазір ${this.copy(shrine.name.ru, shrine.name.kk)} белгісі`,
+            )
+          : this.copy(`🔒 Печати: ${this.lockDone}/3`, `🔒 Мөрлер: ${this.lockDone}/3`);
     } else if (p === 'unlock') {
       speaker = this.copy('Белочка', 'Тиін');
       line = this.copy('Мой жёлудь открыл сундук! Ура!', 'Менің жаңғағым сандықты ашты! Ура!');
@@ -456,41 +766,100 @@ export class Level9Scene extends BaseLevelScene {
       chestOpen: this.chestOpen,
       sealsDone: this.sealsDone,
       sealsTotal: this.sealsTotal,
+      berries: this.berryCount,
+      lockDone: this.lockDone,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'seals'),
+      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'quest'),
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
   }
 
+  /**
+   * Distances here are measured on the ground plane, not in 3D.
+   *
+   * A 3D `distanceTo` bills the player for the height difference between where
+   * they stand and where the target sits, and over sculpted terrain that is
+   * real: on L3 a marker two metres up made the last stop unreachable. Both
+   * targets here happen to sit within 12 cm of the hero's own ground height,
+   * so this is not a fix for a live bug — it is the same measurement the rest
+   * of the season now uses, so nobody has to re-check it after moving a prop.
+   */
   private nearestInteract(): THREE.Object3D | null {
-    if (this.phase === 'seals') {
-      const hp = this.hero.position;
+    const hp = this.hero.position;
+    const flat = (o: THREE.Object3D) => Math.hypot(hp.x - o.position.x, hp.z - o.position.z);
+
+    if (this.phase === 'quest') {
       let best: THREE.Object3D | null = null;
       let bestD = 2.4;
       for (const s of this.seals) {
         if (s.userData.done) continue;
-        const d = hp.distanceTo(s.position);
+        const d = flat(s);
         if (d < bestD) { bestD = d; best = s; }
+      }
+      // Berries are picked from closer than a shrine is hailed, so standing
+      // between a bush and a guardian offers the guardian.
+      for (const b of this.berries) {
+        if (b.userData.done) continue;
+        const d = flat(b);
+        if (d < Math.min(bestD, 1.9)) { bestD = d; best = b; }
       }
       return best;
     }
-    if (!this.chest || this.chestOpen) return null;
-    const d = this.hero.position.distanceTo(this.chest.position);
-    if (d < 2.5 && this.phase === 'approach') return this.chest;
+
+    if (this.phase === 'lock') {
+      let best: THREE.Object3D | null = null;
+      let bestD = 2.0;
+      for (const p of this.pillars) {
+        if (!p.userData.armed || p.userData.set) continue;
+        const d = flat(p);
+        if (d < bestD) { bestD = d; best = p; }
+      }
+      return best;
+    }
+
     return null;
   }
 
   private objectiveWorldPos(): THREE.Vector3 | null {
-    if (this.phase === 'seals') {
-      const next = this.seals.find((s) => !s.userData.done);
-      return next?.position.clone() ?? null;
+    if (this.phase === 'quest') {
+      // Enough berries in hand? Then the thing to walk to is a guardian.
+      // Otherwise it is the nearest bush — which keeps the arrow useful for
+      // the whole phase instead of pointing at a shrine you cannot yet trade
+      // with.
+      if (this.berryCount >= BERRIES_PER_GUARD) {
+        const seal = this.nearestOf(this.seals);
+        if (seal) return seal.position.clone();
+      }
+      const berry = this.nearestOf(this.berries);
+      if (berry) return berry.position.clone();
+      return this.nearestOf(this.seals)?.position.clone() ?? null;
     }
-    if (this.chest && (this.phase === 'intro' || this.phase === 'approach')) {
-      return this.chest.position.clone();
+    if (this.phase === 'lock') {
+      // Silent until they have got it wrong once: being shown the answer
+      // before trying is not a puzzle, and never being shown it is a wall.
+      if (this.lockFailures > 0) {
+        const want = LOCK_ORDER[this.lockDone];
+        const p = this.pillars.find((q) => q.userData.sigil === want && !q.userData.set);
+        if (p) return p.position.clone();
+      }
+      return this.chest?.position.clone() ?? null;
     }
+    if (this.chest && this.phase === 'intro') return this.chest.position.clone();
     return null;
+  }
+
+  private nearestOf(list: THREE.Object3D[]): THREE.Object3D | null {
+    const hp = this.hero.position;
+    let best: THREE.Object3D | null = null;
+    let bestD = Infinity;
+    for (const o of list) {
+      if (o.userData.done) continue;
+      const d = Math.hypot(hp.x - o.position.x, hp.z - o.position.z);
+      if (d < bestD) { bestD = d; best = o; }
+    }
+    return best;
   }
 
   protected loop = () => {
@@ -504,7 +873,11 @@ export class Level9Scene extends BaseLevelScene {
     if (this.phase === 'intro' && now > this.nextAt) {
       this.introI += 1;
       if (this.introI >= 3) {
-        this.phase = this.hasAcornKey ? 'seals' : 'approach';
+        // Into the quest either way. Without the key the level is already
+        // broken — see `resolveKey`, which makes that essentially unreachable
+        // from a real save — and standing the player on the spawn pad with
+        // nothing to do would be a worse way to be broken.
+        this.phase = 'quest';
         this.nextAt = now + 500;
         this.pushHud();
       } else {
@@ -587,6 +960,69 @@ export class Level9Scene extends BaseLevelScene {
       this.acornKey.position.y = this.keyBaseY + Math.sin(now * 0.003) * 0.15;
       this.acornKey.rotation.y += dt * 1.5;
     }
+
+    // Berries turn slowly so a bush with one in it catches the eye from a
+    // distance; a still berry inside a still bush is invisible in grass.
+    for (const b of this.berries) {
+      if (b.userData.done) continue;
+      const fruit = b.userData.fruit as THREE.Object3D;
+      fruit.rotation.y += dt * 1.1;
+      fruit.position.y = (fruit.userData.restY ??= fruit.position.y) + Math.sin(now * 0.002 + b.position.x) * 0.05;
+      const ring = b.userData.ring as THREE.Mesh;
+      (ring.material as THREE.MeshBasicMaterial).opacity =
+        (b === this.interactTarget ? 0.62 : 0.34) + Math.sin(now * 0.003 + b.position.z) * 0.1;
+    }
+
+    // Seal marks spin on their plinths, matching the berries' language.
+    for (const s of this.seals) {
+      if (s.userData.done) continue;
+      (s.userData.mark as THREE.Object3D).rotation.y += dt * 0.9;
+    }
+
+    // Pillars: dark until their seal has been earned, lit while pressable,
+    // and wearing the seal once set. The state of the puzzle is readable off
+    // the pillars alone, without the HUD.
+    for (const p of this.pillars) {
+      const mark = p.userData.mark as THREE.Mesh;
+      const halo = p.userData.halo as THREE.Mesh;
+      const armed = p.userData.armed as boolean;
+      const set = p.userData.set as boolean;
+      const mat = mark.material as THREE.MeshStandardMaterial;
+      mat.emissiveIntensity = set ? 0.95 : armed ? 0.45 + Math.sin(now * 0.004) * 0.2 : 0.05;
+      mark.rotation.y += dt * (set ? 1.6 : armed ? 0.8 : 0);
+      mark.position.y = 1.38 + (set ? 0.14 : 0) + (armed ? Math.sin(now * 0.003) * 0.05 : 0);
+      (halo.material as THREE.MeshBasicMaterial).opacity = set ? 0.5 : armed ? 0.28 : 0;
+    }
+
+    // Lock face: the next mark to press breathes, and a wrong press shakes the
+    // whole row — the correction lands on the lock, which is where the answer
+    // is, rather than on the pillar that was wrong.
+    if (this.lockFace) {
+      const shake = now - this.lockWrongAt < 600 ? Math.sin(now * 0.06) * 0.06 : 0;
+      this.lockFace.position.x = shake;
+      this.lockFace.visible = this.phase === 'lock' || this.phase === 'quest';
+      if (this.chestMarker) this.chestMarker.visible = this.phase === 'intro' || this.phase === 'quest';
+      // children[0] is the board; the sigils are 1, 3, 5.
+      for (let i = 0; i < LOCK_ORDER.length; i++) {
+        const child = this.lockFace.children[1 + i * 2] as THREE.Mesh;
+        const mat = child.material as THREE.MeshStandardMaterial;
+        const isNext = this.phase === 'lock' && i === this.lockDone;
+        mat.emissiveIntensity = i < this.lockDone ? 0.95 : isNext ? 0.55 + Math.sin(now * 0.005) * 0.3 : 0.18;
+        child.scale.setScalar(isNext ? 1.2 : 1);
+        child.rotation.y += dt * (isNext ? 1.2 : 0.25);
+      }
+    }
+
+    // Guardians look at whoever is close enough to trade with them.
+    this.guardians.forEach((g, i) => {
+      const shrine = SHRINES[i];
+      if (!shrine) return;
+      const d = Math.hypot(this.hero.position.x - g.position.x, this.hero.position.z - g.position.z);
+      const want = d < 6
+        ? Math.atan2(this.hero.position.x - g.position.x, this.hero.position.z - g.position.z)
+        : shrine.rotY;
+      g.rotation.y += (want - g.rotation.y) * Math.min(1, dt * 3);
+    });
 
     // Butterflies
     for (const b of this.butterflies) {
