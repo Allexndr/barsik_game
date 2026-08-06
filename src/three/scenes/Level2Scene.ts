@@ -105,10 +105,18 @@ function tintAppleRoot(root: THREE.Object3D, hex: number, emissiveIntensity: num
   });
 }
 
+/**
+ * The ring on the ground and the beam over it that say "an apple is here".
+ *
+ * `ground` is the terrain height under (x, z). Both used to be pinned to
+ * absolute world y — 0.04 and 1.0 — which put the ring underground wherever
+ * the orchard rises and left the beam floating short of the apple.
+ */
 function appleIndicators(
   x: number,
   z: number,
   displayColor: number,
+  ground = 0,
 ): { ring: THREE.Mesh; beam: THREE.Mesh } {
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(0.3, 0.5, 20),
@@ -121,7 +129,7 @@ function appleIndicators(
     }),
   );
   ring.rotation.x = -Math.PI / 2;
-  ring.position.set(x, 0.04, z);
+  ring.position.set(x, ground + 0.04, z);
 
   const beam = new THREE.Mesh(
     new THREE.CylinderGeometry(0.04, 0.08, 1.6, 6),
@@ -134,7 +142,7 @@ function appleIndicators(
       depthWrite: false,
     }),
   );
-  beam.position.set(x, 1.0, z);
+  beam.position.set(x, ground + 1.0, z);
 
   return { ring, beam };
 }
@@ -146,6 +154,7 @@ function makeApple(
   color: 'red' | 'yellow' | 'green',
   onGround: boolean,
   bonus = false,
+  groundAt = 0,
 ): ApplePickup {
   const displayColor = bonus ? 0xffd700 : APPLE_COLORS[color];
   const mat = new THREE.MeshStandardMaterial({
@@ -171,7 +180,7 @@ function makeApple(
     addPatternBands(mesh, color, -0.1, 0.225);
   }
 
-  const { ring, beam } = appleIndicators(x, z, displayColor);
+  const { ring, beam } = appleIndicators(x, z, displayColor, groundAt);
   return { mesh, ring, beam, color, alive: true, onGround, bonus };
 }
 
@@ -184,6 +193,7 @@ async function makeKitApple(
   color: 'red' | 'yellow' | 'green',
   onGround: boolean,
   bonus = false,
+  groundAt = 0,
 ): Promise<ApplePickup> {
   const displayColor = bonus ? 0xffd700 : APPLE_COLORS[color];
   const meshyFile = bonus
@@ -209,7 +219,7 @@ async function makeKitApple(
     } else {
       addPatternBands(meshyApple, color, 0.05, 0.22);
     }
-    const { ring, beam } = appleIndicators(x, z, displayColor);
+    const { ring, beam } = appleIndicators(x, z, displayColor, groundAt);
     return { mesh: meshyApple, ring, beam, color, alive: true, onGround, bonus };
   }
 
@@ -218,7 +228,7 @@ async function makeKitApple(
     position: [x, y, z],
     ground: false,
   });
-  if (!kitApple) return makeApple(x, z, y, color, onGround, bonus);
+  if (!kitApple) return makeApple(x, z, y, color, onGround, bonus, groundAt);
 
   tintAppleRoot(kitApple, displayColor, bonus ? 0.55 : 0.22);
   kitApple.castShadow = true;
@@ -235,7 +245,7 @@ async function makeKitApple(
     addPatternBands(kitApple, color, 0.05, 0.22);
   }
 
-  const { ring, beam } = appleIndicators(x, z, displayColor);
+  const { ring, beam } = appleIndicators(x, z, displayColor, groundAt);
   return { mesh: kitApple, ring, beam, color, alive: true, onGround, bonus };
 }
 
@@ -619,7 +629,14 @@ export class Level2Scene extends BaseLevelScene {
     }
     this.demoBasket = this.baskets.find((basket) => basket.color === 'red') ?? null;
 
-    // Apples — mix of on-tree and on-ground
+    // Apples — mix of on-tree and on-ground.
+    //
+    // `y` is height ABOVE the terrain, the same convention placeS1Prop uses.
+    // It used to be an absolute world height authored for flat ground, and the
+    // orchard is not flat: measured in play, the six ground apples sat between
+    // 7cm and 37cm below the surface, and the one on the highest ground was
+    // completely buried — a collect-the-apples level with an apple that cannot
+    // be seen.
     const applePositions: { x: number; z: number; y: number; color: 'red' | 'yellow' | 'green'; onGround: boolean; bonus?: boolean }[] = [
       // Ground apples (easy to pick up)
       { x: -2, z: -8, y: 0.22, color: 'red', onGround: true },
@@ -638,13 +655,19 @@ export class Level2Scene extends BaseLevelScene {
     const kit = this.assetKit(loader);
     await kit.preload([['food', 'apple']]);
     for (const p of applePositions) {
-      const apple = await makeKitApple(kit, loader, p.x, p.z, p.y, p.color, p.onGround, p.bonus);
+      const g = this.groundHeightAt(p.x, p.z);
+      const apple = await makeKitApple(
+        kit, loader, p.x, p.z, g + p.y, p.color, p.onGround, p.bonus, g,
+      );
       this.apples.push(apple);
       this.scene.add(apple.mesh, apple.ring, apple.beam);
     }
 
     // Demo apple + basket (gardener shows how)
-    this.demoApple = await makeKitApple(kit, loader, -1.5, -6, 0.22, 'red', true);
+    const demoGround = this.groundHeightAt(-1.5, -6);
+    this.demoApple = await makeKitApple(
+      kit, loader, -1.5, -6, demoGround + 0.22, 'red', true, false, demoGround,
+    );
     this.apples.push(this.demoApple);
     this.scene.add(this.demoApple.mesh, this.demoApple.ring, this.demoApple.beam);
 

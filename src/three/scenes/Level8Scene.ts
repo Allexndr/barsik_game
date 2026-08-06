@@ -569,7 +569,11 @@ export class Level8Scene extends BaseLevelScene {
       const group = new THREE.Group();
       const bushBase = await loadPropModel(loader, CAST_PROP_GLB.mushroom, { maxSize: 0.8 });
       if (bushBase) {
-        bushBase.position.set(0.55, 0, 0.3);
+        // x and z only. fitMaxSize buries the grounding offset in position.y,
+        // and a position.set(_, 0, _) throws it away — the same mistake the
+        // comment three lines down warns about, made on the line above it.
+        bushBase.position.x = 0.55;
+        bushBase.position.z = 0.3;
         group.add(bushBase);
       }
       // Wrapped: both fitters bury their grounding offset in the model's own
