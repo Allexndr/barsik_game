@@ -586,7 +586,17 @@ export interface HeroRig {
 
 // Prefer bipedal Meshy barsik.glb. Quad Meshy/TRELLIS reads as a cat on
 // all fours — skip until we have an upright hero. Missing → procedural plush.
-const HERO_CANDIDATES = ['barsik.glb'] as const;
+/**
+ * Rigged first, then the statue.
+ *
+ * `barsik_rigged.glb` does not exist yet — `scripts/rig-barsik.mjs` produces
+ * it. It is listed first so that the day it lands, the hero switches to it
+ * with no other change: `isUsableHeroGlb` already asks for exactly what a
+ * rigged model has, and that branch has never once run because no model in
+ * the project satisfied it. (`hero_placeholder.glb` does — skin 1, three
+ * clips — which is how the branch was tested.)
+ */
+const HERO_CANDIDATES = ['barsik_rigged.glb', 'barsik.glb'] as const;
 
 /** Load a named character GLB from /chars, sized to `height`. Null if missing. */
 export async function loadCharModel(
