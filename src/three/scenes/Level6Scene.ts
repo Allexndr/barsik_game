@@ -652,7 +652,7 @@ export class Level6Scene extends BaseLevelScene {
       const ph = (b.userData.phase as number) + now * 0.001;
       b.position.x = (b.userData.ox as number) + Math.sin(ph) * 1.5;
       b.position.z = (b.userData.oz as number) + Math.cos(ph * 0.8) * 1.5;
-      b.position.y = 1.2 + Math.sin(ph * 1.5) * 0.4;
+      b.position.y = this.groundHeightAt(b.position.x, b.position.z) + 1.2 + Math.sin(ph * 1.5) * 0.4;
       b.rotation.y = ph;
     }
 
