@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { QualityPipeline } from '../QualityPipeline';
 import { stylizeHeroGlb } from '../stylizeHeroGlb';
 import { createPlushBarsik, updatePlushLocomotion } from '../PlushBarsik';
@@ -313,15 +314,31 @@ export function butterfly(x: number, z: number, color: number) {
  * ground and the worst was 1.49 m under it, which for a bush 1 m tall means
  * buried outright.
  */
+/** Shared by every bush in the level — one material, so they can batch. */
+const BUSH_MAT = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
+
 export function bush(x: number, z: number, scale = 1) {
   const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
+  // One mesh, not four. Each bush used to be four separate spheres with its
+  // own material, and a meadow is seventy-odd bushes — measured at 293 meshes
+  // and 293 draw calls in level 0, by far the largest single source in the
+  // scene. Merging costs nothing visually: the lobes are already one colour.
+  const lobes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 4; i++) {
-    const s = new THREE.Mesh(new THREE.SphereGeometry((0.45 + Math.random() * 0.25) * scale, 8, 8), mat);
-    s.position.set((Math.random() - 0.5) * 0.55 * scale, 0.35 * scale, (Math.random() - 0.5) * 0.55 * scale);
-    s.castShadow = false; s.receiveShadow = false;
-    g.add(s);
+    const geo = new THREE.SphereGeometry((0.45 + Math.random() * 0.25) * scale, 8, 8);
+    geo.translate(
+      (Math.random() - 0.5) * 0.55 * scale,
+      0.35 * scale,
+      (Math.random() - 0.5) * 0.55 * scale,
+    );
+    lobes.push(geo);
   }
+  const merged = mergeGeometries(lobes, false);
+  for (const l of lobes) l.dispose();
+  const mesh = new THREE.Mesh(merged ?? lobes[0], BUSH_MAT);
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  g.add(mesh);
   g.position.set(x, placementGround(x, z), z);
   return g;
 }
@@ -1501,6 +1518,145 @@ export abstract class BaseLevelScene {
    * saplings and stumps close to the path. Depth comes from the layering,
    * not from raw tree count.
    */
+  /**
+   * Wall the level in with forest, hugging the walkable edge.
+   *
+   * `loadTrees` scatters a ring around a centre point, which is what an open
+   * field looks like: trees somewhere out there, grass to the horizon between
+   * you and them. This plants a band that follows `clampToPlayArea`'s own
+   * boundary, so wherever a child can walk to, there is a treeline a couple of
+   * metres past it and nothing visible beyond.
+   *
+   * Rows go outward and upward: short at the edge so the eye reads a hedge to
+   * step around, tall behind so nothing shows over the top. The result is a
+   * corridor that opens into clearings — a linear level, not a plain.
+   */
+  protected async encloseWithForest(
+    loader: GLTFLoader,
+    opts: { zFrom: number; zTo: number; rows?: number; step?: number },
+  ) {
+    if (!this.pathCorridor) return;
+    const { zFrom, zTo, rows = 4, step = 3.2 } = opts;
+    const kit = this.assetKit(loader);
+    const near = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
+    const mid = ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default'];
+    const far = ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_tall'];
+
+    /** How far the walkable area reaches sideways at this z, either way. */
+    const reachAt = (z: number, sign: number) => {
+      const cx = this.pathCorridor!(z);
+      let edge = cx + sign * (this.pathCorridorHalf + this.corridorSlack);
+      for (const room of this.reserved) {
+        const dz = Math.abs(z - room.z);
+        const r = room.r + this.corridorSlack;
+        if (dz >= r) continue;
+        // Half-chord of the room circle at this z.
+        const half = Math.sqrt(r * r - dz * dz);
+        const roomEdge = room.x + sign * half;
+        if (sign > 0 ? roomEdge > edge : roomEdge < edge) edge = roomEdge;
+      }
+      return edge;
+    };
+
+    const placements: Array<{ names: string[]; x: number; z: number; height: number }> = [];
+    const lo = Math.min(zFrom, zTo);
+    const hi = Math.max(zFrom, zTo);
+    for (let z = lo - 6; z <= hi + 6; z += step) {
+      for (const sign of [-1, 1]) {
+        const edge = reachAt(z, sign);
+        for (let row = 0; row < rows; row++) {
+          const out = 1.4 + row * 2.6 + Math.random() * 1.1;
+          const x = edge + sign * out;
+          const jz = z + (Math.random() - 0.5) * step;
+          if (this.isReserved(x, jz, 0.8)) continue;
+          const names = row === 0 ? near : row === 1 ? mid : far;
+          const height = row === 0
+            ? 2.6 + Math.random() * 1.0
+            : row === 1
+              ? 5.4 + Math.random() * 1.6
+              : 8.5 + Math.random() * 3.0;
+          placements.push({ names, x, z: jz, height });
+        }
+      }
+    }
+
+    // End caps. The sides alone leave a corridor open at both ends, and the
+    // z clamp there is an invisible wall — the player walks three metres past
+    // the spawn pad and stops against nothing. Close both ends with the same
+    // treeline so the level reads as a place with a back to it.
+    for (const [endZ, dir] of [[lo - 3, -1], [hi + 3, 1]] as const) {
+      const left = reachAt(endZ, -1);
+      const right = reachAt(endZ, 1);
+      for (let x = left - 4; x <= right + 4; x += 2.8) {
+        for (let row = 0; row < 3; row++) {
+          const z = endZ + dir * (1.2 + row * 2.6 + Math.random());
+          if (this.isReserved(x, z, 0.8)) continue;
+          placements.push({
+            names: row === 0 ? mid : far,
+            x: x + (Math.random() - 0.5) * 1.6,
+            z,
+            height: row === 0 ? 5.4 + Math.random() * 1.6 : 8.5 + Math.random() * 3,
+          });
+        }
+      }
+    }
+
+    // Instanced, one draw call per tree type rather than one per tree.
+    // Measured: the first version used `kit.scatter`, which returns a separate
+    // object each time, and a wall dense enough to see nothing through took
+    // the level from 96 draw calls to 811. That is the stutter.
+    const byName = new Map<string, typeof placements>();
+    for (const p of placements) {
+      const name = p.names[Math.floor(Math.random() * p.names.length)];
+      const list = byName.get(name) ?? [];
+      list.push(p);
+      byName.set(name, list);
+    }
+
+    for (const [name, list] of byName) {
+      const template = await kit.spawn('nature', name, { maxSize: 1 });
+      if (!template) continue;
+      // A kit tree is a couple of meshes (trunk, canopy); each becomes one
+      // InstancedMesh carrying every copy of that tree in the wall.
+      const parts: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material; local: THREE.Matrix4 }> = [];
+      template.updateMatrixWorld(true);
+      template.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh || !m.geometry) return;
+        parts.push({ geo: m.geometry, mat: m.material as THREE.Material, local: m.matrixWorld.clone() });
+      });
+      if (!parts.length) continue;
+
+      // `maxSize: 1` normalised the template, so a placement's height is its
+      // scale directly.
+      for (const part of parts) {
+        const inst = new THREE.InstancedMesh(part.geo, part.mat, list.length);
+        inst.castShadow = false;      // a treeline shadowing itself costs more
+        inst.receiveShadow = false;   // than it shows at this distance
+        const m = new THREE.Matrix4();
+        const place = new THREE.Matrix4();
+        for (let i = 0; i < list.length; i++) {
+          const p = list[i];
+          const y = this.groundHeightAt(p.x, p.z);
+          place.compose(
+            new THREE.Vector3(p.x, y, p.z),
+            new THREE.Quaternion().setFromAxisAngle(WORLD_UP, Math.random() * Math.PI * 2),
+            new THREE.Vector3(p.height, p.height, p.height),
+          );
+          m.multiplyMatrices(place, part.local);
+          inst.setMatrixAt(i, m);
+        }
+        inst.instanceMatrix.needsUpdate = true;
+        inst.frustumCulled = false;   // the wall surrounds the player anyway
+        this.scene.add(inst);
+      }
+      disposeObject3DResources(template);
+    }
+    // No colliders: the movement clamp already stops the player short of the
+    // treeline, and a few hundred circle colliders would cost more than they
+    // buy.
+  }
+
   protected async loadTrees(loader: GLTFLoader, count: number, radius: number, centerZ = -18, heightBase = 5.0) {
     const kit = this.assetKit(loader);
     const canopy = ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_pineTallC_detailed', 'tree_tall', 'tree_thin'];
@@ -1673,6 +1829,68 @@ export abstract class BaseLevelScene {
   }
 
   // ── Movement ─────────────────────────────────────────────────
+  /**
+   * Keep the hero inside the level, where "the level" is a path with rooms
+   * along it rather than a rectangle.
+   *
+   * The old clamp was `x ∈ [-45, 45]`, which is not a level — it is a field
+   * with a fence somewhere over the horizon. A child could walk twenty metres
+   * off the path into empty grass, see the edge of the world, and never find
+   * their way back to the thing they were told to do. The brief is a linear,
+   * enclosed level: you cannot leave, and you cannot see past the sides.
+   *
+   * The walkable region is the union of
+   *   * the path corridor — `pathCorridor(z) ± pathCorridorHalf`, which every
+   *     scene that has a path already declares; and
+   *   * the rooms, which open the corridor out where the gameplay is.
+   *
+   * The rooms come free: every scene already calls `reserve(x, z, r)` around
+   * each objective, NPC and landmark so that scattered decoration cannot bury
+   * them. That list is, by construction, exactly "the places this level needs
+   * the player to reach" — so using it as the walkable set cannot lock anyone
+   * out of anything the level asks for.
+   *
+   * A scene with no `pathCorridor` is unaffected, so this is inert until a
+   * level opts in by having a path.
+   */
+  protected clampToPlayArea(x: number, z: number): { x: number; z: number } {
+    if (!this.pathCorridor) return { x, z };
+
+    const cx = this.pathCorridor(z);
+    const half = this.pathCorridorHalf + this.corridorSlack;
+    if (Math.abs(x - cx) <= half) return { x, z };
+
+    let bestX = cx + Math.sign(x - cx || 1) * half;
+    let bestZ = z;
+    // How far outside the corridor we are; any room that holds this point,
+    // or holds it less far outside, wins.
+    let bestPush = Math.abs(x - cx) - half;
+
+    for (const room of this.reserved) {
+      const dx = x - room.x;
+      const dz = z - room.z;
+      const d = Math.hypot(dx, dz) || 1e-4;
+      const r = room.r + this.corridorSlack;
+      if (d <= r) return { x, z };
+      const push = d - r;
+      if (push < bestPush) {
+        bestPush = push;
+        bestX = room.x + (dx / d) * r;
+        bestZ = room.z + (dz / d) * r;
+      }
+    }
+    return { x: bestX, z: bestZ };
+  }
+
+  /**
+   * Breathing room on top of the declared corridor and rooms.
+   *
+   * `reserve()` radii were written to keep decoration out, not to be walls, so
+   * hugging them exactly would feel tight. A couple of metres makes the edge
+   * feel like undergrowth you choose not to push into rather than glass.
+   */
+  protected corridorSlack = 2.4;
+
   protected updateMovement(dt: number, canMove: boolean, speed: number, clampMin = -45, clampMax = 45, zMin = -50, zMax = 15) {
     const d = this.dir();
     const moving = canMove && d.lengthSq() > 0.01;
@@ -1703,6 +1921,9 @@ export abstract class BaseLevelScene {
       let nz = this.hero.position.z + d.y * speed * dt;
       nx = THREE.MathUtils.clamp(nx, clampMin, clampMax);
       nz = THREE.MathUtils.clamp(nz, zMin, zMax);
+      const held = this.clampToPlayArea(nx, nz);
+      nx = held.x;
+      nz = held.z;
       const fixed = resolveCollisions(nx, nz, this.colliders);
       this.hero.position.x = fixed.x;
       this.hero.position.z = fixed.z;
