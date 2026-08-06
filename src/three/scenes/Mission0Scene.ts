@@ -1773,8 +1773,18 @@ export class Mission0Scene extends BaseLevelScene {
       [-5.8, -45.0],
       [-9.0, -47.5],
     ] as const) {
-      this.scene.add(tulip(fx, fz, 0xe74c3c));
-      this.scene.add(tulip(fx + 0.4, fz + 0.3, 0xf1c40f));
+      // Mission 0 has its own local `tulip`, which ends at absolute world
+      // zero, and its own terrain sampler. Measured here, 12 of these 14
+      // flowers were off the ground and the worst was 2.18 m under it —
+      // a flower half a metre tall, buried outright, in the first level a
+      // child ever plays. Grounded at the call site rather than inside the
+      // helper because this scene samples through `heightAt`, not through the
+      // placement sampler the other levels register.
+      for (const [tx, tz, colour] of [[fx, fz, 0xe74c3c], [fx + 0.4, fz + 0.3, 0xf1c40f]] as const) {
+        const flower = tulip(tx, tz, colour);
+        flower.position.y = this.heightAt(tx, tz);
+        this.scene.add(flower);
+      }
     }
 
     // S1 landmarks — cabin near garden, bridge accent, trail treats
