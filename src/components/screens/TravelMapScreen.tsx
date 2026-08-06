@@ -3,7 +3,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { useUIStore } from '@/store/useUIStore';
 import { Chip } from '@/components/ui/Chip';
 import { PlushButton } from '@/components/ui/PlushButton';
-import { IconCheck, IconLock, IconPaw, IconPlus, IconStar } from '@/components/ui/icons';
+import { IconCheck, IconLock, IconMinus, IconPaw, IconPlus } from '@/components/ui/icons';
 import { useViewportTier } from '@/hooks/useViewportTier';
 import {
   CHAPTER_PATHS,
@@ -263,7 +263,7 @@ function buildWidePins(currentLevel: number): { pins: Pin[]; chapterIdx: number 
 }
 
 export function TravelMapScreen() {
-  const unlockedLevels = useGameStore((s) => s.unlockedLevels);
+  const levelStars = useGameStore((s) => s.levelStars);
   const currentLevel = useGameStore((s) => s.currentLevel);
   const startEpisode = useUIStore((s) => s.startEpisode);
   const lang = useUIStore((s) => s.lang);
@@ -343,6 +343,16 @@ export function TravelMapScreen() {
       return next;
     });
 
+  const handleZoomOut = () =>
+    setZoom((z) => {
+      const next = Math.max(z - 0.25, ZOOM_MIN);
+      if (wide) {
+        const { viewW: nw, viewH: nh } = wideViewSize(aspect, next);
+        setCenter(clampCenter(currentPin.x, currentPin.y, nw, nh, DESKTOP_W, DESKTOP_H));
+      }
+      return next;
+    });
+
   const handleRecenter = () => {
     setZoom(ZOOM_MIN);
     if (wide) {
@@ -354,7 +364,11 @@ export function TravelMapScreen() {
 
   const seasonDone = currentLevel >= SEASON1_LEVELS;
   const levelLabel = Math.min(currentLevel, SEASON1_LEVELS - 1) + 1;
-  const season1Unlocked = unlockedLevels.filter((l) => l < SEASON1_LEVELS).length;
+  // Levels actually finished, not levels reachable. This counted unlocked
+  // levels while wearing a tick icon, so it always claimed one more than the
+  // child had done: standing on an unplayed level 6 it read «6/17».
+  const season1Done = Object.keys(levelStars)
+    .filter((id) => Number(id) < SEASON1_LEVELS && levelStars[Number(id)] > 0).length;
 
   const handlePinClick = (level: number) => {
     // Only route to real Season 1 missions; Season 2 pins are locked teasers.
@@ -385,13 +399,15 @@ export function TravelMapScreen() {
     if (!el) return;
     const onWheelNative = (e: WheelEvent) => {
       e.preventDefault();
-      if (e.deltaY < 0) setZoom((z) => Math.min(z + 0.25, ZOOM_MAX));
+      setZoom((z) => (e.deltaY < 0
+        ? Math.min(z + 0.25, ZOOM_MAX)
+        : Math.max(z - 0.25, ZOOM_MIN)));
     };
     el.addEventListener('wheel', onWheelNative, { passive: false });
     return () => el.removeEventListener('wheel', onWheelNative);
   }, [wide]);
 
-  const localPins = wide ? pins : pins;
+  const localPins = pins;
   const splitLocal = localPins.findIndex((p) => p.id >= currentLevel);
   const splitIdx = splitLocal < 0 ? localPins.length - 1 : splitLocal;
   const pathDone = localPins
@@ -418,12 +434,14 @@ export function TravelMapScreen() {
           <h2>{lang === 'kk' ? 'Барсик саяхаты' : 'Путешествие Барсика'}</h2>
           <p className="travel-chapter">{currentChapterName}</p>
         </div>
+        {/*
+          One chip. The level number was here too, and the big green button at
+          the bottom of the same screen already says «Играть · Уровень 6» —
+          three sixes on one phone screen, two of them decorative.
+        */}
         <div className="travel-stats">
-          <Chip icon={<IconStar size={16} />} tone="star">
-            {lang === 'kk' ? `${levelLabel}-деңгей` : `Уровень ${levelLabel}`}
-          </Chip>
           <Chip icon={<IconCheck size={16} />} tone="success">
-            {season1Unlocked}/{SEASON1_LEVELS}
+            {season1Done}/{SEASON1_LEVELS}
           </Chip>
         </div>
       </div>
@@ -432,12 +450,27 @@ export function TravelMapScreen() {
         <button type="button" className="travel-icon-btn travel-icon-btn-wide" onClick={handleRecenter}>
           {lang === 'kk' ? 'Орталықтандыру' : 'К себе'}
         </button>
+        {/*
+          Both directions. There was a + and no −, and the wheel handler
+          ignored deltaY > 0 after calling preventDefault, so on a phone the
+          only way back out of a zoom was «К себе» — a button that says it
+          recentres and does not say it also undoes the zoom.
+        */}
+        <button
+          type="button"
+          className="travel-icon-btn"
+          onClick={handleZoomOut}
+          disabled={zoom <= ZOOM_MIN}
+          aria-label={lang === 'kk' ? 'Кішірейту' : 'Отдалить'}
+        >
+          <IconMinus size={18} />
+        </button>
         <button
           type="button"
           className="travel-icon-btn"
           onClick={handleZoomIn}
           disabled={zoom >= ZOOM_MAX}
-          aria-label="Zoom in"
+          aria-label={lang === 'kk' ? 'Үлкейту' : 'Приблизить'}
         >
           <IconPlus size={18} />
         </button>
