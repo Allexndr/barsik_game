@@ -5,6 +5,7 @@ import { DialoguePanel } from './ui/DialoguePanel';
 import { useUIStore } from '@/store/useUIStore';
 import { useGameStore } from '@/store/useGameStore';
 import { Mission0Scene, type L1Hud } from '@/three/scenes/Mission0Scene';
+import { markIntroFinished } from '@/three/inventory';
 import { Chip } from '@/components/ui/Chip';
 import { StepDots } from '@/components/ui/ProgressBar';
 import { PlushButton } from '@/components/ui/PlushButton';
@@ -54,11 +55,7 @@ export function Mission0Screen() {
   const finishToMap = () => {
     AudioManager.sfx('click');
     AudioManager.stopTts();
-    try {
-      localStorage.setItem('barsik_mission0_done', '1');
-    } catch {
-      /* ignore */
-    }
+    markIntroFinished();
     addFriend({
       id: 'gardener',
       name: lang === 'kk' ? 'Бағбан' : 'Садовник',

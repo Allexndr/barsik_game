@@ -2,7 +2,7 @@ import { KEY_ACORN, KEY_ICE, readFlag, writeFlag } from './castModels';
 import { useGameStore } from '@/store/useGameStore';
 
 /**
- * Cross-level inventory keys — and why they are no longer just a flag.
+ * Facts the save already knows, which used to live only in loose flags.
  *
  * Two levels are gated on an item earned several levels earlier: L9's chest
  * needs the acorn from L5, L16's needs the ice key from L13. That fact used to
@@ -67,4 +67,27 @@ export function resolveKey(key: string): KeyState {
     console.info(`[inventory] ${key} restored from progress (level ${from} is complete)`);
   }
   return { has: true, restored: true };
+}
+
+/** Written by Mission 0 on the same line that calls `completeLevel(0, …)`. */
+export const INTRO_DONE_KEY = 'barsik_mission0_done';
+
+/**
+ * Has the player finished the opening mission?
+ *
+ * Third instance of the same shape as the two keys above: a bare flag outside
+ * `barsik_progress`, so nothing versions it and nothing rebuilds it. It is not
+ * a soft-lock — the tutorial can be replayed and replaying rewrites the flag —
+ * but a save that lost it put a child who is on level 9 back in the tutorial
+ * when they pressed «Продолжить». Level 0 in the save is the copy that
+ * survives a migration, so ask that first.
+ */
+export function hasFinishedIntro(): boolean {
+  if (readFlag(INTRO_DONE_KEY)) return true;
+  const { currentLevel, unlockedLevels, levelStars } = useGameStore.getState();
+  return currentLevel > 0 || unlockedLevels.includes(0) || (levelStars[0] ?? 0) > 0;
+}
+
+export function markIntroFinished(): void {
+  writeFlag(INTRO_DONE_KEY, true);
 }
