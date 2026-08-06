@@ -4,13 +4,13 @@ import { RotateHint } from './ui/RotateHint';
 import { DialoguePanel } from './ui/DialoguePanel';
 import { useUIStore } from '@/store/useUIStore';
 import { useGameStore } from '@/store/useGameStore';
-import { Mission0Scene, type L1Hud } from '@/three/scenes/Mission0Scene';
+import { Level0Scene, type L0Hud } from '@/three/scenes/Level0Scene';
 import { markIntroFinished } from '@/three/inventory';
 import { Chip } from '@/components/ui/Chip';
 import { StepDots } from '@/components/ui/ProgressBar';
 import { PlushButton } from '@/components/ui/PlushButton';
 import { ConfettiBurst } from '@/components/ui/ConfettiBurst';
-import { IconFruit, IconStar, IconPaw } from '@/components/ui/icons';
+import { IconStar, IconPaw } from '@/components/ui/icons';
 import { AudioManager } from '@/audio/AudioManager';
 import { shouldNarrateHudLine } from '@/audio/narration';
 import { SettingsPanel } from '@/components/ui/SettingsPanel';
@@ -19,14 +19,17 @@ import './Mission0Screen.css';
 /** Level 1 is the first of 5 story chapters shown as journey dots on the outro card. */
 const JOURNEY_TOTAL_CHAPTERS = 5;
 
-const emptyHud: L1Hud = {
+const emptyHud: L0Hud = {
   phase: 'intro',
   speaker: 'Барсик',
   line: '…',
   objective: '',
-  bag: 0,
-  questFruits: 0,
-  questNeed: 3,
+  lanternsUp: 0,
+  lanternsTotal: 3,
+  pegsDone: 0,
+  pegsTotal: 3,
+  nearness: 0,
+  wet: false,
   stars: 0,
   canInteract: false,
   showMoveHint: false,
@@ -36,9 +39,9 @@ const emptyHud: L1Hud = {
 
 export function Mission0Screen() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const sceneRef = useRef<Mission0Scene | null>(null);
+  const sceneRef = useRef<Level0Scene | null>(null);
   const stickRef = useRef<HTMLDivElement>(null);
-  const [hud, setHud] = useState<L1Hud>(emptyHud);
+  const [hud, setHud] = useState<L0Hud>(emptyHud);
   const [loading, setLoading] = useState(true);
   const lang = useUIStore((s) => s.lang);
   const setScreen = useUIStore((s) => s.setScreen);
@@ -81,7 +84,7 @@ export function Mission0Screen() {
     };
     window.addEventListener('pointerdown', initAudio, { once: true });
     window.addEventListener('keydown', initAudio, { once: true });
-    const scene = new Mission0Scene(canvas);
+    const scene = new Level0Scene(canvas);
     sceneRef.current = scene;
     setLoading(true);
     let active = true;
@@ -171,7 +174,7 @@ export function Mission0Screen() {
     }
     if (hud.phase !== prevPhase.current) {
       if (hud.phase === 'outro') AudioManager.sfx('levelComplete');
-      else if (hud.phase.includes('pick') || hud.phase.includes('help')) AudioManager.sfx('found');
+      else if (hud.phase === 'lanterns' || hud.phase === 'mend') AudioManager.sfx('found');
       prevPhase.current = hud.phase;
     }
   }, [hud.line, hud.phase, loading, lang, paused, player?.nick]);
@@ -191,10 +194,16 @@ export function Mission0Screen() {
   const nick = player?.nick || '';
   const showKeys = hud.showMoveHint;
   const showStick = !hud.outro && hud.phase !== 'intro';
-  const fruitCount =
-    hud.phase === 'help_collect' || hud.phase === 'help_return' || hud.outro
-      ? `${hud.questFruits}/${hud.questNeed}`
-      : `${hud.bag}`;
+  // One chip that shows whatever the current beat is counting, instead of a
+  // bag of apples that only two phases ever filled.
+  const beatCount =
+    hud.phase === 'mend' || hud.outro
+      ? `${hud.pegsDone}/${hud.pegsTotal}`
+      : hud.phase === 'lanterns'
+        ? `${hud.lanternsUp}/${hud.lanternsTotal}`
+        // Following the sound: a listening meter, so a child on a muted phone
+        // still gets the "warmer / colder" the level is built on.
+        : `${Math.round(hud.nearness * 100)}%`;
 
   return (
     <div className="m0-screen">
@@ -208,12 +217,12 @@ export function Mission0Screen() {
 
       <div className="m0-top">
         <div className="m0-title">
-          {lang === 'kk' ? 'Алғашқы таң' : 'Первое утро'}
+          {lang === 'kk' ? 'Домбыра соқпағы' : 'Тропа домбры'}
           {nick ? ` · ${nick}` : ''}
         </div>
         <div className="m0-stats">
-          <Chip icon={<IconFruit size={16} />} tone="fruit" className="m0-stat">
-            {fruitCount}
+          <Chip icon={<IconPaw size={16} />} tone="fruit" className="m0-stat">
+            {beatCount}
           </Chip>
           <Chip icon={<IconStar size={16} />} tone="star" className="m0-stat">
             {hud.stars}
@@ -307,8 +316,8 @@ export function Mission0Screen() {
             </h2>
             <p className="m0-outro-line">{hud.line}</p>
             <div className="m0-outro-rewards">
-              <Chip icon={<IconFruit size={18} />} tone="fruit" className="m0-reward-pill">
-                {hud.questFruits || 3}
+              <Chip icon={<IconPaw size={18} />} tone="fruit" className="m0-reward-pill">
+                {hud.pegsTotal}
               </Chip>
               <Chip icon={<IconStar size={18} />} tone="star" className="m0-reward-pill">
                 {Math.max(hud.stars, 10)}
