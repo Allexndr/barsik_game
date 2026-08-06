@@ -191,7 +191,7 @@ export function MissionScreen({
   useEffect(() => {
     if (loading || paused) return;
     if (shouldNarrateHudLine(hud.line)) {
-      AudioManager.tts(hud.line, lang);
+      AudioManager.tts(hud.line, lang, player?.nick);
     }
     if (hud.phase !== prevPhase.current) {
       if (hud.phase === 'outro') AudioManager.sfx('levelComplete');

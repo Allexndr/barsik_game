@@ -8,6 +8,7 @@ import { ScreenFade } from '@/components/ui/ScreenFade';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { readStoredLang, t, type Lang } from '@/i18n';
 import type { Player } from '@/types';
+import { AudioManager } from '@/audio/AudioManager';
 import { LEVEL_CONFIGS } from '@/utils/levels';
 import { SEASON1_FRIENDS } from '@/utils/season1Friends';
 import './App.css';
@@ -140,6 +141,11 @@ export function App() {
   useEffect(() => {
     // Language first: stored preference, then player's lang if returning
     applyLang(readStoredLang());
+
+    // Fetch the voice manifest early, so the first line of the first level is
+    // already a rendered clip rather than the browser's synthesiser. Costs one
+    // request, and a 404 leaves the old behaviour untouched.
+    void AudioManager.loadVoicePack();
 
     const saved = localStorage.getItem('barsik_player');
     if (saved) {

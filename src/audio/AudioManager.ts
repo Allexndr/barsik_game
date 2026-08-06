@@ -27,6 +27,8 @@ type SfxName =
   | 'stepSnow'
   | 'stepStone';
 
+import { lineId, VOICE_BASE, type VoiceManifest } from './voiceLines';
+
 export type MusicTheme = 'forest' | 'ice' | 'hub' | 'none';
 
 class AudioManagerClass {
@@ -47,6 +49,17 @@ class AudioManagerClass {
   private musicNodes: AudioNode[] = [];
   private musicTimers: number[] = [];
   private musicStop: (() => void) | null = null;
+
+  /**
+   * Pre-rendered lines, keyed exactly as `scripts/extract-voice-lines.mjs`
+   * named them. Null until `loadVoicePack` resolves; an empty manifest means
+   * no pack was built and every line falls back to the browser.
+   */
+  private voiceManifest: VoiceManifest | null = null;
+  private voiceLoad: Promise<void> | null = null;
+  private voiceEl: HTMLAudioElement | null = null;
+  /** Ids that 404'd. Asking twice for a clip that is not there is waste. */
+  private voiceMissing = new Set<string>();
 
   get muted() {
     return this._muted;
@@ -343,9 +356,67 @@ class AudioManagerClass {
 
   // ── TTS (Web Speech API) ──────────────────────────────────────
 
-  tts(text: string, lang: 'ru' | 'kk' = 'ru') {
-    if (!this._ttsEnabled || this._muted || !('speechSynthesis' in window)) return;
+  /**
+   * Fetch the voice manifest once. Cheap when absent — one 404 and the game
+   * behaves exactly as it did before the pack existed.
+   */
+  loadVoicePack(): Promise<void> {
+    if (this.voiceLoad) return this.voiceLoad;
+    this.voiceLoad = fetch(`${VOICE_BASE}manifest.json`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m: VoiceManifest | null) => {
+        this.voiceManifest = m;
+      })
+      .catch(() => {
+        this.voiceManifest = null;
+      });
+    return this.voiceLoad;
+  }
+
+  /** True once a pre-rendered pack is available for this language. */
+  hasVoicePack(lang: 'ru' | 'kk' = 'ru'): boolean {
+    if (!this.voiceManifest) return false;
+    return Object.values(this.voiceManifest.lines).some((l) => l.lang === lang);
+  }
+
+  /**
+   * Speak a line.
+   *
+   * A rendered clip first, the browser's synthesiser only if there is no clip
+   * for this text. That order matters most in Kazakh: Android ships no
+   * `kk-KZ` voice, so the fallback is silence or a Russian voice reading
+   * Kazakh — to a five-year-old who cannot read the subtitle, that is the
+   * line simply not happening.
+   *
+   * The lookup normalizes the same way the extractor did, so a line carrying
+   * the player's nickname finds the clip rendered without it.
+   */
+  tts(text: string, lang: 'ru' | 'kk' = 'ru', nick?: string) {
+    if (!this._ttsEnabled || this._muted) return;
     this.stopTts();
+
+    const id = lineId(text, lang, nick);
+    const known = this.voiceManifest?.lines[id];
+    if (known && !this.voiceMissing.has(id)) {
+      const el = new Audio(`${VOICE_BASE}${lang}/${id}.${this.voiceManifest!.format}`);
+      el.volume = this._volume;
+      this.voiceEl = el;
+      el.play().catch(() => {
+        // Autoplay policy before the first tap, or a file that never made it
+        // into the build. Either way, fall through to the browser once and
+        // stop asking for this clip.
+        this.voiceMissing.add(id);
+        if (this.voiceEl === el) this.voiceEl = null;
+        this.speakWithBrowser(text, lang);
+      });
+      return;
+    }
+
+    this.speakWithBrowser(text, lang);
+  }
+
+  private speakWithBrowser(text: string, lang: 'ru' | 'kk') {
+    if (!('speechSynthesis' in window)) return;
     const u = new SpeechSynthesisUtterance(text);
     u.lang = lang === 'kk' ? 'kk-KZ' : 'ru-RU';
     u.rate = this._ttsRate;
@@ -357,12 +428,18 @@ class AudioManagerClass {
   }
 
   stopTts() {
+    if (this.voiceEl) {
+      this.voiceEl.pause();
+      this.voiceEl.currentTime = 0;
+      this.voiceEl = null;
+    }
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
   }
 
   isSpeaking() {
+    if (this.voiceEl && !this.voiceEl.paused && !this.voiceEl.ended) return true;
     return 'speechSynthesis' in window && window.speechSynthesis.speaking;
   }
 
