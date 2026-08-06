@@ -549,13 +549,13 @@ export class Level10Scene extends BaseLevelScene {
       // third of the screen on ground directly in front of the hero.
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
-        this.hero.position.x * 0.3 + f.lateral,
+        this.cameraLateral(this.hero.position.x) + f.lateral,
         6 * f.heightMul,
         this.hero.position.z + 10 + f.backAdd,
       );
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
       this.camera.lookAt(
-        this.hero.position.x * 0.2,
+        this.cameraLateral(this.hero.position.x),
         1.2 + f.lookUp,
         this.hero.position.z - 3 - f.lookAhead,
       );

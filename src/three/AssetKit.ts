@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { disposeObject3DResources, fitHeight, fitMaxSize, groundY } from './modelUtils';
+import { disposeObject3DResources, fitHeight, fitMaxSize, groundY, repairDefaultMaterial } from './modelUtils';
 import { normalizeKitMaterial } from './kitPalette';
 
 /**
@@ -43,6 +43,10 @@ function prepareKitModel(root: THREE.Object3D) {
     if (!mesh.isMesh) return;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    // The kit loader does not go through `loadGlb`, so a primitive with no
+    // material would keep the loader's metalness-1 default and render black
+    // here even though it is repaired everywhere else.
+    repairDefaultMaterial(mesh);
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     for (const material of materials) {
       if (!material || seen.has(material)) continue;

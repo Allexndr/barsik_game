@@ -847,7 +847,7 @@ export class Level3Scene extends BaseLevelScene {
       // and seven levels used it; this one did not.
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
-        this.hero.position.x * 0.5 + f.lateral,
+        this.cameraLateral(this.hero.position.x) + f.lateral,
         5.5 * f.heightMul,
         this.hero.position.z + 9 + f.backAdd,
       );

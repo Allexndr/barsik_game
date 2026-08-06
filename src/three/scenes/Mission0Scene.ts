@@ -21,6 +21,7 @@ import {
 import { AudioManager } from '@/audio/AudioManager';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeMany, placeS1Prop, placeS1Char } from '../s1Place';
+import { repairDefaultMaterial } from '../modelUtils';
 
 /**
  * Level 1 «Первое утро» — adventure LD inspired by Roblox patterns:
@@ -149,6 +150,9 @@ async function loadGlb(loader: GLTFLoader, url: string) {
       if (!m.isMesh) return;
       m.castShadow = true;
       m.receiveShadow = true;
+      // Mission 0 has its own loader, so the shared repair has to be called
+      // here too — seven GLBs in this project ship with no materials at all.
+      repairDefaultMaterial(m);
       const mats = Array.isArray(m.material) ? m.material : [m.material];
       for (const mat of mats) {
         if (!mat) continue;
@@ -2323,7 +2327,7 @@ export class Mission0Scene extends BaseLevelScene {
         this.hero.position.z + back + (this.portrait ? 1.4 : landscapePhone ? 1.8 : 0),
         20,
       );
-      let camX = this.hero.position.x * 0.55 + camOffsetX;
+      let camX = this.cameraLateral(this.hero.position.x) + camOffsetX;
       // Soft push away from house volume when hero is in the yard
       if (this.hero.position.z > 6 && this.hero.position.x < -2) {
         camX = Math.max(camX, -2.5);

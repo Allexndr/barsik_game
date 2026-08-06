@@ -947,7 +947,7 @@ export class Level2Scene extends BaseLevelScene {
       // third of the screen on ground directly in front of the hero.
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
-        this.hero.position.x * 0.5 + f.lateral,
+        this.cameraLateral(this.hero.position.x) + f.lateral,
         5.5 * f.heightMul,
         this.hero.position.z + 9 + f.backAdd,
       );
