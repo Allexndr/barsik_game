@@ -16,7 +16,8 @@ import { AudioManager } from '@/audio/AudioManager';
 import { groundY } from '../modelUtils';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeAmbientCritters } from '../s1Place';
-import { CAST_PROP_GLB, KEY_ACORN, readFlag, writeFlag } from '../castModels';
+import { CAST_PROP_GLB, KEY_ACORN } from '../castModels';
+import { resolveKey } from '../inventory';
 
 /**
  * Level 10 «QR-сундук» — GDD Chapter 1 Level 9:
@@ -50,7 +51,6 @@ export type L10Phase = 'intro' | 'seals' | 'approach' | 'unlock' | 'open' | 'out
 export interface L10Hud extends BaseHud {
   hasAcornKey: boolean;
   chestOpen: boolean;
-  spareKeyGiven: boolean;
   sealsDone: number;
   sealsTotal: number;
 }
@@ -128,7 +128,6 @@ export class Level9Scene extends BaseLevelScene {
   private chestOpen = false;
   private lidOpenTime = 0;
   private hasAcornKey = false;
-  private spareKeyGiven = false;
   private butterflies: THREE.Group[] = [];
   private yagodka: THREE.Object3D | null = null;
   private seals: THREE.Object3D[] = [];
@@ -185,10 +184,16 @@ export class Level9Scene extends BaseLevelScene {
     this.lang = lang;
     this.onHud = onHud;
 
-    this.hasAcornKey = readFlag(KEY_ACORN);
+    // Derived from the save, not from a loose flag. See src/three/inventory.ts:
+    // the flag lives outside `barsik_progress`, so it is neither migrated nor
+    // restored, and a save that lost it turned this chest into a dead end.
+    this.hasAcornKey = resolveKey(KEY_ACORN).has;
     if (!this.hasAcornKey && import.meta.env.DEV) {
-      this.spareKeyGiven = true;
-      writeFlag(KEY_ACORN, true);
+      // QA arrives through `?mission=9` with no progress at all, and without
+      // this the chest cannot be reached locally. Deliberately narrow: with a
+      // real save the line above is what decides, so the path that ships is
+      // the path being played.
+      console.warn('[L9] no acorn key and level 5 is not complete — granting for QA only');
       this.hasAcornKey = true;
     }
 
@@ -448,7 +453,6 @@ export class Level9Scene extends BaseLevelScene {
       line,
       objective,
       hasAcornKey: this.hasAcornKey,
-      spareKeyGiven: this.spareKeyGiven,
       chestOpen: this.chestOpen,
       sealsDone: this.sealsDone,
       sealsTotal: this.sealsTotal,

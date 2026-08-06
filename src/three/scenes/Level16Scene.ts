@@ -4,7 +4,8 @@ import {
   loadCharModel, loadPropModel, placeWoodSign,
 } from './BaseLevelScene';
 import { groundY } from '../modelUtils';
-import { CAST_CHAR_GLB, CAST_PROP_GLB, KEY_ICE, readFlag, writeFlag } from '../castModels';
+import { CAST_CHAR_GLB, CAST_PROP_GLB, KEY_ICE } from '../castModels';
+import { resolveKey } from '../inventory';
 import { createPlushSquirrel, createPlushHedgehog } from '../PlushAnimals';
 import { createPlushCharacter } from '../PlushCharacter';
 import { AYA_LOOK, ZHULDYZ_LOOK } from '../characterLooks';
@@ -103,10 +104,15 @@ export class Level16Scene extends BaseLevelScene {
     this.lang = lang;
     this.onHud = onHud;
 
-    this.hasIceKey = readFlag(KEY_ICE);
+    // Same shape as L9's acorn: derived from the save rather than a loose
+    // localStorage flag, because the flag is outside `barsik_progress` and a
+    // save that lost it left the season finale unfinishable.
+    this.hasIceKey = resolveKey(KEY_ICE).has;
     if (!this.hasIceKey && import.meta.env.DEV) {
-      // Soft spare for QA / skip-ahead — never auto-grant in production
-      writeFlag(KEY_ICE, true);
+      // Spare for a QA jump into `?mission=16` with no save. Never in a build,
+      // and never when the save says L13 is behind you — that case now takes
+      // the real path, so the real path is the one being played locally.
+      console.warn('[L16] no ice key and level 13 is not complete — granting for QA only');
       this.hasIceKey = true;
     }
 
