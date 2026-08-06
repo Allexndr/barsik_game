@@ -204,7 +204,12 @@ export function spawnPad(x: number, z: number) {
   disc.castShadow = false; disc.receiveShadow = false;
   ring.castShadow = false; ring.receiveShadow = false;
   g.add(disc, ring);
-  g.position.set(x, 0, z);
+  // Rides the terrain. Nine levels corrected this at the call site and six did
+  // not — on L10 the ground at the spawn is 2.16 m up, so the pad the player
+  // is standing on was two metres underneath them on frame one. Both existing
+  // corrections stay safe: `pad.position.y = …` overwrites, and
+  // `snapToGround` measures the current world bottom, so it becomes a no-op.
+  g.position.set(x, placementGround(x, z), z);
   return g;
 }
 
@@ -598,7 +603,7 @@ export async function placeWoodSign(
     if (glb) {
       glb.position.set(x, 0, z);
       glb.rotation.y = rotY;
-      groundY(glb);
+      groundY(glb, placementGround(x, z));
       return glb;
     }
   }
@@ -1667,7 +1672,13 @@ export abstract class BaseLevelScene {
     // Only the next few arrows stay lit. A long emissive trail piles up at the
     // vanishing point and bloom fuses it into one glowing blob on the horizon.
     for (const a of this.pathArrows) {
-      a.position.y = 0.08 + Math.sin(now * 0.004 + (a.userData.bob as number)) * 0.06 * motionScale;
+      // Bob above the terrain, not above world zero. This line runs every
+      // frame, so grounding the arrow when it is built would be undone on the
+      // next one — the height has to be recomputed here.
+      a.position.y =
+        this.groundHeightAt(a.position.x, a.position.z) +
+        0.08 +
+        Math.sin(now * 0.004 + (a.userData.bob as number)) * 0.06 * motionScale;
       if (a.userData.forceHidden) continue;
       const distance = Math.hypot(a.position.x - this.hero.position.x, a.position.z - this.hero.position.z);
       a.visible = distance < 11;
