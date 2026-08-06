@@ -174,7 +174,7 @@ export function Mission0Screen() {
       else if (hud.phase.includes('pick') || hud.phase.includes('help')) AudioManager.sfx('found');
       prevPhase.current = hud.phase;
     }
-  }, [hud.line, hud.phase, loading, lang, paused]);
+  }, [hud.line, hud.phase, loading, lang, paused, player?.nick]);
 
   const prevStars = useRef(0);
   useEffect(() => {
