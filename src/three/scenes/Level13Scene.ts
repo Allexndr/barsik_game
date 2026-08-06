@@ -556,7 +556,7 @@ export class Level13Scene extends BaseLevelScene {
     } else if (this.phase === 'polish') {
       // Pull in and orbit slightly: the statue is the subject of this act.
       const target = new THREE.Vector3(
-        this.hero.position.x * 0.5,
+        this.cameraLateral(this.hero.position.x),
         this.hero.position.y + 5.2,
         this.hero.position.z + 8.5,
       );
@@ -565,13 +565,13 @@ export class Level13Scene extends BaseLevelScene {
     } else {
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
-        this.hero.position.x * 0.35 + f.lateral,
+        this.cameraLateral(this.hero.position.x) + f.lateral,
         this.hero.position.y + 6.2 * f.heightMul,
         this.hero.position.z + 10 + f.backAdd,
       );
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
       this.camera.lookAt(
-        this.hero.position.x * 0.25,
+        this.cameraLateral(this.hero.position.x),
         this.hero.position.y + 1.3 + f.lookUp,
         this.hero.position.z - 1.0 - f.lookAhead,
       );

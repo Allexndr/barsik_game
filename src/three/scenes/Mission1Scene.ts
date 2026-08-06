@@ -681,7 +681,7 @@ export class Mission1Scene extends BaseLevelScene {
       // pitch alone — the sideways shift was never the expensive part.
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
-        this.hero.position.x * 0.55 + f.lateral,
+        this.cameraLateral(this.hero.position.x) + f.lateral,
         height * f.heightMul,
         this.hero.position.z + back + f.backAdd,
       );

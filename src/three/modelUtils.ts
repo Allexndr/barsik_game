@@ -133,3 +133,41 @@ export function disposeObject3DResources(root: THREE.Object3D) {
   for (const material of materials) material.dispose();
   for (const geometry of geometries) geometry.dispose();
 }
+
+/**
+ * Rescue a mesh that arrived with no material at all.
+ *
+ * A glTF primitive may omit `material`, and GLTFLoader then hands it three.js's
+ * default: `MeshStandardMaterial` with **`metalness: 1`** and no environment
+ * map. A fully metallic surface shows only what it reflects, and with nothing
+ * to reflect it renders pure black. Two of the season's characters ship that
+ * way — `s1_owl.glb` and `s1_rabbit.glb` both report `materials: 0,
+ * textures: 0` — so instead of an owl the level showed a black silhouette
+ * standing in the grass, which is exactly as unsettling in a game for
+ * five-year-olds as it sounds.
+ *
+ * The test is deliberately narrow: metalness exactly 1, roughness exactly 1,
+ * white base colour, and no maps of any kind is the loader's default and not
+ * something an artist authors. Code-built metals in this project (the golden
+ * seals, the chest trim) never pass through here.
+ */
+export function repairDefaultMaterial(mesh: THREE.Mesh) {
+  const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  for (const mat of mats) {
+    const std = mat as THREE.MeshStandardMaterial;
+    if (!std?.isMeshStandardMaterial) continue;
+    const bare =
+      std.metalness === 1 &&
+      std.roughness === 1 &&
+      !std.map && !std.metalnessMap && !std.roughnessMap && !std.normalMap &&
+      std.color.getHex() === 0xffffff;
+    if (!bare) continue;
+    // Matte and off-white: it reads as an untextured toy rather than as a
+    // hole in the world, and it stays obviously a placeholder to anyone
+    // looking for one.
+    std.metalness = 0;
+    std.roughness = 0.85;
+    std.color.setHex(0xd8cfc2);
+    std.needsUpdate = true;
+  }
+}

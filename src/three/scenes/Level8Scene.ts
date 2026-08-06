@@ -979,12 +979,12 @@ export class Level8Scene extends BaseLevelScene {
       const f = this.cameraFraming();
       this.updateCamera(
         new THREE.Vector3(
-          this.hero.position.x * 0.35 + f.lateral,
+          this.cameraLateral(this.hero.position.x) + f.lateral,
           this.hero.position.y + 5.4 * f.heightMul,
           this.hero.position.z + 9.5 + f.backAdd,
         ),
         new THREE.Vector3(
-          this.hero.position.x * 0.2,
+          this.cameraLateral(this.hero.position.x),
           this.hero.position.y + 1.2 + f.lookUp,
           this.hero.position.z - 3 - f.lookAhead,
         ),

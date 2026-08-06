@@ -14,7 +14,7 @@ import { createWindGrass, type WindGrass } from '../WindGrass';
 import { AssetKit } from '../AssetKit';
 import { placePatch, ringAnchors, type PatchSpec } from '../sceneComposition';
 import { placeMany, placementGround, setPlacementGround } from '../s1Place';
-import { disposeObject3DResources, fitHeight, fitMaxSize, groundY, measurePlinthFraction } from '../modelUtils';
+import { disposeObject3DResources, fitHeight, fitMaxSize, groundY, measurePlinthFraction, repairDefaultMaterial } from '../modelUtils';
 import { createFpsSampler } from '@/dev/fpsSampler';
 import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
 
@@ -54,44 +54,6 @@ export const PLAYER_RADIUS = 0.45;
 
 // ─── Shared utility functions ───────────────────────────────────
 export { fitHeight, groundY, disposeObject3DResources };
-
-/**
- * Rescue a mesh that arrived with no material at all.
- *
- * A glTF primitive may omit `material`, and GLTFLoader then hands it three.js's
- * default: `MeshStandardMaterial` with **`metalness: 1`** and no environment
- * map. A fully metallic surface shows only what it reflects, and with nothing
- * to reflect it renders pure black. Two of the season's characters ship that
- * way — `s1_owl.glb` and `s1_rabbit.glb` both report `materials: 0,
- * textures: 0` — so instead of an owl the level showed a black silhouette
- * standing in the grass, which is exactly as unsettling in a game for
- * five-year-olds as it sounds.
- *
- * The test is deliberately narrow: metalness exactly 1, roughness exactly 1,
- * white base colour, and no maps of any kind is the loader's default and not
- * something an artist authors. Code-built metals in this project (the golden
- * seals, the chest trim) never pass through here.
- */
-function repairDefaultMaterial(mesh: THREE.Mesh) {
-  const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-  for (const mat of mats) {
-    const std = mat as THREE.MeshStandardMaterial;
-    if (!std?.isMeshStandardMaterial) continue;
-    const bare =
-      std.metalness === 1 &&
-      std.roughness === 1 &&
-      !std.map && !std.metalnessMap && !std.roughnessMap && !std.normalMap &&
-      std.color.getHex() === 0xffffff;
-    if (!bare) continue;
-    // Matte and off-white: it reads as an untextured toy rather than as a
-    // hole in the world, and it stays obviously a placeholder to anyone
-    // looking for one.
-    std.metalness = 0;
-    std.roughness = 0.85;
-    std.color.setHex(0xd8cfc2);
-    std.needsUpdate = true;
-  }
-}
 
 export async function loadGlb(loader: GLTFLoader, url: string) {
   try {
@@ -1866,6 +1828,27 @@ export abstract class BaseLevelScene {
   private camLook: THREE.Vector3 | null = null;
 
   /**
+   * Where the camera should sit sideways, given where the hero is.
+   *
+   * Fifteen scenes used to write `hero.position.x * 0.3` — follow only thirty
+   * per cent of the hero's sideways movement, so the frame drifts back toward
+   * the middle of the level. That reads well while a level is a corridor a few
+   * metres either side of x = 0, which is what these levels were. They are not
+   * any more: L6's trees stand at x = ±13 and L9's berries reach x = ±22, and
+   * at x = 13 a camera obeying that rule sits at 3.9 with the hero nine metres
+   * outside the frame. The complaint that the camera "wanders off" is this:
+   * it is not wandering, it is refusing to come along.
+   *
+   * The pull toward the centre was worth keeping — it is what stops every shot
+   * being dead-centred — so it stays, as a **bounded** offset rather than a
+   * fraction. The hero is always within `max` metres of the middle, however
+   * wide the level grows.
+   */
+  protected cameraLateral(x: number, pull = 0.28, max = 1.5) {
+    return x + Math.max(-max, Math.min(max, -x * pull));
+  }
+
+  /**
    * Follow camera.
    *
    * The aim point is smoothed as well as the position, and that is the whole
@@ -1883,7 +1866,18 @@ export abstract class BaseLevelScene {
   protected updateCamera(target: THREE.Vector3, look: THREE.Vector3, lerp = 0.0015, dt = 0.016) {
     this.camera.position.lerp(target, 1 - Math.pow(lerp, dt));
     if (!this.camLook) this.camLook = look.clone();
-    else this.camLook.lerp(look, 1 - Math.pow(lerp * 0.5, dt));
+    // Only the height is smoothed. Smoothing the whole aim point was a
+    // regression: the original design lags the camera's position but snaps
+    // its aim, which is what keeps the hero centred while the camera trails
+    // behind. Lagging both let the hero slide out of frame whenever he moved
+    // steadily — the camera looked at where he had been.
+    //
+    // The pitch swing this was meant to fix is entirely vertical: stepping
+    // onto a slope moves the aim point up or down instantly while the camera
+    // is still climbing, and the frame tips. So y trails and x/z do not.
+    this.camLook.x = look.x;
+    this.camLook.z = look.z;
+    this.camLook.y += (look.y - this.camLook.y) * (1 - Math.pow(0.02, dt));
     this.camera.lookAt(this.camLook);
   }
 

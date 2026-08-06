@@ -972,13 +972,13 @@ export class Level7Scene extends BaseLevelScene {
       // and seven levels used it; this one did not.
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
-        this.hero.position.x * 0.3 + f.lateral,
+        this.cameraLateral(this.hero.position.x) + f.lateral,
         5 * f.heightMul,
         this.hero.position.z + 9 + f.backAdd,
       );
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
       const lookZ = this.putalo ? (this.hero.position.z + this.putalo.position.z) / 2 : this.hero.position.z;
-      this.camera.lookAt(this.hero.position.x * 0.2, 1.0 + f.lookUp, lookZ - f.lookAhead);
+      this.camera.lookAt(this.cameraLateral(this.hero.position.x), 1.0 + f.lookUp, lookZ - f.lookAhead);
     }
 
     this.renderFrame();

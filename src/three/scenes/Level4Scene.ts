@@ -1451,7 +1451,7 @@ export class Level4Scene extends BaseLevelScene {
     const back = 8.5 + f.backAdd + beat * 1.5;
     const height = (5.0 + beat * 2.4) * f.heightMul;
     const target = new THREE.Vector3(
-      this.hero.position.x * 0.4 + f.lateral,
+      this.cameraLateral(this.hero.position.x) + f.lateral,
       height,
       this.hero.position.z + back,
     );
