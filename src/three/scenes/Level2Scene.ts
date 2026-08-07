@@ -698,6 +698,14 @@ export class Level2Scene extends BaseLevelScene {
 
     // Hero
     this.hero.position.set(0, 0, 4);
+    // One room, not one road. A corridor here would put a wall through the
+    // middle of the only space the level has.
+    // Taken from the movement bounds the level already declares: x ±20, z −25..8 — the radius is that rectangle's half-diagonal, so the
+    // ring is a wall you can see rather than a second bound that cuts corners
+    // off the level. A guessed r = 15 fenced off 29 of its 32 objects.
+    this.playArena = { x: 0, z: -8.5, r: 26 };
+    await this.encloseArena(loader);
+
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
     this.activate(() => {

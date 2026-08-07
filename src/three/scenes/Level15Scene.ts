@@ -318,6 +318,12 @@ export class Level15Scene extends BaseLevelScene {
     ]);
 
     this.hero.position.set(0, this.groundHeightAt(0, 6), 6);
+    // This level is a serpentine, not a field: its beats sit alternately left
+    // and right going down. Drawing that as an actual route, then walling it,
+    // is what stops it reading as a clearing with things scattered in it.
+    this.derivePathFromRooms({ x: 0, z: 6 });
+    await this.enclosePath(loader);
+
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
     this.activate(() => {

@@ -1554,6 +1554,218 @@ export abstract class BaseLevelScene {
    * corridor that opens into clearings — a linear level, not a plain.
    */
   /**
+   * A level that is one room rather than one road.
+   *
+   * Not every level is a walk. Some are a clearing you do a thing in, and for
+   * those a corridor is the wrong shape — there is no route to hug, and
+   * forcing one would put a wall through the middle of the arena.
+   */
+  protected playArena: { x: number; z: number; r: number } | null = null;
+
+  /**
+   * Build a route out of the beats the level already declares.
+   *
+   * Nine levels had no `pathCorridor` at all, and their reserved rooms are not
+   * connected to each other — level 3 is five rooms in five islands, level 13
+   * six in five — so clamping to the rooms alone would leave the player stuck
+   * at the edge of one with no way to the next. Threading a path through them
+   * in z order fixes that by construction: every room is on the route, so the
+   * union of route and rooms is one connected shape.
+   *
+   * It also happens to be the honest shape of these levels. Level 3's beats
+   * sit at x −17, +18, −14, +12, −3 going down; the level *is* a serpentine,
+   * and drawing it as one is what stops it reading as a field with things
+   * scattered in it.
+   */
+  protected derivePathFromRooms(spawn: { x: number; z: number }, half = 4.2) {
+    if (this.reserved.length === 0) return;
+    const byZ = [...this.reserved].sort((a, b) => b.z - a.z);
+    const pts: Array<{ x: number; z: number }> = [{ x: spawn.x, z: spawn.z }];
+    for (const room of byZ) {
+      const last = pts[pts.length - 1];
+      if (Math.hypot(room.x - last.x, room.z - last.z) < 1.5) continue;
+      pts.push({ x: room.x, z: room.z });
+    }
+    this.playPath = pts;
+    this.playPathHalf = half;
+  }
+
+  /**
+   * The walkable route, as a polyline with a width.
+   *
+   * `pathCorridor` is `x = f(z)`, which works for the levels it was written
+   * for — they all run north to south. It cannot express a route that goes
+   * sideways or doubles back, and half the game does: level 3's beats sit at
+   * x −17, +18, −14, +12 while z moves only eight metres between the first
+   * two, so the route there is nearly horizontal. Clamped by horizontal
+   * distance, that leaves a window on x that slides four metres for every
+   * metre of z, and a player walking at it is dragged along a boundary they
+   * cannot see. Measured: four of level 3's five rooms became unreachable.
+   *
+   * A polyline has no preferred axis, so it holds for any shape.
+   */
+  protected playPath: Array<{ x: number; z: number }> | null = null;
+  protected playPathHalf = 4.2;
+
+  /** Nearest point on the play path, and how far off it we are. */
+  private nearestOnPath(x: number, z: number) {
+    const pts = this.playPath!;
+    let best = { x: pts[0].x, z: pts[0].z, d: Infinity };
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1];
+      const b = pts[i];
+      const vx = b.x - a.x;
+      const vz = b.z - a.z;
+      const len2 = vx * vx + vz * vz;
+      const t = len2 < 1e-6 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * vx + (z - a.z) * vz) / len2));
+      const px = a.x + vx * t;
+      const pz = a.z + vz * t;
+      const d = Math.hypot(x - px, z - pz);
+      if (d < best.d) best = { x: px, z: pz, d };
+    }
+    if (pts.length === 1) {
+      best = { x: pts[0].x, z: pts[0].z, d: Math.hypot(x - pts[0].x, z - pts[0].z) };
+    }
+    return best;
+  }
+
+  /** @deprecated superseded by {@link derivePathFromRooms}; kept for the z-monotone levels. */
+  protected deriveCorridorFromRooms(spawn: { x: number; z: number }, half = 3.4) {
+    if (this.reserved.length === 0) return;
+    const byZ = [...this.reserved].sort((a, b) => b.z - a.z);
+    // One waypoint per z, so two rooms at the same depth do not make the route
+    // jump sideways and back inside a metre.
+    const pts: Array<{ x: number; z: number }> = [{ x: spawn.x, z: spawn.z }];
+    for (const room of byZ) {
+      const last = pts[pts.length - 1];
+      if (Math.abs(room.z - last.z) < 1.5) {
+        last.x = (last.x + room.x) / 2;
+        continue;
+      }
+      pts.push({ x: room.x, z: room.z });
+    }
+    this.pathCorridor = (z: number) => {
+      if (z >= pts[0].z) return pts[0].x;
+      for (let i = 1; i < pts.length; i++) {
+        if (z >= pts[i].z) {
+          const a = pts[i - 1];
+          const b = pts[i];
+          const t = (a.z - z) / Math.max(1e-4, a.z - b.z);
+          return a.x + (b.x - a.x) * t;
+        }
+      }
+      return pts[pts.length - 1].x;
+    };
+    this.pathCorridorHalf = half;
+  }
+
+  /**
+   * Wall a polyline route on both sides, with caps at each end.
+   *
+   * Walks the path by arc length and plants perpendicular to it, so a route
+   * that runs sideways or doubles back is still walled along its actual
+   * direction rather than along z.
+   */
+  protected async enclosePath(loader: GLTFLoader, rows = 4, step = 3.0) {
+    if (!this.playPath || this.playPath.length < 2 || this.disposed) return;
+    const kit = this.assetKit(loader);
+    const near = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
+    const mid = ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default'];
+    const far = ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_tall'];
+    const placements: Array<{ names: string[]; x: number; z: number; height: number }> = [];
+    const base = this.playPathHalf + this.corridorSlack;
+
+    const plantAt = (px: number, pz: number, nx: number, nz: number, sign: number) => {
+      for (let row = 0; row < rows; row++) {
+        const out = base + 1.4 + row * 2.6 + Math.random() * 1.1;
+        const x = px + nx * out * sign;
+        const z = pz + nz * out * sign;
+        if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z)) continue;
+        placements.push({
+          names: row === 0 ? near : row === 1 ? mid : far,
+          x, z,
+          height: row === 0 ? 2.6 + Math.random() * 1.0
+            : row === 1 ? 5.4 + Math.random() * 1.6
+              : 8.5 + Math.random() * 3.0,
+        });
+      }
+    };
+
+    const pts = this.playPath;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1];
+      const b = pts[i];
+      const len = Math.hypot(b.x - a.x, b.z - a.z);
+      if (len < 1e-3) continue;
+      const dx = (b.x - a.x) / len;
+      const dz = (b.z - a.z) / len;
+      const nx = -dz;
+      const nz = dx;
+      for (let t = 0; t <= len; t += step) {
+        const px = a.x + dx * t;
+        const pz = a.z + dz * t;
+        for (const sign of [-1, 1]) plantAt(px, pz, nx, nz, sign);
+      }
+    }
+    // Caps, so the route has a back and a front rather than an invisible wall.
+    for (const [end, other] of [[pts[0], pts[1]], [pts[pts.length - 1], pts[pts.length - 2]]] as const) {
+      const len = Math.hypot(end.x - other.x, end.z - other.z) || 1;
+      const dx = (end.x - other.x) / len;
+      const dz = (end.z - other.z) / len;
+      for (let off = -base - 2; off <= base + 2; off += 2.6) {
+        for (let row = 0; row < 3; row++) {
+          const out = 1.6 + row * 2.6 + Math.random();
+          const x = end.x + dx * out + -dz * off;
+          const z = end.z + dz * out + dx * off;
+          if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z)) continue;
+          placements.push({
+            names: row === 0 ? mid : far,
+            x, z,
+            height: row === 0 ? 5.4 + Math.random() * 1.6 : 8.5 + Math.random() * 3,
+          });
+        }
+      }
+    }
+    await this.plantTreeline(kit, placements);
+  }
+
+  /**
+   * Ring a one-room level with trees.
+   *
+   * The corridor version cannot do this job: it walks a z range planting down
+   * two sides, and an arena has no sides.
+   */
+  protected async encloseArena(loader: GLTFLoader, rows = 4) {
+    if (!this.playArena || this.disposed) return;
+    const kit = this.assetKit(loader);
+    const near = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
+    const mid = ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default'];
+    const far = ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_tall'];
+    const arena = this.playArena;
+    const placements: Array<{ names: string[]; x: number; z: number; height: number }> = [];
+    for (let row = 0; row < rows; row++) {
+      const radius = arena.r + this.corridorSlack + 1.4 + row * 2.6;
+      // Constant arc spacing, so the outer rings are not sparse.
+      const count = Math.max(8, Math.round((2 * Math.PI * radius) / 3.2));
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2 + Math.random() * 0.12;
+        const rr = radius + Math.random() * 1.1;
+        const x = arena.x + Math.sin(a) * rr;
+        const z = arena.z + Math.cos(a) * rr;
+        if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z)) continue;
+        placements.push({
+          names: row === 0 ? near : row === 1 ? mid : far,
+          x, z,
+          height: row === 0 ? 2.6 + Math.random() * 1.0
+            : row === 1 ? 5.4 + Math.random() * 1.6
+              : 8.5 + Math.random() * 3.0,
+        });
+      }
+    }
+    await this.plantTreeline(kit, placements);
+  }
+
+  /**
    * Close a level in without having to say where it ends.
    *
    * The z range is taken from the rooms the level already reserved, which is
@@ -1652,10 +1864,25 @@ export abstract class BaseLevelScene {
       }
     }
 
-    // Instanced, one draw call per tree type rather than one per tree.
-    // Measured: the first version used `kit.scatter`, which returns a separate
-    // object each time, and a wall dense enough to see nothing through took
-    // the level from 96 draw calls to 811. That is the stutter.
+    await this.plantTreeline(kit, placements);
+  }
+
+  /**
+   * Turn a list of placements into instanced trees.
+   *
+   * Shared by the corridor wall and the arena ring: whatever shape the level
+   * is, the trees are drawn the same way.
+   *
+   * Instancing is not an optimisation here, it is the difference between the
+   * feature existing and not. The first version used `kit.scatter`, which
+   * returns a separate object per tree, and a wall dense enough to see
+   * nothing through took level 0 from 96 draw calls to 811 — the stutter that
+   * made the level unplayable. The same wall instanced costs twenty-three.
+   */
+  private async plantTreeline(
+    kit: ReturnType<BaseLevelScene['assetKit']>,
+    placements: Array<{ names: string[]; x: number; z: number; height: number }>,
+  ) {
     const byName = new Map<string, typeof placements>();
     for (const p of placements) {
       const name = p.names[Math.floor(Math.random() * p.names.length)];
@@ -1905,6 +2132,30 @@ export abstract class BaseLevelScene {
    * level opts in by having a path.
    */
   protected clampToPlayArea(x: number, z: number): { x: number; z: number } {
+    if (this.playPath) {
+      const half = this.playPathHalf + this.corridorSlack;
+      const near = this.nearestOnPath(x, z);
+      if (near.d <= half) return { x, z };
+      for (const room of this.reserved) {
+        if (Math.hypot(x - room.x, z - room.z) <= room.r + this.corridorSlack) return { x, z };
+      }
+      const k = half / near.d;
+      return { x: near.x + (x - near.x) * k, z: near.z + (z - near.z) * k };
+    }
+    if (this.playArena) {
+      const a = this.playArena;
+      const dx = x - a.x;
+      const dz = z - a.z;
+      const d = Math.hypot(dx, dz);
+      const r = a.r + this.corridorSlack;
+      if (d <= r) return { x, z };
+      // Rooms may still poke out of the arena — an alcove off the clearing.
+      for (const room of this.reserved) {
+        const rd = Math.hypot(x - room.x, z - room.z);
+        if (rd <= room.r + this.corridorSlack) return { x, z };
+      }
+      return { x: a.x + (dx / d) * r, z: a.z + (dz / d) * r };
+    }
     if (!this.pathCorridor) return { x, z };
 
     const cx = this.pathCorridor(z);
