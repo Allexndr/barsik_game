@@ -296,6 +296,27 @@ export function Mission0Screen() {
         </button>
       ) : null}
 
+      {/* Jump has been Space-only, which on a phone means no jump at all —
+          and the crossing cannot be done without one. Sits opposite the
+          stick so it falls under the right thumb. */}
+      {showStick ? (
+        <button
+          type="button"
+          className="m0-jump"
+          onPointerDown={(e) => {
+            e.preventDefault();
+            sceneRef.current?.jump();
+          }}
+          aria-label={lang === 'kk' ? 'Секіру' : 'Прыжок'}
+        >
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 19V6" />
+            <path d="M6 12l6-6 6 6" />
+          </svg>
+          <span className="m0-jump-label">{lang === 'kk' ? 'Секіру' : 'Прыжок'}</span>
+        </button>
+      ) : null}
+
       {showStick ? (
         <div className="m0-stick" ref={stickRef} aria-label="Joystick">
           <div className="m0-knob" />

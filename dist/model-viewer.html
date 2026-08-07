@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Barsik · Model Viewer</title>
+  <style>
+    :root {
+      --bg: #1a2332;
+      --panel: #243044;
+      --ink: #e8eef7;
+      --muted: #8fa3bf;
+      --accent: #5ec8a7;
+      --line: #33465f;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      overflow: hidden;
+    }
+    aside {
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    header {
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    header h1 {
+      margin: 0 0 4px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    header p { margin: 0; color: var(--muted); font-size: 0.8rem; }
+    .filters {
+      display: flex;
+      gap: 6px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      flex-wrap: wrap;
+    }
+    .filters button {
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+    .filters button.active {
+      color: #0d1b16;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    #search {
+      margin: 10px 12px 0;
+      width: calc(100% - 24px);
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #1a2332;
+      color: var(--ink);
+      font-size: 0.85rem;
+    }
+    #list {
+      list-style: none;
+      margin: 8px 0 0;
+      padding: 0 8px 16px;
+      overflow: auto;
+      flex: 1;
+    }
+    #list li button {
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      padding: 9px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.82rem;
+    }
+    #list li button:hover { background: #2c3d55; }
+    #list li button.active { background: #355a4c; color: #d8fff0; }
+    #list .sz { color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
+    #stage {
+      position: relative;
+      min-width: 0;
+      background:
+        radial-gradient(ellipse at 50% 70%, #2a3d55 0%, transparent 55%),
+        linear-gradient(180deg, #152033 0%, #0f1724 100%);
+    }
+    #canvas-host { position: absolute; inset: 0; }
+    #hud {
+      position: absolute;
+      left: 16px;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      pointer-events: none;
+    }
+    #hud .card {
+      background: rgba(20, 30, 45, 0.72);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 14px;
+      max-width: 60%;
+    }
+    #hud h2 { margin: 0 0 2px; font-size: 1rem; }
+    #hud .meta { color: var(--muted); font-size: 0.78rem; }
+    #status {
+      position: absolute;
+      left: 50%;
+      bottom: 20px;
+      transform: translateX(-50%);
+      background: rgba(20, 30, 45, 0.8);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .hint {
+      position: absolute;
+      right: 16px;
+      bottom: 16px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      opacity: 0.85;
+    }
+    @media (max-width: 800px) {
+      body { grid-template-columns: 1fr; grid-template-rows: 42vh 1fr; }
+      aside { border-right: 0; border-bottom: 1px solid var(--line); }
+    }
+  </style>
+</head>
+<body>
+  <aside>
+    <header>
+      <h1>Barsik Model Viewer</h1>
+      <p>Season 1 · chars & props</p>
+    </header>
+    <div class="filters">
+      <button type="button" data-filter="all" class="active">Все</button>
+      <button type="button" data-filter="chars">Chars</button>
+      <button type="button" data-filter="props">Props</button>
+      <button type="button" data-filter="s1">S1 new</button>
+      <button type="button" data-filter="gen">Gen</button>
+    </div>
+    <input id="search" type="search" placeholder="Поиск…" autocomplete="off" />
+    <ul id="list"></ul>
+  </aside>
+  <main id="stage">
+    <div id="canvas-host"></div>
+    <div id="hud">
+      <div class="card">
+        <h2 id="title">Выбери модель</h2>
+        <div class="meta" id="meta">drag · scroll zoom · right-drag pan</div>
+      </div>
+    </div>
+    <div id="status">Загрузка Three.js…</div>
+    <div class="hint">http://127.0.0.1:5173/model-viewer.html</div>
+  </main>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.161.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.161.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+    import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+    /** @type {{ path: string, label: string, group: string, tags: string[], size?: string }[]} */
+    const MODELS = [
+      // chars
+      { path: '/assets/models/chars/barsik.glb', label: 'barsik', group: 'chars', tags: ['hero'] },
+      { path: '/assets/models/chars/aya.glb', label: 'aya', group: 'chars', tags: [] },
+      { path: '/assets/models/chars/putalo.glb', label: 'putalo', group: 'chars', tags: [] },
+      { path: '/assets/models/chars/zhuldyz.glb', label: 'zhuldyz', group: 'chars', tags: [] },
+      { path: '/assets/models/chars/squirrel.glb', label: 'squirrel', group: 'chars', tags: [] },
+      { path: '/assets/models/chars/squirrel_discover.glb', label: 'squirrel_discover', group: 'chars', tags: ['s1'] },
+      { path: '/assets/models/chars/hedgehog.glb', label: 'hedgehog', group: 'chars', tags: [] },
+      { path: '/assets/models/chars/yagodka.glb', label: 'yagodka', group: 'chars', tags: [] },
+      { path: '/assets/models/chars/ice_master.glb', label: 'ice_master', group: 'chars', tags: [] },
+      { path: '/assets/models/chars/aibek.glb', label: 'aibek', group: 'chars', tags: [] },
+      { path: '/assets/models/chars/bird.glb', label: 'bird', group: 'chars', tags: [] },
+      { path: '/assets/models/chars/s1_fox.glb', label: 's1_fox', group: 'chars', tags: ['s1'] },
+      { path: '/assets/models/chars/s1_rabbit.glb', label: 's1_rabbit', group: 'chars', tags: ['s1'] },
+      { path: '/assets/models/chars/s1_owl.glb', label: 's1_owl', group: 'chars', tags: ['s1'] },
+      { path: '/assets/models/chars/s1_frog.glb', label: 's1_frog', group: 'chars', tags: ['s1'] },
+      { path: '/assets/models/chars/s1_kit_deer.glb', label: 's1_kit_deer', group: 'chars', tags: ['s1', 'kit'] },
+      { path: '/assets/models/chars/s1_kit_beaver.glb', label: 's1_kit_beaver', group: 'chars', tags: ['s1', 'kit'] },
+      { path: '/assets/models/chars/s1_kit_penguin.glb', label: 's1_kit_penguin', group: 'chars', tags: ['s1', 'kit'] },
+      { path: '/assets/models/chars/s1_kit_bee.glb', label: 's1_kit_bee', group: 'chars', tags: ['s1', 'kit'] },
+      { path: '/assets/models/chars/s1_kit_polar.glb', label: 's1_kit_polar', group: 'chars', tags: ['s1', 'kit'] },
+      // props
+      { path: '/assets/models/props/wood_sign.glb', label: 'wood_sign', group: 'props', tags: [] },
+      { path: '/assets/models/props/wood_sign_cartoon.glb', label: 'wood_sign_cartoon', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/wood_sign_discover.glb', label: 'wood_sign_discover', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/treasure_chest.glb', label: 'treasure_chest', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/golden_key.glb', label: 'golden_key', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/cabin.glb', label: 'cabin', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/treehouse.glb', label: 'treehouse', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/snowman.glb', label: 'snowman', group: 'props', tags: [] },
+      { path: '/assets/models/props/stump.glb', label: 'stump', group: 'props', tags: [] },
+      { path: '/assets/models/props/s1_stump_moss.glb', label: 's1_stump_moss', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/ice_rabbit.glb', label: 'ice_rabbit', group: 'props', tags: [] },
+      { path: '/assets/models/props/s1_apple.glb', label: 's1_apple', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/s1_gen_apple.glb', label: 's1_gen_apple', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_apple_gold.glb', label: 's1_gen_apple_gold', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_basket_red.glb', label: 's1_gen_basket_red', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_basket_green.glb', label: 's1_gen_basket_green', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_basket_blue.glb', label: 's1_gen_basket_blue', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_carrot.glb', label: 's1_carrot', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/s1_pinecone.glb', label: 's1_pinecone', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/s1_mushroom_cottage.glb', label: 's1_mushroom_cottage', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/s1_table.glb', label: 's1_table', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/s1_pine_tree.glb', label: 's1_pine_tree', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/s1_rock_snow.glb', label: 's1_rock_snow', group: 'props', tags: ['s1'] },
+      { path: '/assets/models/props/s1_gen_lantern.glb', label: 's1_gen_lantern', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_garland.glb', label: 's1_gen_garland', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_acorn_key.glb', label: 's1_gen_acorn_key', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_ice_crystal.glb', label: 's1_gen_ice_crystal', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_ice_key.glb', label: 's1_gen_ice_key', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_camera.glb', label: 's1_gen_camera', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_mushroom.glb', label: 's1_gen_mushroom', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_snowflake.glb', label: 's1_gen_snowflake', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_map_scroll.glb', label: 's1_gen_map_scroll', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_wood_bridge.glb', label: 's1_gen_wood_bridge', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_party_table.glb', label: 's1_gen_party_table', group: 'props', tags: ['s1', 'gen'] },
+      { path: '/assets/models/props/s1_gen_berry.glb', label: 's1_gen_berry', group: 'props', tags: ['s1', 'gen'] },
+      // Kenney kit fill (Meshy credits empty)
+      { path: '/assets/models/props/s1_kit_fence.glb', label: 's1_kit_fence', group: 'props', tags: ['s1', 'kit'] },
+      { path: '/assets/models/props/s1_kit_fence_gate.glb', label: 's1_kit_fence_gate', group: 'props', tags: ['s1', 'kit'] },
+      { path: '/assets/models/props/s1_kit_bench.glb', label: 's1_kit_bench', group: 'props', tags: ['s1', 'kit'] },
+      { path: '/assets/models/props/s1_kit_campfire.glb', label: 's1_kit_campfire', group: 'props', tags: ['s1', 'kit'] },
+      { path: '/assets/models/props/s1_kit_snow_pile.glb', label: 's1_kit_snow_pile', group: 'props', tags: ['s1', 'kit'] },
+      { path: '/assets/models/props/s1_kit_tree_decorated.glb', label: 's1_kit_tree_decorated', group: 'props', tags: ['s1', 'kit'] },
+      { path: '/assets/models/props/s1_kit_present.glb', label: 's1_kit_present', group: 'props', tags: ['s1', 'kit'] },
+      { path: '/assets/models/props/s1_kit_cake.glb', label: 's1_kit_cake', group: 'props', tags: ['s1', 'kit'] },
+      { path: '/assets/models/props/s1_kit_strawberry.glb', label: 's1_kit_strawberry', group: 'props', tags: ['s1', 'kit'] },
+      { path: '/assets/models/props/s1_kit_honey.glb', label: 's1_kit_honey', group: 'props', tags: ['s1', 'kit'] },
+      { path: '/assets/models/props/s1_kit_star.glb', label: 's1_kit_star', group: 'props', tags: ['s1', 'kit'] },
+      { path: '/assets/models/props/s1_kit_tent.glb', label: 's1_kit_tent', group: 'props', tags: ['s1', 'kit'] },
+    ];
+
+    const host = document.getElementById('canvas-host');
+    const listEl = document.getElementById('list');
+    const titleEl = document.getElementById('title');
+    const metaEl = document.getElementById('meta');
+    const statusEl = document.getElementById('status');
+    const searchEl = document.getElementById('search');
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(host.clientWidth, host.clientHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    host.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, host.clientWidth / host.clientHeight, 0.05, 200);
+    camera.position.set(2.4, 1.6, 3.2);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0, 0.7, 0);
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+    const hemi = new THREE.HemisphereLight(0xcfe8ff, 0x3a2a1a, 0.85);
+    scene.add(hemi);
+    const key = new THREE.DirectionalLight(0xffffff, 1.15);
+    key.position.set(3, 6, 4);
+    scene.add(key);
+    const fill = new THREE.DirectionalLight(0xa8d4ff, 0.35);
+    fill.position.set(-4, 2, -2);
+    scene.add(fill);
+
+    const grid = new THREE.GridHelper(8, 16, 0x4a6280, 0x2a3a50);
+    grid.position.y = 0;
+    scene.add(grid);
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(4, 48),
+      new THREE.MeshStandardMaterial({ color: 0x1e2a3a, roughness: 0.95, metalness: 0 }),
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.001;
+    scene.add(ground);
+
+    const draco = new DRACOLoader();
+    draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(draco);
+
+    let currentRoot = null;
+    let filter = 'all';
+    let available = [];
+
+    function setStatus(t) { statusEl.textContent = t; }
+
+    function fitCamera(root) {
+      const box = new THREE.Box3().setFromObject(root);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z, 0.01);
+      root.position.sub(center);
+      root.position.y += size.y / 2;
+      const dist = maxDim * 2.2;
+      camera.position.set(dist * 0.9, dist * 0.55, dist * 1.1);
+      controls.target.set(0, size.y * 0.45, 0);
+      controls.update();
+      camera.near = Math.max(0.01, dist / 100);
+      camera.far = dist * 40;
+      camera.updateProjectionMatrix();
+    }
+
+    async function loadModel(item) {
+      titleEl.textContent = item.label;
+      metaEl.textContent = item.path;
+      setStatus(`Загрузка ${item.label}…`);
+      if (currentRoot) {
+        scene.remove(currentRoot);
+        currentRoot.traverse((o) => {
+          if (o.isMesh) {
+            o.geometry?.dispose?.();
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            for (const m of mats) m?.dispose?.();
+          }
+        });
+        currentRoot = null;
+      }
+      try {
+        const gltf = await loader.loadAsync(item.path);
+        currentRoot = gltf.scene;
+        currentRoot.traverse((o) => {
+          if (o.isMesh) {
+            o.castShadow = true;
+            o.receiveShadow = true;
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            for (const m of mats) {
+              if (m && 'metalness' in m && m.metalness > 0.4 && !m.map) m.metalness = 0.05;
+            }
+          }
+        });
+        scene.add(currentRoot);
+        fitCamera(currentRoot);
+        const box = new THREE.Box3().setFromObject(currentRoot);
+        const size = box.getSize(new THREE.Vector3());
+        setStatus(`${item.label} · ${size.x.toFixed(2)}×${size.y.toFixed(2)}×${size.z.toFixed(2)}`);
+      } catch (e) {
+        setStatus(`Нет файла: ${item.label}`);
+        console.warn(e);
+      }
+    }
+
+    function matchesFilter(item) {
+      if (filter === 'all') return true;
+      if (filter === 'chars' || filter === 'props') return item.group === filter;
+      if (filter === 's1') return item.tags.includes('s1') || item.label.startsWith('s1_');
+      if (filter === 'gen') return item.tags.includes('gen') || item.label.includes('_gen_');
+      return true;
+    }
+
+    function renderList() {
+      const q = searchEl.value.trim().toLowerCase();
+      listEl.innerHTML = '';
+      const items = available.filter((m) => matchesFilter(m) && (!q || m.label.toLowerCase().includes(q)));
+      for (const m of items) {
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.innerHTML = `<span>${m.label}</span><span class="sz">${m.group}</span>`;
+        btn.addEventListener('click', () => {
+          listEl.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          loadModel(m);
+        });
+        li.appendChild(btn);
+        listEl.appendChild(li);
+      }
+      if (!items.length) {
+        const li = document.createElement('li');
+        li.innerHTML = `<button type="button" disabled style="opacity:.5">пусто</button>`;
+        listEl.appendChild(li);
+      }
+    }
+
+    async function probeAvailable() {
+      setStatus('Проверка файлов…');
+      const checks = await Promise.all(
+        MODELS.map(async (m) => {
+          try {
+            const r = await fetch(m.path, { method: 'HEAD' });
+            return r.ok ? m : null;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      available = checks.filter(Boolean);
+      renderList();
+      setStatus(`${available.length} моделей · выбери слева`);
+      const first = available.find((m) => m.label === 'barsik') || available[0];
+      if (first) {
+        const btn = [...listEl.querySelectorAll('button')].find((b) => b.textContent.includes(first.label));
+        btn?.classList.add('active');
+        loadModel(first);
+      }
+    }
+
+    document.querySelectorAll('.filters button').forEach((b) => {
+      b.addEventListener('click', () => {
+        document.querySelectorAll('.filters button').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        filter = b.dataset.filter;
+        renderList();
+      });
+    });
+    searchEl.addEventListener('input', renderList);
+
+    function onResize() {
+      const w = host.clientWidth;
+      const h = host.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener('resize', onResize);
+
+    function tick() {
+      requestAnimationFrame(tick);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    tick();
+    probeAvailable();
+  </script>
+</body>
+</html>

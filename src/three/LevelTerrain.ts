@@ -24,7 +24,19 @@ export type TerrainFeature =
   /** Flat raised shelf for a house, podium, clearing. */
   | { kind: 'plateau'; x: number; z: number; halfW: number; halfD: number; height: number }
   /** Flatten an area completely — arenas, festival grounds, chest clearings. */
-  | { kind: 'flat'; x: number; z: number; r: number };
+  | { kind: 'flat'; x: number; z: number; r: number }
+  /**
+   * A rectangular cut that the path corridor cannot fill back in: river beds,
+   * ravines, moats — anything the route has to be crossed rather than walked.
+   *
+   * A `basin` will not do this job. Basins are applied before the corridor
+   * carve, and that carve multiplies the height by 0.08 at the centre line,
+   * so a three-metre basin under the path came out half a metre deep — a
+   * puddle with dry banks either side, which is exactly what the first
+   * crossing looked like. Trenches are applied after the corridor for that
+   * reason: water cuts the road, not the other way round.
+   */
+  | { kind: 'trench'; x: number; z: number; halfW: number; halfD: number; depth: number };
 
 export interface LevelTerrainOptions {
   size?: number;
@@ -86,6 +98,7 @@ export function createTerrainSampler(opts: LevelTerrainOptions = {}) {
     h *= relief;
 
     for (const f of features) {
+      if (f.kind === 'trench') continue; // applied after the corridor, below
       if (f.kind === 'plateau') {
         const dx = Math.abs(x - f.x) - f.halfW;
         const dz = Math.abs(z - f.z) - f.halfD;
@@ -108,6 +121,16 @@ export function createTerrainSampler(opts: LevelTerrainOptions = {}) {
         const carve = Math.exp(-(d * d) / (corridorHalf * corridorHalf * 2.2));
         h = h * (1 - carve * 0.92) - carve * 0.28;
       }
+    }
+
+    // …and the water cuts the road. Last word, so a river bed stays a river
+    // bed where the path runs through it.
+    for (const f of features) {
+      if (f.kind !== 'trench') continue;
+      const dx = Math.abs(x - f.x) - f.halfW;
+      const dz = Math.abs(z - f.z) - f.halfD;
+      const outside = Math.max(dx, dz);
+      if (outside < 3) h -= f.depth * (1 - THREE.MathUtils.clamp(outside / 3, 0, 1));
     }
 
     // Lift the rim so the level closes on hills instead of running to a
