@@ -155,6 +155,12 @@ export class Level11Scene extends BaseLevelScene {
     ]);
 
     this.hero.position.set(0, this.groundHeightAt(0, 5), 5);
+    // One room, not one road. A corridor here would put a wall through the
+    // middle of the only space the level has.
+    // Taken from the movement bounds the level already declares: x ±24, z −30..8.
+    this.playArena = { x: 0, z: -11, r: 31 };
+    await this.encloseArena(loader);
+
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
     this.activate(() => {

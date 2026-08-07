@@ -297,6 +297,13 @@ export class Level16Scene extends BaseLevelScene {
     for (let z = 0; z > CHEST_Z + 6; z -= 3.5) this.scene.add(pathArrow(0, z, 0));
 
     this.hero.position.set(0, 0, 4);
+    // One room, not one road. A corridor here would put a wall through the
+    // middle of the only space the level has.
+    // Taken from the movement bounds the level already declares: x ±22, z −45..8 — the chest sits at z −34, so a fourteen-metre arena
+    // would have walled the player away from the thing the level is about.
+    this.playArena = { x: 0, z: -18.5, r: 35 };
+    await this.encloseArena(loader);
+
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
     this.activate(() => {
