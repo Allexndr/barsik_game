@@ -4,8 +4,8 @@
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { loadCharModel, loadPropModel } from './scenes/BaseLevelScene';
-import { groundY } from './modelUtils';
+import { loadCharModel, loadGlb, loadPropModel } from './scenes/BaseLevelScene';
+import { fitHeight, fitMaxSize, groundY } from './modelUtils';
 import { CAST_CHAR_GLB, CAST_PROP_GLB } from './castModels';
 
 export type PlaceOpts = {
@@ -70,12 +70,82 @@ async function placeFile(
   return obj;
 }
 
+/**
+ * Triangles one placed prop may cost.
+ *
+ * Higher than the critter budget because a prop is usually something you walk
+ * up to, and low enough to catch the one asset that dwarfs everything else.
+ */
+const PROP_TRIANGLE_BUDGET = 20_000;
+
+/**
+ * Kit stand-ins for props that blow the budget.
+ *
+ * Skipping is right for a rabbit in the grass and wrong for a three-metre
+ * tree: the rabbit is not missed, the hole in the treeline is. So an
+ * over-budget prop is *replaced* rather than dropped.
+ *
+ * `s1_pine_tree.glb` is 1.25 MB and **68 000 triangles** — for a background
+ * conifer. Twenty-one of them are placed across seven levels, which is 1.43
+ * million triangles of scenery nobody interacts with, and it is why level 15
+ * draws 382k triangles against level 13's 137k. The kit's pine is 10.7 KB:
+ * one hundred and seventeen times smaller, and at the distance these are
+ * placed nobody can tell them apart.
+ */
+const PROP_SUBSTITUTE: Partial<Record<keyof typeof CAST_PROP_GLB, string>> = {
+  pine_tree: '/assets/models/kits/nature/tree_pineTallA_detailed.glb',
+};
+
+/**
+ * Place a model by absolute URL rather than by prop-directory name.
+ *
+ * `loadPropModel` prepends the props path, and a kit stand-in does not live
+ * there. Everything after the load is the same, so it reuses the same sizing
+ * and grounding rules a real prop gets.
+ */
+async function placeAbsolute(
+  loader: GLTFLoader,
+  url: string,
+  opts: PlaceOpts,
+): Promise<THREE.Object3D | null> {
+  const gltf = await loadGlb(loader, url);
+  if (!gltf) return null;
+  const obj = gltf.scene;
+  if (opts.maxSize !== undefined) fitMaxSize(obj, opts.maxSize);
+  else if (opts.height !== undefined) fitHeight(obj, opts.height);
+  else fitMaxSize(obj, 1.2);
+  if (opts.scale !== undefined) obj.scale.multiplyScalar(opts.scale);
+  const base = groundSampler ? groundSampler(opts.x, opts.z) : 0;
+  obj.position.set(opts.x, base + (opts.y ?? 0), opts.z);
+  if (opts.rotY !== undefined) obj.rotation.y = opts.rotY;
+  if (opts.y === undefined) groundY(obj, base);
+  obj.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.isMesh) m.castShadow = true;
+  });
+  return obj;
+}
+
 export async function placeS1Prop(
   loader: GLTFLoader,
   key: keyof typeof CAST_PROP_GLB,
   opts: PlaceOpts,
 ): Promise<THREE.Object3D | null> {
-  return placeFile(loader, 'prop', CAST_PROP_GLB[key], opts);
+  const substitute = PROP_SUBSTITUTE[key];
+  if (substitute) {
+    const light = await placeAbsolute(loader, substitute, opts);
+    if (light) return light;
+  }
+  const obj = await placeFile(loader, 'prop', CAST_PROP_GLB[key], opts);
+  if (!obj) return null;
+  const tris = triangleCount(obj);
+  if (tris > PROP_TRIANGLE_BUDGET && import.meta.env.DEV) {
+    console.warn(
+      `[prop] "${key}" is ${Math.round(tris)} triangles against a ${PROP_TRIANGLE_BUDGET} ` +
+      `budget. Remesh it, or add a kit stand-in to PROP_SUBSTITUTE.`,
+    );
+  }
+  return obj;
 }
 
 export async function placeS1Char(
