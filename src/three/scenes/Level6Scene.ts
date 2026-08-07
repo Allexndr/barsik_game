@@ -580,6 +580,9 @@ export class Level6Scene extends BaseLevelScene {
     // Hero
     const start = this.devStart() ?? { x: 0, z: SPAWN_Z };
     this.hero.position.set(start.x, this.groundHeightAt(start.x, start.z), start.z);
+    // The wall. Planted last, so it can read the corridor and every room the
+    // level reserved and hug the outside of both.
+    await this.encloseLevel(loader);
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
     this.activate(() => {

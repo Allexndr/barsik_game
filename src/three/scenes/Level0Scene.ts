@@ -888,6 +888,13 @@ export class Level0Scene extends BaseLevelScene {
    */
   private assertCrossingIsJumpable(waterY: number) {
     if (!import.meta.env.DEV) return;
+    // A scene that React has already thrown away keeps running its `init` to
+    // the end, and `dispose` has by then replaced the terrain sampler with a
+    // flat zero. Everything then reads as under water, both banks come back
+    // unreachable, and the console fills with a failure that is not real —
+    // which is worse than no check at all, because it is what a real failure
+    // would be hiding behind.
+    if (this.disposed) return;
     const airtime = (2 * this.jumpSpeed) / this.gravity;
     const reach = this.baseSpeed * airtime;
 

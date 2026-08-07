@@ -199,6 +199,14 @@ export function App() {
         useUIStore.getState().startEpisode(missionId);
       }
 
+      // Switch levels without a page reload, so a QA pass over all seventeen
+      // is one script instead of seventeen navigations. Reloading each time
+      // is how a sweep across every level ends up never actually being run.
+      (window as unknown as { __goto?: (n: number) => void }).__goto = (n: number) => {
+        (window as unknown as { __level?: unknown }).__level = undefined;
+        useUIStore.getState().startEpisode(n);
+      };
+
       // `?tab=shop` opens a navbar page directly. The meta screens sit behind
       // the welcome flow, so checking one otherwise means clicking through
       // onboarding every time — which in practice means they get checked far

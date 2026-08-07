@@ -462,6 +462,9 @@ export class Mission1Scene extends BaseLevelScene {
     ]);
 
     this.hero.position.set(0, 0, 4);
+    // The wall. Planted last, so it can read the corridor and every room the
+    // level reserved and hug the outside of both.
+    await this.encloseLevel(loader);
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
 
