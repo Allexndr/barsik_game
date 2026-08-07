@@ -459,8 +459,11 @@ export class Level4Scene extends BaseLevelScene {
     // prototype" tell a level can have. Two rows of circles rather than one:
     // a single row wide enough to span 22 metres of gorge would also swallow
     // the lookouts on the lip.
+    // `keepClear`, not `reserve`: the gorge is the one place in this level
+    // the player must not be. Declared as a room it made the play area
+    // eighty-eight metres wide and the bridge pointless.
     for (const z of [-4, -14]) {
-      for (let x = -44; x <= 44; x += 8) this.reserve(x, z, 10);
+      for (let x = -44; x <= 44; x += 8) this.keepClear(x, z, 10);
     }
 
     // Gravel bed with a shallow stream, so the drop bottoms out in something
@@ -619,6 +622,21 @@ export class Level4Scene extends BaseLevelScene {
     this.reserve(0, AYA_Z, 4);
     this.reserve(WINCH_X, WINCH_Z, 3);
     for (const spot of PLANK_SPOTS) this.reserve(spot.x, spot.z, 3.4);
+
+    // The level is three places joined by one crossing, and saying so is what
+    // lets the enclosure wall it correctly: a wide bank you search, a narrow
+    // deck you time, and a small far bank you finish on. The near bank is one
+    // room rather than three plank-sized ones, because act I is exploration
+    // and the planks sit sixteen metres either side of the route — declared
+    // as separate rooms they would be islands with no way to walk to them.
+    this.reserve(0, 11, 15);
+    this.playPath = [
+      { x: 0, z: 16 },
+      { x: 0, z: NEAR_EDGE },
+      { x: 0, z: FAR_EDGE },
+      { x: WINCH_X * 0.6, z: AYA_Z + 1 },
+    ];
+    this.playPathHalf = 3.2;
 
     this.scene.add(spawnPad(0, 6));
     this.scene.add(zoneDisc(0, 6, 3.4, 0x66bb6a, 0.025));
@@ -923,6 +941,10 @@ export class Level4Scene extends BaseLevelScene {
     // Hero
     const start = this.devStart();
     this.hero.position.set(start?.x ?? 0, 0, start?.z ?? 6);
+    // Walled last. The gorge is `keepClear`, so the treeline stops at the lip
+    // rather than growing out over a seven-metre drop.
+    await this.enclosePath(loader);
+
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
     this.activate(() => {
