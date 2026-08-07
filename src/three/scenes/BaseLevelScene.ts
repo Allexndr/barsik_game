@@ -1197,7 +1197,11 @@ export abstract class BaseLevelScene {
         ...opts.terrain,
       });
     }
-    this.scene.add(skyDome(sky[0], sky[1], sky[2]));
+    const dome = skyDome(sky[0], sky[1], sky[2]);
+    // Named so a level that moves the player somewhere else can hide the
+    // outdoors and keep the sky. Level 0 sees it through a smoke hole.
+    dome.name = 'skyDome';
+    this.scene.add(dome);
     this.setupClouds(opts.clouds ?? 5, 26, 50);
     await this.loadWinterDecor(loader, opts.decorCount ?? 22, opts.decorCenterZ ?? -20);
     this.setupSnowfall();
@@ -1264,7 +1268,11 @@ export abstract class BaseLevelScene {
       features: [{ kind: 'flat', x: 0, z: flatCenterZ, r: flatRadius }],
       ...opts.terrain,
     });
-    this.scene.add(skyDome(sky[0], sky[1], sky[2]));
+    const dome = skyDome(sky[0], sky[1], sky[2]);
+    // Named so a level that moves the player somewhere else can hide the
+    // outdoors and keep the sky. Level 0 sees it through a smoke hole.
+    dome.name = 'skyDome';
+    this.scene.add(dome);
     this.setupClouds(clouds, 26, 70);
     if (backdrop) {
       for (const [x, z, h, w] of [[-46, -66, 18, 15], [4, -78, 22, 19], [44, -62, 19, 16]] as const) {

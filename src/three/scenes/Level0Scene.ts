@@ -414,6 +414,35 @@ export class Level0Scene extends BaseLevelScene {
    * pushed, the lower it has to be. Getting only the first right put a roof
    * pole directly across the lens and filled the screen with brown.
    */
+  /**
+   * Show one location and hide the other.
+   *
+   * Distance alone was not enough. Frustum culling does drop the interior for
+   * free while you are outdoors — measured at two draw calls of difference
+   * across a hundred and sixty-nine meshes — but it does nothing in the other
+   * direction, because the treeline that encloses every level is instanced
+   * with `frustumCulled = false`. Standing inside a yurt two hundred metres
+   * away, the whole forest was still being submitted every frame.
+   *
+   * The sky is kept in both places: the room has a smoke hole in the roof and
+   * you can see up through it.
+   */
+  private showOnly(inside: boolean) {
+    const keep = new Set<THREE.Object3D>([this.hero]);
+    if (this.interior) keep.add(this.interior.root);
+    for (const p of this.pads) keep.add(p);
+    for (const child of this.scene.children) {
+      if ((child as THREE.Light).isLight || (child as THREE.Camera).isCamera) continue;
+      if (child.name === 'skyDome') continue;
+      if (keep.has(child)) {
+        child.visible = inside;
+        continue;
+      }
+      child.visible = !inside;
+    }
+    this.hero.visible = true;
+  }
+
   private keepCameraInsideYurt() {
     const p = this.camera.position;
     const dx = p.x - YURT_INSIDE.x;
@@ -808,12 +837,14 @@ export class Level0Scene extends BaseLevelScene {
     // never in the camera frustum until the hero is standing in it.
     const interior = buildYurtInterior();
     this.interior = interior;
+    interior.root.visible = false;
     this.scene.add(interior.root);
     // The pads sit in an arc in front of the instrument.
     this.pads = buildAnswerPads();
     for (const pad of this.pads) {
       const i = pad.userData.index as number;
       pad.position.set(YURT_INSIDE.x + (i - 1) * 2.7, 0, YURT_INSIDE.z - 2.2);
+      pad.visible = false;
       this.scene.add(pad);
     }
 
@@ -1170,6 +1201,7 @@ export class Level0Scene extends BaseLevelScene {
         AudioManager.sfx('whoosh');
         this.pendingTeleport = () => {
           this.insideYurt = true;
+          this.showOnly(true);
           this.phase = 'inside';
           this.hero.position.set(YURT_INSIDE.x, 0, YURT_INSIDE.z + 7.0);
           this.hero.rotation.y = Math.PI;
