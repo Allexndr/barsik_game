@@ -347,48 +347,78 @@ export function bush(x: number, z: number, scale = 1) {
  * Garden flower: petal ring, centre and leaves. A single stretched sphere on a
  * stalk reads as a lollipop, which made every meadow in the game look like candy.
  */
+/**
+ * One material for every flower in the game, of every colour.
+ *
+ * Colour lives in the vertices instead of the material, which is what lets a
+ * red tulip and a yellow one share a draw call. Each flower used to build
+ * three fresh `MeshStandardMaterial`s and nine meshes; level 1 measured 344
+ * loose petal spheres carrying 129 distinct materials for eight distinct
+ * colours, and that was the single largest source of its 534 draw calls.
+ */
+const FLOWER_MAT = new THREE.MeshStandardMaterial({
+  vertexColors: true,
+  roughness: 0.78,
+});
+
+/** Paint every vertex of a geometry one colour, so it can be merged with others. */
+function paintGeometry(geo: THREE.BufferGeometry, hex: number) {
+  const c = new THREE.Color(hex);
+  const n = geo.attributes.position.count;
+  const colours = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    colours[i * 3] = c.r;
+    colours[i * 3 + 1] = c.g;
+    colours[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+  return geo;
+}
+
+const LEAF_GREEN = 0x3f9d4f;
+const FLOWER_CENTRE = 0xffd75e;
+
 export function tulip(x: number, z: number, color: number) {
   const g = new THREE.Group();
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x3f9d4f, roughness: 0.9 });
-  const petalMat = new THREE.MeshStandardMaterial({ color, roughness: 0.72 });
-
   const height = 0.42 + Math.random() * 0.16;
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.026, height, 5), leafMat);
-  stem.position.y = height / 2;
+  const parts: THREE.BufferGeometry[] = [];
 
-  const petalGeo = new THREE.SphereGeometry(0.075, 8, 6);
-  const petals = new THREE.Group();
+  const stem = new THREE.CylinderGeometry(0.018, 0.026, height, 5);
+  stem.translate(0, height / 2, 0);
+  parts.push(paintGeometry(stem, LEAF_GREEN));
+
+  // Petals are placed by baking the transform into the geometry rather than
+  // by nesting Object3Ds — a merged mesh has no children to carry a matrix.
   const petalCount = 5;
   for (let i = 0; i < petalCount; i++) {
     const a = (i / petalCount) * Math.PI * 2;
-    const petal = new THREE.Mesh(petalGeo, petalMat);
-    petal.scale.set(1.35, 0.42, 1);
-    petal.position.set(Math.cos(a) * 0.072, 0, Math.sin(a) * 0.072);
-    petal.rotation.set(0.32, -a, 0);
-    petals.add(petal);
+    const petal = new THREE.SphereGeometry(0.075, 8, 6);
+    petal.scale(1.35, 0.42, 1);
+    petal.rotateX(0.32);
+    petal.rotateY(-a);
+    petal.translate(Math.cos(a) * 0.072, height + 0.03, Math.sin(a) * 0.072);
+    parts.push(paintGeometry(petal, color));
   }
-  petals.position.y = height + 0.03;
 
-  const centre = new THREE.Mesh(
-    new THREE.SphereGeometry(0.038, 8, 6),
-    new THREE.MeshStandardMaterial({ color: 0xffd75e, roughness: 0.6 }),
-  );
-  centre.scale.y = 0.7;
-  centre.position.y = height + 0.05;
+  const centre = new THREE.SphereGeometry(0.038, 8, 6);
+  centre.scale(1, 0.7, 1);
+  centre.translate(0, height + 0.05, 0);
+  parts.push(paintGeometry(centre, FLOWER_CENTRE));
 
   for (const side of [-1, 1]) {
-    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), leafMat);
-    leaf.scale.set(1.5, 0.22, 0.6);
-    leaf.position.set(side * 0.075, height * 0.42, 0);
-    leaf.rotation.set(0, 0, side * 0.65);
-    g.add(leaf);
+    const leaf = new THREE.SphereGeometry(0.07, 8, 6);
+    leaf.scale(1.5, 0.22, 0.6);
+    leaf.rotateZ(side * 0.65);
+    leaf.translate(side * 0.075, height * 0.42, 0);
+    parts.push(paintGeometry(leaf, LEAF_GREEN));
   }
 
-  for (const part of [stem, centre]) {
-    part.castShadow = false;
-    part.receiveShadow = false;
-  }
-  g.add(stem, petals, centre);
+  const merged = mergeGeometries(parts, false);
+  for (const p of parts) p.dispose();
+  const mesh = new THREE.Mesh(merged ?? parts[0], FLOWER_MAT);
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  g.add(mesh);
   g.position.set(x, placementGround(x, z), z);
   g.rotation.y = Math.random() * Math.PI * 2;
   return g;
