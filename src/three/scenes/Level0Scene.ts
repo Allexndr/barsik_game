@@ -12,6 +12,7 @@ import {
 import { AudioManager } from '@/audio/AudioManager';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeAmbientCritters } from '../s1Place';
+import { createRiverWater, type RiverWater } from '../RiverWater';
 import { CAST_PROP_GLB } from '../castModels';
 import {
   buildYurtInterior,
@@ -337,6 +338,7 @@ export class Level0Scene extends BaseLevelScene {
   private stones: THREE.Object3D[] = [];
   /** Surface height of the river, derived from the banks the terrain built. */
   private waterY = 0;
+  private river: RiverWater | null = null;
 
   // ── The second location ──────────────────────────────────────
   private interior: YurtInterior | null = null;
@@ -365,7 +367,6 @@ export class Level0Scene extends BaseLevelScene {
   private kuiPlayI = -1;
   private kuiNextNoteAt = 0;
   private kuiListening = true;
-  private water: THREE.Mesh | null = null;
   private wetUntil = 0;
   private crossed = false;
 
@@ -669,21 +670,21 @@ export class Level0Scene extends BaseLevelScene {
       { size: 1.25 },
     );
 
-    const streamMat = new THREE.MeshStandardMaterial({
-      color: 0x2aa8d8, roughness: 0.25, metalness: 0,
-      transparent: true, opacity: 0.82,
-    });
     // Wide enough to run past the treeline. Where the ground rises above the
     // water line the terrain simply hides the plane, so the shore draws
     // itself and there is no strip of grass sitting inside the river.
-    const water = new THREE.Mesh(
-      new THREE.PlaneGeometry(38, Math.abs(CROSSING_TO - CROSSING_FROM) + 12, 16, 34),
-      streamMat,
-    );
-    water.rotation.x = -Math.PI / 2;
-    water.position.set(routeX(midZ), waterY, midZ);
-    this.scene.add(water);
-    this.water = water;
+    //
+    // The stones are passed in so the water knows something is standing in
+    // it: twelve cylinders in a mirror-flat sheet look painted on.
+    this.river = createRiverWater({
+      width: 38,
+      length: Math.abs(CROSSING_TO - CROSSING_FROM) + 12,
+      centre: { x: routeX(midZ), z: midZ },
+      y: waterY,
+      bedAt: (x, z) => this.groundHeightAt(x, z),
+      obstacles: STONES.map((s) => ({ x: routeX(s.z) + s.x, z: s.z, r: STONE_R })),
+    });
+    this.scene.add(this.river.mesh);
 
     // Top surface, a little proud of the water so it reads as dry.
     const topY = waterY + 0.3;
@@ -1306,13 +1307,9 @@ export class Level0Scene extends BaseLevelScene {
     }
 
     // ── The stream ───────────────────────────────────────────────
-    if (this.water) {
-      const pos = this.water.geometry.getAttribute('position') as THREE.BufferAttribute;
-      for (let i = 0; i < pos.count; i++) {
-        pos.setZ(i, Math.sin(now * 0.0016 + pos.getX(i) * 0.6) * 0.06);
-      }
-      pos.needsUpdate = true;
-    }
+    // One uniform. This used to rewrite 595 vertex positions in JavaScript
+    // on every frame to make a single sine ripple.
+    this.river?.update(now * 0.001);
     // ── The crossing ─────────────────────────────────────────────
     if (this.phase === 'crossing') {
       const h = this.hero.position;
