@@ -1553,11 +1553,36 @@ export abstract class BaseLevelScene {
    * step around, tall behind so nothing shows over the top. The result is a
    * corridor that opens into clearings — a linear level, not a plain.
    */
+  /**
+   * Close a level in without having to say where it ends.
+   *
+   * The z range is taken from the rooms the level already reserved, which is
+   * by definition everything it has anything in. Levels differ enough that
+   * hand-writing a range in each one means eight slightly different ranges
+   * that drift the moment a beat moves; this one cannot go stale.
+   *
+   * Call it last, after the corridor and every `reserve`.
+   */
+  protected async encloseLevel(loader: GLTFLoader, pad = 8) {
+    // Planting five hundred trees for a level React discarded two seconds ago
+    // is the single most expensive thing an abandoned `init` still does, and
+    // switching levels does it every time.
+    if (this.disposed) return;
+    if (!this.pathCorridor || this.reserved.length === 0) return;
+    let zMin = Infinity;
+    let zMax = -Infinity;
+    for (const room of this.reserved) {
+      zMin = Math.min(zMin, room.z - room.r);
+      zMax = Math.max(zMax, room.z + room.r);
+    }
+    await this.encloseWithForest(loader, { zFrom: zMin - pad, zTo: zMax + pad });
+  }
+
   protected async encloseWithForest(
     loader: GLTFLoader,
     opts: { zFrom: number; zTo: number; rows?: number; step?: number },
   ) {
-    if (!this.pathCorridor) return;
+    if (!this.pathCorridor || this.disposed) return;
     const { zFrom, zTo, rows = 4, step = 3.2 } = opts;
     const kit = this.assetKit(loader);
     const near = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
