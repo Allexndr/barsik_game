@@ -299,6 +299,17 @@
   pointer-events: none;
 }
 
+/* The blackout between the two locations. Above every other layer on
+   purpose: a transition that lets the HUD show through is a transition the
+   player can see past. */
+.m0-blackout {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: #0b0a12;
+  pointer-events: none;
+}
+
 /* Jump. Bottom-right under the thumb, clear of the action button above it,
    and big enough for a five-year-old's aim (72px against the 44px floor). */
 .m0-jump {

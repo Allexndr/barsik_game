@@ -13,6 +13,14 @@ import { AudioManager } from '@/audio/AudioManager';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeAmbientCritters } from '../s1Place';
 import { CAST_PROP_GLB } from '../castModels';
+import {
+  buildYurtInterior,
+  buildAnswerPads,
+  YURT_INSIDE,
+  INSIDE_R,
+  roofHeightAt,
+  type YurtInterior,
+} from './level0/yurtInterior';
 
 /**
  * Level 0 «Тропа домбры» — the first three minutes of the game.
@@ -163,6 +171,10 @@ export type L0Phase =
   | 'lanterns'
   | 'crossing'
   | 'mend'
+  /** Walk to the door. The last beat outdoors. */
+  | 'enter'
+  /** The second location: inside the yurt, playing the kui back. */
+  | 'inside'
   | 'song'
   | 'outro';
 
@@ -174,6 +186,16 @@ export interface L0Hud extends BaseHud {
   /** 0…1, how close the dombra sounds. Drives the HUD's listening meter. */
   nearness: number;
   wet: boolean;
+  /** 0…1 blackout, driven by the scene so the two locations never cross-fade. */
+  fade: number;
+  /** Which round of the kui, and how many there are. */
+  kuiRound: number;
+  kuiTotal: number;
+  /** True while the dombra is playing the phrase — the player should listen, not press. */
+  kuiListening: boolean;
+  /** How much of the current phrase has been echoed back correctly. */
+  kuiEchoed: number;
+  kuiLength: number;
 }
 
 /**
@@ -315,6 +337,34 @@ export class Level0Scene extends BaseLevelScene {
   private stones: THREE.Object3D[] = [];
   /** Surface height of the river, derived from the banks the terrain built. */
   private waterY = 0;
+
+  // ── The second location ──────────────────────────────────────
+  private interior: YurtInterior | null = null;
+  private pads: THREE.Group[] = [];
+  /** True once the hero has been moved into the yurt. Switches ground, bounds and camera. */
+  private insideYurt = false;
+  /** 0 clear, 1 black. The transition is a blackout, never a cross-fade. */
+  private fade = 0;
+  private fadeTo = 0;
+  /** Set while the blackout is deep enough to move the hero without it being seen. */
+  private pendingTeleport: (() => void) | null = null;
+
+  /**
+   * The kui, as call and response.
+   *
+   * Three rounds of two, three and four notes. The dombra plays the phrase,
+   * the strings light in order, and the player answers on the three pads. A
+   * wrong pad is not a failure — the phrase is simply played again from the
+   * start, which is what a teacher does.
+   */
+  private kuiRounds = [2, 3, 4];
+  private kuiRound = 0;
+  private kuiPhrase: number[] = [];
+  private kuiEchoed = 0;
+  /** Index into the phrase while the dombra is playing it; -1 when listening is over. */
+  private kuiPlayI = -1;
+  private kuiNextNoteAt = 0;
+  private kuiListening = true;
   private water: THREE.Mesh | null = null;
   private wetUntil = 0;
   private crossed = false;
@@ -338,6 +388,46 @@ export class Level0Scene extends BaseLevelScene {
     // First step taken: that is the whole of beat one's teaching, so the
     // level moves on the moment it happens rather than after a timer.
     if (this.phase === 'follow') this.pushHud();
+  }
+
+  /**
+   * Inside, the room is the boundary — a circle, not a corridor with rooms
+   * along it. Overridden rather than reserved so the outdoor play area is
+   * untouched and cannot leak a path two hundred metres north.
+   */
+  protected clampToPlayArea(x: number, z: number): { x: number; z: number } {
+    if (!this.insideYurt) return super.clampToPlayArea(x, z);
+    const dx = x - YURT_INSIDE.x;
+    const dz = z - YURT_INSIDE.z;
+    const d = Math.hypot(dx, dz);
+    const r = INSIDE_R - 1.1;
+    if (d <= r) return { x, z };
+    return { x: YURT_INSIDE.x + (dx / d) * r, z: YURT_INSIDE.z + (dz / d) * r };
+  }
+
+  /**
+   * Hold the camera inside the felt and under the roof.
+   *
+   * Both bounds are needed and the second one is the one that bites. Pulling
+   * the camera inside the wall is obvious; what is not is that the roof poles
+   * slope down to meet that wall, so the closer to the wall the camera is
+   * pushed, the lower it has to be. Getting only the first right put a roof
+   * pole directly across the lens and filled the screen with brown.
+   */
+  private keepCameraInsideYurt() {
+    const p = this.camera.position;
+    const dx = p.x - YURT_INSIDE.x;
+    const dz = p.z - YURT_INSIDE.z;
+    let d = Math.hypot(dx, dz);
+    const maxR = INSIDE_R - 0.9;
+    if (d > maxR) {
+      const k = maxR / d;
+      p.x = YURT_INSIDE.x + dx * k;
+      p.z = YURT_INSIDE.z + dz * k;
+      d = maxR;
+    }
+    const ceiling = roofHeightAt(d) - 0.5;
+    if (p.y > ceiling) p.y = Math.max(2.0, ceiling);
   }
 
   tryInteract() {
@@ -371,14 +461,87 @@ export class Level0Scene extends BaseLevelScene {
       this.spawnSparks(t.position, 12, [0xe9e2d2, 0xc4462f]);
       this.praiseUntil = now + 900;
       if (this.pegsDone >= this.pegsTotal) {
-        this.phase = 'song';
+        // The felt is mended, so the gardener opens the door. The level's
+        // second half is somewhere else.
+        this.phase = 'enter';
         this.stars += 5;
-        this.nextAt = now + 4200;
-        AudioManager.sfx('levelComplete');
+        AudioManager.sfx('found');
         this.spawnSparks(this.gardener?.position ?? this.hero.position, 26, [0xf0d24a, 0x5fbf7a]);
       }
       this.pushHud();
+      return;
     }
+
+    // ── Inside: answering the kui ────────────────────────────────
+    if (this.phase === 'inside' && t.userData.isStringPad) {
+      if (this.kuiListening) return; // still being played to; pressing does nothing
+      this.pressPad(t.userData.index as number, now);
+    }
+  }
+
+  /**
+   * One answer on one pad.
+   *
+   * Right notes accumulate. A wrong note costs nothing at all — no stars, no
+   * lives, no restart of the round — the phrase is simply played again, which
+   * is what happens when a child gets it wrong in front of someone teaching
+   * them. The only thing a mistake costs is the few seconds of hearing it.
+   */
+  private pressPad(index: number, now: number) {
+    const want = this.kuiPhrase[this.kuiEchoed];
+    this.flashString(index, 1);
+
+    if (index === want) {
+      this.kuiEchoed += 1;
+      AudioManager.sfx('collect');
+      if (this.kuiEchoed >= this.kuiPhrase.length) {
+        this.stars += 4;
+        this.kuiRound += 1;
+        this.praiseUntil = now + 1400;
+        AudioManager.sfx('sparkle');
+        this.spawnSparks(
+          new THREE.Vector3(YURT_INSIDE.x, 1.6, YURT_INSIDE.z - 3.0),
+          22,
+          [0xf0d24a, 0x5fbf7a],
+        );
+        if (this.kuiRound >= this.kuiRounds.length) {
+          // The melody is whole. The song happens here, in the room it was
+          // learned in, rather than back out on the grass.
+          this.phase = 'song';
+          this.stars += 6;
+          this.nextAt = now + 5200;
+          AudioManager.sfx('levelComplete');
+        } else {
+          this.startKuiRound(now + 900);
+        }
+      }
+    } else {
+      // Wrong note: a soft "not that one", then the phrase again.
+      AudioManager.sfx('stumble');
+      this.startKuiRound(now + 700);
+    }
+    this.pushHud();
+  }
+
+  /** Deal a fresh phrase for the current round and start playing it. */
+  private startKuiRound(atMs: number) {
+    const len = this.kuiRounds[Math.min(this.kuiRound, this.kuiRounds.length - 1)];
+    // Re-dealt on every attempt rather than kept, so a child who missed the
+    // fourth note is not made to sit through the same phrase until they get
+    // it — and so nobody can beat it by memorising one answer.
+    this.kuiPhrase = Array.from({ length: len }, () => Math.floor(Math.random() * 3));
+    this.kuiEchoed = 0;
+    this.kuiPlayI = 0;
+    this.kuiListening = true;
+    this.kuiNextNoteAt = atMs;
+  }
+
+  /** Light a string and its pad for a moment. `strength` 1 is a full pluck. */
+  private flashString(index: number, strength: number) {
+    const s = this.interior?.strings[index];
+    if (s) s.userData.lit = strength;
+    const pad = this.pads[index];
+    if (pad) pad.userData.lit = strength;
   }
 
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: L0Hud) => void) {
@@ -638,6 +801,28 @@ export class Level0Scene extends BaseLevelScene {
     // level reserved and hug the outside of both.
     await this.encloseWithForest(loader, { zFrom: YURT.z - 8, zTo: SPAWN_Z + 4 });
 
+    // ── The second location ──────────────────────────────────────
+    // Built two hundred metres out, well past the terrain's own extent and
+    // past the fog, so there is no angle from which one location can see the
+    // other. It costs nothing to leave it in the scene: it is a single group,
+    // never in the camera frustum until the hero is standing in it.
+    const interior = buildYurtInterior();
+    this.interior = interior;
+    this.scene.add(interior.root);
+    // The pads sit in an arc in front of the instrument.
+    this.pads = buildAnswerPads();
+    for (const pad of this.pads) {
+      const i = pad.userData.index as number;
+      pad.position.set(YURT_INSIDE.x + (i - 1) * 2.7, 0, YURT_INSIDE.z - 2.2);
+      this.scene.add(pad);
+    }
+
+    // Inside, the floor is flat and at zero. Wrapping the sampler rather than
+    // giving the interior its own terrain keeps every height-aware system —
+    // movement, the jump, prop grounding — working in both places unchanged.
+    const outdoorHeight = this.groundHeightAt;
+    this.groundHeightAt = (x, z) => (this.insideYurt ? 0 : outdoorHeight(x, z));
+
     const start = this.devStart() ?? { x: 0, z: SPAWN_Z };
     this.hero.position.set(start.x, this.groundHeightAt(start.x, start.z), start.z);
     this.scene.add(this.hero);
@@ -814,13 +999,40 @@ export class Level0Scene extends BaseLevelScene {
         `⛺ Колышки: ${this.pegsDone}/${this.pegsTotal}`,
         `⛺ Қазықтар: ${this.pegsDone}/${this.pegsTotal}`,
       );
+    } else if (p === 'enter') {
+      speaker = this.copy('Бағбан', 'Бағбан');
+      line = this.copy(
+        'Спасибо. Заходи в юрту — там тепло, и там я тебе кое-что покажу.',
+        'Рақмет. Киіз үйге кір — онда жылы, саған бірдеңе көрсетемін.',
+      );
+      objective = this.copy('🚪 Войди в юрту', '🚪 Киіз үйге кір');
+    } else if (p === 'inside') {
+      speaker = this.copy('Бағбан', 'Бағбан');
+      if (this.kuiListening) {
+        line = this.copy(
+          'Слушай. Домбра говорит — а ты повтори.',
+          'Тыңда. Домбыра сөйлейді — сен қайтала.',
+        );
+        objective = this.copy('👂 Слушай мелодию', '👂 Әуенді тыңда');
+      } else {
+        line = performance.now() < this.praiseUntil
+          ? this.copy('Так! Ещё раз, длиннее.', 'Дәл солай! Тағы да, ұзынырақ.')
+          : this.copy(
+              'Теперь ты. Наступай на круги в том же порядке.',
+              'Енді сен. Дөңгелектерді сол ретпен бас.',
+            );
+        objective = this.copy(
+          `🎵 Повтори: ${this.kuiEchoed}/${this.kuiPhrase.length}`,
+          `🎵 Қайтала: ${this.kuiEchoed}/${this.kuiPhrase.length}`,
+        );
+      }
     } else if (p === 'song') {
       speaker = this.copy('Бағбан', 'Бағбан');
       line = this.copy(
-        'Вот теперь звучит целиком. Струна рвалась от ветра, а ты закрыл ветер.',
-        'Міне, енді толық шырқалды. Ішек желден үзілетін, ал сен желді тоқтаттың.',
+        'Вот теперь кюй звучит целиком — и играешь его ты. Мелодия рвалась не от ветра. Её просто некому было доиграть.',
+        'Міне, енді күй толық шырқалды — оны сен тартып тұрсың. Әуен желден үзілмеген. Оны аяқтайтын адам болмаған.',
       );
-      objective = this.copy('🎶 Домбра играет', '🎶 Домбыра сыңғырлайды');
+      objective = this.copy('🎶 Кюй звучит целиком', '🎶 Күй толық шырқалды');
     } else if (p === 'outro') {
       speaker = this.copy('Бағбан', 'Бағбан');
       line = this.copy(
@@ -841,6 +1053,12 @@ export class Level0Scene extends BaseLevelScene {
       pegsTotal: this.pegsTotal,
       nearness: +this.nearness.toFixed(2),
       wet,
+      fade: +this.fade.toFixed(3),
+      kuiRound: Math.min(this.kuiRound + 1, this.kuiRounds.length),
+      kuiTotal: this.kuiRounds.length,
+      kuiListening: this.kuiListening,
+      kuiEchoed: this.kuiEchoed,
+      kuiLength: this.kuiPhrase.length,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
       showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'follow'),
@@ -872,6 +1090,14 @@ export class Level0Scene extends BaseLevelScene {
         const d = flat(p);
         if (d < bestD) { bestD = d; best = p; }
       }
+    } else if (this.phase === 'inside' && !this.kuiListening) {
+      // The pads are a metre across and two and a half apart, so a generous
+      // reach here still cannot pick the wrong one.
+      bestD = 2.0;
+      for (const p of this.pads) {
+        const d = flat(p);
+        if (d < bestD) { bestD = d; best = p; }
+      }
     }
     return best;
   }
@@ -897,6 +1123,9 @@ export class Level0Scene extends BaseLevelScene {
       const next = this.panels.find((p) => !p.userData.done);
       return next?.position.clone() ?? null;
     }
+    if (this.phase === 'enter') {
+      return new THREE.Vector3(YURT.x, 0, YURT.z + 3.6);
+    }
     return null;
   }
 
@@ -918,18 +1147,103 @@ export class Level0Scene extends BaseLevelScene {
       this.pushHud();
     }
 
-    const canMove = !['intro', 'song', 'outro'].includes(this.phase);
-    this.updateMovement(dt, canMove, this.baseSpeed, -26, 26, YURT.z - 10, SPAWN_Z + 3);
+    // ── The doorway ──────────────────────────────────────────────
+    // A blackout, not a cross-fade: for the two locations to stay secret from
+    // each other the screen has to be fully black at the moment the hero
+    // moves. The teleport is deferred to that frame.
+    const fadeWas = this.fade;
+    this.fade += (this.fadeTo - this.fade) * Math.min(1, dt * 7);
+    // The blackout is drawn by the HUD, so it has to be told about it on every
+    // frame it is moving — pushHud otherwise only fires when a beat changes.
+    if (Math.abs(this.fade - fadeWas) > 0.004) this.pushHud();
+    if (this.pendingTeleport && this.fade > 0.96) {
+      this.pendingTeleport();
+      this.pendingTeleport = null;
+      this.fadeTo = 0;
+      this.pushHud();
+    }
+
+    if (this.phase === 'enter' && !this.pendingTeleport && this.fade < 0.02) {
+      const door = new THREE.Vector3(YURT.x, 0, YURT.z + 3.6);
+      if (Math.hypot(this.hero.position.x - door.x, this.hero.position.z - door.z) < 1.9) {
+        this.fadeTo = 1;
+        AudioManager.sfx('whoosh');
+        this.pendingTeleport = () => {
+          this.insideYurt = true;
+          this.phase = 'inside';
+          this.hero.position.set(YURT_INSIDE.x, 0, YURT_INSIDE.z + 7.0);
+          this.hero.rotation.y = Math.PI;
+          this.yaw = Math.PI;
+          this.airborne = false;
+          this.jumpVelocity = 0;
+          this.camera.position.set(YURT_INSIDE.x, 4.2, YURT_INSIDE.z + 12.4);
+          // Snap the aim rather than easing it two hundred metres.
+          this.resetCameraAim();
+          this.kuiRound = 0;
+          this.startKuiRound(performance.now() + 1500);
+          AudioManager.sfx('sparkle');
+        };
+      }
+    }
+
+    // ── The kui ──────────────────────────────────────────────────
+    if (this.phase === 'inside' && this.kuiListening && now >= this.kuiNextNoteAt) {
+      if (this.kuiPlayI < this.kuiPhrase.length) {
+        this.flashString(this.kuiPhrase[this.kuiPlayI], 1);
+        AudioManager.sfx('tick');
+        this.kuiPlayI += 1;
+        this.kuiNextNoteAt = now + 620;
+      } else {
+        this.kuiListening = false;
+        this.kuiPlayI = -1;
+        this.pushHud();
+      }
+    }
+
+    // Strings and pads decay back to dark after each pluck.
+    for (const s of this.interior?.strings ?? []) {
+      const lit = Math.max(0, (s.userData.lit as number) - dt * 2.2);
+      s.userData.lit = lit;
+      ((s.userData.core as THREE.Mesh).material as THREE.MeshStandardMaterial).emissiveIntensity = lit * 1.6;
+      ((s.userData.glow as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = lit * 0.5;
+    }
+    for (const p of this.pads) {
+      const lit = Math.max(0, ((p.userData.lit as number) ?? 0) - dt * 1.7);
+      p.userData.lit = lit;
+      ((p.userData.disc as THREE.Mesh).material as THREE.MeshStandardMaterial).emissiveIntensity =
+        0.06 + lit * 2.4;
+      ((p.userData.halo as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = lit * 0.8;
+      ((p.userData.beam as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = lit * 0.42;
+      const s = 1 + lit * 0.12;
+      p.scale.set(s, 1, s);
+      p.position.y = lit * 0.05;
+    }
+    if (this.interior) {
+      // Firelight breathes; the dust in the shaft turns.
+      this.interior.hearthLight.intensity = 2.4 + Math.sin(now * 0.006) * 0.35;
+      this.interior.motes.rotation.y += dt * 0.06;
+    }
+
+    const canMove = !['intro', 'song', 'outro'].includes(this.phase) && this.fade < 0.5;
+    if (this.insideYurt) {
+      // A closed room needs no corridor: the walls are the bounds, and
+      // `clampToPlayArea` is overridden to a circle while we are in here.
+      this.updateMovement(dt, canMove, this.baseSpeed * 0.92, -60, 60, YURT_INSIDE.z - 60, YURT_INSIDE.z + 60);
+    } else {
+      this.updateMovement(dt, canMove, this.baseSpeed, -26, 26, YURT.z - 10, SPAWN_Z + 3);
+    }
 
     // How close the dombra sounds. This is the level's navigation, so it is
     // computed every frame and fed to the HUD as a meter rather than left as
     // an audio-only cue a child on a muted phone would never get.
     const dz = Math.hypot(this.hero.position.x - YURT.x, this.hero.position.z - YURT.z);
     const span = Math.hypot(YURT.x, SPAWN_Z - YURT.z);
-    this.nearness = Math.max(0, Math.min(1, 1 - dz / span));
-    // A chime whose gap shortens as you close — audible "warmer".
+    this.nearness = this.insideYurt ? 1 : Math.max(0, Math.min(1, 1 - dz / span));
+    // A chime whose gap shortens as you close — audible "warmer". It is the
+    // outdoor navigation and has nothing to say once the walk is over, so it
+    // stops at the door rather than ticking under the mini-game.
     const gap = 2600 - this.nearness * 1700;
-    if (canMove && now - this.lastChime > gap) {
+    if (canMove && !this.insideYurt && this.phase !== 'enter' && now - this.lastChime > gap) {
       this.lastChime = now;
       AudioManager.sfx(this.nearness > 0.6 ? 'sparkle' : 'tick');
     }
@@ -1070,6 +1384,25 @@ export class Level0Scene extends BaseLevelScene {
       const ease = idx === 0 ? 0.35 : idx === 1 ? 0.1 : 0.02;
       this.camera.position.lerp(from[idx], 1 - Math.pow(ease, dt));
       this.camera.lookAt(at[idx]);
+    } else if (this.insideYurt && (this.phase === 'song' || this.phase === 'outro')) {
+      // The closing shot is on the instrument, from across the room.
+      this.updateCamera(
+        new THREE.Vector3(YURT_INSIDE.x + 2.6, 3.8, YURT_INSIDE.z + 2.6),
+        new THREE.Vector3(YURT_INSIDE.x, 2.6, YURT_INSIDE.z - 6.2),
+        0.02,
+        dt,
+      );
+    } else if (this.insideYurt) {
+      // Pulled in and lifted, because the outdoor rig would put the camera
+      // through the felt.
+      const cx = YURT_INSIDE.x + (this.hero.position.x - YURT_INSIDE.x) * 0.6;
+      this.updateCamera(
+        new THREE.Vector3(cx, this.hero.position.y + 4.2, this.hero.position.z + 7.4),
+        new THREE.Vector3(cx, this.hero.position.y + 1.4, this.hero.position.z - 3.2),
+        0.0015,
+        dt,
+      );
+      this.keepCameraInsideYurt();
     } else if (this.phase === 'song' || this.phase === 'outro') {
       const gy = this.groundHeightAt(YURT.x, YURT.z);
       this.updateCamera(
