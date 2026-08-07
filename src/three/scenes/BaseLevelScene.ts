@@ -1018,7 +1018,7 @@ export abstract class BaseLevelScene {
       tipWarmColor: opts.tipWarmColor,
       bladeHeight: opts.bladeHeight,
       heightAt: this.groundHeightAt,
-      exclude: (x, z) => this.isReserved(x, z, 0.4),
+      exclude: (x, z) => this.isReserved(x, z, 0.4) || this.isUnderwater(x, z),
     });
     this.windGrass.push(grass);
     this.scene.add(grass.mesh);
@@ -1061,6 +1061,20 @@ export abstract class BaseLevelScene {
       if (r < 0.28) continue;
       this.colliders.push({ kind: 'circle', x: obj.position.x, z: obj.position.z, r });
     }
+  }
+
+  /**
+   * The level's water line, if it has one. Set it before the scatter runs and
+   * grass, flowers and critters stop growing on the river bed.
+   *
+   * Reserved rooms used to be the only exclusion, which was enough while the
+   * water was a narrow ribbon inside them. A river that reaches the treeline
+   * is mostly *outside* every room, so tufts of grass came up through it.
+   */
+  protected waterLineY: number | null = null;
+
+  protected isUnderwater(x: number, z: number) {
+    return this.waterLineY !== null && this.groundHeightAt(x, z) < this.waterLineY;
   }
 
   /** Sit an object on the sculpted ground rather than on y=0. */
@@ -1569,6 +1583,10 @@ export abstract class BaseLevelScene {
           const x = edge + sign * out;
           const jz = z + (Math.random() - 0.5) * step;
           if (this.isReserved(x, jz, 0.8)) continue;
+          // A wall of forest is still a wall of trees, and trees do not grow
+          // in a river. Where the water reaches the treeline the water is the
+          // wall instead.
+          if (this.isUnderwater(x, jz)) continue;
           const names = row === 0 ? near : row === 1 ? mid : far;
           const height = row === 0
             ? 2.6 + Math.random() * 1.0
@@ -1801,7 +1819,7 @@ export abstract class BaseLevelScene {
       if (e.code === 'Space') {
         e.preventDefault();
         if (this.interactTarget) this.tryInteract();
-        else this.tryJump();
+        else this.jump();
       }
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         e.preventDefault();
@@ -1891,6 +1909,72 @@ export abstract class BaseLevelScene {
    */
   protected corridorSlack = 2.4;
 
+  /**
+   * A surface you can stand on that is not the terrain.
+   *
+   * The height system knew about exactly one thing: `groundHeightAt`, the
+   * sculpted terrain. Everything else in the world — stepping stones, logs,
+   * ledges — was scenery you walked through. That is survivable in a level
+   * where the ground is the floor, and fatal the moment a level asks you to
+   * jump *onto* something: the crossing's stones stood in a dug channel, so
+   * the hero's feet tracked the riverbed and sank straight through them.
+   *
+   * `obj` is read live rather than copied, so a platform that moves carries
+   * whatever is standing on it. That is what makes the sinking stones work at
+   * all — the hero rides them down instead of hovering where they used to be.
+   */
+  protected platforms: Array<{ obj: THREE.Object3D; radius: number; top: number }> = [];
+
+  /** Register a standable surface. `top` is the surface height above obj.position.y. */
+  protected addPlatform(obj: THREE.Object3D, radius: number, top: number) {
+    this.platforms.push({ obj, radius, top });
+  }
+
+  /**
+   * What the hero can stand on at (x, z), coming from height `fromY`.
+   *
+   * `fromY` is the sweep: a platform only counts if the hero is at or above
+   * its top. Without that you could be lifted onto a stone by swimming into
+   * its side, and — worse — a stone would act as a ceiling-less elevator for
+   * anything walking past below it.
+   *
+   * Callers pass the height *before* this frame's fall, not after, so a
+   * platform is still caught when a slow frame drops the hero clean past it.
+   * A 30 m/s frame spike is the difference between landing and drowning.
+   */
+  protected standHeightAt(x: number, z: number, fromY: number): number {
+    let h = this.groundHeightAt(x, z);
+    for (const p of this.platforms) {
+      const o = p.obj;
+      const top = o.position.y + p.top;
+      if (top <= h) continue;
+      if (fromY < top - 0.05) continue;
+      if (Math.hypot(x - o.position.x, z - o.position.z) > p.radius) continue;
+      h = top;
+    }
+    return h;
+  }
+
+  /** True when the hero is standing on `obj` rather than beside or under it. */
+  protected isStandingOn(obj: THREE.Object3D): boolean {
+    const p = this.platforms.find((q) => q.obj === obj);
+    if (!p) return false;
+    const h = this.hero.position;
+    if (Math.hypot(h.x - obj.position.x, h.z - obj.position.z) > p.radius) return false;
+    return Math.abs(h.y - (obj.position.y + p.top)) < 0.35;
+  }
+
+  /**
+   * A drop this deep is a fall, not a slope.
+   *
+   * Walking off a stone used to ease the hero down at dt*12, which floats you
+   * gently into the water like a balloon. Handing the height back to gravity
+   * costs nothing on terrain — the sculpted basins and mounds never fall this
+   * fast across one frame of travel — and makes stepping off an edge read as
+   * stepping off an edge.
+   */
+  protected readonly ledgeFallDrop = 0.55;
+
   protected updateMovement(dt: number, canMove: boolean, speed: number, clampMin = -45, clampMax = 45, zMin = -50, zMax = 15) {
     const d = this.dir();
     const moving = canMove && d.lengthSq() > 0.01;
@@ -1927,13 +2011,6 @@ export abstract class BaseLevelScene {
       const fixed = resolveCollisions(nx, nz, this.colliders);
       this.hero.position.x = fixed.x;
       this.hero.position.z = fixed.z;
-      // Ride the sculpted ground. Eased rather than snapped so crossing a
-      // ridge does not pop the camera, which tracks hero.y. Skipped mid-jump,
-      // where the arc owns the height.
-      if (!this.airborne) {
-        const groundHeight = this.groundHeightAt(fixed.x, fixed.z);
-        this.hero.position.y += (groundHeight - this.hero.position.y) * Math.min(1, dt * 12);
-      }
       this.yaw = Math.atan2(d.x, d.y);
       this.hero.rotation.y = this.yaw;
       if (!this.walking) {
@@ -1946,14 +2023,72 @@ export abstract class BaseLevelScene {
       this.walkAction?.fadeOut(0.15);
       this.idleAction?.reset().fadeIn(0.15).play();
     }
+
+    // Height is settled every frame, not only while moving. A platform can
+    // move out from under a hero who is standing perfectly still — which is
+    // precisely what the sinking stones do, and standing still is exactly
+    // when a child does it.
+    //
+    // Eased rather than snapped so crossing a ridge does not pop the camera,
+    // which tracks hero.y. Skipped mid-jump, where the arc owns the height.
+    if (!this.airborne) {
+      const h = this.hero.position;
+      const terrain = this.groundHeightAt(h.x, h.z);
+      const stand = this.standHeightAt(h.x, h.z, h.y);
+      const onPlatform = stand > terrain + 0.01;
+      if (this.groundedOnPlatform && !onPlatform && h.y - stand > this.ledgeFallDrop) {
+        // Walked off a platform. Gravity owns it from here.
+        this.airborne = true;
+        this.jumpVelocity = 0;
+      } else {
+        h.y += (stand - h.y) * Math.min(1, dt * 12);
+        this.lastGroundedAt = now;
+      }
+      this.groundedOnPlatform = onPlatform;
+    }
     return { moving, d };
   }
 
+  /** Whether the hero's last grounded frame was on a platform rather than terrain. */
+  private groundedOnPlatform = false;
+
+  /**
+   * Public jump, for an on-screen button. Space reaches `tryJump` through the
+   * key handler; a phone has no Space, and the crossing is unplayable without
+   * one.
+   */
+  jump() {
+    this.jumpRequestedAt = performance.now();
+    this.tryJump();
+  }
+
+  /** When the hero was last on something solid — the coyote-time reference. */
+  private lastGroundedAt = 0;
+  private jumpRequestedAt = -1e9;
+  /**
+   * Grace either side of a jump, both in milliseconds.
+   *
+   * `coyoteMs` keeps the jump alive for a moment after walking off an edge,
+   * and `bufferMs` remembers a press made just before landing. Neither makes
+   * the jump longer; they forgive the two mistakes a child actually makes,
+   * which is pressing slightly late and pressing slightly early.
+   */
+  protected readonly coyoteMs = 190;
+  protected readonly bufferMs = 220;
+
   /** Hop. Ignored in the air, so holding the key cannot climb. */
   protected tryJump() {
-    if (this.airborne || this.paused) return;
+    if (this.paused) return;
+    if (this.airborne) {
+      // Coyote time: only on the way down, and only just after leaving solid
+      // ground, so this can never become a double jump.
+      const late = performance.now() - this.lastGroundedAt;
+      if (this.jumpVelocity > 0 || late > this.coyoteMs) return;
+    }
     this.airborne = true;
     this.jumpVelocity = this.jumpSpeed;
+    this.lastGroundedAt = -1e9;
+    this.jumpRequestedAt = -1e9;
     AudioManager.sfx('whoosh');
   }
 
@@ -1965,13 +2100,24 @@ export abstract class BaseLevelScene {
    */
   protected updateJump(dt: number) {
     if (!this.airborne) return;
+    const prevY = this.hero.position.y;
     this.jumpVelocity -= this.gravity * dt;
     this.hero.position.y += this.jumpVelocity * dt;
-    const ground = this.groundHeightAt(this.hero.position.x, this.hero.position.z);
+    // Swept against the height the hero came *from*, so a stone still catches
+    // a fall that a slow frame dropped clean past its top.
+    const ground = this.standHeightAt(this.hero.position.x, this.hero.position.z, prevY);
     if (this.hero.position.y <= ground) {
       this.hero.position.y = ground;
       this.jumpVelocity = 0;
       this.airborne = false;
+      this.lastGroundedAt = performance.now();
+      this.groundedOnPlatform = ground > this.groundHeightAt(this.hero.position.x, this.hero.position.z) + 0.01;
+      // A press made just before touching down still counts, so a hurried
+      // child chains hops instead of stopping dead on every stone.
+      if (this.lastGroundedAt - this.jumpRequestedAt < this.bufferMs) {
+        this.tryJump();
+        return;
+      }
       AudioManager.sfx(
         this.footstepSurface === 'snow' ? 'stepSnow'
           : this.footstepSurface === 'stone' ? 'stepStone' : 'stepGrass',

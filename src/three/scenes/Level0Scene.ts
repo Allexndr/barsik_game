@@ -109,21 +109,45 @@ const LANTERNS: Array<{ x: number; z: number; rotZ: number }> = [
  * loses nothing but the hop.
  */
 const CROSSING_FROM = -14;
-const CROSSING_TO = -44;
+// Ends well short of the yurt. At -44 the far shore came out a metre from the
+// door, so there was no bank to land on — you crossed a river straight into a
+// wall of felt. The beach between is where the level lets you breathe.
+const CROSSING_TO = -40;
 
+/** Pad radius. Wide on purpose: a five-year-old aims for the stone, not for a point. */
+const STONE_R = 1.35;
+
+/**
+ * Laid out by marching an S-curve at a fixed *chord* — every hop is 3.30 m
+ * centre to centre, so no stone is harder than any other.
+ *
+ * The first version was hand-typed, and two of its gaps (4.36 m and 4.32 m)
+ * were beyond the hero's reach entirely: a 5.4 m/s jump under 12.2 m/s²
+ * gravity is 0.885 s of air, which at walking speed carries 2.83 m. Nobody
+ * could have crossed it. Spacing is generated and checked now — see
+ * `assertCrossingIsJumpable`.
+ *
+ * With a 1.35 m pad at each end, the real ask is 3.10 − 1.35 = 1.75 m against
+ * 2.83 m of reach: 62% of margin, and 0.40 m of open water still shows
+ * between pads, so it reads as a jump rather than a walkway.
+ */
 const STONES: Array<{ x: number; z: number; sink?: boolean }> = [
-  { x: 0.0, z: -16.0 },
-  { x: 2.6, z: -18.4 },
-  { x: 0.4, z: -20.9, sink: true },
-  { x: -2.8, z: -23.0 },
-  { x: -0.6, z: -25.6 },
-  { x: 2.9, z: -27.8, sink: true },
-  { x: 0.8, z: -30.4 },
-  { x: -2.6, z: -32.6 },
-  { x: -0.2, z: -35.2, sink: true },
-  { x: 3.1, z: -37.4 },
-  { x: 0.6, z: -39.9 },
-  { x: -2.2, z: -42.2 },
+  // Pulled in to the shore so the first hop is the easiest one, not the
+  // hardest: at z −16 the step off the bank was 2.44 m of the 2.83 m reach.
+  { x: 1.25, z: -15.2 },
+  { x: 2.24, z: -18.1 },
+  { x: 0.18, z: -20.5 },
+  { x: -2.57, z: -22.1, sink: true },
+  { x: -0.15, z: -23.9 },
+  { x: 2.33, z: -25.5 },
+  { x: -0.24, z: -27.5, sink: true },
+  { x: -1.16, z: -30.6 },
+  { x: 1.21, z: -32.2 },
+  { x: -0.33, z: -35.2, sink: true },
+  { x: -0.06, z: -38.1 },
+  // The exit stone, placed against the shore the terrain actually built
+  // rather than against CROSSING_TO. Without it the last hop was 3.60 m.
+  { x: 1.5, z: -40.4 },
 ];
 
 /** Loose felt panels round the yurt. Three, spread so mending is a lap. */
@@ -289,6 +313,8 @@ export class Level0Scene extends BaseLevelScene {
   private readonly lanternsTotal = 3;
 
   private stones: THREE.Object3D[] = [];
+  /** Surface height of the river, derived from the banks the terrain built. */
+  private waterY = 0;
   private water: THREE.Mesh | null = null;
   private wetUntil = 0;
   private crossed = false;
@@ -376,60 +402,90 @@ export class Level0Scene extends BaseLevelScene {
         features: [
           { kind: 'flat', x: 0, z: SPAWN_Z - 3, r: 8 },
           { kind: 'flat', x: YURT.x, z: YURT.z, r: 9 },
-          // The stream bed. A `flat` feature levels the ground but does not
-          // dig, so the first pass put the water below the terrain and the
-          // stepping stones on dry grass — a river crossing with no river.
-          // `basin` is the one that carves.
-          // A channel, not a puddle: overlapping basins down the length of
-          // the crossing, so the water runs the whole thirty metres.
-          ...Array.from({ length: 9 }, (_, i) => {
-            const z = CROSSING_FROM - (i / 8) * (CROSSING_FROM - CROSSING_TO);
-            return { kind: 'basin' as const, x: routeX(z), z, r: 7.5, depth: 3.0 };
-          }),
+          // The river bed, bank to bank.
+          //
+          // Two earlier attempts got this wrong. `flat` levels but does not
+          // dig, so the water sat below the ground and the stones stood on
+          // grass. Then basins dug — but basins are applied *before* the path
+          // corridor is carved, and that carve scales the height by 0.08 on
+          // the centre line, filling a 3 m basin back in to half a metre. The
+          // result was a shallow ribbon of water with dry land either side,
+          // which is the "why is there ground here" you can see in the shot.
+          //
+          // A trench is applied after the corridor and spans the full width
+          // the player can reach, so during the crossing there is nowhere to
+          // stand but the stones.
+          {
+            kind: 'trench' as const,
+            x: routeX((CROSSING_FROM + CROSSING_TO) / 2),
+            z: (CROSSING_FROM + CROSSING_TO) / 2,
+            halfW: 15,
+            halfD: Math.abs(CROSSING_TO - CROSSING_FROM) / 2,
+            depth: 2.6,
+          },
         ],
       },
     });
 
     this.reserve(0, SPAWN_Z, 5);
     this.reserve(YURT.x, YURT.z, 8);
-    for (let i = 0; i <= 8; i++) {
-      const z = CROSSING_FROM - (i / 8) * (CROSSING_FROM - CROSSING_TO);
-      this.reserve(routeX(z), z, 6.5);
+    // The whole river, not a ribbon down the middle of it. `reserve` is what
+    // keeps decoration out, and at r = 6.5 it covered a fraction of a bed
+    // that is thirty metres across — so grass, bushes and trees came up
+    // through the water either side of the stones.
+    for (let i = 0; i <= 10; i++) {
+      const z = CROSSING_FROM - (i / 10) * (CROSSING_FROM - CROSSING_TO);
+      this.reserve(routeX(z), z, 13);
     }
     for (const l of LANTERNS) this.reserve(l.x, l.z, 2.5);
     for (const p of PEGS) this.reserve(p.x, p.z, 2);
 
-    const pad = spawnPad(0, SPAWN_Z);
-    this.scene.add(pad);
-
-    await this.layTrail(
-      loader,
-      Array.from({ length: 26 }, (_, i) => {
-        const z = SPAWN_Z - (i / 25) * (SPAWN_Z - YURT.z - 5);
-        return { x: routeX(z), z };
-      }),
-      { size: 1.25 },
-    );
-
-    // ── The stream ────────────────────────────────────────────────
-    const streamMat = new THREE.MeshStandardMaterial({
-      color: 0x2aa8d8, roughness: 0.25, metalness: 0,
-      transparent: true, opacity: 0.82,
-    });
-    // The water line is derived from the terrain that actually got built, not
-    // from a constant. The first attempt hard-coded bed + 0.62 and the stream
-    // came out *above* the near bank — a river flooding the meadow. Sampling
-    // both banks and sitting partway between them cannot do that, whatever
-    // the basin generator decides to produce.
+    // ── The water line ───────────────────────────────────────────
+    // Derived from the terrain that actually got built, not from a constant.
+    // The first attempt hard-coded bed + 0.62 and the stream came out *above*
+    // the near bank — a river flooding the meadow. Sampling both banks and
+    // sitting partway between them cannot do that, whatever the terrain
+    // generator decides to produce.
+    //
+    // Computed here rather than with the water mesh, because everything
+    // placed below needs to know where the water is: the trail used to march
+    // straight into the river and lay stepping stones along the bottom of it.
     const midZ = (CROSSING_FROM + CROSSING_TO) / 2;
     const bedY = this.groundHeightAt(routeX(midZ), midZ);
     const bankY = Math.min(
       this.groundHeightAt(routeX(CROSSING_FROM + 4), CROSSING_FROM + 4),
       this.groundHeightAt(routeX(CROSSING_TO - 4), CROSSING_TO - 4),
     );
-    const waterY = bedY + Math.max(0.25, (bankY - bedY) * 0.5);
+    const waterY = bedY + Math.max(0.25, (bankY - bedY) * 0.55);
+    this.waterY = waterY;
+    // Set before the scatter runs, so nothing is planted on the river bed.
+    this.waterLineY = waterY;
+
+    const pad = spawnPad(0, SPAWN_Z);
+    this.scene.add(pad);
+
+    // The trail stops at each bank. It used to be laid at even spacing from
+    // the spawn to the yurt regardless of what was in the way, so a line of
+    // path stones ran along the river bed underwater — which also quietly
+    // told the player the route went straight through.
+    await this.layTrail(
+      loader,
+      Array.from({ length: 26 }, (_, i) => {
+        const z = SPAWN_Z - (i / 25) * (SPAWN_Z - YURT.z - 5);
+        return { x: routeX(z), z };
+      }).filter((p) => !this.isUnderwater(p.x, p.z)),
+      { size: 1.25 },
+    );
+
+    const streamMat = new THREE.MeshStandardMaterial({
+      color: 0x2aa8d8, roughness: 0.25, metalness: 0,
+      transparent: true, opacity: 0.82,
+    });
+    // Wide enough to run past the treeline. Where the ground rises above the
+    // water line the terrain simply hides the plane, so the shore draws
+    // itself and there is no strip of grass sitting inside the river.
     const water = new THREE.Mesh(
-      new THREE.PlaneGeometry(22, Math.abs(CROSSING_TO - CROSSING_FROM) + 10, 12, 30),
+      new THREE.PlaneGeometry(38, Math.abs(CROSSING_TO - CROSSING_FROM) + 12, 16, 34),
       streamMat,
     );
     water.rotation.x = -Math.PI / 2;
@@ -437,23 +493,35 @@ export class Level0Scene extends BaseLevelScene {
     this.scene.add(water);
     this.water = water;
 
+    // Top surface, a little proud of the water so it reads as dry.
+    const topY = waterY + 0.3;
+    // Reaches the bed rather than floating at a constant height: the bed is
+    // sculpted, so a fixed 2 m cylinder hangs in the water at the deep end.
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x9aa3a8, roughness: 0.95 });
     for (const s of STONES) {
-      // Tall enough to stand out of the water with a dry top to land on.
-      // Sunk to the bed, not perched on the surface: a stepping stone that
-      // floats is worse than no stream at all.
-      const h = 2.0;
+      const x = routeX(s.z) + s.x;
+      const bed = this.groundHeightAt(x, s.z);
+      const h = Math.max(1.2, topY - bed + 0.6);
       const stone = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.74, 0.9, h, 9),
-        new THREE.MeshStandardMaterial({ color: 0x9aa3a8, roughness: 0.95 }),
+        new THREE.CylinderGeometry(STONE_R, STONE_R + 0.16, h, 12),
+        stoneMat,
       );
-      stone.position.set(routeX(s.z) + s.x, waterY + 0.28 - h / 2, s.z);
+      stone.position.set(x, topY - h / 2, s.z);
       stone.castShadow = true;
       stone.userData.restY = stone.position.y;
       stone.userData.sink = !!s.sink;
       stone.userData.sunk = 0;
       this.stones.push(stone);
       this.scene.add(stone);
+      // The bit that was missing entirely. Without this the stones are
+      // scenery: height comes from `groundHeightAt`, which knows only the
+      // terrain, so the hero's feet tracked the river bed and sank straight
+      // through every one of them.
+      // The reach is a touch wider than the pad — a child aiming at the edge
+      // gets the stone, not the water.
+      this.addPlatform(stone, STONE_R + 0.25, h / 2);
     }
+    this.assertCrossingIsJumpable(waterY);
 
     // ── Lanterns, lying where the wind put them ───────────────────
     for (const spec of LANTERNS) {
@@ -532,15 +600,24 @@ export class Level0Scene extends BaseLevelScene {
     this.colliders.push({ kind: 'circle', x: YURT.x - 0.9, z: gz + 0.2, r: 1.0 });
 
     // ── Dressing ─────────────────────────────────────────────────
+    // Everything that grows out of soil is filtered against the water line.
+    // These loops walked the route at even spacing from the spawn to the
+    // yurt, which marches straight through the middle of the river — so
+    // bushes and tulips were coming up out of the water either side of the
+    // stepping stones.
     for (let i = 0; i < 24; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = SPAWN_Z - (i / 24) * (SPAWN_Z - YURT.z);
-      this.scene.add(bush(routeX(z) + side * (5.5 + Math.random() * 4), z));
+      const x = routeX(z) + side * (5.5 + Math.random() * 4);
+      if (this.isUnderwater(x, z)) continue;
+      this.scene.add(bush(x, z));
     }
     for (let i = 0; i < 16; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = SPAWN_Z - (i / 16) * (SPAWN_Z - YURT.z);
-      this.scene.add(tulip(routeX(z) + side * 3.6, z, [0xef6b3a, 0xf0d24a, 0xfd79a8][i % 3]));
+      const x = routeX(z) + side * 3.6;
+      if (this.isUnderwater(x, z)) continue;
+      this.scene.add(tulip(x, z, [0xef6b3a, 0xf0d24a, 0xfd79a8][i % 3]));
     }
     for (let i = 0; i < 8; i++) {
       const bf = butterfly(
@@ -553,7 +630,8 @@ export class Level0Scene extends BaseLevelScene {
     }
     await placeAmbientCritters(this.scene, loader, [
       { key: 'squirrel', x: routeX(4) + 6, z: 4, rotY: -1.1, h: 0.85 },
-      { key: 'bird', x: routeX(-30) - 5.5, z: -30, rotY: 0.6, h: 0.5 },
+      // On the far beach, not at z −30, which is now the middle of the river.
+      { key: 'bird', x: routeX(-43) - 4.5, z: -43, rotY: 0.6, h: 0.5 },
     ]);
 
     // The wall. Planted last, so it can read the corridor and every room the
@@ -578,6 +656,83 @@ export class Level0Scene extends BaseLevelScene {
       this.pushHud();
       this.loop();
     });
+  }
+
+  /**
+   * Refuse to ship a crossing the hero cannot make.
+   *
+   * The first crossing had two gaps of 4.36 m and 4.32 m against 2.83 m of
+   * reach — not hard, impossible, and it took a player to find it because
+   * nothing in the build was measuring. A hop that no longer fits should
+   * break the build's console the moment the level loads, not a child's
+   * afternoon.
+   *
+   * Reach is derived from the same constants the jump uses, so tuning the
+   * jump re-checks the level for free.
+   */
+  private assertCrossingIsJumpable(waterY: number) {
+    if (!import.meta.env.DEV) return;
+    const airtime = (2 * this.jumpSpeed) / this.gravity;
+    const reach = this.baseSpeed * airtime;
+
+    // The banks are found by asking the terrain where it comes out of the
+    // water, never by trusting CROSSING_FROM/TO. Those are inputs to the
+    // trench, and the trench feathers over three metres, so the real shore is
+    // a metre or so beyond them — measuring against the constant is how the
+    // exit hop came out "fine" at 2.4 m when it was really 3.0 m and
+    // impossible. And a shore is a line, not a point: the nearest dry ground
+    // may be off to one side, which is a perfectly good place to land.
+    // `dir` is given, not inferred from CROSSING_FROM/TO: the exit stone sits
+    // *past* CROSSING_TO, so inferring the direction sent the scan back up
+    // the river and reported the shore as unreachable at infinity.
+    const nearestDryFrom = (x: number, z: number, dir: 1 | -1) => {
+      let best = Infinity;
+      for (let dz = 0; dz <= 10; dz += 0.2) {
+        for (let ox = -10; ox <= 10; ox += 0.4) {
+          const px = routeX(z + dir * dz) + ox;
+          const pz = z + dir * dz;
+          if (this.groundHeightAt(px, pz) <= waterY + 0.02) continue;
+          if (this.clampToPlayArea(px, pz).x !== px) continue; // must be somewhere you may stand
+          best = Math.min(best, Math.hypot(px - x, pz - z));
+        }
+      }
+      return best;
+    };
+
+    const pads = STONES.map((s) => ({ x: routeX(s.z) + s.x, z: s.z }));
+    const hops: Array<{ what: string; need: number }> = [];
+    // Entry: from the near shore onto the first pad. The pad's radius counts,
+    // the shore's does not.
+    hops.push({ what: 'bank → stone 1', need: nearestDryFrom(pads[0].x, pads[0].z, 1) - STONE_R });
+    for (let i = 1; i < pads.length; i++) {
+      // Take off from the centre of one pad, land on the near lip of the next.
+      // Nobody should have to use the far lip.
+      hops.push({
+        what: `stone ${i} → ${i + 1}`,
+        need: Math.hypot(pads[i].x - pads[i - 1].x, pads[i].z - pads[i - 1].z) - STONE_R,
+      });
+    }
+    const last = pads[pads.length - 1];
+    hops.push({ what: `stone ${pads.length} → bank`, need: nearestDryFrom(last.x, last.z, -1) });
+
+    let worst = { what: '', need: 0 };
+    for (const h of hops) {
+      if (h.need > worst.need) worst = h;
+      if (h.need > reach) {
+        console.error(
+          `[L0] ${h.what} needs ${h.need.toFixed(2)} m but the jump reaches ${reach.toFixed(2)} m — unreachable`,
+        );
+      }
+    }
+    const tops = this.stones.map(
+      (s) => s.position.y + (s as THREE.Mesh<THREE.CylinderGeometry>).geometry.parameters.height / 2,
+    );
+    const wet = tops.filter((t) => t <= waterY + 0.05).length;
+    if (wet) console.error(`[L0] ${wet} stone tops are at or below the water line`);
+    console.info(
+      `[L0] crossing: ${STONES.length} stones, hardest is ${worst.what} at ${worst.need.toFixed(2)} m ` +
+        `of ${reach.toFixed(2)} m reach — ${((reach / worst.need - 1) * 100).toFixed(0)}% margin`,
+    );
   }
 
   /** Fallback lantern if neither GLB is usable — the beat must still work. */
@@ -808,9 +963,10 @@ export class Level0Scene extends BaseLevelScene {
     // ── The crossing ─────────────────────────────────────────────
     if (this.phase === 'crossing') {
       const h = this.hero.position;
-      const standing = this.stones.find(
-        (s) => Math.hypot(h.x - s.position.x, h.z - s.position.z) < 1.0,
-      );
+      // Standing *on* it, not merely near it. The old radius check called a
+      // hero treading water beside a stone "standing", which is how a fall
+      // could go unnoticed.
+      const standing = this.stones.find((s) => this.isStandingOn(s));
 
       // Sinking stones. The only pressure in the level, and deliberately
       // gentle: about a second and a half of standing before it goes under,
@@ -826,7 +982,10 @@ export class Level0Scene extends BaseLevelScene {
       const sunkUnder = standing && (standing.userData.sunk as number) > 0.92;
 
       const inChannel = h.z < CROSSING_FROM + 1.5 && h.z > CROSSING_TO - 1.5;
-      const wet = inChannel && (!standing || sunkUnder) && !this.airborne;
+      // Judged at the water line, not at the river bed. Waiting for the hero
+      // to touch bottom meant a metre of swimming underwater before the
+      // splash — the fall has to answer the moment it is a fall.
+      const wet = inChannel && (!standing || sunkUnder) && h.y < this.waterY + 0.05;
       if (wet && now > this.wetUntil) {
         this.wetUntil = now + 1500;
         AudioManager.sfx('stumble');
