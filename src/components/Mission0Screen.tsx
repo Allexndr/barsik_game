@@ -30,6 +30,12 @@ const emptyHud: L0Hud = {
   pegsTotal: 3,
   nearness: 0,
   wet: false,
+  fade: 0,
+  kuiRound: 1,
+  kuiTotal: 3,
+  kuiListening: true,
+  kuiEchoed: 0,
+  kuiLength: 0,
   stars: 0,
   canInteract: false,
   showMoveHint: false,
@@ -197,13 +203,15 @@ export function Mission0Screen() {
   // One chip that shows whatever the current beat is counting, instead of a
   // bag of apples that only two phases ever filled.
   const beatCount =
-    hud.phase === 'mend' || hud.outro
-      ? `${hud.pegsDone}/${hud.pegsTotal}`
-      : hud.phase === 'lanterns'
-        ? `${hud.lanternsUp}/${hud.lanternsTotal}`
-        // Following the sound: a listening meter, so a child on a muted phone
-        // still gets the "warmer / colder" the level is built on.
-        : `${Math.round(hud.nearness * 100)}%`;
+    hud.phase === 'inside' || hud.phase === 'song'
+      ? `${hud.kuiRound}/${hud.kuiTotal}`
+      : hud.phase === 'mend' || hud.phase === 'enter' || hud.outro
+        ? `${hud.pegsDone}/${hud.pegsTotal}`
+        : hud.phase === 'lanterns'
+          ? `${hud.lanternsUp}/${hud.lanternsTotal}`
+          // Following the sound: a listening meter, so a child on a muted phone
+          // still gets the "warmer / colder" the level is built on.
+          : `${Math.round(hud.nearness * 100)}%`;
 
   return (
     <div className="m0-screen">
@@ -355,6 +363,12 @@ export function Mission0Screen() {
             </PlushButton>
           </div>
         </div>
+      ) : null}
+
+      {/* The doorway. Drawn over everything including the HUD, because the
+          point of it is that the two locations never share a frame. */}
+      {hud.fade > 0.002 ? (
+        <div className="m0-blackout" style={{ opacity: hud.fade }} aria-hidden />
       ) : null}
 
       <SettingsPanel />

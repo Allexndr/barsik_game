@@ -2237,6 +2237,16 @@ export abstract class BaseLevelScene {
   private camLook: THREE.Vector3 | null = null;
 
   /**
+   * Forget where the camera was aiming, so the next frame snaps instead of
+   * sweeping. Needed after a teleport: the aim point eases, and easing it
+   * across two hundred metres would be a long, very visible pan from one
+   * location to the other.
+   */
+  protected resetCameraAim() {
+    this.camLook = null;
+  }
+
+  /**
    * Where the camera should sit sideways, given where the hero is.
    *
    * Fifteen scenes used to write `hero.position.x * 0.3` — follow only thirty
