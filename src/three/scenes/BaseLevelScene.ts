@@ -1511,12 +1511,49 @@ export abstract class BaseLevelScene {
    * Scenes register these before scattering decoration so random props
    * can never block an interaction or hide a quest target.
    */
+  /**
+   * A room: somewhere the player goes, and therefore somewhere nothing is
+   * planted. Widens the play area.
+   */
   protected reserve(x: number, z: number, r: number) {
     this.reserved.push({ x, z, r });
   }
 
+  /**
+   * Somewhere nothing is planted, that the player does *not* go: the inside
+   * of a gorge, the surface of a lake, the footprint of a building.
+   *
+   * `reserve` was carrying both meanings, and the enclosure work made that
+   * ambiguity expensive. Level 4 keeps decoration out of its ravine with two
+   * rows of ten-metre circles spanning x −44..44 — twenty-four of them — and
+   * read as walkable, that turned a level about crossing a bridge into an
+   * eighty-eight-metre-wide field. The gorge is the one place in that level
+   * the player must not be.
+   */
+  protected keepClear(x: number, z: number, r: number) {
+    this.noPlant.push({ x, z, r });
+  }
+
+  private noPlant: Array<{ x: number; z: number; r: number }> = [];
+
+  /**
+   * True where the player may actually stand.
+   *
+   * Not the same question as `isReserved`, and the treeline needs this one.
+   * `isReserved` tests the corridor at `pathCorridorHalf`, while the movement
+   * clamp allows a further `corridorSlack` on top — so a tree could pass the
+   * reserved test and still be standing in the walkable strip. Measured: 16
+   * such trees on level 0, 15 on level 6. They carry no collider, so the
+   * player walks straight through the trunk.
+   */
+  protected isInsidePlayArea(x: number, z: number) {
+    const held = this.clampToPlayArea(x, z);
+    return Math.abs(held.x - x) < 0.01 && Math.abs(held.z - z) < 0.01;
+  }
+
   protected isReserved(x: number, z: number, pad = 0) {
     if (this.pathCorridor && Math.abs(x - this.pathCorridor(z)) < this.pathCorridorHalf + pad) return true;
+    if (this.noPlant.some((zone) => Math.hypot(x - zone.x, z - zone.z) < zone.r + pad)) return true;
     return this.reserved.some((zone) => Math.hypot(x - zone.x, z - zone.z) < zone.r + pad);
   }
 
@@ -1676,11 +1713,29 @@ export abstract class BaseLevelScene {
     const base = this.playPathHalf + this.corridorSlack;
 
     const plantAt = (px: number, pz: number, nx: number, nz: number, sign: number) => {
+      // Step outward until we clear whatever is here, rather than giving up.
+      //
+      // Rooms bulge off the route — level 4's near bank is a fifteen-metre
+      // circle around a three-metre path — and simply skipping a reserved
+      // spot left that whole bank unwalled: forty trees for the level. The
+      // wall has to go round the outside of the room, not stop at it.
+      // Capped, and a failure to clear means plant nothing rather than plant
+      // far away. Beside a gorge the keep-clear strip runs eighty-eight metres
+      // across, and an uncapped probe walked right past the end of the level
+      // to put trees sixty metres out where nobody will ever see them.
+      let start = -1;
+      for (let probe = base + 1.4; probe < base + 20; probe += 1.6) {
+        if (!this.isReserved(px + nx * probe * sign, pz + nz * probe * sign, 0.8)) {
+          start = probe;
+          break;
+        }
+      }
+      if (start < 0) return;
       for (let row = 0; row < rows; row++) {
-        const out = base + 1.4 + row * 2.6 + Math.random() * 1.1;
+        const out = start + row * 2.6 + Math.random() * 1.1;
         const x = px + nx * out * sign;
         const z = pz + nz * out * sign;
-        if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z)) continue;
+        if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z) || this.isInsidePlayArea(x, z)) continue;
         placements.push({
           names: row === 0 ? near : row === 1 ? mid : far,
           x, z,
@@ -1717,7 +1772,7 @@ export abstract class BaseLevelScene {
           const out = 1.6 + row * 2.6 + Math.random();
           const x = end.x + dx * out + -dz * off;
           const z = end.z + dz * out + dx * off;
-          if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z)) continue;
+          if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z) || this.isInsidePlayArea(x, z)) continue;
           placements.push({
             names: row === 0 ? mid : far,
             x, z,
@@ -1752,7 +1807,7 @@ export abstract class BaseLevelScene {
         const rr = radius + Math.random() * 1.1;
         const x = arena.x + Math.sin(a) * rr;
         const z = arena.z + Math.cos(a) * rr;
-        if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z)) continue;
+        if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z) || this.isInsidePlayArea(x, z)) continue;
         placements.push({
           names: row === 0 ? near : row === 1 ? mid : far,
           x, z,
@@ -1827,7 +1882,7 @@ export abstract class BaseLevelScene {
           const out = 1.4 + row * 2.6 + Math.random() * 1.1;
           const x = edge + sign * out;
           const jz = z + (Math.random() - 0.5) * step;
-          if (this.isReserved(x, jz, 0.8)) continue;
+          if (this.isReserved(x, jz, 0.8) || this.isInsidePlayArea(x, jz)) continue;
           // A wall of forest is still a wall of trees, and trees do not grow
           // in a river. Where the water reaches the treeline the water is the
           // wall instead.
@@ -1853,7 +1908,7 @@ export abstract class BaseLevelScene {
       for (let x = left - 4; x <= right + 4; x += 2.8) {
         for (let row = 0; row < 3; row++) {
           const z = endZ + dir * (1.2 + row * 2.6 + Math.random());
-          if (this.isReserved(x, z, 0.8)) continue;
+          if (this.isReserved(x, z, 0.8) || this.isInsidePlayArea(x, z)) continue;
           placements.push({
             names: row === 0 ? mid : far,
             x: x + (Math.random() - 0.5) * 1.6,
