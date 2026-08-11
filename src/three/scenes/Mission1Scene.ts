@@ -77,41 +77,81 @@ const sharedBeamMaterial = new THREE.MeshStandardMaterial({
   depthWrite: false,
 });
 
+/**
+ * A fruit with a stem and a leaf, not a glowing sphere — the ring and beam
+ * already say "quest target"; the mesh itself should say "fruit" on its own,
+ * the way the dombra earlier in the season is built rather than a placeholder
+ * box because it is the one prop a child has to recognise.
+ */
 function makeFruit(pos: THREE.Vector3, kind: string, color = 0xff4757) {
+  const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.45, roughness: 0.28 });
-  const mesh = new THREE.Mesh(sharedFruitGeometry, mat);
-  mesh.position.copy(pos);
-  mesh.castShadow = false;
-  mesh.receiveShadow = false;
-  mesh.userData.kind = kind;
-  mesh.userData.alive = true;
+  const body = new THREE.Mesh(sharedFruitGeometry, mat);
+  body.scale.set(1, 1.12, 1);
+  g.add(body);
+
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.035, 0.17, 6),
+    new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.85 }),
+  );
+  stem.position.y = 0.4;
+  stem.rotation.z = 0.18;
+  g.add(stem);
+
+  const leaf = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1, 8, 6),
+    new THREE.MeshStandardMaterial({ color: 0x5fbf6a, roughness: 0.65 }),
+  );
+  leaf.scale.set(1.7, 0.22, 0.9);
+  leaf.position.set(0.09, 0.42, 0.02);
+  leaf.rotation.y = 0.5;
+  g.add(leaf);
+
+  g.position.copy(pos);
+  g.userData.kind = kind;
+  g.userData.alive = true;
 
   const ring = new THREE.Mesh(sharedRingGeometry, sharedRingMaterial);
   ring.rotation.x = -Math.PI / 2;
   ring.position.set(pos.x, 0.05, pos.z);
-  ring.castShadow = false;
-  ring.receiveShadow = false;
 
   const beam = new THREE.Mesh(sharedBeamGeometry, sharedBeamMaterial);
   beam.position.set(pos.x, 1.4, pos.z);
-  beam.castShadow = false;
-  beam.receiveShadow = false;
 
-  mesh.userData.ring = ring;
-  mesh.userData.beam = beam;
-  return mesh;
+  g.userData.ring = ring;
+  g.userData.beam = beam;
+  return g;
 }
 
-/** Sticky strand hint of Putalo — decorative foreshadow, not a full obstacle yet. */
+/**
+ * Sticky strand hint of Putalo — decorative foreshadow, not a full obstacle
+ * yet. The brief calls these "странно красивые" (strangely beautiful), not a
+ * trap: a flat grey cylinder read as a cage bar. A soft glow and one bead of
+ * dew is the actual image — spider silk in morning light, not a snare.
+ */
 function stickyStrand(x: number, z: number, y: number, len: number, rot: number) {
-  const g = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.02, 0.02, len, 5),
-    new THREE.MeshStandardMaterial({ color: 0xe8e6f5, transparent: true, opacity: 0.65, roughness: 0.3 }),
+  const g = new THREE.Group();
+  const strand = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.014, 0.022, len, 5),
+    new THREE.MeshStandardMaterial({
+      color: 0xf5eeff, emissive: 0xcab8f0, emissiveIntensity: 0.4,
+      transparent: true, opacity: 0.72, roughness: 0.2,
+    }),
   );
+  g.add(strand);
+
+  const dew = new THREE.Mesh(
+    new THREE.SphereGeometry(0.042, 8, 8),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff, emissive: 0xaee3ff, emissiveIntensity: 0.7,
+      transparent: true, opacity: 0.9, roughness: 0.05,
+    }),
+  );
+  dew.position.y = len * 0.24;
+  g.add(dew);
+
   g.position.set(x, y, z);
   g.rotation.z = rot;
-  g.castShadow = false;
-  g.receiveShadow = false;
   return g;
 }
 
@@ -149,8 +189,8 @@ export class Mission1Scene extends BaseLevelScene {
   private bag = 0;
   private pullCount = 0;
   private pullNeed = 3;
-  private fruits: THREE.Mesh[] = [];
-  private stuckFruit: THREE.Mesh | null = null;
+  private fruits: THREE.Object3D[] = [];
+  private stuckFruit: THREE.Object3D | null = null;
   private aya: THREE.Object3D | null = null;
   private ayaMarker: THREE.Group | null = null;
   private stickyGroup: THREE.Group | null = null;
@@ -189,7 +229,7 @@ export class Mission1Scene extends BaseLevelScene {
         this.spawnSparks(strand.getWorldPosition(new THREE.Vector3()), 5);
       }
       if (this.pullCount >= this.pullNeed) {
-        this.takeStuckFruit(t as THREE.Mesh);
+        this.takeStuckFruit(t);
         this.phase = 'find_aya';
         if (this.ayaMarker) this.ayaMarker.visible = true;
         if (this.stickyGroup) this.stickyGroup.visible = false;
@@ -227,7 +267,7 @@ export class Mission1Scene extends BaseLevelScene {
     }
   }
 
-  private takeStuckFruit(mesh: THREE.Mesh) {
+  private takeStuckFruit(mesh: THREE.Object3D) {
     if (!mesh.userData.alive) return;
     mesh.userData.alive = false;
     mesh.visible = false;
