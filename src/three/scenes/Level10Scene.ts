@@ -10,7 +10,6 @@ import {
   bush,
   tulip,
   hill,
-  skyDome,
   loadCharModel,
   loadPropModel,
   placeWoodSign,
@@ -170,9 +169,16 @@ export class Level10Scene extends BaseLevelScene {
     const loader = createGameGltfLoader();
 
     this.camera.position.set(0, 8, 18);
-    await this.setupForestEnvironment(loader, { fogColor: 0x90a4ae, sky: ['#8fb8d8', '#bcd6e6', '#eef4f2'], flatRadius: 20, flatCenterZ: -14 });
-    this.scene.add(skyDome('#5c8a9e', '#8ab8c8', '#d0e8f0'));
-    this.setupClouds(5, 26, 50);
+    await this.setupForestEnvironment(loader, {
+      fogColor: 0x90a4ae,
+      // This was the second dome's palette.  Keeping it in the shared setup
+      // preserves the farewell level's cooler, late-season mood without
+      // drawing two sky domes or two cloud fields every frame.
+      sky: ['#5c8a9e', '#8ab8c8', '#d0e8f0'],
+      clouds: 5,
+      flatRadius: 20,
+      flatCenterZ: -14,
+    });
 
     this.scene.add(hill(-22, -15, 10, 1.2));
     this.scene.add(hill(24, -25, 12, 1.4));
