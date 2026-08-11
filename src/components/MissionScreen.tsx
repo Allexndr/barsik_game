@@ -57,6 +57,7 @@ export function MissionScreen({
   const stickRef = useRef<HTMLDivElement>(null);
   const [hud, setHud] = useState<BaseHud>(emptyHud);
   const [loading, setLoading] = useState(true);
+  const [assetsReady, setAssetsReady] = useState(false);
   const lang = useUIStore((s) => s.lang);
   const setScreen = useUIStore((s) => s.setScreen);
   const player = useGameStore((s) => s.player);
@@ -84,6 +85,11 @@ export function MissionScreen({
     setScreen('game');
   };
 
+  const handlePlayFromLoading = () => {
+    AudioManager.sfx('click');
+    setLoading(false);
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -97,11 +103,14 @@ export function MissionScreen({
     const scene = createScene(canvas);
     sceneRef.current = scene;
     setLoading(true);
+    setAssetsReady(false);
     let active = true;
     void scene.init(player?.nick || '', lang, setHud).then(() => {
       if (!active) return;
       if (useUIStore.getState().paused) scene.setPaused(true);
-      setLoading(false);
+      // The level does not start until "Играть" is pressed on the loading
+      // screen itself — see handlePlayFromLoading.
+      setAssetsReady(true);
     });
     return () => {
       active = false;
@@ -229,7 +238,7 @@ export function MissionScreen({
       <RotateHint lang={lang} />
 
       {loading ? (
-        <LoadingOverlay lang={lang} />
+        <LoadingOverlay lang={lang} assetsReady={assetsReady} onPlay={handlePlayFromLoading} />
       ) : null}
 
       <div className="m0-top">

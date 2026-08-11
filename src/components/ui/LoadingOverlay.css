@@ -13,22 +13,33 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding: 32px 40px;
+  gap: 12px;
+  padding: 24px 28px 28px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  max-width: min(94vw, 520px);
+  pointer-events: auto;
 }
 
-.loading-overlay__paw {
-  color: #00cec9;
-  animation: loading-paw-bounce 0.8s ease-in-out infinite alternate;
+.loading-overlay__invite {
+  margin: 0;
+  font-weight: 900;
+  font-size: 1.02rem;
+  color: #f0f3f8;
 }
 
-@keyframes loading-paw-bounce {
-  from { transform: translateY(0) scale(1); }
-  to { transform: translateY(-6px) scale(1.1); }
+.loading-runner {
+  width: min(90vw, 480px);
+  height: auto;
+  aspect-ratio: 480 / 170;
+  border-radius: 12px;
+  image-rendering: pixelated;
+  touch-action: manipulation;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
 .loading-overlay__bar {
@@ -57,57 +68,21 @@
   letter-spacing: 0.5px;
 }
 
-/* ── Pet-the-Barsik toy ───────────────────────────────────────── */
-.loading-overlay__invite {
-  margin: 0 0 2px;
-  font-weight: 900;
-  font-size: 1.02rem;
-  color: #f0f3f8;
-}
-
-.loading-pet {
-  position: relative;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.14s ease-out;
-}
-
-.loading-pet:active { transform: scale(0.94); }
-.loading-pet.is-happy { transform: scale(1.06) rotate(-2deg); }
-
-.loading-pet__heart {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  color: #ff6b81;
-  font-size: 1.2rem;
-  pointer-events: none;
-  animation: loading-heart-rise 0.9s ease-out forwards;
-}
-
-@keyframes loading-heart-rise {
-  0%   { opacity: 1; transform: translate(-50%, -50%) scale(0.6); }
-  100% { opacity: 0; transform: translate(-50%, -190%) scale(1.25); }
-}
-
-.loading-overlay__pets {
-  margin: 0;
-  font-size: 0.82rem;
-  font-weight: 800;
-  color: #9fb0c4;
-}
-
 .loading-overlay__pct {
   font-style: normal;
   opacity: 0.75;
 }
 
+.loading-overlay__play {
+  margin-top: 4px;
+  animation: loading-play-pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes loading-play-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .loading-pet, .loading-pet.is-happy { transition: none; transform: none; }
-  .loading-pet__heart { animation-duration: 0.01s; }
+  .loading-overlay__play { animation: none; }
 }

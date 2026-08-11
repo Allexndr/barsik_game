@@ -49,6 +49,7 @@ export function Mission0Screen() {
   const stickRef = useRef<HTMLDivElement>(null);
   const [hud, setHud] = useState<L0Hud>(emptyHud);
   const [loading, setLoading] = useState(true);
+  const [assetsReady, setAssetsReady] = useState(false);
   const lang = useUIStore((s) => s.lang);
   const setScreen = useUIStore((s) => s.setScreen);
   const muted = useUIStore((s) => s.muted);
@@ -81,6 +82,11 @@ export function Mission0Screen() {
     setScreen('game');
   };
 
+  const handlePlayFromLoading = () => {
+    AudioManager.sfx('click');
+    setLoading(false);
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -93,11 +99,16 @@ export function Mission0Screen() {
     const scene = new Level0Scene(canvas);
     sceneRef.current = scene;
     setLoading(true);
+    setAssetsReady(false);
     let active = true;
     void scene.init(player?.nick || '', lang, setHud).then(() => {
       if (!active) return;
       if (useUIStore.getState().paused) scene.setPaused(true);
-      setLoading(false);
+      // The level does not actually start until the loading screen's own
+      // "Играть" is pressed — see handlePlayFromLoading below. Finishing
+      // early just means there is time to keep playing the runner instead
+      // of staring at a full progress bar.
+      setAssetsReady(true);
     });
     return () => {
       active = false;
@@ -220,8 +231,12 @@ export function Mission0Screen() {
       <RotateHint lang={lang} />
 
       {/* Mission 0 is the heaviest scene and the first thing anyone sees, so
-          it gets the same real-progress screen as the rest, not a spinner. */}
-      {loading ? <LoadingOverlay lang={lang} /> : null}
+          it gets the same real-progress screen as the rest, not a spinner.
+          The level itself does not start until "Играть" is pressed here —
+          assetsReady only unlocks the button, it does not skip it. */}
+      {loading ? (
+        <LoadingOverlay lang={lang} assetsReady={assetsReady} onPlay={handlePlayFromLoading} />
+      ) : null}
 
       <div className="m0-top">
         <div className="m0-title">
