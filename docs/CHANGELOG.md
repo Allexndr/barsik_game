@@ -34,13 +34,13 @@ short: implementation detail remains in the commit and linked ADR.
 | `e915dba` → `7c3ed2c` | Qualified Barsik rig | A static model slides and a raw generated model can overload phones. The runtime will take only a qualified rigged Barsik, otherwise it keeps the playable avatar. | Type-check, lint, build, GLB probe and L0 390×844 default/avatar/rigged fallback checks. See ADR 004. |
 | `bd3f2b2` → `9245aa2` | Level 0 forest floor | The terrain had relief but still read as a flat coloured field. L0 now gets scoped macro detail, a worn path/green verge and one-draw-call grass tufts. | Type-check, lint, build; live 390×844 and 1440×900 checks without console errors. See ADR 005. |
 | `a720d6b` → `aba1448` | Season 1 forest hygiene | Mission 1 used a legacy flat plane and Levels 2/3/10 duplicated environment systems. M1 keeps its level gameplay route while gaining shared horizon/grass; duplicate sky, clouds and fireflies were removed. | Type-check, lint, build; 390×844 smoke for missions 1/2/3/10 with no console errors. See ADR 006. |
+| `6361b73` | Level 10 launch framing | The rear forest cap grew into the follow camera, so the first playable shot could be all trunk/canopy. Level 10 now reserves a visual-only camera bay while retaining its route and collision rules. | Type-check, lint, build; repeated 390×844 starts, 1440×900 start/movement smoke and console checks. See ADR 007. |
 
 ### Known follow-up
 
-- Level 10 mobile begins with a tree canopy occluding too much of the camera.
-  This is documented in ADR 006 and deliberately stays out of the environment
-  cleanup package; it needs a focused camera/tree-layout pass and screenshot
-  approval rather than a hidden one-line move.
+- No known Level 10 launch-camera occlusion remains after the focused visual
+  layout pass in `6361b73`; retain screenshot review when other level caps or
+  camera profiles change.
 
 ## Required entry format
 
