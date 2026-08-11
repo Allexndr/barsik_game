@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createPerformanceTelemetry, type PerformanceTelemetry } from '@/dev/performanceTelemetry';
 import { CAST_CHAR_GLB } from '../castModels';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { loadCharModel } from './BaseLevelScene';
@@ -328,6 +329,8 @@ export class CityScene {
   /** Camera distance and height, set from the panel's aspect in resize(). */
   private frameZ = 10.4;
   private frameY = 4.6;
+  /** Local QA probe only; it never adds a child-facing city overlay. */
+  declare private performanceTelemetry?: PerformanceTelemetry;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -338,6 +341,15 @@ export class CityScene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    if (import.meta.env.DEV) {
+      this.performanceTelemetry = createPerformanceTelemetry({
+        renderer: this.renderer,
+        label: 'CityScene',
+        qualityTier: mobile ? 'medium' : 'high',
+        isMobile: mobile,
+        composer: false,
+      });
+    }
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xb8e0ff);
@@ -625,7 +637,13 @@ export class CityScene {
         this.water.scale.setScalar(1 + Math.sin(t * 3.1) * 0.06);
       }
 
-      this.renderer.render(this.scene, this.camera);
+      if (import.meta.env.DEV && this.performanceTelemetry?.enabled) {
+        this.performanceTelemetry.beginFrame();
+        this.renderer.render(this.scene, this.camera);
+        this.performanceTelemetry.afterRender(performance.now());
+      } else {
+        this.renderer.render(this.scene, this.camera);
+      }
     };
     loop();
   }
@@ -637,6 +655,7 @@ export class CityScene {
     undressAvatar(this.worn);
     this.avatar?.dispose();
     disposeObject(this.scene);
+    if (import.meta.env.DEV) this.performanceTelemetry?.dispose();
     this.renderer.dispose();
   }
 }

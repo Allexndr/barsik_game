@@ -15,6 +15,7 @@ import { placePatch, ringAnchors, type PatchSpec } from '../sceneComposition';
 import { placeMany, placementGround, setPlacementGround } from '../s1Place';
 import { disposeObject3DResources, fitHeight, fitMaxSize, groundY, measurePlinthFraction, repairDefaultMaterial } from '../modelUtils';
 import { createFpsSampler } from '@/dev/fpsSampler';
+import { createPerformanceTelemetry, type PerformanceTelemetry } from '@/dev/performanceTelemetry';
 // Registers window.__audit under import.meta.env.DEV; absent from a build.
 import '@/dev/levelAudit';
 import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
@@ -877,6 +878,8 @@ export abstract class BaseLevelScene {
   protected groundHeightAt: (x: number, z: number) => number = () => 0;
   protected reserved: Array<{ x: number; z: number; r: number }> = [];
   private fpsSampler = createFpsSampler('level');
+  /** Dev-only `?perf=1` probe; never mounts a player-facing overlay. */
+  declare private performanceTelemetry?: PerformanceTelemetry;
   private onVisibility = () => {
     // Stopping the loop when the tab is hidden saves a phone's battery, but
     // stopping it *silently* stranded the player: the scene froze while the
@@ -921,6 +924,18 @@ export abstract class BaseLevelScene {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 300);
+    // Vite removes this branch from a production build. Keeping the probe at
+    // the renderer boundary means every BaseLevelScene-derived mission gets
+    // the same full-frame (shadow + scene + composer) measurement.
+    if (import.meta.env.DEV) {
+      this.performanceTelemetry = createPerformanceTelemetry({
+        renderer: this.renderer,
+        label: this.constructor.name,
+        qualityTier: this.renderQuality.tier,
+        isMobile: this.isMobile,
+        composer: this.renderQuality.useComposer,
+      });
+    }
   }
 
   // ── Setup helpers ────────────────────────────────────────────
@@ -1416,6 +1431,15 @@ export abstract class BaseLevelScene {
   }
 
   protected renderFrame() {
+    if (import.meta.env.DEV && this.performanceTelemetry?.enabled) {
+      this.performanceTelemetry.beginFrame();
+      this.withCameraOrbit(() => {
+        if (this.quality) this.quality.render();
+        else this.renderer.render(this.scene, this.camera);
+      });
+      this.performanceTelemetry.afterRender(performance.now());
+      return;
+    }
     this.withCameraOrbit(() => {
       if (this.quality) this.quality.render();
       else this.renderer.render(this.scene, this.camera);
@@ -2825,6 +2849,7 @@ export abstract class BaseLevelScene {
     removeEventListener('resize', this.resize);
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.fpsSampler.dispose();
+    if (import.meta.env.DEV) this.performanceTelemetry?.dispose();
     const self = this as unknown as { _kd?: (e: KeyboardEvent) => void; _ku?: (e: KeyboardEvent) => void };
     if (self._kd) removeEventListener('keydown', self._kd);
     if (self._ku) removeEventListener('keyup', self._ku);
