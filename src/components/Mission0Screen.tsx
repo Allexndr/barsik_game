@@ -10,7 +10,7 @@ import { Chip } from '@/components/ui/Chip';
 import { StepDots } from '@/components/ui/ProgressBar';
 import { PlushButton } from '@/components/ui/PlushButton';
 import { ConfettiBurst } from '@/components/ui/ConfettiBurst';
-import { IconStar, IconPaw } from '@/components/ui/icons';
+import { IconLantern, IconMusicNote, IconPaw, IconStar, IconStitch } from '@/components/ui/icons';
 import { AudioManager } from '@/audio/AudioManager';
 import { shouldNarrateHudLine } from '@/audio/narration';
 import { SettingsPanel } from '@/components/ui/SettingsPanel';
@@ -171,7 +171,7 @@ export function Mission0Screen() {
       el.removeEventListener('pointerup', onEnd);
       el.removeEventListener('pointercancel', onEnd);
     };
-  }, []);
+  }, [loading]);
 
   useEffect(() => {
     AudioManager.setMuted(muted);
@@ -218,41 +218,56 @@ export function Mission0Screen() {
   const nick = player?.nick || '';
   const showKeys = hud.showMoveHint;
   const showStick = !hud.outro && hud.phase !== 'intro';
-  // One chip that shows whatever the current beat is counting, instead of a
-  // bag of apples that only two phases ever filled.
-  const beatCount =
+  // The icon changes with the actual learning beat. A generic fruit/paw
+  // counter makes a dombra, lantern, and yurt-repair quest read as unrelated
+  // collectible chores.
+  const beatDisplay =
     hud.phase === 'inside' || hud.phase === 'song'
-      ? `${hud.kuiRound}/${hud.kuiTotal}`
+      ? { value: `${hud.kuiRound}/${hud.kuiTotal}`, icon: <IconMusicNote size={16} />, tone: 'neutral' as const }
       : hud.phase === 'mend' || hud.phase === 'enter' || hud.outro
-        ? `${hud.pegsDone}/${hud.pegsTotal}`
+        ? { value: `${hud.pegsDone}/${hud.pegsTotal}`, icon: <IconStitch size={16} />, tone: 'success' as const }
         : hud.phase === 'lanterns'
-          ? `${hud.lanternsUp}/${hud.lanternsTotal}`
-          // Following the sound: a listening meter, so a child on a muted phone
-          // still gets the "warmer / colder" the level is built on.
-          : `${Math.round(hud.nearness * 100)}%`;
+          ? { value: `${hud.lanternsUp}/${hud.lanternsTotal}`, icon: <IconLantern size={16} />, tone: 'star' as const }
+          : hud.phase === 'crossing'
+            ? { value: '•', icon: <IconPaw size={16} />, tone: 'neutral' as const }
+            // Following the sound: a listening meter, so a child on a muted
+            // phone still gets the "warmer / colder" the level is built on.
+            : { value: `${Math.round(hud.nearness * 100)}%`, icon: <IconMusicNote size={16} />, tone: 'neutral' as const };
 
   return (
-    <div className="m0-screen">
+    <div className="m0-screen m0-screen--level0">
       <canvas ref={canvasRef} className="m0-canvas" />
 
-      <RotateHint lang={lang} />
+      {/* Start the one-time rotate timer only when the child can actually see
+          it. Mounting it under the loading overlay spent its entire 6–12 s
+          lifetime invisibly and could mark the hint as already seen. */}
+      {!loading ? <RotateHint lang={lang} /> : null}
 
       {/* Mission 0 is the heaviest scene and the first thing anyone sees, so
           it gets the same real-progress screen as the rest, not a spinner.
           assetsReady unlocks "Играть"; the completed scene remains paused
           until that press, so its intro cannot play behind this overlay. */}
       {loading ? (
-        <LoadingOverlay lang={lang} assetsReady={assetsReady} onPlay={handlePlayFromLoading} />
+        <LoadingOverlay
+          lang={lang}
+          title={lang === 'kk' ? 'Домбыра соқпағы' : 'Тропа домбры'}
+          assetsReady={assetsReady}
+          onPlay={handlePlayFromLoading}
+        />
       ) : null}
 
+      {/* The loading screen is a modal start gate. Keep all gameplay chrome
+          out of the focus order and accessibility tree until it is gone. */}
+      {!loading ? (
+        <>
       <div className="m0-top">
         <div className="m0-title">
           {lang === 'kk' ? 'Домбыра соқпағы' : 'Тропа домбры'}
           {nick ? ` · ${nick}` : ''}
         </div>
         <div className="m0-stats">
-          <Chip icon={<IconPaw size={16} />} tone="fruit" className="m0-stat">
-            {beatCount}
+          <Chip icon={beatDisplay.icon} tone={beatDisplay.tone} className="m0-stat">
+            {beatDisplay.value}
           </Chip>
           <Chip icon={<IconStar size={16} />} tone="star" className="m0-stat">
             {hud.stars}
@@ -391,6 +406,8 @@ export function Mission0Screen() {
           point of it is that the two locations never share a frame. */}
       {hud.fade > 0.002 ? (
         <div className="m0-blackout" style={{ opacity: hud.fade }} aria-hidden />
+      ) : null}
+        </>
       ) : null}
 
       <SettingsPanel />

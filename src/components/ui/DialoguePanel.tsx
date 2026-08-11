@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { IconMessage } from './icons';
 
 interface DialoguePanelProps {
   speaker: string;
@@ -43,7 +44,7 @@ export function DialoguePanel({ speaker, line, objective, lang }: DialoguePanelP
         onClick={() => setCollapsed(false)}
         aria-label={lang === 'kk' ? 'Мәтінді ашу' : 'Показать текст'}
       >
-        <span className="m0-dialogue-tab-icon">💬</span>
+        <span className="m0-dialogue-tab-icon"><IconMessage size={18} /></span>
         <span className="m0-dialogue-tab-text">{objective || shown.line}</span>
       </button>
     );
