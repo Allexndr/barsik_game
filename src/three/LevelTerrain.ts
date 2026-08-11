@@ -34,6 +34,14 @@ export interface TerrainSurfaceOptions {
   corridorVerge?: number;
   /** Amount of subtle colour variation in the worn part of a path. */
   corridorWear?: number;
+  /**
+   * Adds a 256 px seeded packed-snow or ice detail map. This is intentionally
+   * separate from `detailMap`: forest floor art and winter surface art have
+   * different colour/roughness needs, and a biome must opt in explicitly.
+   */
+  winterDetail?: boolean;
+  /** World-space metres covered by one repeat of the winter detail map. */
+  winterDetailScale?: number;
 }
 
 export type TerrainFeature =
@@ -88,10 +96,10 @@ export interface LevelTerrain {
   dispose(): void;
 }
 
-const PALETTES: Record<TerrainBiome, { low: number; high: number; path: number }> = {
-  forest: { low: 0x4e8f45, high: 0x8fc46e, path: 0xc9a86a },
-  snow: { low: 0xdae8f2, high: 0xfdfeff, path: 0xc3d9e8 },
-  ice: { low: 0x9fd0e8, high: 0xd8f0fb, path: 0xbfe6f7 },
+const PALETTES: Record<TerrainBiome, { low: number; high: number; path: number; verge: number }> = {
+  forest: { low: 0x4e8f45, high: 0x8fc46e, path: 0xc9a86a, verge: 0x83ad62 },
+  snow: { low: 0xdae8f2, high: 0xfdfeff, path: 0xc3d9e8, verge: 0xe8f4fb },
+  ice: { low: 0x9fd0e8, high: 0xd8f0fb, path: 0xbfe6f7, verge: 0xa7dff1 },
 };
 
 /**
@@ -167,6 +175,119 @@ function makeForestFloorDetailMap(size: number, worldScale: number, seed: number
   // The detail is deliberately small; two taps are enough on phone GPUs and
   // avoid the high anisotropy cost of a photographic ground texture.
   texture.anisotropy = 2;
+  return texture;
+}
+
+type WinterBiome = Extract<TerrainBiome, 'snow' | 'ice'>;
+
+/**
+ * One tiny, stable CanvasTexture for a whole winter terrain. Its close-up
+ * information belongs in a colour map rather than extra geometry: that keeps
+ * snowy valleys soft on mobile and adds no renderer draw calls.
+ */
+function makeWinterFloorDetailMap(
+  biome: WinterBiome,
+  size: number,
+  worldScale: number,
+  seed: number,
+) {
+  const textureSize = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = textureSize;
+  canvas.height = textureSize;
+  const ctx = canvas.getContext('2d')!;
+  const random = seededRandom(seed * 257 + (biome === 'snow' ? 79 : 173));
+
+  if (biome === 'snow') {
+    ctx.fillStyle = '#f7fbfd';
+    ctx.fillRect(0, 0, textureSize, textureSize);
+
+    // Packed snow is visible close to the camera, but never competes with a
+    // child-facing route marker. The cool flecks also stop white terrain from
+    // clipping into the pale sky.
+    for (let i = 0; i < 2200; i++) {
+      const cool = random() > 0.42;
+      ctx.fillStyle = cool
+        ? `rgba(165, 202, 220, ${0.018 + random() * 0.05})`
+        : `rgba(255, 255, 255, ${0.04 + random() * 0.08})`;
+      const radius = 0.35 + random() * 1.1;
+      ctx.fillRect(
+        random() * textureSize,
+        random() * textureSize,
+        radius,
+        radius * (0.5 + random() * 0.9),
+      );
+    }
+    for (let i = 0; i < 180; i++) {
+      const x = random() * textureSize;
+      const y = random() * textureSize;
+      const length = 2 + random() * 8;
+      ctx.strokeStyle = random() > 0.5
+        ? 'rgba(135, 184, 210, 0.055)'
+        : 'rgba(255, 255, 255, 0.16)';
+      ctx.lineWidth = 0.35 + random() * 0.55;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + length, y + (random() - 0.5) * 1.6);
+      ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = '#e4f4fb';
+    ctx.fillRect(0, 0, textureSize, textureSize);
+
+    // Long translucent streaks establish the direction of a frozen surface.
+    // They are intentionally soft; cracks are an accent, not a visual hazard.
+    for (let i = 0; i < 260; i++) {
+      const x = random() * textureSize;
+      const y = random() * textureSize;
+      const length = 12 + random() * 55;
+      ctx.strokeStyle = random() > 0.55
+        ? `rgba(73, 164, 205, ${0.025 + random() * 0.075})`
+        : `rgba(255, 255, 255, ${0.08 + random() * 0.12})`;
+      ctx.lineWidth = 0.45 + random() * 1.1;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + (random() - 0.5) * 8, y + length);
+      ctx.stroke();
+    }
+    for (let i = 0; i < 28; i++) {
+      let x = random() * textureSize;
+      let y = random() * textureSize;
+      ctx.strokeStyle = `rgba(78, 153, 193, ${0.09 + random() * 0.11})`;
+      ctx.lineWidth = 0.45 + random() * 0.55;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      const segments = 2 + Math.floor(random() * 3);
+      for (let segment = 0; segment < segments; segment++) {
+        x += (random() - 0.5) * 16;
+        y += 5 + random() * 14;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(size / worldScale, size / worldScale);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  // Two taps are enough for 256 px ground detail and avoid an expensive
+  // photographic-ground anisotropy setting on phone GPUs.
+  texture.anisotropy = 2;
+  return texture;
+}
+
+/**
+ * L12's curved ribbon has a different UV layout from terrain, so it needs a
+ * dedicated repeat. The pixel payload is still just one local 256 px texture
+ * and is disposed by the scene together with the ribbon material.
+ */
+export function makeIceRibbonDetailMap(seed = 12) {
+  const texture = makeWinterFloorDetailMap('ice', 48, 48, seed);
+  // TrailPath maps V through 45 units of UV space. Fewer repeats make streaks
+  // legible without turning the route into a noisy striped runway.
+  texture.repeat.set(1.15, 0.24);
   return texture;
 }
 
@@ -267,7 +388,9 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
   const cPath = new THREE.Color(palette.path);
   const cMoss = new THREE.Color(0x649d4d);
   const cDry = new THREE.Color(0x9bab61);
-  const cVerge = new THREE.Color(0x83ad62);
+  const cVerge = new THREE.Color(palette.verge);
+  const cWinterShadow = new THREE.Color(biome === 'snow' ? 0xb8d4e5 : 0x78b9d8);
+  const cWinterLight = new THREE.Color(biome === 'snow' ? 0xffffff : 0xe9f8ff);
   const scratch = new THREE.Color();
   const macroVariation = THREE.MathUtils.clamp(surface?.macroVariation ?? 0, 0, 1);
   const corridorVerge = Math.max(0, surface?.corridorVerge ?? 0);
@@ -287,6 +410,16 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
       // highs. This uses only the existing vertex colour attribute.
       scratch.lerp(cMoss, Math.max(0, 0.48 - field) * macroVariation * 1.1);
       scratch.lerp(cDry, Math.max(0, field - 0.52) * macroVariation * 0.86);
+    } else if (biome === 'snow' && macroVariation > 0) {
+      const field = surfaceField(x, z, seed);
+      // Blue-shadow pockets give snow a soft basin read from a distance;
+      // bright wind-packed ridges remain deliberately restrained.
+      scratch.lerp(cWinterShadow, Math.max(0, 0.58 - field) * macroVariation * 0.72);
+      scratch.lerp(cWinterLight, Math.max(0, field - 0.62) * macroVariation * 0.22);
+    } else if (biome === 'ice' && macroVariation > 0) {
+      const field = surfaceField(x, z, seed);
+      scratch.lerp(cWinterShadow, Math.max(0, 0.56 - field) * macroVariation * 0.56);
+      scratch.lerp(cWinterLight, Math.max(0, field - 0.6) * macroVariation * 0.26);
     }
     if (corridorTint && corridor) {
       const d = Math.abs(x - corridor(z));
@@ -305,7 +438,7 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
           scratch.lerp(cPath, core * (0.66 + wear * corridorWear));
         }
         const edge = Math.max(0, verge - core);
-        if (edge > 0) scratch.lerp(cVerge, edge * 0.44);
+        if (edge > 0) scratch.lerp(cVerge, edge * (biome === 'forest' ? 0.44 : 0.38));
       } else {
         const band = corridorHalf * 1.15;
         if (d < band) scratch.lerp(cPath, (1 - d / band) * 0.85);
@@ -321,12 +454,16 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
 
   const detailMap = biome === 'forest' && surface?.detailMap
     ? makeForestFloorDetailMap(size, Math.max(2, surface.detailScale ?? 7.5), seed)
-    : null;
+    : biome !== 'forest' && surface?.winterDetail
+      ? makeWinterFloorDetailMap(biome, size, Math.max(3, surface.winterDetailScale ?? 8.5), seed)
+      : null;
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true,
     map: detailMap,
-    roughness: biome === 'ice' ? 0.28 : 0.94,
-    metalness: biome === 'ice' ? 0.18 : 0,
+    roughness: biome === 'ice' ? 0.34 : biome === 'snow' ? 0.9 : 0.94,
+    // Ice is a dielectric rather than a metal: a small value keeps the game
+    // stylised and readable while avoiding the old chrome-grey sheet.
+    metalness: biome === 'ice' ? 0.06 : 0,
     dithering: true,
   });
 
