@@ -16,6 +16,26 @@ import * as THREE from 'three';
 
 export type TerrainBiome = 'forest' | 'snow' | 'ice';
 
+/**
+ * Optional visual treatment layered on top of a biome's base palette.
+ *
+ * These values are baked when the terrain is created: they do not add a
+ * per-frame pass, a network asset, or a texture download. A level must opt in
+ * explicitly so a production art pass cannot quietly repaint Season 1.
+ */
+export interface TerrainSurfaceOptions {
+  /** Broad, low-contrast colour patches that keep a field from reading as one flat plane. */
+  macroVariation?: number;
+  /** World-space metres covered by one repeat of the small procedural floor detail map. */
+  detailScale?: number;
+  /** Adds the small procedural floor detail map (256 px, generated locally). */
+  detailMap?: boolean;
+  /** Soft green shoulder around a worn path, in world-space metres. */
+  corridorVerge?: number;
+  /** Amount of subtle colour variation in the worn part of a path. */
+  corridorWear?: number;
+}
+
 export type TerrainFeature =
   /** Depression: pond bed, hollow, crater. */
   | { kind: 'basin'; x: number; z: number; r: number; depth: number }
@@ -48,6 +68,8 @@ export interface LevelTerrainOptions {
   corridorHalf?: number;
   /** Draw a tinted trail stripe along the corridor. */
   corridorTint?: boolean;
+  /** Static material treatment for an individual level's ground. */
+  surface?: TerrainSurfaceOptions;
   features?: TerrainFeature[];
   /** Amplitude of the rolling base relief. */
   relief?: number;
@@ -71,6 +93,82 @@ const PALETTES: Record<TerrainBiome, { low: number; high: number; path: number }
   snow: { low: 0xdae8f2, high: 0xfdfeff, path: 0xc3d9e8 },
   ice: { low: 0x9fd0e8, high: 0xd8f0fb, path: 0xbfe6f7 },
 };
+
+/**
+ * A stable, deliberately low-frequency field. It is not random noise: the
+ * same place in the world receives the same hue every time the level loads.
+ * That keeps the valley recognisable while breaking the billiard-table read.
+ */
+function surfaceField(x: number, z: number, seed: number) {
+  const broad = Math.sin(x * 0.31 + z * 0.17 + seed * 1.7);
+  const cross = Math.sin(x * 0.13 - z * 0.37 + seed * 2.9);
+  const ripple = Math.cos((x + z) * 0.21 - seed * 0.8);
+  return THREE.MathUtils.clamp(0.5 + broad * 0.22 + cross * 0.18 + ripple * 0.1, 0, 1);
+}
+
+/** A tiny seeded generator for a locally-produced floor detail map. */
+function seededRandom(seed: number) {
+  let state = (seed >>> 0) || 0x9e3779b9;
+  return () => {
+    state += 0x6d2b79f5;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * A neutral, hand-painted-looking floor grain. It is intentionally pale so
+ * vertex colours still own the biome and path colours; the map only supplies
+ * the close-up surface information that a flat material cannot.
+ */
+function makeForestFloorDetailMap(size: number, worldScale: number, seed: number) {
+  const textureSize = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = textureSize;
+  canvas.height = textureSize;
+  const ctx = canvas.getContext('2d')!;
+  const random = seededRandom(seed * 173 + 41);
+
+  ctx.fillStyle = '#e7ebdf';
+  ctx.fillRect(0, 0, textureSize, textureSize);
+
+  // Two low-alpha layers make moss, dry fibres and tiny earth freckles without
+  // turning the result into a noisy photographic texture.
+  for (let i = 0; i < 2600; i++) {
+    const x = random() * textureSize;
+    const y = random() * textureSize;
+    const warm = random() > 0.7;
+    ctx.fillStyle = warm
+      ? `rgba(176, 154, 94, ${0.025 + random() * 0.055})`
+      : `rgba(52, 89, 43, ${0.025 + random() * 0.065})`;
+    const radius = 0.35 + random() * 1.35;
+    ctx.fillRect(x, y, radius, radius * (0.55 + random() * 1.4));
+  }
+  for (let i = 0; i < 430; i++) {
+    const x = random() * textureSize;
+    const y = random() * textureSize;
+    const length = 1 + random() * 4;
+    const angle = random() * Math.PI;
+    ctx.strokeStyle = random() > 0.5 ? 'rgba(255,255,245,0.11)' : 'rgba(62,89,39,0.075)';
+    ctx.lineWidth = 0.45 + random() * 0.45;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(angle) * length, y + Math.sin(angle) * length);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(size / worldScale, size / worldScale);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  // The detail is deliberately small; two taps are enough on phone GPUs and
+  // avoid the high anisotropy cost of a photographic ground texture.
+  texture.anisotropy = 2;
+  return texture;
+}
 
 /**
  * Build the height function first, so props, grass and the hero can all query
@@ -153,6 +251,8 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
     corridor,
     corridorHalf = 2.4,
     corridorTint = true,
+    surface,
+    seed = 0,
   } = opts;
 
   const sampleHeight = createTerrainSampler(opts);
@@ -165,7 +265,13 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
   const cLow = new THREE.Color(palette.low);
   const cHigh = new THREE.Color(palette.high);
   const cPath = new THREE.Color(palette.path);
+  const cMoss = new THREE.Color(0x649d4d);
+  const cDry = new THREE.Color(0x9bab61);
+  const cVerge = new THREE.Color(0x83ad62);
   const scratch = new THREE.Color();
+  const macroVariation = THREE.MathUtils.clamp(surface?.macroVariation ?? 0, 0, 1);
+  const corridorVerge = Math.max(0, surface?.corridorVerge ?? 0);
+  const corridorWear = THREE.MathUtils.clamp(surface?.corridorWear ?? 0, 0, 1);
 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
@@ -175,10 +281,35 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
 
     const t = THREE.MathUtils.clamp((y + 0.6) / 3.4, 0, 1);
     scratch.copy(cLow).lerp(cHigh, t);
+    if (biome === 'forest' && macroVariation > 0) {
+      const field = surfaceField(x, z, seed);
+      // Damp, mossy pockets sit in the lows; sun-worn fibres gather in the
+      // highs. This uses only the existing vertex colour attribute.
+      scratch.lerp(cMoss, Math.max(0, 0.48 - field) * macroVariation * 1.1);
+      scratch.lerp(cDry, Math.max(0, field - 0.52) * macroVariation * 0.86);
+    }
     if (corridorTint && corridor) {
       const d = Math.abs(x - corridor(z));
-      const band = corridorHalf * 1.15;
-      if (d < band) scratch.lerp(cPath, (1 - d / band) * 0.85);
+      if (surface && corridorVerge > 0) {
+        // A route reads as a place people repeatedly walked: a warm, worn
+        // centre transitions through a living green shoulder, rather than
+        // ending as a hard paint stripe against the field.
+        const core = 1 - THREE.MathUtils.smoothstep(corridorHalf * 0.53, corridorHalf * 0.86, d);
+        const verge = 1 - THREE.MathUtils.smoothstep(
+          corridorHalf * 0.8,
+          corridorHalf * 0.86 + corridorVerge,
+          d,
+        );
+        if (core > 0) {
+          const wear = surfaceField(x + 18, z - 11, seed + 3) - 0.5;
+          scratch.lerp(cPath, core * (0.66 + wear * corridorWear));
+        }
+        const edge = Math.max(0, verge - core);
+        if (edge > 0) scratch.lerp(cVerge, edge * 0.44);
+      } else {
+        const band = corridorHalf * 1.15;
+        if (d < band) scratch.lerp(cPath, (1 - d / band) * 0.85);
+      }
     }
     colors[i * 3] = scratch.r;
     colors[i * 3 + 1] = scratch.g;
@@ -188,10 +319,15 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
 
+  const detailMap = biome === 'forest' && surface?.detailMap
+    ? makeForestFloorDetailMap(size, Math.max(2, surface.detailScale ?? 7.5), seed)
+    : null;
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true,
+    map: detailMap,
     roughness: biome === 'ice' ? 0.28 : 0.94,
     metalness: biome === 'ice' ? 0.18 : 0,
+    dithering: true,
   });
 
   const mesh = new THREE.Mesh(geo, mat);
@@ -202,6 +338,7 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
     mesh,
     sampleHeight,
     dispose() {
+      detailMap?.dispose();
       geo.dispose();
       mat.dispose();
     },

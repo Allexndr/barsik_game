@@ -1033,6 +1033,8 @@ export abstract class BaseLevelScene {
       tipColor?: number;
       tipWarmColor?: number;
       bladeHeight?: [number, number];
+      bladesPerTuft?: 1 | 2 | 3;
+      colorMode?: 'legacy' | 'managed';
     } = {},
   ) {
     const {
@@ -1047,6 +1049,8 @@ export abstract class BaseLevelScene {
       tipColor: opts.tipColor,
       tipWarmColor: opts.tipWarmColor,
       bladeHeight: opts.bladeHeight,
+      bladesPerTuft: opts.bladesPerTuft,
+      colorMode: opts.colorMode,
       heightAt: this.groundHeightAt,
       exclude: (x, z) => this.isReserved(x, z, 0.4) || this.isUnderwater(x, z),
     });
