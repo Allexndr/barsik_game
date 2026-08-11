@@ -598,15 +598,63 @@ export class Level0Scene extends BaseLevelScene {
     const dx = p.x - YURT_INSIDE.x;
     const dz = p.z - YURT_INSIDE.z;
     let d = Math.hypot(dx, dz);
-    const maxR = INSIDE_R - 0.9;
+    // The physical felt wall is at R + .5, but putting a 54° phone lens only
+    // .9 units below its low eave still lets the *top of the frame* look past
+    // the roof on a hard orbit. Keep a meaningful roof-volume buffer rather
+    // than merely preventing the camera origin itself from crossing a wall.
+    // This is deliberately a little closer to the child when they stand near
+    // the perimeter; a tight but fully interior shot is always better than a
+    // view of the hidden outdoor world.
+    const maxR = INSIDE_R - 3.5;
     if (d > maxR) {
       const k = maxR / d;
       p.x = YURT_INSIDE.x + dx * k;
       p.z = YURT_INSIDE.z + dz * k;
       d = maxR;
     }
-    const ceiling = roofHeightAt(d) - 0.5;
+    const ceiling = roofHeightAt(d) - 1.25;
     if (p.y > ceiling) p.y = Math.max(2.0, ceiling);
+  }
+
+  /**
+   * `withCameraOrbit()` rotates around the hero only for the render, then
+   * restores the stored follow-camera position. Clamping before render is
+   * therefore the only point that can catch a hard look-around which swings
+   * the lens through the yurt wall or low roof. The outdoor world keeps its
+   * unconstrained orbit; this is a room boundary, not a global camera rule.
+   */
+  protected beforeRenderCamera() {
+    if (this.insideYurt) this.keepCameraInsideYurt();
+  }
+
+  /** Enter the second location from the blackout, or directly for dev QA. */
+  private enterYurt(noteDelay = 1500, celebrate = true) {
+    this.insideYurt = true;
+    this.showOnly(true);
+    this.phase = 'inside';
+    this.hero.position.set(YURT_INSIDE.x, 0, YURT_INSIDE.z + 7.0);
+    this.hero.rotation.y = Math.PI;
+    this.yaw = Math.PI;
+    this.airborne = false;
+    this.jumpVelocity = 0;
+    this.camera.position.set(YURT_INSIDE.x, 4.2, YURT_INSIDE.z + 12.4);
+    // Snap the aim rather than easing it two hundred metres.
+    this.resetCameraAim();
+    this.kuiRound = 0;
+    this.startKuiRound(performance.now() + noteDelay);
+    if (celebrate) AudioManager.sfx('sparkle');
+  }
+
+  /**
+   * A direct room start makes the camera boundary checkable without replaying
+   * three minutes of outdoor beats. It is dead in production builds.
+   *
+   * `?mission=0&l0=inside`
+   */
+  private devStartInsideYurt() {
+    return import.meta.env.DEV
+      && typeof location !== 'undefined'
+      && new URLSearchParams(location.search).get('l0') === 'inside';
   }
 
   tryInteract() {
@@ -1079,6 +1127,7 @@ export class Level0Scene extends BaseLevelScene {
       this.phase = 'intro';
       this.introI = 0;
       this.nextAt = performance.now() + 900;
+      if (this.devStartInsideYurt()) this.enterYurt(0, false);
       this.pushHud();
       this.loop();
     });
@@ -1423,20 +1472,7 @@ export class Level0Scene extends BaseLevelScene {
         this.fadeTo = 1;
         AudioManager.sfx('whoosh');
         this.pendingTeleport = () => {
-          this.insideYurt = true;
-          this.showOnly(true);
-          this.phase = 'inside';
-          this.hero.position.set(YURT_INSIDE.x, 0, YURT_INSIDE.z + 7.0);
-          this.hero.rotation.y = Math.PI;
-          this.yaw = Math.PI;
-          this.airborne = false;
-          this.jumpVelocity = 0;
-          this.camera.position.set(YURT_INSIDE.x, 4.2, YURT_INSIDE.z + 12.4);
-          // Snap the aim rather than easing it two hundred metres.
-          this.resetCameraAim();
-          this.kuiRound = 0;
-          this.startKuiRound(performance.now() + 1500);
-          AudioManager.sfx('sparkle');
+          this.enterYurt();
         };
       }
     }
