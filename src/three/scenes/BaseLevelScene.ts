@@ -1381,11 +1381,12 @@ export abstract class BaseLevelScene {
     const rate = 1.6;
     if (this.keys.has('KeyQ')) this.camYawTarget += rate * dt;
     if (this.keys.has('KeyE')) this.camYawTarget -= rate * dt;
-    // Ease back to behind-the-hero so a child who spins the view is never
-    // left disoriented, but only once they stop steering it.
-    if (!this.orbitDragging && !this.keys.has('KeyQ') && !this.keys.has('KeyE')) {
-      this.camYawTarget *= Math.pow(0.6, dt);
-    }
+    // No auto-recenter: the camera is free, and stays wherever the player
+    // left it. It used to ease back to behind-the-hero the moment a key or
+    // drag released, which is an automatic rotation toward Barsik's heading
+    // in every way that matters to the person holding the phone — turn to
+    // look at something, and the view yanks itself back the instant you let
+    // go. Position still tracks the hero; orbit angle only moves on input.
     this.camYawTarget = THREE.MathUtils.clamp(this.camYawTarget, -Math.PI * 0.75, Math.PI * 0.75);
     // The angle itself is eased rather than set. Pressing a key used to move
     // the view by a fixed step every frame, which starts and stops dead — the
