@@ -322,7 +322,9 @@ export class Level15Scene extends BaseLevelScene {
     // and right going down. Drawing that as an actual route, then walling it,
     // is what stops it reading as a clearing with things scattered in it.
     this.derivePathFromRooms({ x: 0, z: 6 });
-    await this.enclosePath(loader);
+    // A visual-only camera bay keeps the first snowy maintenance task visible
+    // without moving its route, rooms, movement clamp or colliders.
+    await this.enclosePath(loader, 4, 3.0, [{ x: 0.8, z: 18, r: 10 }]);
 
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
