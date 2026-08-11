@@ -784,11 +784,35 @@ export class Level0Scene extends BaseLevelScene {
     await this.setupForestEnvironment(loader, {
       flatRadius: 9,
       flatCenterZ: YURT.z,
+      // This is intentionally Level 0-only. It is the season's visual
+      // benchmark, so its ground gets a denser but still single-draw-call
+      // grass field and a locally generated floor treatment; other worlds
+      // retain their authored look until their own art pass.
+      grass: {
+        count: this.isMobile ? 5000 : 12000,
+        area: { xMin: -32, xMax: 32, zMin: -52, zMax: 31 },
+        // A phone sees these cards mostly edge-on and has no composer to
+        // lift their colours, so it gets a shorter, brighter two-card LOD.
+        // Desktop keeps the third card for closer volumetric read.
+        rootColor: this.isMobile ? 0x5f964b : 0x3d733c,
+        tipColor: this.isMobile ? 0xa8d977 : 0x7faf58,
+        tipWarmColor: this.isMobile ? 0xd8ce80 : 0xb1a55f,
+        bladeHeight: this.isMobile ? [0.25, 0.54] : [0.27, 0.58],
+        bladesPerTuft: this.isMobile ? 2 : 3,
+        colorMode: 'managed',
+      },
       terrain: {
         playHalfExtent: 54,
         rimFalloff: 15,
         rimHeight: 3.2,
         seed: 0,
+        surface: {
+          macroVariation: 0.62,
+          detailMap: true,
+          detailScale: 7.5,
+          corridorVerge: 1.15,
+          corridorWear: 0.28,
+        },
         features: [
           { kind: 'flat', x: 0, z: SPAWN_Z - 3, r: 8 },
           { kind: 'flat', x: YURT.x, z: YURT.z, r: 9 },
