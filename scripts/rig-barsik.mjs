@@ -16,12 +16,13 @@
  * Meshy — already paid for, the key is already in .env.local — rigs a textured
  * humanoid GLB and hands back walk and run clips. barsik.glb qualifies on
  * every published requirement: .glb, textured (4 maps), humanoid, 8 086
- * vertices against a 300 000-face ceiling.
+ * vertices against Meshy's 300,000-face service ceiling. That provider limit
+ * is not the game budget: the runtime quality gate is intentionally stricter.
  *
- * Once `barsik_rigged.glb` lands in public/assets/models/chars/, nothing else
- * needs changing: `isUsableHeroGlb` already accepts a textured GLB that has
- * animation clips, and `loadBarsikHeroRig` already prefers a rigged model —
- * the branch has been sitting there unused because no model ever satisfied it.
+ * A generated output is a candidate, not an automatic release. The runtime
+ * probes only `barsik_rigged.glb` and accepts it only after its mesh budget,
+ * PBR textures, real skin, and named idle + walk/run clips pass the quality
+ * gate. A one-clip rigging result may still need a DCC animation pass.
  *
  * Usage (costs Meshy credits, so this is yours to run, not mine):
  *   node scripts/rig-barsik.mjs
@@ -129,10 +130,10 @@ async function main() {
   await writeFile(outPath, glbOut);
   console.log(`Wrote ${outPath} (${(glbOut.length / 1024).toFixed(0)} KB)`);
 
-  console.log('\nCheck it landed with a skeleton:');
+  console.log('\nTreat the downloaded GLB as a candidate, not an auto-approved hero:');
   console.log('  node scripts/probe-glb.mjs public/assets/models/chars/barsik_rigged.glb');
-  console.log('Expect skins > 0 and animations > 0. Then play any level —');
-  console.log('the rigged branch takes over on its own.');
+  console.log('Expect a real skin, Idle plus Walk/Run clips, PBR textures, and the mobile budget.');
+  console.log('Then test ?mission=0&hero=glb; the runtime falls back to the avatar if it rejects the asset.');
 }
 
 main().catch((e) => {
