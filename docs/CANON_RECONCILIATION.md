@@ -15,7 +15,7 @@
 | **P2** | `docs/BARSIK_CONCEPT_LOCK.md`, `docs/BARSIK_GDD_v2.md`, `docs/BARSIK_GAMEPLAY_CANON.md` | Продуктовый и геймплейный канон |
 | **P3** | `docs/GDD_CHAPTER1_FRUIT_FOREST.md` | Дизайн 17 уровней S1 (механики, биты, награды) |
 | **P4** | Обёртки `MissionNScreen` + реальные сцены `src/three/scenes/*` | Фактическая реализация в коде |
-| **P5** | `docs/BARSIK_S1_PRODUCTION.md`, `docs/AGENT_HANDOFF_LEVELS_1_4.md` | Исполнительные ТЗ и планка премиума |
+| **P5** | `docs/BARSIK_S1_PRODUCTION.md`, `docs/AGENT_HANDOFF_LEVELS_1_4.md`, `docs/SEASON_1_QUALITY_GDD.md` | Исполнительные ТЗ и планка премиума |
 | **P6** | `docs/BARSIK_SEASONS.md`, `STITCH_PROMPTS.md`, `BARSIK_ARC1_OUTLINE.md` | Рамка сезонов и арт-направление миров |
 | **P7** | Старые формальные ТЗ, Deep Research, completion-отчёты | Только если не противоречат P0–P6 |
 
@@ -67,6 +67,7 @@
 | C12 | Друзья S1 в CONCEPT | «2–3 друга» (ранняя рамка) | GDD: 9 персонажей (2 rare) за 17 уровней | CONCEPT = минимум MVP; GDD = полный S1 |
 | C13 | Хаб vs карта | GDD v2 «меню = Barsik Town» | Текущий flow: Mission0 → TravelMap | Town 3D есть; карта = основной хаб S1 |
 | C14 | Суперприз | Физический приз vs билет | Внутриигровой билет до конверсии | Открытое решение для продакшена |
+| C15 | L0 механика | `SEASON_1_QUALITY_GDD.md` §6 L0 (2026-08-11, untracked при написании): «3 яблока-апорта», садовник зажигает первый фонарь до реки, порядок фонари→река слитно | Коммит `57b5cb8` (2026-08-06) «Тропа домбры»: `Level0Scene.ts` **сознательно** заменил fetch-паттерн на follow→lanterns→crossing→mend — см. шапку файла, «one verb repeated three times with different skins» отвергнут явно | GDD §6-L0 устарел, код выше по приоритету здесь. Из GDD §6 для L0 брать только визуальные критерии (§2-3), не сюжет/порядок. Подробности: `PROJECT_MEMORY.md` 2026-08-11. Не переносить apples обратно без нового явного решения владельца. |
 
 ---
 
@@ -74,7 +75,7 @@
 
 | L | Название | GDD механика | Сцена в коде | Экран | Статус vs M0 |
 |---|----------|--------------|--------------|-------|--------------|
-| 0 | Первое утро | move + E | `Mission0Scene` | Mission0Screen | ✅ Флагман |
+| 0 | ~~Первое утро~~ → «Тропа домбры» (2026-08-06, `57b5cb8`, см. C15) | follow звука → фонари → река (прыжки) → войлок → юрта/домбра | `Level0Scene` (не `Mission0Scene` — заменена целиком) | Mission0Screen | ✅ Флагман, quality-pass юрты 2026-08-11 |
 | 1 | Первый друг | тяни фрукт ×3 | `Mission1Scene` | Mission1Screen | 🟡 Отдельная сцена, без QP |
 | 2 | Яблоневый сад | сортировка | `Level2Scene` | Mission2Screen | 🟡 BaseLevel, без QP |
 | 3 | Потерявшийся ёжик | поиск | `Level3Scene` | Mission3Screen | 🟡 BaseLevel, без QP |
