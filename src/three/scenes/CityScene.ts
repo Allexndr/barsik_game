@@ -1,9 +1,12 @@
 import * as THREE from 'three';
+import type { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createPerformanceTelemetry, type PerformanceTelemetry } from '@/dev/performanceTelemetry';
-import { CAST_CHAR_GLB } from '../castModels';
+import { AssetKit } from '../AssetKit';
+import { CAST_CHAR_GLB, CAST_PROP_GLB } from '../castModels';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { loadCharModel } from './BaseLevelScene';
-import { placeMany, placeAmbientCritters } from '../s1Place';
+import { disposeObject3DResources } from '../modelUtils';
+import { placeS1Prop, type PlaceOpts } from '../s1Place';
 import { createBarsikAvatar, DEFAULT_LOOK, type BarsikAvatar } from '../avatar/BarsikAvatar';
 import { dressAvatar, undressAvatar } from '../avatar/dressAvatar';
 import { hasFeature } from '@/utils/cityStages';
@@ -19,8 +22,70 @@ const BARSIK_AT = new THREE.Vector3(0, 0, 2.6);
 const FRIEND_RADIUS = 4.6;
 const HOUSE_RADIUS = 8.2;
 
-const HOUSE_COLORS = [0x00b894, 0xfd79a8, 0xfdcb6e, 0x0984e3, 0xe17055, 0x6c5ce7];
 const FRIEND_COLORS = [0x6c5ce7, 0x00b894, 0xfd79a8, 0xfdcb6e, 0x0984e3, 0xe17055];
+
+/**
+ * A tiny, deterministic starter town made from the CC0 City Kit.
+ *
+ * A zero-friend city is the first 3D image a new player sees. It used to be
+ * a purple box plus cone-roof and a few sphere trees — good placeholder
+ * primitives, but not a believable place to earn friends for. These seven
+ * inexpensive kit placements cost roughly 1.9k source triangles in total
+ * while giving the square an actual home, walkable path and garden rhythm.
+ */
+type CityKitModel =
+  | 'building-type-a'
+  | 'building-type-b'
+  | 'tree-small'
+  | 'path-long'
+  | 'planter';
+
+interface CityKitPlacement {
+  name: CityKitModel;
+  position: [number, number, number];
+  rotationY?: number;
+  height?: number;
+  maxSize?: number;
+}
+
+const STARTER_CITY_LAYOUT: readonly CityKitPlacement[] = [
+  // The facade sits behind the plaza so Barsik remains the foreground hero.
+  { name: 'building-type-a', position: [-2.55, 0, -7.35], rotationY: 0.3, height: 3.25 },
+  // A real kit path joins the house to the square; flat plaza geometry still
+  // arrives later as a progression reward.
+  { name: 'path-long', position: [0, 0, -2.9], maxSize: 8.8 },
+  { name: 'tree-small', position: [-6.55, 0, -3.45], rotationY: 0.35, height: 2.85 },
+  { name: 'tree-small', position: [5.95, 0, -4.1], rotationY: -0.62, height: 2.55 },
+  { name: 'tree-small', position: [7.2, 0, 1.3], rotationY: 0.72, height: 2.12 },
+  { name: 'planter', position: [-2.05, 0, -1.85], rotationY: 0.18, maxSize: 0.9 },
+  { name: 'planter', position: [2.05, 0, -1.85], rotationY: -0.18, maxSize: 0.9 },
+];
+
+/**
+ * The starter home is always present. Once the neighbourhood unlocks, this
+ * extends the same kit grammar instead of putting primitive houses next to a
+ * textured CC0 home. The positions preserve the old outer-ring relationship
+ * to each resident so cards, picking and composition stay unchanged.
+ */
+function cityKitLayout(friendCount: number): CityKitPlacement[] {
+  const layout = [...STARTER_CITY_LAYOUT];
+  if (!hasFeature(friendCount, 'neighbour')) return layout;
+
+  const houses = Math.min(friendCount, FRIEND_COLORS.length);
+  for (let i = 0; i < houses; i++) {
+    const spot = friendSpot(i, Math.max(houses, 2));
+    const len = Math.hypot(spot.x, spot.z - 0.6) || 1;
+    const x = (spot.x / len) * HOUSE_RADIUS;
+    const z = -3.4 + ((spot.z - 0.6) / len) * 4.8;
+    layout.push({
+      name: i % 2 === 0 ? 'building-type-b' : 'building-type-a',
+      position: [x, 0, z],
+      rotationY: Math.atan2(-x, -z),
+      height: i % 2 === 0 ? 2.55 : 2.35,
+    });
+  }
+  return layout;
+}
 
 /**
  * Residents stand on an arc that faces the camera rather than a full circle.
@@ -31,60 +96,6 @@ function friendSpot(i: number, total: number): { x: number; z: number } {
   const spread = Math.PI * 1.35;
   const a = total === 1 ? -Math.PI / 2 : -Math.PI * 1.18 + (i / (total - 1)) * spread;
   return { x: Math.cos(a) * FRIEND_RADIUS, z: Math.sin(a) * FRIEND_RADIUS + 0.6 };
-}
-
-function makeHouse(color: number, x: number, z: number): THREE.Group {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(1.6, 1.3, 1.6),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.7 }),
-  );
-  body.position.y = 0.65;
-  body.castShadow = true;
-  g.add(body);
-
-  const roof = new THREE.Mesh(
-    new THREE.ConeGeometry(1.35, 0.9, 4),
-    new THREE.MeshStandardMaterial({ color: 0xe17055, roughness: 0.8 }),
-  );
-  roof.position.y = 1.75;
-  roof.rotation.y = Math.PI / 4;
-  roof.castShadow = true;
-  g.add(roof);
-
-  const door = new THREE.Mesh(
-    new THREE.BoxGeometry(0.42, 0.62, 0.08),
-    new THREE.MeshStandardMaterial({ color: 0x7b4b2a, roughness: 0.9 }),
-  );
-  door.position.set(0, 0.31, 0.81);
-  g.add(door);
-
-  g.position.set(x, 0, z);
-  // Face the square, so a child reads them as a town rather than a warehouse.
-  g.rotation.y = Math.atan2(-x, -z);
-  return g;
-}
-
-function makeTree(x: number, z: number, scale = 1): THREE.Group {
-  const g = new THREE.Group();
-  const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.12, 0.16, 0.8, 8),
-    new THREE.MeshStandardMaterial({ color: 0x8b5a2b }),
-  );
-  trunk.position.y = 0.4;
-  g.add(trunk);
-
-  const crown = new THREE.Mesh(
-    new THREE.SphereGeometry(0.55, 12, 12),
-    new THREE.MeshStandardMaterial({ color: 0x55a630, roughness: 0.85 }),
-  );
-  crown.position.y = 1.1;
-  crown.castShadow = true;
-  g.add(crown);
-
-  g.position.set(x, 0, z);
-  g.scale.setScalar(scale);
-  return g;
 }
 
 function makeFountain(): THREE.Group {
@@ -286,13 +297,7 @@ function makeFriendMarker(id: string, x: number, z: number, color: number): THRE
 }
 
 function disposeObject(root: THREE.Object3D) {
-  root.traverse((object) => {
-    const mesh = object as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    mesh.geometry?.dispose();
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    for (const material of materials) material?.dispose();
-  });
+  disposeObject3DResources(root);
 }
 
 /**
@@ -321,6 +326,12 @@ export class CityScene {
   private avatar: BarsikAvatar | null = null;
   private worn: THREE.Object3D[] = [];
   private water: THREE.Object3D | null = null;
+  /**
+   * City Kit clones share their template's geometry/materials. They must be
+   * removed with their root, never passed to `disposeObject()` on a rebuild.
+   */
+  private kitRoots = new Set<THREE.Object3D>();
+  private kit: AssetKit | null = null;
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
   private onPick: ((friendId: string | null) => void) | null = null;
@@ -458,46 +469,115 @@ export class CityScene {
     this.worn = dressAvatar(this.avatar, itemIds, DEFAULT_LOOK);
   }
 
-  setCity(friends: CityResident[], outfit: string[] = []) {
-    const gen = ++this.cityGen;
+  /** True only while an async result still belongs to this visual generation. */
+  private ownsGeneration(owner: THREE.Object3D, gen: number) {
+    return !this.disposed && gen === this.cityGen && owner.parent === this.world;
+  }
+
+  /**
+   * Clear only owned scene data. AssetKit templates remain warm between city
+   * refreshes, while their clone roots leave without releasing shared GPU
+   * resources. The kit itself releases those resources once on final dispose.
+   */
+  private clearWorld() {
+    const avatarRoot = this.avatar?.root;
     while (this.world.children.length) {
       const child = this.world.children[0];
       this.world.remove(child);
-      if (child !== this.avatar?.root) disposeObject(child);
+      if (child !== avatarRoot && !this.kitRoots.has(child)) disposeObject(child);
     }
+    this.kitRoots.clear();
     undressAvatar(this.worn);
     this.worn = [];
     this.avatar?.dispose();
     this.avatar = null;
     this.residents = [];
     this.water = null;
+  }
+
+  /** Add one cached CC0 model only if the town that requested it is still live. */
+  private async addCityKitPlacement(
+    owner: THREE.Group,
+    kit: AssetKit,
+    placement: CityKitPlacement,
+    gen: number,
+  ) {
+    const object = await kit.spawn('city', placement.name, {
+      position: placement.position,
+      rotationY: placement.rotationY,
+      height: placement.height,
+      maxSize: placement.maxSize,
+    });
+    // Clones share the cache's GPU resources. When superseded, dropping an
+    // unattached clone is correct; disposing it would corrupt the live kit.
+    if (!object || !this.ownsGeneration(owner, gen)) return;
+    owner.add(object);
+  }
+
+  private addCityFoundation(loader: GLTFLoader, friendCount: number, gen: number) {
+    const owner = new THREE.Group();
+    owner.name = 'city-kit-foundation';
+    this.kitRoots.add(owner);
+    this.world.add(owner);
+
+    const kit = this.kit ?? (this.kit = new AssetKit(loader));
+    for (const placement of cityKitLayout(friendCount)) {
+      void this.addCityKitPlacement(owner, kit, placement, gen);
+    }
+  }
+
+  /**
+   * Finale props are a real earned beat; unlike the old sign/mushroom/bee
+   * ambience, they are not loaded on every zero-friend first frame. Each is
+   * added after its load rather than through a shared scene helper so a stale
+   * generation can release it without touching the new town.
+   */
+  private async addFestivalProp(
+    owner: THREE.Group,
+    loader: GLTFLoader,
+    key: keyof typeof CAST_PROP_GLB,
+    opts: PlaceOpts,
+    gen: number,
+  ) {
+    const object = await placeS1Prop(loader, key, opts);
+    if (!object) return;
+    if (!this.ownsGeneration(owner, gen)) {
+      disposeObject(object);
+      return;
+    }
+    owner.add(object);
+  }
+
+  private addFestivalProps(loader: GLTFLoader, gen: number) {
+    const owner = new THREE.Group();
+    owner.name = 'city-festival-props';
+    this.world.add(owner);
+    const props: Array<{ key: keyof typeof CAST_PROP_GLB; opts: PlaceOpts }> = [
+      { key: 'party_table', opts: { x: 0, z: -4.6, maxSize: 1.8 } },
+      { key: 'present', opts: { x: 1.5, z: -3.8, maxSize: 0.45 } },
+      { key: 'present', opts: { x: -1.6, z: -4.1, maxSize: 0.4 } },
+      { key: 'flag', opts: { x: -3.4, z: -2.4, maxSize: 1.0 } },
+      { key: 'flag', opts: { x: 3.4, z: -2.4, maxSize: 1.0 } },
+    ];
+    for (const { key, opts } of props) {
+      void this.addFestivalProp(owner, loader, key, opts, gen);
+    }
+  }
+
+  setCity(friends: CityResident[], outfit: string[] = []) {
+    if (this.disposed) return;
+    const gen = ++this.cityGen;
+    this.clearWorld();
 
     const count = friends.length;
+    const loader = createGameGltfLoader();
 
-    // Barsik's own house, always, with a pair of trees for scale.
-    this.world.add(makeHouse(0x6c5ce7, -2.6, -7.4));
-    this.world.add(makeTree(-6.6, -3.4, 1.15), makeTree(6.4, -4.2, 1.3));
-    this.world.add(makeTree(-8.2, 2.6), makeTree(8.4, 1.8, 1.1));
+    // The City Kit is the permanent starter layer, not a reward gated behind
+    // a first friend. Its cached templates keep refreshes cheap.
+    this.addCityFoundation(loader, count, gen);
 
     if (hasFeature(count, 'lamps')) {
       this.world.add(makeLamp(-3.1, 3.4), makeLamp(3.1, 3.4));
-    }
-    if (hasFeature(count, 'neighbour')) {
-      // One house per friend on the outer ring, behind their owner, capped so
-      // a full roster does not turn the skyline into a wall.
-      const houses = Math.min(count, HOUSE_COLORS.length);
-      for (let i = 0; i < houses; i++) {
-        const spot = friendSpot(i, Math.max(houses, 2));
-        const len = Math.hypot(spot.x, spot.z - 0.6) || 1;
-        // An ellipse pushed behind the square, not a circle around it. On a
-        // circle the two end houses landed at z ≈ +4.3 — nearer the camera
-        // than anyone living in them — and got sliced by the frame edge.
-        this.world.add(makeHouse(
-          HOUSE_COLORS[i % HOUSE_COLORS.length],
-          (spot.x / len) * HOUSE_RADIUS,
-          -3.4 + ((spot.z - 0.6) / len) * 4.8,
-        ));
-      }
     }
     if (hasFeature(count, 'bench')) {
       // Clear of the resident spots at (±4.0, -1.7): at (±4.6, 1.4) a friend
@@ -521,6 +601,7 @@ export class CityScene {
     }
     if (hasFeature(count, 'festival')) {
       this.world.add(makeGarland());
+      this.addFestivalProps(loader, gen);
     }
 
     // Barsik, dressed in what the wardrobe sold.
@@ -539,32 +620,6 @@ export class CityScene {
     this.avatar = avatar;
     this.worn = dressAvatar(avatar, outfit, DEFAULT_LOOK);
     this.world.add(avatar.root);
-
-    const loader = createGameGltfLoader();
-    void placeMany(this.world as unknown as THREE.Scene, loader, [
-      // Nothing sits between the camera and Barsik. The signpost started at
-      // (0, 6.4) — dead centre of the foreground — and put a plank across the
-      // face of the character the screen is named after.
-      { key: 'wood_sign', opts: { x: -6.2, z: 5.8, maxSize: 1.2, rotY: Math.PI - 0.5 } },
-      { key: 'mushroom', opts: { x: -5.6, z: -1.2, maxSize: 0.4 } },
-      ...(hasFeature(count, 'festival')
-        ? [
-            { key: 'party_table', opts: { x: 0, z: -4.6, maxSize: 1.8 } },
-            { key: 'present', opts: { x: 1.5, z: -3.8, maxSize: 0.45 } },
-            { key: 'present', opts: { x: -1.6, z: -4.1, maxSize: 0.4 } },
-            { key: 'flag', opts: { x: -3.4, z: -2.4, maxSize: 1.0 } },
-            { key: 'flag', opts: { x: 3.4, z: -2.4, maxSize: 1.0 } },
-          ]
-        : []),
-    ]).then((objs) => {
-      if (this.disposed || gen !== this.cityGen) {
-        for (const o of objs) this.world.remove(o);
-      }
-    });
-    void placeAmbientCritters(this.world as unknown as THREE.Scene, loader, [
-      { key: 'rabbit', x: -6.2, z: 3.2, rotY: 0.8, h: 0.55 },
-      { key: 'bee', x: 5.4, z: 3.6, rotY: 0.4, h: 0.35 },
-    ]);
 
     friends.forEach((f, i) => {
       const { x, z } = friendSpot(i, Math.max(count, 2));
@@ -588,7 +643,11 @@ export class CityScene {
       // plinth detector landed.
       void loadCharModel(loader, file, f.id === 'hedgehog' || f.id === 'squirrel' ? 0.85 : 1.15)
         .then((model) => {
-          if (!model || this.disposed || gen !== this.cityGen) return;
+          if (!model) return;
+          if (!this.ownsGeneration(marker, gen)) {
+            disposeObject(model);
+            return;
+          }
           // Only x and z. loadCharModel writes the grounding — and the plinth
           // burial — into position.y, and a position.set(x, 0, z) throws it away.
           model.position.x = x;
@@ -599,6 +658,7 @@ export class CityScene {
           model.userData.baseRotY = model.rotation.y;
           model.userData.baseY = model.position.y;
           this.world.remove(marker);
+          disposeObject(marker);
           const idx = this.residents.indexOf(marker);
           if (idx >= 0) this.residents[idx] = model;
           this.world.add(model);
@@ -650,10 +710,12 @@ export class CityScene {
 
   dispose() {
     this.disposed = true;
+    ++this.cityGen;
     cancelAnimationFrame(this.animId);
     this.canvas.removeEventListener('pointerdown', this.handlePointer);
-    undressAvatar(this.worn);
-    this.avatar?.dispose();
+    this.clearWorld();
+    this.kit?.dispose();
+    this.kit = null;
     disposeObject(this.scene);
     if (import.meta.env.DEV) this.performanceTelemetry?.dispose();
     this.renderer.dispose();
