@@ -34,6 +34,7 @@ short: implementation detail remains in the commit and linked ADR.
 | `e915dba` → `7c3ed2c` | Qualified Barsik rig | A static model slides and a raw generated model can overload phones. The runtime will take only a qualified rigged Barsik, otherwise it keeps the playable avatar. | Type-check, lint, build, GLB probe and L0 390×844 default/avatar/rigged fallback checks. See ADR 004. |
 | `bd3f2b2` → `9245aa2` | Level 0 forest floor | The terrain had relief but still read as a flat coloured field. L0 now gets scoped macro detail, a worn path/green verge and one-draw-call grass tufts. | Type-check, lint, build; live 390×844 and 1440×900 checks without console errors. See ADR 005. |
 | `a720d6b` → `aba1448` | Season 1 forest hygiene | Mission 1 used a legacy flat plane and Levels 2/3/10 duplicated environment systems. M1 keeps its level gameplay route while gaining shared horizon/grass; duplicate sky, clouds and fireflies were removed. | Type-check, lint, build; 390×844 smoke for missions 1/2/3/10 with no console errors. See ADR 006. |
+| `fea1fd3` | Shared mission HUD | Levels 1–16 still looked like a different violet/glass product beside Level 0. Their shared HUD now uses tactile cream/cyan/pear/mint chrome while preserving controls and Level 0's isolated reference variant. | Type-check, lint, build; L1 390×844 + 1440×900 screenshots; L1/L11 dialogue and pause/resume smoke without console errors. See ADR 007. |
 
 ### Known follow-up
 
