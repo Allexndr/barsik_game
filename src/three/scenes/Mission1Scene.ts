@@ -19,8 +19,6 @@ import {
   bush,
   tulip,
   hill,
-  skyDome,
-  makeGrassTexture,
   streamSegment,
   bridge,
 } from './BaseLevelScene';
@@ -297,11 +295,18 @@ export class Mission1Scene extends BaseLevelScene {
     const loader = createGameGltfLoader();
 
     this.camera.position.set(-12, 8, 20);
-    this.setupLighting(0x8fd8f5, 0xfff8e7);
-    this.scene.fog = new THREE.Fog(0x8fd8f5, 70, 220);
-    this.setupGround(makeGrassTexture());
-    this.scene.add(skyDome());
-    this.setupClouds(7, 26, 80);
+    // Keep every authored beat on a level floor — bridge, pull interaction,
+    // Aya and the route all use y=0 — while the shared terrain adds depth
+    // outside the walk.  The longer route reaches z=-46, so the rim must
+    // begin beyond it; otherwise it turns the last quest beat into a slope.
+    await this.setupForestEnvironment(loader, {
+      fogColor: 0x8fd8f5,
+      sky: ['#66c8f5', '#94d8ef', '#e8faf3'],
+      clouds: 7,
+      flatRadius: 30,
+      flatCenterZ: -18,
+      terrain: { playHalfExtent: 56, rimFalloff: 16 },
+    });
 
     this.pathCorridor = (z) => Math.sin((z - 8) * -0.24) * 1.9;
     this.pathCorridorHalf = 3.4;
