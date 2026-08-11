@@ -29,10 +29,19 @@ function probe(path) {
   const json = JSON.parse(buf.subarray(20, 20 + chunkLen).toString('utf8'));
 
   let verts = 0;
+  let triangles = 0;
   for (const mesh of json.meshes ?? []) {
     for (const prim of mesh.primitives ?? []) {
       const acc = prim.attributes?.POSITION;
-      if (acc !== undefined) verts += json.accessors[acc]?.count ?? 0;
+      if (acc === undefined) continue;
+      const positionCount = json.accessors[acc]?.count ?? 0;
+      verts += positionCount;
+      // GLB character assets use TRIANGLES. Indexed geometry counts indices;
+      // unindexed geometry counts positions, both divided by three.
+      const primitiveCount = prim.indices === undefined
+        ? positionCount
+        : json.accessors[prim.indices]?.count ?? 0;
+      triangles += Math.floor(primitiveCount / 3);
     }
   }
 
@@ -40,6 +49,7 @@ function probe(path) {
     file: path.split('/').pop(),
     kb: Math.round(statSync(path).size / 1024),
     verts,
+    triangles,
     meshes: (json.meshes ?? []).length,
     materials: (json.materials ?? []).length,
     textures: (json.textures ?? []).length,
@@ -65,10 +75,11 @@ for (const f of files) {
   if (r.textures === 0 && r.materials > 0) flags.push('untextured');
   if (r.skins === 0) flags.push('no skeleton');
   if (r.animations === 0) flags.push('no clips');
-  if (r.verts > 40000) flags.push(`heavy (${r.verts} verts)`);
+  if (r.verts > 80000) flags.push(`too heavy (${r.verts} verts)`);
+  if (r.triangles > 120000) flags.push(`too heavy (${r.triangles} triangles)`);
   console.log(
     `${r.file.padEnd(26)} ${String(r.kb).padStart(5)} KB  ` +
-      `${String(r.verts).padStart(6)} v  ` +
+      `${String(r.verts).padStart(6)} v  ${String(r.triangles).padStart(6)} tri  ` +
       `mat ${r.materials}  tex ${r.textures}  skin ${r.skins}  anim ${r.animations}` +
       (flags.length ? `   ← ${flags.join(', ')}` : ''),
   );
