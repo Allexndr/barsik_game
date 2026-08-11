@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { IconRotatePhone } from './icons';
 
 const SEEN_KEY = 'barsik_rotate_hint_seen';
 
@@ -58,7 +59,7 @@ export function RotateHint({ lang }: { lang: 'ru' | 'kk' }) {
 
   return (
     <div className="m0-rotate-hint" aria-hidden>
-      <span className="m0-rotate-icon">📱</span>
+      <span className="m0-rotate-icon"><IconRotatePhone size={22} /></span>
       <span>
         {lang === 'kk'
           ? 'Телефонды бұрсаң, көбірек көрінеді'

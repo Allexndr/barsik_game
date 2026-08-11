@@ -129,6 +129,74 @@ export function IconSoundOff(props: IconProps) {
   );
 }
 
+export function IconMessage(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path
+        d="M4.5 5.5h15v10.2a3 3 0 0 1-3 3H10l-4.7 2.8.8-2.8H7.5a3 3 0 0 1-3-3V5.5z"
+        fill="currentColor"
+        opacity="0.16"
+      />
+      <path
+        d="M4.5 5.5h15v10.2a3 3 0 0 1-3 3H10l-4.7 2.8.8-2.8H7.5a3 3 0 0 1-3-3V5.5zM8 10h8m-8 3.4h5.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function IconMusicNote(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path
+        d="M15.8 3.5v11.2a3.35 3.35 0 1 1-1.8-3V7.1l-6.2 1.55v7.15a3.35 3.35 0 1 1-1.8-3.02V7.25l9.8-2.45z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function IconLantern(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M8 7.3V6a4 4 0 0 1 8 0v1.3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M7 8h10l1.5 10.5H5.5L7 8z" fill="currentColor" opacity="0.18" />
+      <path d="M7 8h10l1.5 10.5H5.5L7 8z" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+      <path d="M12 11c1.25 1.2 1.75 2.05 1.75 2.9A1.75 1.75 0 0 1 12 15.65a1.75 1.75 0 0 1-1.75-1.75c0-.85.5-1.7 1.75-2.9z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function IconStitch(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M5 7.5c3.1 0 3.1 9 6.2 9s3.1-9 6.2-9" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+      <path d="M5 4.5v3M8.1 12.5v3M14.3 12.5v3M18 4.5v3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function IconRotatePhone(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <rect x="8.2" y="4" width="7.6" height="13.4" rx="1.6" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="12" cy="14.8" r="0.7" fill="currentColor" />
+      <path
+        d="M5.3 8.5a7.3 7.3 0 0 1 12.3-2.2M18.7 15.5a7.3 7.3 0 0 1-12.3 2.2M15.6 4.6l2.4 1.7-2 2.1M8.4 19.4L6 17.7l2-2.1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function IconChevronLeft(props: IconProps) {
   return (
     <svg {...base(props)}>

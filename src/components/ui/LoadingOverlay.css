@@ -4,85 +4,204 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0d1321 0%, #1a2342 100%);
+  padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 15% 12%, rgba(240, 210, 74, 0.42) 0 5%, transparent 18%),
+    linear-gradient(180deg, #cceaf4 0%, #e6f4e5 58%, #d9e8c8 100%);
   z-index: 30;
+}
+
+.loading-overlay::before,
+.loading-overlay::after {
+  position: absolute;
+  content: '';
+  width: 150%;
+  border-radius: 50% 50% 0 0;
   pointer-events: none;
 }
 
+.loading-overlay::before {
+  height: 28%;
+  left: -18%;
+  bottom: -12%;
+  background: #a9cf93;
+}
+
+.loading-overlay::after {
+  height: 20%;
+  right: -30%;
+  bottom: -9%;
+  background: #86ba78;
+}
+
 .loading-overlay__card {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 24px 28px 28px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  max-width: min(94vw, 520px);
-  pointer-events: auto;
+  gap: 0.62rem;
+  width: min(100%, 430px);
+  padding: clamp(1.4rem, 5vw, 2rem);
+  border: 2px solid #fff;
+  border-radius: 28px;
+  background: #fffdf6;
+  box-shadow: 0 9px 0 #c9dabb, 0 20px 40px rgba(45, 83, 58, 0.22);
+  text-align: center;
 }
 
-.loading-overlay__invite {
+.loading-overlay__eyebrow {
   margin: 0;
+  color: #2aa8d8;
+  font-family: var(--font-display, system-ui, sans-serif);
+  font-size: 0.72rem;
   font-weight: 900;
-  font-size: 1.02rem;
-  color: #f0f3f8;
+  letter-spacing: 0.11em;
 }
 
-.loading-runner {
-  width: min(90vw, 480px);
-  height: auto;
-  aspect-ratio: 480 / 170;
-  border-radius: 12px;
-  image-rendering: pixelated;
-  touch-action: manipulation;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+.loading-overlay__title {
+  margin: 0;
+  color: var(--color-ink, #1c2430);
+  font-family: var(--font-display, system-ui, sans-serif);
+  font-size: clamp(1.55rem, 7vw, 2.05rem);
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+
+.loading-overlay__message {
+  margin: 0;
+  max-width: 26ch;
+  color: var(--color-ink-2, #4a5568);
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.loading-overlay__lantern-path {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(100%, 300px);
+  margin: 0.48rem 0 0.2rem;
+  padding: 0 0.6rem;
+}
+
+.loading-overlay__lantern-path::before {
+  position: absolute;
+  top: 50%;
+  right: 1.5rem;
+  left: 1.5rem;
+  height: 5px;
+  border-radius: 999px;
+  background: #d9e8c8;
+  content: '';
+  transform: translateY(-50%);
+}
+
+.loading-overlay__lantern {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 42px;
+  height: 44px;
+  place-items: center;
+  border: 3px solid #7ca570;
+  border-radius: 12px 12px 10px 10px;
+  background: #eff4e6;
+  box-shadow: 0 4px 0 #7ca570;
+}
+
+.loading-overlay__lantern::before {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  width: 19px;
+  height: 12px;
+  border: 3px solid #7ca570;
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  content: '';
+  transform: translateX(-50%);
+}
+
+.loading-overlay__lantern-flame {
+  width: 13px;
+  height: 20px;
+  border-radius: 60% 40% 55% 45%;
+  background: #c6d4bd;
+  transform: rotate(45deg);
+}
+
+.loading-overlay__lantern.is-lit {
+  border-color: #c9a812;
+  background: #f0d24a;
+  box-shadow: 0 4px 0 #c9a812, 0 0 0 6px rgba(240, 210, 74, 0.2);
+}
+
+.loading-overlay__lantern.is-lit .loading-overlay__lantern-flame {
+  background: #fff8ca;
+  box-shadow: 0 0 16px rgba(255, 248, 202, 0.95);
 }
 
 .loading-overlay__bar {
-  width: 120px;
-  height: 6px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.12);
+  width: min(100%, 270px);
+  height: 10px;
   overflow: hidden;
+  border: 2px solid #d7e7ca;
+  border-radius: 999px;
+  background: #eef5e6;
 }
 
-/* Width is driven by real load progress now, not by an animation that
-   slid back and forth regardless of what was happening. */
+/* Driven by actual Three.js LoadingManager progress, never a decorative loop. */
 .loading-overlay__bar-fill {
   width: 0%;
   height: 100%;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #00cec9, #6c5ce7);
+  border-radius: inherit;
+  background: #2aa8d8;
   transition: width 0.3s ease-out;
 }
 
 .loading-overlay__text {
-  font-family: var(--font-display, system-ui, sans-serif);
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
-  letter-spacing: 0.5px;
+  min-height: 1.4em;
+  color: var(--color-ink-2, #4a5568);
+  font-family: var(--font-main, system-ui, sans-serif);
+  font-size: 0.88rem;
+  font-weight: 800;
 }
 
 .loading-overlay__pct {
+  color: #2aa8d8;
   font-style: normal;
-  opacity: 0.75;
 }
 
-.loading-overlay__play {
-  margin-top: 4px;
-  animation: loading-play-pulse 1.3s ease-in-out infinite;
+.loading-overlay__play.plush-btn-primary {
+  width: min(100%, 260px);
+  margin-top: 0.38rem;
+  color: #4a3c10;
+  background: #f0d24a;
+  box-shadow: 0 5px 0 #c9a812, 0 10px 20px rgba(201, 168, 18, 0.28);
 }
 
-@keyframes loading-play-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.04); }
+.loading-overlay__play.plush-btn-primary:active:not(:disabled) {
+  box-shadow: 0 2px 0 #c9a812, 0 5px 10px rgba(201, 168, 18, 0.22);
+}
+
+@media (max-width: 390px) {
+  .loading-overlay__card {
+    padding: 1.25rem 1rem 1.45rem;
+    border-radius: 24px;
+  }
+
+  .loading-overlay__lantern-path {
+    width: min(100%, 264px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .loading-overlay__play { animation: none; }
+  .loading-overlay__bar-fill {
+    transition: none;
+  }
 }

@@ -834,3 +834,172 @@
     line-height: 1.4;
   }
 }
+
+/* ── Level 0 visual lock ────────────────────────────────────────
+ *
+ * MissionScreen shares the older .m0-* shell with every later level. These
+ * overrides are deliberately scoped to the flagship `Level0Scene` screen:
+ * it can become the reference without recolouring sixteen scenes that have
+ * not yet gone through their own visual QA.
+ *
+ * The palette uses the locked Barsik Hum tokens (cream / pear / cyan / mint),
+ * not the legacy violet glass treatment that came from the pre-style-lock UI.
+ * ───────────────────────────────────────────────────────────── */
+.m0-screen--level0 .m0-title {
+  color: var(--color-ink);
+  border-color: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 253, 246, 0.94);
+  box-shadow: 0 4px 0 rgba(201, 218, 187, 0.9), 0 9px 18px rgba(28, 36, 48, 0.16);
+  text-shadow: none;
+}
+
+.m0-screen--level0 .m0-stat {
+  background: transparent;
+  box-shadow: none;
+}
+
+.m0-screen--level0 .m0-stats {
+  gap: 0.18rem;
+  padding: 3px;
+  border: 2px solid rgba(255, 255, 255, 0.96);
+  border-radius: 999px;
+  background: rgba(255, 253, 246, 0.94);
+  box-shadow: 0 4px 0 rgba(201, 218, 187, 0.9), 0 9px 18px rgba(28, 36, 48, 0.16);
+}
+
+.m0-screen--level0 .m0-pause-btn {
+  border-color: #fff;
+  background: #2aa8d8;
+  box-shadow: 0 3px 0 #197da6, 0 7px 14px rgba(42, 168, 216, 0.26);
+}
+
+.m0-screen--level0 .m0-pause-btn:hover {
+  background: #238fba;
+}
+
+.m0-screen--level0 .m0-dialogue {
+  border: 2px solid rgba(255, 255, 255, 0.98);
+  background: rgba(255, 253, 246, 0.96);
+  box-shadow: 0 6px 0 rgba(210, 226, 201, 0.92), 0 15px 28px rgba(28, 36, 48, 0.18);
+}
+
+.m0-screen--level0 .m0-speaker {
+  color: #2aa8d8;
+}
+
+.m0-screen--level0 .m0-objective {
+  border-color: rgba(42, 168, 216, 0.38);
+  color: #318657;
+}
+
+.m0-screen--level0 .m0-keys {
+  border: 2px solid #fff;
+  background: rgba(255, 253, 246, 0.94);
+  box-shadow: 0 4px 0 #d8e6cb, 0 10px 20px rgba(28, 36, 48, 0.15);
+  backdrop-filter: none;
+}
+
+.m0-screen--level0 .m0-keys kbd {
+  border-color: #2aa8d8;
+  color: #197da6;
+  box-shadow: 0 2px 0 #197da6;
+}
+
+.m0-screen--level0 .m0-keys-or {
+  color: var(--color-ink-2);
+}
+
+.m0-screen--level0 .m0-stick {
+  border-color: rgba(255, 253, 246, 0.92);
+  background: rgba(255, 253, 246, 0.38);
+  box-shadow: 0 7px 18px rgba(28, 36, 48, 0.14);
+}
+
+.m0-screen--level0 .m0-knob {
+  border-color: #fffdf6;
+  background: #5fbf7a;
+  box-shadow: 0 4px 0 #318657, 0 8px 14px rgba(49, 134, 87, 0.22);
+}
+
+.m0-screen--level0 .m0-jump {
+  border-color: #fffdf6;
+  color: #197da6;
+  background: #cceaf4;
+  box-shadow: 0 7px 0 #2aa8d8, 0 12px 22px rgba(28, 36, 48, 0.2);
+}
+
+.m0-screen--level0 .m0-jump:active {
+  box-shadow: 0 2px 0 #2aa8d8, 0 6px 12px rgba(28, 36, 48, 0.2);
+}
+
+.m0-screen--level0 .m0-action {
+  border-color: #fffdf6;
+  background: #f0d24a;
+  box-shadow: 0 8px 0 #c9a812, 0 12px 24px rgba(28, 36, 48, 0.2);
+}
+
+.m0-screen--level0 .m0-action-paw,
+.m0-screen--level0 .m0-action-label {
+  color: #584816;
+}
+
+.m0-screen--level0 .m0-outro {
+  background: rgba(28, 36, 48, 0.48);
+  backdrop-filter: none;
+}
+
+.m0-screen--level0 .m0-outro-card {
+  border: 2px solid #fff;
+  background: #fffdf6;
+  box-shadow: 0 9px 0 #c9dabb, 0 20px 48px rgba(28, 36, 48, 0.3);
+}
+
+.m0-screen--level0 .m0-outro-badge {
+  background: #2aa8d8;
+}
+
+.m0-screen--level0 .m0-progress-label {
+  color: #197da6;
+}
+
+.m0-screen--level0 .m0-rotate-hint {
+  background: var(--color-ink);
+  box-shadow: 0 5px 0 rgba(12, 18, 24, 0.45), 0 10px 22px rgba(28, 36, 48, 0.24);
+  backdrop-filter: none;
+}
+
+.m0-screen--level0 .m0-rotate-icon {
+  display: inline-flex;
+  color: #f0d24a;
+}
+
+.m0-screen--level0 .m0-dialogue-btn {
+  border-color: rgba(42, 168, 216, 0.35);
+  background: rgba(42, 168, 216, 0.1);
+  color: #197da6;
+}
+
+.m0-screen--level0 .m0-dialogue-btn:hover:not(:disabled) {
+  background: rgba(42, 168, 216, 0.2);
+}
+
+.m0-screen--level0 .m0-dialogue-tab {
+  border: 2px solid #fff;
+  background: rgba(255, 253, 246, 0.96);
+  box-shadow: 0 4px 0 #d8e6cb, 0 10px 20px rgba(28, 36, 48, 0.16);
+  backdrop-filter: none;
+}
+
+.m0-screen--level0 .m0-dialogue-tab-icon {
+  display: inline-flex;
+  color: #2aa8d8;
+}
+
+.m0-screen--level0 .m0-pause-btn:focus-visible,
+.m0-screen--level0 .m0-action:focus-visible,
+.m0-screen--level0 .m0-jump:focus-visible,
+.m0-screen--level0 .m0-dialogue-btn:focus-visible,
+.m0-screen--level0 .m0-dialogue-tab:focus-visible {
+  outline: 3px solid #f0d24a;
+  outline-offset: 3px;
+}
