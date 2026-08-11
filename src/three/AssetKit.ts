@@ -64,6 +64,7 @@ function prepareKitModel(root: THREE.Object3D) {
 export class AssetKit {
   private templates = new Map<string, Promise<THREE.Object3D | null>>();
   private loaded: THREE.Object3D[] = [];
+  private disposed = false;
 
   constructor(private readonly loader: GLTFLoader) {}
 
@@ -72,6 +73,7 @@ export class AssetKit {
   }
 
   private template(pack: KitPack, name: string): Promise<THREE.Object3D | null> {
+    if (this.disposed) return Promise.resolve(null);
     const url = this.url(pack, name);
     const cached = this.templates.get(url);
     if (cached) return cached;
@@ -84,6 +86,15 @@ export class AssetKit {
             setTimeout(() => reject(new Error(`timeout ${url}`)), 12000),
           ),
         ]);
+        // A scene can leave while GLTFLoader is still fetching. It is not
+        // enough to clear `loaded` in dispose(): without this guard a late
+        // template would push itself into an unreachable cache and retain its
+        // textures forever. Release the source scene before returning null;
+        // callers consequently never create a late clone.
+        if (this.disposed) {
+          disposeObject3DResources(gltf.scene);
+          return null;
+        }
         prepareKitModel(gltf.scene);
         this.loaded.push(gltf.scene);
         return gltf.scene;
@@ -98,13 +109,15 @@ export class AssetKit {
 
   /** Warm the cache before a level starts so first placement does not stutter. */
   async preload(models: Array<[KitPack, string]>) {
+    if (this.disposed) return;
     await Promise.all(models.map(([pack, name]) => this.template(pack, name)));
   }
 
   /** A placed clone of a kit model, or null when the file is unavailable. */
   async spawn(pack: KitPack, name: string, opts: SpawnOptions = {}): Promise<THREE.Object3D | null> {
+    if (this.disposed) return null;
     const template = await this.template(pack, name);
-    if (!template) return null;
+    if (!template || this.disposed) return null;
 
     const instance = template.clone(true);
     if (opts.height !== undefined) fitHeight(instance, opts.height);
@@ -135,7 +148,9 @@ export class AssetKit {
     names: readonly string[],
     placements: Array<{ x: number; z: number; height?: number; maxSize?: number; rotationY?: number }>,
   ): Promise<THREE.Object3D[]> {
+    if (this.disposed) return [];
     const templates = await Promise.all(names.map((name) => this.template(pack, name)));
+    if (this.disposed) return [];
     const usable = templates.filter((t): t is THREE.Object3D => Boolean(t));
     if (!usable.length) return [];
 
@@ -153,6 +168,8 @@ export class AssetKit {
   }
 
   dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
     for (const template of this.loaded) disposeObject3DResources(template);
     this.loaded.length = 0;
     this.templates.clear();
