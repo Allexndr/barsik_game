@@ -1,4 +1,14 @@
 .screen-city {
+  /* City is a paper map of a town growing with friends, not a violet reward
+   * panel. Keep every accent inside the locked Season 1 material palette. */
+  --city-paper: #fffdf6;
+  --city-ink: #1c2430;
+  --city-muted: #4a5568;
+  --city-cyan: #2aa8d8;
+  --city-pear: #f0d24a;
+  --city-mint: #5fbf7a;
+  --city-line: #dbe8cf;
+
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
@@ -13,8 +23,9 @@
   align-items: center;
   gap: 0.35rem;
   padding: var(--spacing-sm) var(--spacing-md);
-  background: linear-gradient(135deg, var(--primary), var(--primary-light));
-  color: white;
+  border: 2px solid var(--city-ink);
+  background: var(--city-ink);
+  color: var(--city-paper);
   border-radius: var(--radius-lg);
   font-weight: 800;
   font-size: 0.95rem;
@@ -24,7 +35,10 @@
 .city-3d-viewer {
   flex-shrink: 0;
   min-height: 240px;
-  max-height: 42vh;
+  /* Keep the empty-state invitation in the first desktop frame as well as
+   * portrait. The town remains the visual hero without pushing its next step
+   * under the fold. */
+  max-height: 38vh;
   border-radius: var(--radius-lg);
   border: 2px solid var(--border);
   overflow: hidden;
@@ -62,10 +76,11 @@
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
-  padding: 0.6rem 2rem 0.6rem 0.6rem;
+  padding: 0.6rem 3rem 0.6rem 0.6rem;
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(28, 36, 48, 0.12);
+  background: rgba(255, 253, 246, 0.96);
+  box-shadow: 0 6px 18px rgba(28, 36, 48, 0.18);
 }
 
 .city-resident-text {
@@ -83,7 +98,7 @@
 .city-resident-role {
   font-size: 0.76rem;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--city-cyan);
 }
 
 .city-resident-text p {
@@ -104,15 +119,20 @@
   position: absolute;
   top: 0.3rem;
   right: 0.3rem;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: var(--text-light);
-  font-size: 1.3rem;
+  color: var(--city-muted);
+  font-size: 1.55rem;
   line-height: 1;
   cursor: pointer;
+}
+
+.city-resident-close:focus-visible {
+  outline: 3px solid var(--city-pear);
+  outline-offset: 1px;
 }
 
 /* --- Next unlock --- */
@@ -123,8 +143,9 @@
   gap: 0.35rem;
   padding: var(--spacing-md);
   border-radius: var(--radius-lg);
-  border: 2px solid var(--border);
-  background: rgba(108, 92, 231, 0.06);
+  border: 2px solid var(--city-line);
+  background: var(--city-paper);
+  box-shadow: inset 0 4px 0 rgba(240, 210, 74, 0.72);
 }
 
 .city-next-head {
@@ -140,13 +161,13 @@
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-light);
+  color: var(--city-muted);
 }
 
 .city-next-name {
   font-size: 1rem;
   font-weight: 800;
-  color: var(--primary);
+  color: var(--city-cyan);
 }
 
 .city-next-promise {
@@ -159,7 +180,7 @@
 .city-bar {
   height: 10px;
   border-radius: 5px;
-  background: rgba(0, 0, 0, 0.09);
+  background: #e5efdc;
   overflow: hidden;
 }
 
@@ -167,7 +188,7 @@
   display: block;
   height: 100%;
   border-radius: 5px;
-  background: linear-gradient(90deg, var(--primary), var(--primary-light));
+  background: linear-gradient(90deg, var(--city-mint), var(--city-cyan));
   transition: width 0.4s ease;
 }
 
@@ -175,7 +196,7 @@
   margin: 0;
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--text-light);
+  color: var(--city-muted);
 }
 
 /* --- Residents --- */
@@ -190,7 +211,7 @@
   margin: 0;
   font-size: 0.92rem;
   font-weight: 800;
-  color: var(--primary);
+  color: var(--city-ink);
 }
 
 .city-residents {
@@ -214,8 +235,15 @@
 }
 
 .city-resident.is-selected {
-  border-color: var(--primary);
+  border-color: var(--city-cyan);
+  background: #f1fbfd;
+  box-shadow: 0 3px 0 rgba(42, 168, 216, 0.2);
   transform: translateY(-2px);
+}
+
+.city-resident:focus-visible {
+  outline: 3px solid var(--city-pear);
+  outline-offset: 2px;
 }
 
 .city-resident-name {
@@ -229,19 +257,38 @@
 .city-empty {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 0.7rem;
   padding: var(--spacing-md);
   border-radius: var(--radius-lg);
-  border: 2px dashed var(--border);
-  background: rgba(0, 0, 0, 0.02);
+  border: 2px dashed var(--city-pear);
+  background: linear-gradient(135deg, var(--city-paper), #fff7cf);
 }
 
 .city-empty p {
   margin: 0;
-  color: var(--text-light);
+  color: var(--city-muted);
   font-size: 0.9rem;
   line-height: 1.4;
+}
+
+.city-empty-eyebrow {
+  color: var(--city-ink);
+  font-size: 0.77rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.city-empty-cta {
+  width: 100%;
+  min-height: 60px;
+  margin-top: 0.15rem;
+}
+
+.screen-city .city-empty-cta.plush-btn-primary {
+  background: linear-gradient(180deg, #8bdda6 0%, var(--city-mint) 54%, #3d9a5b 100%);
+  box-shadow: 0 5px 0 #34854e, 0 10px 22px rgba(52, 133, 78, 0.3);
 }
 
 @media (max-width: 768px) {
