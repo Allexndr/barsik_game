@@ -35,13 +35,12 @@ short: implementation detail remains in the commit and linked ADR.
 | `bd3f2b2` → `9245aa2` | Level 0 forest floor | The terrain had relief but still read as a flat coloured field. L0 now gets scoped macro detail, a worn path/green verge and one-draw-call grass tufts. | Type-check, lint, build; live 390×844 and 1440×900 checks without console errors. See ADR 005. |
 | `a720d6b` → `aba1448` | Season 1 forest hygiene | Mission 1 used a legacy flat plane and Levels 2/3/10 duplicated environment systems. M1 keeps its level gameplay route while gaining shared horizon/grass; duplicate sky, clouds and fireflies were removed. | Type-check, lint, build; 390×844 smoke for missions 1/2/3/10 with no console errors. See ADR 006. |
 | `fea1fd3` | Shared mission HUD | Levels 1–16 still looked like a different violet/glass product beside Level 0. Their shared HUD now uses tactile cream/cyan/pear/mint chrome while preserving controls and Level 0's isolated reference variant. | Type-check, lint, build; L1 390×844 + 1440×900 screenshots; L1/L11 dialogue and pause/resume smoke without console errors. See ADR 007. |
+| `ccc28e4` | Level 10 launch framing | The rear forest cap grew into the follow camera, so the first playable shot could be all trunk/canopy. Level 10 now reserves a visual-only camera bay while retaining its route and collision rules. | Type-check, lint, build; repeated 390×844 starts, 1440×900 start/movement smoke and console checks. See ADR 008. |
 
 ### Known follow-up
 
-- Level 10 mobile begins with a tree canopy occluding too much of the camera.
-  This is documented in ADR 006 and deliberately stays out of the environment
-  cleanup package; it needs a focused camera/tree-layout pass and screenshot
-  approval rather than a hidden one-line move.
+- Keep screenshot review when new forest caps or camera profiles are added;
+  the Level 10 launch-camera occlusion is resolved by the focused layout pass.
 
 ## Required entry format
 
