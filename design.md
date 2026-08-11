@@ -4,6 +4,14 @@ Locked design system for the Barsik kids adventure game UI.
 Every marketing / hub screen redesign reads this file first.
 Do not regenerate per page — amend this file when the system grows.
 
+## Authority
+- This file is the single visual source of truth for **marketing and hub UI**.
+- `ART_DIRECTION.md` governs the 3D world, character and environment. Its
+  sections 2 and 3b align with this UI system; its old violet/glass snippets
+  are historical references, not instructions for new UI.
+- Level HUD is deliberately a separate future migration. Do not change it as a
+  side-effect of a hub/navigation task.
+
 ## Genre
 playful (kids adventure · family · soft-tactile · bilingual RU/ҚАЗ)
 
@@ -41,6 +49,14 @@ playful (kids adventure · family · soft-tactile · bilingual RU/ҚАЗ)
 - Brand name **BARSIK** must dominate first viewport (hero-level), not only nav.
 - First viewport budget: brand · one headline · one support line · CTA group · one dominant image.
 - Soft-3D plush art direction (see `ART_DIRECTION.md`); map stays portrait-centred on desktop.
+
+## Hub navigation
+- Mobile has four persistent destinations only: **Journey · Friends · City · More**.
+- The game loop comes first: Journey is the default and primary destination.
+- Shop, Rating and Chest stay reachable under More until their product promises
+  are complete; they must not compete with the next adventure in the thumb bar.
+- Every persistent mobile navigation target is at least 44×44 CSS px; labels
+  remain readable at normal phone viewing distance.
 
 ## Voice
 Warm, direct, specific. RU/ҚАЗ always paired in product copy. No invented metrics.

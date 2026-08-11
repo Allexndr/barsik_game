@@ -56,6 +56,9 @@ const ru: Dict = {
   'nav.shop': 'Магазин',
   'nav.leaderboard': 'Рейтинг',
   'nav.qr': 'Сундук',
+  'nav.more': 'Ещё',
+  'nav.more.menu': 'Другие разделы',
+  'nav.more.close': 'Закрыть дополнительные разделы',
 
   'gate.phone1.title': 'Минутка! Сохраним, чтобы не потерять',
   'gate.phone5.title': 'Уже 5 уровней! Сохраним прогресс?',
@@ -126,6 +129,9 @@ const kk: Dict = {
   'nav.shop': 'Дүкен',
   'nav.leaderboard': 'Рейтинг',
   'nav.qr': 'Сандық',
+  'nav.more': 'Тағы',
+  'nav.more.menu': 'Басқа бөлімдер',
+  'nav.more.close': 'Қосымша бөлімдерді жабу',
 
   'gate.phone1.title': 'Бір минут! Жоғалтпау үшін сақтайық',
   'gate.phone5.title': '5 деңгей өтті! Прогресті сақтаймыз ба?',
