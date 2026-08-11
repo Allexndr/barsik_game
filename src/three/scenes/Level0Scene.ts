@@ -8,6 +8,7 @@ import {
   tulip,
   loadPropModel,
   loadCharModel,
+  mountain,
 } from './BaseLevelScene';
 import { AudioManager } from '@/audio/AudioManager';
 import { createGameGltfLoader } from '../createGameGltfLoader';
@@ -79,6 +80,13 @@ import {
 // following. Roughly 150 m of path with the beats spaced along it.
 const SPAWN_Z = 20;
 const YURT = { x: 2, z: -46 };
+/**
+ * How far back toward the mountains the player may walk. The story has
+ * Barsik coming down from the peaks, so the corridor does not just fade out
+ * behind the spawn point — it runs into the range he climbed down from.
+ * Twelve metres past spawn is enough room to turn around and look up at it.
+ */
+const BACK_WALL_Z = SPAWN_Z + 12;
 /** The path's centre line. Two gentle bends, no switchbacks a child can lose. */
 function routeX(z: number) {
   return Math.sin((z - SPAWN_Z) * 0.045) * 5.2;
@@ -290,6 +298,28 @@ function makeYurt(): THREE.Group {
 }
 
 /**
+ * A fallen boulder at the foot of the mountains behind spawn — the close-up
+ * read that says "rock", where `mountain()` is deliberately a distant-ridge
+ * silhouette. Built from two offset lumps rather than one dodecahedron so
+ * three or four in a cluster do not read as the same die at different sizes.
+ */
+function boulder(x: number, z: number, scale: number, groundY: number): THREE.Group {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x7d8c95, roughness: 0.97, flatShading: true });
+  const a = new THREE.Mesh(new THREE.DodecahedronGeometry(scale), mat);
+  a.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+  a.position.y = scale * 0.62;
+  const b = new THREE.Mesh(new THREE.DodecahedronGeometry(scale * 0.62), mat);
+  b.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+  b.position.set(scale * 0.55, scale * 0.4, scale * 0.2);
+  g.add(a, b);
+  g.castShadow = true;
+  g.traverse((o) => { o.castShadow = true; o.receiveShadow = true; });
+  g.position.set(x, groundY, z);
+  return g;
+}
+
+/**
  * One loose felt panel with its peg. Flapping while loose, still once pegged
  * — the animation is the whole read: a child sees which ones still need
  * doing without being told a number.
@@ -377,6 +407,8 @@ export class Level0Scene extends BaseLevelScene {
   private yurt: THREE.Group | null = null;
   private gardener: THREE.Object3D | null = null;
   private dombra: THREE.Group | null = null;
+  /** Ground ring at the door, lit only once there is somewhere to walk in. */
+  private doorMarker: THREE.Mesh | null = null;
   private butterflies: THREE.Group[] = [];
 
   /** 0…1 by distance to the yurt. The dombra is the level's compass. */
@@ -397,7 +429,13 @@ export class Level0Scene extends BaseLevelScene {
    * untouched and cannot leak a path two hundred metres north.
    */
   protected clampToPlayArea(x: number, z: number): { x: number; z: number } {
-    if (!this.insideYurt) return super.clampToPlayArea(x, z);
+    // Outdoors, the corridor itself has no far end — `pathCorridor` only ever
+    // bounds x. Capping z here, rather than teaching the base clamp about a
+    // wall it would need for exactly one level, holds the player at the
+    // mountains behind spawn without touching the camera: the camera only
+    // ever follows the hero's position, so it stays free to look past the
+    // line even though the hero cannot cross it.
+    if (!this.insideYurt) return super.clampToPlayArea(x, Math.min(z, BACK_WALL_Z));
     const dx = x - YURT_INSIDE.x;
     const dz = z - YURT_INSIDE.z;
     const d = Math.hypot(dx, dz);
@@ -620,6 +658,26 @@ export class Level0Scene extends BaseLevelScene {
       },
     });
 
+    // ── The mountains behind spawn ──────────────────────────────────
+    // `setupForestEnvironment`'s own backdrop ridge sits entirely past the
+    // yurt (z ≈ -62 to -78) — nothing marks the way Barsik came down from.
+    // This closes the loop behind him: a boulder field at the foot of a
+    // ridge, not an invisible wall. `clampToPlayArea` is what actually stops
+    // the player at BACK_WALL_Z; this is why they stop there.
+    for (const [ox, oz, h, w] of [
+      [-40, 50, 22, 17],
+      [-2, 58, 26, 20],
+      [42, 48, 21, 16],
+    ] as const) {
+      this.scene.add(mountain(ox, oz, h, w));
+    }
+    const boulderSpots: Array<[number, number, number]> = [
+      [-9, 35, 1.5], [-3, 38, 1.1], [4, 34, 1.7], [9.5, 37.5, 1.2], [-14, 39, 1.3],
+    ];
+    for (const [bx, bz, scale] of boulderSpots) {
+      this.scene.add(boulder(bx, bz, scale, this.groundHeightAt(bx, bz)));
+    }
+
     this.reserve(0, SPAWN_Z, 5);
     this.reserve(YURT.x, YURT.z, 8);
     // The whole river, not a ribbon down the middle of it. `reserve` is what
@@ -773,24 +831,64 @@ export class Level0Scene extends BaseLevelScene {
       this.scene.add(panel);
     }
 
-    const gz = YURT.z + 4.6;
+    // ── The porch ────────────────────────────────────────────────
+    // Gardener and dombra used to sit at YURT.z + 4.6 — a metre short of
+    // where the crossing lets the player off, which read as "left by the
+    // water" rather than "waiting at the door". Both are staged against the
+    // wall instead, either side of the doorway the teleport already uses
+    // (YURT.z + 3.6), on a mat that declares the spot as a place rather
+    // than a patch of grass something happened to be dropped on.
+    const doorFront = YURT.z + 3.6;
+    const porchZ = YURT.z + 3.1;
+    const gx = YURT.x - 1.6;
+    const dx = YURT.x - 0.9;
+
+    const mat = new THREE.Mesh(
+      new THREE.CircleGeometry(1.75, 22),
+      new THREE.MeshStandardMaterial({ color: 0xac3c28, roughness: 0.92 }),
+    );
+    mat.rotation.x = -Math.PI / 2;
+    mat.position.set(YURT.x - 1.1, this.groundHeightAt(YURT.x - 1.1, porchZ) + 0.02, porchZ);
+    this.scene.add(mat);
+
     this.gardener =
       (await loadCharModel(loader, 'zhuldyz.glb', 1.5)) ??
       (await loadCharModel(loader, 'aya.glb', 1.5));
     if (this.gardener) {
-      this.gardener.position.set(YURT.x - 1.1, this.groundHeightAt(YURT.x - 1.1, gz), gz);
-      this.gardener.rotation.y = Math.PI;
+      this.gardener.position.set(gx, this.groundHeightAt(gx, porchZ), porchZ);
+      // Angled toward the door instead of square-on to the player — tending
+      // it, not posted there waiting for someone to walk up.
+      this.gardener.rotation.y = Math.PI * 0.82;
       this.scene.add(this.gardener);
     }
 
+    // Leaned against the felt at a single backward tilt, the way you rest an
+    // instrument when your hands are busy pinning down a wall — not the old
+    // three-axis knock-over that read as dropped mid-lawn.
     this.dombra = makeDombra();
-    this.dombra.position.set(YURT.x - 0.5, this.groundHeightAt(YURT.x - 0.5, gz) + 0.55, gz + 0.35);
-    this.dombra.rotation.set(0.35, 0.4, -0.5);
+    this.dombra.position.set(dx, this.groundHeightAt(dx, porchZ + 0.3), porchZ + 0.3);
+    this.dombra.rotation.set(0.22, 0.55, -0.08);
     this.scene.add(this.dombra);
     // Solid. Without this the hero walks straight through the instrument and
     // stands inside the gardener, which reads as the world being made of
     // scenery rather than of things.
-    this.colliders.push({ kind: 'circle', x: YURT.x - 0.9, z: gz + 0.2, r: 1.0 });
+    this.colliders.push({ kind: 'circle', x: (gx + dx) / 2, z: porchZ + 0.15, r: 1.15 });
+
+    // ── The door marker ─────────────────────────────────────────────
+    // A ring on the threshold, the same visual language the lanterns and
+    // felt pegs already use for "something happens here" — lit only once
+    // the gardener has actually opened the door (phase 'enter'), so it
+    // never invites the player to a door that would not open yet.
+    const marker = new THREE.Mesh(
+      new THREE.RingGeometry(0.85, 1.15, 24),
+      new THREE.MeshBasicMaterial({
+        color: 0xf0d24a, transparent: true, opacity: 0, side: THREE.DoubleSide,
+      }),
+    );
+    marker.rotation.x = -Math.PI / 2;
+    marker.position.set(YURT.x, this.groundHeightAt(YURT.x, doorFront) + 0.04, doorFront);
+    this.scene.add(marker);
+    this.doorMarker = marker;
 
     // ── Dressing ─────────────────────────────────────────────────
     // Everything that grows out of soil is filtered against the water line.
@@ -1200,6 +1298,12 @@ export class Level0Scene extends BaseLevelScene {
       this.pendingTeleport = null;
       this.fadeTo = 0;
       this.pushHud();
+    }
+
+    if (this.doorMarker) {
+      const dm = this.doorMarker.material as THREE.MeshBasicMaterial;
+      const target = this.phase === 'enter' ? 0.55 + Math.sin(now * 0.005) * 0.25 : 0;
+      dm.opacity += (target - dm.opacity) * Math.min(1, dt * 5);
     }
 
     if (this.phase === 'enter' && !this.pendingTeleport && this.fade < 0.02) {
