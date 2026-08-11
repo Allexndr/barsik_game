@@ -241,8 +241,10 @@
   left: max(16px, env(safe-area-inset-left));
   bottom: max(24px, env(safe-area-inset-bottom));
   z-index: 6;
-  width: 110px;
-  height: 110px;
+  /* Scales with the actual screen instead of jumping between fixed steps —
+     a small phone and a tablet each get a stick sized to their own thumb. */
+  width: clamp(84px, 26vmin, 136px);
+  height: clamp(84px, 26vmin, 136px);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.35);
   border: 4px solid rgba(255, 255, 255, 0.85);
@@ -252,8 +254,8 @@
 }
 
 .m0-knob {
-  width: 48px;
-  height: 48px;
+  width: clamp(36px, 11vmin, 58px);
+  height: clamp(36px, 11vmin, 58px);
   border-radius: 50%;
   background: linear-gradient(180deg, #a29bfe, #6c5ce7);
   border: 3px solid #fff;
@@ -294,6 +296,16 @@
   }
 }
 
+/* Touch-only controls. A mouse-and-keyboard desktop has WASD/arrows and
+   Space already (see .m0-keys below) — a virtual stick and jump button
+   there are a phone UI shown to someone who never asked for one. */
+@media not (pointer: coarse) {
+  .m0-stick,
+  .m0-jump {
+    display: none;
+  }
+}
+
 .m0-stick-hidden {
   opacity: 0;
   pointer-events: none;
@@ -317,8 +329,8 @@
   right: max(20px, env(safe-area-inset-right));
   bottom: max(28px, calc(3vh + env(safe-area-inset-bottom)));
   z-index: 7;
-  width: 84px;
-  height: 84px;
+  width: clamp(64px, 20vmin, 96px);
+  height: clamp(64px, 20vmin, 96px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -618,17 +630,25 @@
     font-size: 0.76rem;
   }
 
-  /* Thumbs sit at the outer corners in landscape, not near the middle. */
+  /* Thumbs sit at the outer corners in landscape, not near the middle.
+     Sized off vh rather than a fixed step, so it keeps shrinking smoothly
+     as the window gets shorter instead of jumping once at 380px. */
   .m0-stick {
-    width: 84px;
-    height: 84px;
+    width: clamp(56px, 20vh, 96px);
+    height: clamp(56px, 20vh, 96px);
     left: max(10px, env(safe-area-inset-left));
     bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .m0-jump {
+    width: clamp(48px, 16vh, 76px);
+    height: clamp(48px, 16vh, 76px);
   }
 }
 
 /* Very short landscape (older/smaller phones): drop the dialogue further
-   still, and let the objective line carry the instruction on its own. */
+   still, and let the objective line carry the instruction on its own.
+   .m0-stick/.m0-jump already keep shrinking via the vh clamp above. */
 @media (max-height: 380px) and (orientation: landscape) {
   .m0-dialogue {
     width: min(48vw, 380px);
@@ -637,11 +657,6 @@
 
   .m0-line {
     font-size: 0.8rem;
-  }
-
-  .m0-stick {
-    width: 72px;
-    height: 72px;
   }
 }
 
