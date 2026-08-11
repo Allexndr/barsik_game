@@ -365,7 +365,11 @@ export class Level10Scene extends BaseLevelScene {
     // and right going down. Drawing that as an actual route, then walling it,
     // is what stops it reading as a clearing with things scattered in it.
     this.derivePathFromRooms({ x: 0, z: 6 });
-    await this.enclosePath(loader);
+    // The camera follows from behind the spawn. The first forest cap used to
+    // plant tall canopy directly in that lens volume, so a child could press
+    // "Играть" into a wall of leaves. This only removes visual foliage from
+    // the camera bay; the authored route and collision rules do not move.
+    await this.enclosePath(loader, 4, 3.0, [{ x: 0.8, z: 16.5, r: 9.5 }]);
 
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
