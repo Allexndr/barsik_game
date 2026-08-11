@@ -12,6 +12,16 @@ export type WindGrassOptions = {
   /** Return terrain Y at (x, z) for blade root. */
   heightAt?: (x: number, z: number) => number;
   bladeHeight?: [min: number, max: number];
+  /**
+   * Crossed triangles per instance. A tuft has more depth than a single
+   * billboard while remaining one instanced draw call.
+   */
+  bladesPerTuft?: 1 | 2 | 3;
+  /**
+   * `legacy` preserves the earlier double conversion for untouched levels.
+   * `managed` uses Three's current working colour space directly.
+   */
+  colorMode?: 'legacy' | 'managed';
   /** Must match the scene fog, or far grass stays vivid while the world fades. */
   fogColor?: number;
   fogNear?: number;
@@ -44,19 +54,32 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
     tipColor = 0xa2d46b,
     tipWarmColor = 0xe0cf7c,
     bladeHeight = [0.3, 0.68],
+    bladesPerTuft = 1,
+    colorMode = 'legacy',
     heightAt,
     fogColor = 0xc8e4f2,
     fogNear = 24,
     fogFar = 155,
   } = opts;
 
-  // Single tapered triangle per blade — cheapest silhouette that still sways.
-  // Half-width 0.035 was under a pixel past ~15 units, which aliased every
+  // A single tapered triangle is the cheapest silhouette that still sways.
+  // Level 0 opts into a three-way tuft: crossed blade cards catch different
+  // viewing angles, giving the near field depth without multiplying draw calls.
+  // Half-width 0.055 was under a pixel past ~15 units, which aliased every
   // distant blade into a hard dark speck.
+  const tuft = bladesPerTuft === 1
+    ? [-0.055, 0, 0, 0.055, 0, 0, 0, 1, 0]
+    : [
+      -0.075, 0, -0.022, 0.075, 0, 0.022, 0.012, 1, 0.01,
+      -0.022, 0, 0.075, 0.022, 0, -0.075, -0.01, 1, 0.014,
+      ...(bladesPerTuft === 3
+        ? [-0.064, 0, 0.05, 0.064, 0, -0.05, -0.014, 1, -0.01]
+        : []),
+    ];
   const base = new THREE.BufferGeometry();
   base.setAttribute(
     'position',
-    new THREE.Float32BufferAttribute([-0.055, 0, 0, 0.055, 0, 0, 0, 1, 0], 3),
+    new THREE.Float32BufferAttribute(tuft, 3),
   );
 
   const geometry = new THREE.InstancedBufferGeometry();
@@ -93,9 +116,13 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
-      uRoot: { value: new THREE.Color(rootColor).convertSRGBToLinear() },
-      uTip: { value: new THREE.Color(tipColor).convertSRGBToLinear() },
-      uTipWarm: { value: new THREE.Color(tipWarmColor).convertSRGBToLinear() },
+      // Three r161 already converts a hex colour into the renderer's working
+      // space. Level 0 opts into that managed path so its richer near-field
+      // tufts retain their intended colour through ACES; the legacy route is
+      // kept as the default for untouched levels until their own visual pass.
+      uRoot: { value: colorMode === 'managed' ? new THREE.Color(rootColor) : new THREE.Color(rootColor).convertSRGBToLinear() },
+      uTip: { value: colorMode === 'managed' ? new THREE.Color(tipColor) : new THREE.Color(tipColor).convertSRGBToLinear() },
+      uTipWarm: { value: colorMode === 'managed' ? new THREE.Color(tipWarmColor) : new THREE.Color(tipWarmColor).convertSRGBToLinear() },
       fogColor: { value: new THREE.Color(fogColor).convertSRGBToLinear() },
       fogNear: { value: fogNear },
       fogFar: { value: fogFar },
