@@ -6,6 +6,20 @@ short: implementation detail remains in the commit and linked ADR.
 
 ## Unreleased — Season 1 premium pass
 
+### Production deployment — 2026-08-11 14:07 Asia/Almaty
+
+- **Source:** integration commit `70b3082`.
+- **Deployment:** `dpl_2GWxqsfUbGEWu6Td66ijXJiBHa7t` →
+  `https://barsik-game-4p18fk2q3-allexndrs-projects.vercel.app` →
+  `https://barsik-game.vercel.app`.
+- **Release gate:** integrated type-check, lint and production build passed;
+  the production bundle excludes the local `?perf=1` probe. Fresh local
+  mobile/desktop Winter first-frame and Forest grass smokes had no console
+  errors.
+- **Rollback:** previous ready production
+  `dpl_HX6chqdsF2ZdaXN2dYh3PSQHG35o`; use Vercel deployment history rather
+  than an arbitrary preview if an immediate rollback is required.
+
 ### Production deployment — 2026-08-11 13:33 Asia/Almaty
 
 - **Source:** integration commit `88e5b6e`.
