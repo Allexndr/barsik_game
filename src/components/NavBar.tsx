@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { useUIStore } from '@/store/useUIStore';
 import { t } from '@/i18n';
 import { SettingsModal } from '@/components/SettingsModal';
-import { IconStar, IconGear } from '@/components/ui/icons';
+import { IconStar, IconGear, IconMore } from '@/components/ui/icons';
 import './NavBar.css';
 
 export function NavBar() {
@@ -13,6 +13,7 @@ export function NavBar() {
   const setActiveTab = useUIStore((s) => s.setActiveTab);
   const lang = useUIStore((s) => s.lang);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const tabs = [
     { id: 'travel', label: t(lang, 'nav.travel'), icon: 'nav_travel' },
@@ -22,6 +23,23 @@ export function NavBar() {
     { id: 'leaderboard', label: t(lang, 'nav.leaderboard'), icon: 'nav_leaderboard' },
     { id: 'qr', label: t(lang, 'nav.qr'), icon: 'nav_qr' },
   ] as const;
+  const primaryTabs = tabs.slice(0, 3);
+  const utilityTabs = tabs.slice(3);
+  const moreIsActive = utilityTabs.some((tab) => tab.id === activeTab);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMoreOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [moreOpen]);
+
+  const pickTab = (id: (typeof tabs)[number]['id']) => {
+    setActiveTab(id);
+    setMoreOpen(false);
+  };
 
   return (
     <>
@@ -37,7 +55,7 @@ export function NavBar() {
               type="button"
               className={`nav-tab ${activeTab === tab.id ? 'active' : ''}`}
               aria-current={activeTab === tab.id ? 'page' : undefined}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => pickTab(tab.id)}
             >
               <img
                 className="nav-tab-icon"
@@ -78,13 +96,13 @@ export function NavBar() {
         </div>
       </nav>
       <nav className="navbar-mobile" aria-label="Mobile navigation">
-        {tabs.map((tab) => (
+        {primaryTabs.map((tab) => (
           <button
             key={`mobile-${tab.id}`}
             type="button"
             className={`nav-tab mobile ${activeTab === tab.id ? 'active' : ''}`}
             aria-current={activeTab === tab.id ? 'page' : undefined}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => pickTab(tab.id)}
           >
             <img
               className="nav-tab-icon"
@@ -96,7 +114,46 @@ export function NavBar() {
             <span className="nav-tab-label">{tab.label}</span>
           </button>
         ))}
+        <button
+          type="button"
+          className={`nav-tab mobile nav-tab-more ${moreOpen || moreIsActive ? 'active' : ''}`}
+          aria-current={moreIsActive ? 'page' : undefined}
+          aria-expanded={moreOpen}
+          aria-controls="hub-more-menu"
+          onClick={() => setMoreOpen((open) => !open)}
+        >
+          <span className="nav-tab-more-icon" aria-hidden="true"><IconMore size={26} /></span>
+          <span className="nav-tab-label">{t(lang, 'nav.more')}</span>
+        </button>
       </nav>
+
+      {moreOpen && (
+        <>
+          <button
+            type="button"
+            className="mobile-nav-scrim"
+            aria-label={t(lang, 'nav.more.close')}
+            onClick={() => setMoreOpen(false)}
+          />
+          <aside id="hub-more-menu" className="mobile-more-menu animate-slide-up" aria-label={t(lang, 'nav.more.menu')}>
+            <p className="mobile-more-title">{t(lang, 'nav.more.menu')}</p>
+            <div className="mobile-more-actions">
+              {utilityTabs.map((tab) => (
+                <button
+                  key={`more-${tab.id}`}
+                  type="button"
+                  className={`mobile-more-action ${activeTab === tab.id ? 'active' : ''}`}
+                  aria-current={activeTab === tab.id ? 'page' : undefined}
+                  onClick={() => pickTab(tab.id)}
+                >
+                  <img className="mobile-more-action-icon" src={`/assets/ui/${tab.icon}.png`} alt="" aria-hidden draggable={false} />
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+          </aside>
+        </>
+      )}
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
