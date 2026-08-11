@@ -6,6 +6,17 @@ short: implementation detail remains in the commit and linked ADR.
 
 ## Unreleased — Season 1 premium pass
 
+### Production deployment — 2026-08-11 12:46 Asia/Almaty
+
+- **Source:** integration commit `d966215`.
+- **Deployment:** `dpl_Dks6AeMyYscvATkt2JR9syjj6Pmv` →
+  `https://barsik-game.vercel.app`.
+- **Release check:** production first-play on a 390×844 viewport: onboarding →
+  Level 0 arrival gate → `Играть` → live WebGL canvas; no console errors.
+- **Rollback:** use the immediately preceding ready production from Vercel
+  deployment history, not an arbitrary old preview. Record its URL at the
+  moment of any rollback.
+
 ### Player-facing changes
 
 - Mobile hub navigation prioritises Journey, Friends and City; Shop, Rating and
