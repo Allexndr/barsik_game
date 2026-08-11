@@ -234,6 +234,16 @@ export function IconMinus(props: IconProps) {
   );
 }
 
+export function IconMore(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle cx="5" cy="12" r="2" fill="currentColor" />
+      <circle cx="12" cy="12" r="2" fill="currentColor" />
+      <circle cx="19" cy="12" r="2" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function IconCompass(props: IconProps) {
   return (
     <svg {...base(props)}>

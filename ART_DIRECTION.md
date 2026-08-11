@@ -85,19 +85,23 @@ UI marketing tokens: `design.md` (Hallmark · Barsik Hum).
 
 ### Принцип
 
-UI — не картинки, а **CSS + SVG/эмодзи**. Это даёт:
+UI — CSS + единый набор SVG/одобренных PNG-иконок. Это даёт:
 - 100% единообразие.
 - Лёгкую адаптацию под любой фон.
 - Вес файлов почти ноль.
 - Hover/pressed/disabled states без лишних ассетов.
 
+Для marketing и hub UI единственный канон — `design.md`. Разделы ниже больше
+не задают отдельную violet/glass систему; Level HUD остаётся отдельной зоной
+миграции.
+
 ### Элементы
 
-- **Кнопки**: rounded-28px, gradient, shadow, glow на hover, scale на нажатие.
-- **Панели**: glassmorphism — `rgba(255,255,255,0.85)` + `backdrop-filter: blur(12px)`.
-- **Иконки**: эмодзи + CSS, или SVG-иконки из одного набора.
+- **Кнопки**: Hum push button — сплошной цвет, видимое ребро и press-down на нажатие.
+- **Панели**: cream / paper, чёткая иерархия, без glassmorphism.
+- **Иконки**: единый набор SVG или одобренные PNG-иконки; не emoji как замена иконкам.
 - **Типографика**: `Baloo 2` — rounded, friendly.
-- **HUD**: top bar, translucent, не конфликтует с фоном.
+- **HUD**: отдельная зона миграции; не менять mid-session без согласованной HUD-спеки.
 
 ## 6. Анимации
 
@@ -171,8 +175,8 @@ soft-3D plush toy стиль. Раздел 10 выше отменяется дл
 - Дружелюбное выражение, безопасно для детей 5–12.
 - Изолированный объект по центру, на ровном фоне, БЕЗ текста, БЕЗ watermark,
   БЕЗ UI-элементов.
-- Палитра UI: primary `#6C5CE7`, accent `#FD79A8`, gold `#FDCB6E`,
-  success `#00B894`, info `#0984E3`, surface = white glass.
+- Палитра UI: cream `#F7F3E3`, ink `#1C2430`, pear `#F0D24A`,
+  cyan `#2AA8D8`, coral `#EF6B3A`, mint `#5FBF7A`; surface = paper, не glass.
 - Шрифт: Baloo 2. В основном UI (кнопки/HUD) — PNG-иконки, не emoji.
 
 ### Шаблон промпта

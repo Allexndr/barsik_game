@@ -6,8 +6,16 @@ short: implementation detail remains in the commit and linked ADR.
 
 ## Unreleased — Season 1 premium pass
 
+### Player-facing changes
+
+- Mobile hub navigation prioritises Journey, Friends and City; Shop, Rating and
+  Chest are available from More.
+- Hub surfaces follow the cream / cyan / pear Barsik Hum system rather than
+  adding violet gradients or glass panels.
+
 | Commit | Scope | Why / user impact | Verification |
 |---|---|---|---|
+| `95c1296` | Hub navigation | Six equal mobile tabs hid the next adventure among secondary screens. Hub navigation now leads with Journey, Friends and City and moves the rest into More. | Phone/desktop navigation checks; type-check, lint, build. See ADR 001. |
 | `1932ace` | Level 0 start gate | The scene could begin beneath the loading card, so a child could miss the first story beat. `Играть` now starts the actual story timeline. | Fresh mobile ready screen held before starting; type-check, lint, build. |
 | `aff1389` | Level 0 arrival/HUD | Purple/glass UI, emoji and a second pixel game fought the soft 3D world. L0 now has a calm paper/lantern entry and scoped cream/pear/cyan/mint HUD without repainting all missions. | Mobile 390×844 start/HUD flow, accessibility state, console check; type-check, lint, build. See ADR 002. |
 | `0e3fe9a` | Level 0 yurt camera | A temporary free-look orbit happened after the former yurt clamp and could show the hidden exterior. The final rendered camera pose now respects a conservative yurt safe volume. | Repeated touch orbits at 390×844 and Q/E at 1440×900; no console errors; type-check, lint, build. See ADR 003. |
