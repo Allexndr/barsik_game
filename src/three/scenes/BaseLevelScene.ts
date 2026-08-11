@@ -3,10 +3,8 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { QualityPipeline } from '../QualityPipeline';
 import { stylizeHeroGlb } from '../stylizeHeroGlb';
-import { createPlushBarsik, updatePlushLocomotion } from '../PlushBarsik';
 import { createBarsikAvatar, type BarsikAvatar } from '../avatar/BarsikAvatar';
-import { isUsableHeroGlb } from '../heroQuality';
-import { markStaticHeroBaseY, updateStaticHeroLocomotion } from '../staticHeroLocomotion';
+import { inspectHeroGlb } from '../heroQuality';
 import { AudioManager } from '@/audio/AudioManager';
 import { useUIStore } from '@/store/useUIStore';
 import { createFireflies, type Fireflies } from '../Fireflies';
@@ -23,14 +21,19 @@ import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityPr
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
+type HeroSelection = 'auto' | 'avatar' | 'rigged';
+
 /**
- * `?hero=glb` falls back to the old GLB path. Kept so the two can be compared
- * side by side in a browser without a rebuild — the static model still looks
- * better standing still, and that trade is worth being able to re-check.
+ * `?hero=avatar` is the stable visual-control path. `?hero=glb` remains an
+ * alias for a rigged-asset QA pass; neither mode ever opts a static statue in.
  */
-const DISABLE_AVATAR_HERO =
-  typeof location !== 'undefined'
-  && new URLSearchParams(location.search).get('hero') === 'glb';
+const HERO_SELECTION: HeroSelection = (() => {
+  if (typeof location === 'undefined') return 'auto';
+  const requested = new URLSearchParams(location.search).get('hero');
+  if (requested === 'avatar') return 'avatar';
+  if (requested === 'glb' || requested === 'rigged') return 'rigged';
+  return 'auto';
+})();
 
 // ─── Shared types ───────────────────────────────────────────────
 export type Collider = 
@@ -591,7 +594,7 @@ export function skyDome(top = '#66c8f5', mid = '#94d8ef', bot = '#e8faf3') {
   return mesh;
 }
 
-export type HeroAnimMode = 'rigged' | 'static' | 'plush' | 'avatar';
+export type HeroAnimMode = 'rigged' | 'avatar';
 
 export interface HeroRig {
   model: THREE.Object3D;
@@ -603,19 +606,24 @@ export interface HeroRig {
   avatar: BarsikAvatar | null;
 }
 
-// Prefer bipedal Meshy barsik.glb. Quad Meshy/TRELLIS reads as a cat on
-// all fours — skip until we have an upright hero. Missing → procedural plush.
-/**
- * Rigged first, then the statue.
- *
- * `barsik_rigged.glb` does not exist yet — `scripts/rig-barsik.mjs` produces
- * it. It is listed first so that the day it lands, the hero switches to it
- * with no other change: `isUsableHeroGlb` already asks for exactly what a
- * rigged model has, and that branch has never once run because no model in
- * the project satisfied it. (`hero_placeholder.glb` does — skin 1, three
- * clips — which is how the branch was tested.)
- */
-const HERO_CANDIDATES = ['barsik_rigged.glb', 'barsik.glb'] as const;
+const RIGGED_HERO_FILE = 'barsik_rigged.glb';
+let riggedHeroAssetAvailable: Promise<boolean> | null = null;
+
+/** Check the optional production asset once per page without invoking GLTFLoader on a 404. */
+function hasRiggedHeroAsset() {
+  if (!riggedHeroAssetAvailable) {
+    riggedHeroAssetAvailable = fetch(CHARS + RIGGED_HERO_FILE, { method: 'HEAD' })
+      // Vite's SPA fallback answers a missing public file with 200 + HTML.
+      // Checking the MIME type prevents a loader error and tells us whether a
+      // real binary has actually been handed over.
+      .then((response) => {
+        const contentType = response.headers.get('content-type') ?? '';
+        return response.ok && /model\/gltf-binary|application\/octet-stream/i.test(contentType);
+      })
+      .catch(() => false);
+  }
+  return riggedHeroAssetAvailable;
+}
 
 /** Load a named character GLB from /chars, sized to `height`. Null if missing. */
 export async function loadCharModel(
@@ -751,76 +759,42 @@ export async function placeWoodSign(
 }
 
 export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.45): Promise<HeroRig> {
-  // The jointed avatar first, ahead of every GLB.
-  //
-  // barsik.glb has no skin and no animation clips, so for sixteen levels the
-  // hero stood with his arms spread and slid across the ground. No amount of
-  // shader or lighting work fixes a character that cannot move; a child reads
-  // it as broken before they read anything else as good. The procedural rig
-  // walks, runs, jumps, sits, waves and wears clothes, which is worth more
-  // than the extra polish of a model that does none of those things.
-  if (!DISABLE_AVATAR_HERO) {
-    const avatar = createBarsikAvatar({ height });
-    return {
-      model: avatar.root,
-      animMode: 'avatar',
-      mixer: null,
-      walkAction: null,
-      idleAction: null,
-      avatar,
-    };
-  }
-
-  for (const file of HERO_CANDIDATES) {
-    const gltf = await loadGlb(loader, CHARS + file);
-    if (!gltf) continue;
-
-    if (isUsableHeroGlb(gltf)) {
-      stylizeHeroGlb(gltf.scene);
-      fitHeight(gltf.scene, height);
-      const mixer = new THREE.AnimationMixer(gltf.scene);
-      const walk =
-        gltf.animations.find((c) => /walk|run/i.test(c.name)) || gltf.animations[0];
-      const idle =
-        gltf.animations.find((c) => /idle|survey|sit/i.test(c.name)) || gltf.animations[0];
-      const walkAction = mixer.clipAction(walk);
-      const idleAction = mixer.clipAction(idle);
-      idleAction.play();
-      return { model: gltf.scene, animMode: 'rigged', mixer, walkAction, idleAction, avatar: null };
-    }
-
-    // Last resort: any loaded textured/mesh barsik.glb (Meshy static)
-    if (gltf.scene) {
-      let verts = 0;
-      gltf.scene.traverse((obj) => {
-        const mesh = obj as THREE.Mesh;
-        if (mesh.isMesh) verts += mesh.geometry?.attributes?.position?.count ?? 0;
-      });
-      if (verts > 200) {
+  if (HERO_SELECTION !== 'avatar' && await hasRiggedHeroAsset()) {
+    const gltf = await loadGlb(loader, CHARS + RIGGED_HERO_FILE);
+    if (gltf) {
+      const report = inspectHeroGlb(gltf);
+      if (report.accepted) {
         stylizeHeroGlb(gltf.scene);
         fitHeight(gltf.scene, height);
-        markStaticHeroBaseY(gltf.scene);
-        gltf.scene.traverse((obj) => {
-          const mesh = obj as THREE.Mesh;
-          if (!mesh.isMesh) return;
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-        });
-        return {
-          model: gltf.scene,
-          animMode: 'static',
-          mixer: null,
-          walkAction: null,
-          idleAction: null,
-          avatar: null,
-        };
+        const mixer = new THREE.AnimationMixer(gltf.scene);
+        const usableClips = gltf.animations.filter((clip) => clip.duration > 0.2 && clip.tracks.length > 0);
+        const walk = usableClips.find((clip) => /walk|run/i.test(clip.name))!;
+        const idle = usableClips.find((clip) => /idle|survey|stand|breath|sit/i.test(clip.name))!;
+        const walkAction = mixer.clipAction(walk);
+        const idleAction = mixer.clipAction(idle);
+        idleAction.play();
+        return { model: gltf.scene, animMode: 'rigged', mixer, walkAction, idleAction, avatar: null };
       }
+
+      if (import.meta.env.DEV) {
+        console.warn(`[hero] rejected ${RIGGED_HERO_FILE}: ${report.reasons.join('; ')}`);
+      }
+      disposeObject3DResources(gltf.scene);
     }
   }
 
-  const plush = createPlushBarsik();
-  fitHeight(plush, height * 0.93);
-  return { model: plush, animMode: 'plush', mixer: null, walkAction: null, idleAction: null, avatar: null };
+  // A static barsik.glb is deliberately never loaded here. A moving statue is
+  // worse than a clean procedural fallback, and the avatar preserves all
+  // gameplay states while the production asset is being prepared.
+  const avatar = createBarsikAvatar({ height });
+  return {
+    model: avatar.root,
+    animMode: 'avatar',
+    mixer: null,
+    walkAction: null,
+    idleAction: null,
+    avatar,
+  };
 }
 
 // ─── Base scene class ───────────────────────────────────────────
@@ -852,7 +826,7 @@ export abstract class BaseLevelScene {
   protected raf = 0;
   protected yaw = 0;
   protected walking = false;
-  protected heroAnimMode: HeroAnimMode = 'plush';
+  protected heroAnimMode: HeroAnimMode = 'avatar';
   protected heroAvatar: BarsikAvatar | null = null;
   /** True while the movement speed is the run speed, so the rig can pick a gait. */
   protected running = false;
@@ -1492,7 +1466,7 @@ export abstract class BaseLevelScene {
     this.hero.add(this.guideArrow);
   }
 
-  /** Textured static hero with procedural locomotion; plush fallback if loading fails. */
+  /** Rigged premium hero when it passes the gate, otherwise the animated avatar. */
   protected async loadHero(loader: GLTFLoader, height = 1.45) {
     const rig = await loadBarsikHeroRig(loader, height);
     if (this.disposed) {
@@ -2590,13 +2564,6 @@ export abstract class BaseLevelScene {
               : 'idle',
       );
       this.heroAvatar.update(dt, now * 0.001);
-    } else {
-      const heroModel = this.hero.children.find((c) => !c.userData.isGuideArrow);
-      if (heroModel) {
-        const t = now * 0.001;
-        if (this.heroAnimMode === 'plush') updatePlushLocomotion(heroModel, this.walking, t);
-        else if (this.heroAnimMode === 'static') updateStaticHeroLocomotion(heroModel, this.walking, t);
-      }
     }
   }
 
