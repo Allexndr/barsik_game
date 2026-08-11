@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { useUIStore } from '@/store/useUIStore';
 import { CityScene } from '@/three/scenes/CityScene';
-import { IconPaw } from '@/components/ui/icons';
+import { PlushButton } from '@/components/ui/PlushButton';
+import { IconMap, IconPaw } from '@/components/ui/icons';
 import { FriendPortrait } from '@/components/widgets/FriendPortrait';
 import { MetaScreenFooter } from '@/components/widgets/MetaScreenFooter';
 import { SEASON1_FRIENDS } from '@/utils/season1Friends';
@@ -26,6 +27,7 @@ export function CityScreen() {
   const friends = useGameStore((s) => s.friends);
   const outfit = useGameStore((s) => s.outfit);
   const lang = useUIStore((s) => s.lang);
+  const setActiveTab = useUIStore((s) => s.setActiveTab);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<CityScene | null>(null);
@@ -45,6 +47,23 @@ export function CityScreen() {
       }),
     [friends, lang],
   );
+
+  // CityScene only needs stable resident identities to place its 3D cast.
+  // Keep that payload separate from the language-aware card copy above: a
+  // language switch must repaint React text, not rebuild a whole WebGL town.
+  const rosterSignature = useMemo(
+    () => friends.map((friend) => friend.id).join('\u001f'),
+    [friends],
+  );
+  const sceneRoster = useMemo(
+    () =>
+      rosterSignature
+        ? rosterSignature.split('\u001f').map((id) => ({ id, name: id }))
+        : [],
+    [rosterSignature],
+  );
+  const outfitRef = useRef(outfit);
+  const appliedOutfitRef = useRef<string[] | null>(null);
 
   const progress = cityProgress(friends.length);
   const title = cityTitle(friends.length, lang);
@@ -73,11 +92,25 @@ export function CityScreen() {
   }, []);
 
   useEffect(() => {
-    sceneRef.current?.setCity(
-      residents.map((r) => ({ id: r.id, name: r.name })),
-      outfit,
-    );
-  }, [residents, outfit]);
+    outfitRef.current = outfit;
+  }, [outfit]);
+
+  useEffect(() => {
+    const city = sceneRef.current;
+    if (!city) return;
+    const cityOutfit = outfitRef.current;
+    city.setCity(sceneRoster, cityOutfit);
+    appliedOutfitRef.current = cityOutfit;
+  }, [sceneRoster]);
+
+  // Dressing Barsik is deliberately incremental. setCity disposes and reloads
+  // the complete town, while CityScene.setOutfit only changes the avatar.
+  useEffect(() => {
+    const city = sceneRef.current;
+    if (!city || appliedOutfitRef.current === outfit) return;
+    city.setOutfit(outfit);
+    appliedOutfitRef.current = outfit;
+  }, [outfit]);
 
   // Tapping a resident in the 3D view and tapping their card do the same
   // thing, so a child who found one way does not have to learn the other.
@@ -96,6 +129,7 @@ export function CityScreen() {
     (id: string) => setSelected((cur) => (cur === id ? null : id)),
     [],
   );
+  const findFirstFriend = useCallback(() => setActiveTab('travel'), [setActiveTab]);
 
   return (
     <div className="screen screen-city screen-meta">
@@ -185,16 +219,28 @@ export function CityScreen() {
       </section>
 
       {residents.length === 0 ? (
-        // No button here: MetaScreenFooter already ends every meta screen with
-        // «В Путешествие», and two identical calls to action stacked one above
-        // the other is a choice a child has to think about for no reason.
-        <div className="city-empty">
+        // The city is an invitation when it is empty, not a dead end. This
+        // replaces the generic footer CTA so its promise is visible in the
+        // first phone viewport and names the next action exactly.
+        <section className="city-empty" aria-labelledby="city-empty-title">
+          <span id="city-empty-title" className="city-empty-eyebrow">
+            {lang === 'kk' ? 'Қала досын күтеді' : 'Город ждёт друга'}
+          </span>
           <p>
             {lang === 'kk'
               ? 'Қала бос. Саяхатта бірінші досыңды тап — ол осында көшіп келеді.'
               : 'В городе пусто. Найди первого друга в Путешествии — он переедет сюда.'}
           </p>
-        </div>
+          <PlushButton
+            variant="primary"
+            size="lg"
+            className="city-empty-cta"
+            icon={<IconMap size={20} />}
+            onClick={findFirstFriend}
+          >
+            {lang === 'kk' ? 'Бірінші досымды тап' : 'Найти первого друга'}
+          </PlushButton>
+        </section>
       ) : (
         <section className="city-section">
           <h3 className="city-section-title">
@@ -217,13 +263,15 @@ export function CityScreen() {
         </section>
       )}
 
-      <MetaScreenFooter
-        hint={
-          lang === 'kk'
-            ? 'Барсик Гардеробтан алған киімін киіп тұр.'
-            : 'Барсик носит то, что ты купил в Гардеробе.'
-        }
-      />
+      {residents.length > 0 && (
+        <MetaScreenFooter
+          hint={
+            lang === 'kk'
+              ? 'Барсик Гардеробтан алған киімін киіп тұр.'
+              : 'Барсик носит то, что ты купил в Гардеробе.'
+          }
+        />
+      )}
     </div>
   );
 }
