@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createPerformanceTelemetry } from '@/dev/performanceTelemetry';
 import { createBarsikAvatar, type AvatarLook, type AvatarPose, type BarsikAvatar } from './BarsikAvatar';
 import { dressAvatar, undressAvatar } from './dressAvatar';
 
@@ -29,10 +30,20 @@ export interface AvatarPreview {
 
 export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  const isMobile = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768;
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const performanceTelemetry = import.meta.env.DEV
+    ? createPerformanceTelemetry({
+        renderer,
+        label: 'AvatarPreview',
+        qualityTier: isMobile ? 'medium' : 'high',
+        isMobile,
+        composer: false,
+      })
+    : null;
 
   const scene = new THREE.Scene();
   // Framed tight on purpose. The panel is wide and short, and at a wider
@@ -123,7 +134,13 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
         turntable.rotation.y += idleSpin + manualSpin;
         manualSpin = 0;
         avatar.update(dt, t);
-        renderer.render(scene, camera);
+        if (import.meta.env.DEV && performanceTelemetry?.enabled) {
+          performanceTelemetry.beginFrame();
+          renderer.render(scene, camera);
+          performanceTelemetry.afterRender(performance.now());
+        } else {
+          renderer.render(scene, camera);
+        }
       };
       clock.start();
       loop();
@@ -136,6 +153,7 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
       avatar.dispose();
       floor.geometry.dispose();
       (floor.material as THREE.Material).dispose();
+      if (import.meta.env.DEV) performanceTelemetry?.dispose();
       renderer.dispose();
     },
   };
