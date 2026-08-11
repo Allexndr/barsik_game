@@ -524,6 +524,8 @@ export class Level0Scene extends BaseLevelScene {
 
   /** 0…1 by distance to the yurt. The dombra is the level's compass. */
   private nearness = 0;
+  /** Last percentage actually sent to the visible muted-navigation meter. */
+  private lastHudNearnessPercent: number | null = null;
   private lastChime = 0;
 
   protected currentPhase() { return this.phase; }
@@ -745,18 +747,23 @@ export class Level0Scene extends BaseLevelScene {
     } else {
       // Wrong note: a soft "not that one", then the phrase again.
       AudioManager.sfx('stumble');
-      this.startKuiRound(now + 700);
+      this.replayKuiPhrase(now + 700);
     }
     this.pushHud();
   }
 
-  /** Deal a fresh phrase for the current round and start playing it. */
+  /** Deal one phrase for a new round, then let the player hear it. */
   private startKuiRound(atMs: number) {
     const len = this.kuiRounds[Math.min(this.kuiRound, this.kuiRounds.length - 1)];
-    // Re-dealt on every attempt rather than kept, so a child who missed the
-    // fourth note is not made to sit through the same phrase until they get
-    // it — and so nobody can beat it by memorising one answer.
+    // A round may be new, but an attempt is not. Its phrase stays fixed until
+    // the child has echoed it, otherwise a wrong note turns the lesson into a
+    // moving target rather than a chance to listen and try again.
     this.kuiPhrase = Array.from({ length: len }, () => Math.floor(Math.random() * 3));
+    this.replayKuiPhrase(atMs);
+  }
+
+  /** Rehearse the current phrase without changing the answer being taught. */
+  private replayKuiPhrase(atMs: number) {
     this.kuiEchoed = 0;
     this.kuiPlayI = 0;
     this.kuiListening = true;
@@ -958,12 +965,16 @@ export class Level0Scene extends BaseLevelScene {
     this.assertCrossingIsJumpable(waterY);
 
     // ── Lanterns, lying where the wind put them ───────────────────
+    // Three copies are scenery instances, not three distinct asset requests.
+    // Keeping one loaded template avoids serial network/Draco work on the
+    // first scene a child sees; clone(true) preserves the shared GPU resources
+    // while each holder still owns its own interaction and flame state.
+    const lanternTemplate =
+      (await loadPropModel(loader, CAST_PROP_GLB.lantern, { height: 1.05, aspectMax: 4 })) ??
+      (await loadPropModel(loader, CAST_PROP_GLB.lantern_wood, { height: 1.05, aspectMax: 4 }));
     for (const spec of LANTERNS) {
       const holder = new THREE.Group();
-      const glb =
-        (await loadPropModel(loader, CAST_PROP_GLB.lantern, { height: 1.05, aspectMax: 4 })) ??
-        (await loadPropModel(loader, CAST_PROP_GLB.lantern_wood, { height: 1.05, aspectMax: 4 }));
-      const body = glb ?? this.makeSimpleLantern();
+      const body = lanternTemplate?.clone(true) ?? this.makeSimpleLantern();
       body.position.y = 0;
       holder.add(body);
 
@@ -1363,6 +1374,12 @@ export class Level0Scene extends BaseLevelScene {
       objective = this.copy('🏔️ Дорога к горам открыта', '🏔️ Тауға жол ашылды');
     }
 
+    // The React HUD renders this value as a whole percentage. Remember that
+    // exact visible value so the render loop can refresh a muted player's
+    // navigation feedback only when it changes, not at 60 state updates/sec.
+    const hudNearness = +this.nearness.toFixed(2);
+    this.lastHudNearnessPercent = Math.round(hudNearness * 100);
+
     this.onHud?.({
       phase: p,
       speaker,
@@ -1372,7 +1389,7 @@ export class Level0Scene extends BaseLevelScene {
       lanternsTotal: this.lanternsTotal,
       pegsDone: this.pegsDone,
       pegsTotal: this.pegsTotal,
-      nearness: +this.nearness.toFixed(2),
+      nearness: hudNearness,
       wet,
       fade: +this.fade.toFixed(3),
       kuiRound: Math.min(this.kuiRound + 1, this.kuiRounds.length),
@@ -1567,6 +1584,17 @@ export class Level0Scene extends BaseLevelScene {
     if (this.phase === 'follow' && this.hero.position.z < LANTERNS[0].z + 6) {
       this.phase = 'lanterns';
       this.pushHud();
+    }
+
+    // The dombra's proximity meter is an accessibility equivalent of its
+    // sound cue. It was computed every frame but only published when some
+    // unrelated beat changed, leaving a muted phone's "warmer" indicator
+    // stale while the hero walked. Publish only when its visible percentage
+    // changes, after the phase transition above so the final follow update
+    // never creates a duplicate state write on the lantern boundary.
+    if (this.phase === 'follow') {
+      const visibleNearnessPercent = Math.round((+this.nearness.toFixed(2)) * 100);
+      if (visibleNearnessPercent !== this.lastHudNearnessPercent) this.pushHud();
     }
 
     // Lanterns rise and light.
