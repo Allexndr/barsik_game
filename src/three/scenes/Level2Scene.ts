@@ -10,7 +10,6 @@ import {
   butterfly,
   tulip,
   hill,
-  skyDome,
   pathArrow,
   placeWoodSign,
   loadCharModel,
@@ -539,9 +538,13 @@ export class Level2Scene extends BaseLevelScene {
 
     // Setup
     this.camera.position.set(-10, 7, 16);
-    await this.setupForestEnvironment(loader, { fogColor: 0x8fd8f5, flatRadius: 21, flatCenterZ: -14 });
-    this.scene.add(skyDome());
-    this.setupClouds(6, 26, 60);
+    await this.setupForestEnvironment(loader, {
+      fogColor: 0x8fd8f5,
+      sky: ['#66c8f5', '#94d8ef', '#e8faf3'],
+      clouds: 6,
+      flatRadius: 21,
+      flatCenterZ: -14,
+    });
 
     // Hills
     for (const [hx, hz, hr, hh] of [
