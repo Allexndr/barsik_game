@@ -231,8 +231,13 @@ export function MissionScreen({
   const showKeys = hud.showMoveHint;
   const showStick = !hud.outro && hud.phase !== 'intro';
 
+  // Level 0 is the authored vertical slice with its own visual lock. Every
+  // later mission shares this shell, so give that family an explicit class
+  // instead of relying on the old violet defaults in Mission0Screen.css.
+  // The level class is intentionally present for future world-specific
+  // accents without duplicating the HUD component per mission.
   return (
-    <div className="m0-screen">
+    <div className={`m0-screen m0-screen--season1 m0-screen--level-${levelId}`}>
       <canvas ref={canvasRef} className="m0-canvas" />
 
       <RotateHint lang={lang} />

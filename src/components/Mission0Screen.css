@@ -1003,3 +1003,223 @@
   outline: 3px solid #f0d24a;
   outline-offset: 3px;
 }
+
+/* ── Season 1 shared mission HUD ────────────────────────────────
+ *
+ * The first flagship pass proved the cream / cyan / pear direction on
+ * Level 0. Levels 1–16 render through MissionScreen, so this is the
+ * intentionally small migration seam: a tactile story card that stays
+ * readable over every world without the legacy violet / glass treatment.
+ *
+ * It is a scoped layer rather than a global rewrite of .m0-* because the
+ * Level 0 vertical slice keeps its independently QA'd treatment above.
+ * ───────────────────────────────────────────────────────────── */
+.m0-screen--season1 {
+  --s1-hud-paper: #fffdf6;
+  --s1-hud-ink: #1c2430;
+  --s1-hud-muted: #536172;
+  --s1-hud-cyan: #2aa8d8;
+  --s1-hud-cyan-shadow: #197da6;
+  --s1-hud-pear: #f0d24a;
+  --s1-hud-pear-shadow: #c9a812;
+  --s1-hud-mint: #5fbf7a;
+  --s1-hud-mint-shadow: #318657;
+}
+
+.m0-screen--season1 .m0-title {
+  color: var(--s1-hud-ink);
+  border: 2px solid rgba(255, 255, 255, 0.98);
+  background: rgba(255, 253, 246, 0.96);
+  box-shadow: 0 4px 0 rgba(201, 218, 187, 0.94), 0 9px 18px rgba(28, 36, 48, 0.16);
+  text-shadow: none;
+}
+
+.m0-screen--season1 .m0-stats {
+  gap: 0.18rem;
+  padding: 3px;
+  border: 2px solid rgba(255, 255, 255, 0.98);
+  border-radius: 999px;
+  background: rgba(255, 253, 246, 0.96);
+  box-shadow: 0 4px 0 rgba(201, 218, 187, 0.94), 0 9px 18px rgba(28, 36, 48, 0.16);
+}
+
+.m0-screen--season1 .m0-stat,
+.m0-screen--season1 .ui-chip {
+  color: var(--s1-hud-ink);
+  background: transparent;
+  box-shadow: none;
+}
+
+.m0-screen--season1 .ui-chip-star,
+.m0-screen--season1 .ui-chip-star .ui-chip-icon {
+  color: var(--s1-hud-pear-shadow);
+}
+
+.m0-screen--season1 .m0-pause-btn {
+  border-color: #fff;
+  background: var(--s1-hud-cyan);
+  box-shadow: 0 3px 0 var(--s1-hud-cyan-shadow), 0 7px 14px rgba(42, 168, 216, 0.26);
+}
+
+.m0-screen--season1 .m0-pause-btn:hover {
+  background: #238fba;
+}
+
+/* The dialogue gets one distinctive "story tablet" rule: a small cyan
+   path-line under the spoken text. It guides the eye to the active goal
+   while leaving the centre of the 3D frame available to the child. */
+.m0-screen--season1 .m0-dialogue {
+  border: 2px solid rgba(255, 255, 255, 0.98);
+  background: rgba(255, 253, 246, 0.97);
+  box-shadow: 0 6px 0 rgba(210, 226, 201, 0.94), 0 15px 28px rgba(28, 36, 48, 0.18);
+}
+
+.m0-screen--season1 .m0-speaker {
+  color: var(--s1-hud-cyan);
+}
+
+.m0-screen--season1 .m0-line {
+  color: var(--s1-hud-ink);
+}
+
+.m0-screen--season1 .m0-objective {
+  border-color: rgba(42, 168, 216, 0.42);
+  color: var(--s1-hud-mint-shadow);
+}
+
+.m0-screen--season1 .m0-keys {
+  border: 2px solid #fff;
+  background: rgba(255, 253, 246, 0.95);
+  box-shadow: 0 4px 0 #d8e6cb, 0 10px 20px rgba(28, 36, 48, 0.15);
+  backdrop-filter: none;
+}
+
+.m0-screen--season1 .m0-keys kbd {
+  border-color: var(--s1-hud-cyan);
+  color: var(--s1-hud-cyan-shadow);
+  box-shadow: 0 2px 0 var(--s1-hud-cyan-shadow);
+}
+
+.m0-screen--season1 .m0-keys-or {
+  color: var(--s1-hud-muted);
+}
+
+.m0-screen--season1 .m0-dialogue-btn {
+  border-color: rgba(42, 168, 216, 0.35);
+  background: rgba(42, 168, 216, 0.1);
+  color: var(--s1-hud-cyan-shadow);
+}
+
+.m0-screen--season1 .m0-dialogue-btn:hover:not(:disabled) {
+  background: rgba(42, 168, 216, 0.2);
+}
+
+.m0-screen--season1 .m0-dialogue-tab {
+  border: 2px solid #fff;
+  background: rgba(255, 253, 246, 0.97);
+  box-shadow: 0 4px 0 #d8e6cb, 0 10px 20px rgba(28, 36, 48, 0.16);
+  color: var(--s1-hud-ink);
+  backdrop-filter: none;
+}
+
+.m0-screen--season1 .m0-dialogue-tab-icon {
+  display: inline-flex;
+  color: var(--s1-hud-cyan);
+}
+
+.m0-screen--season1 .m0-stick {
+  border-color: rgba(255, 253, 246, 0.92);
+  background: rgba(255, 253, 246, 0.38);
+  box-shadow: 0 7px 18px rgba(28, 36, 48, 0.14);
+}
+
+.m0-screen--season1 .m0-knob {
+  border-color: #fffdf6;
+  background: var(--s1-hud-mint);
+  box-shadow: 0 4px 0 var(--s1-hud-mint-shadow), 0 8px 14px rgba(49, 134, 87, 0.22);
+}
+
+.m0-screen--season1 .m0-jump {
+  border-color: #fffdf6;
+  color: var(--s1-hud-cyan-shadow);
+  background: #cceaf4;
+  box-shadow: 0 7px 0 var(--s1-hud-cyan), 0 12px 22px rgba(28, 36, 48, 0.2);
+}
+
+.m0-screen--season1 .m0-jump:active {
+  box-shadow: 0 2px 0 var(--s1-hud-cyan), 0 6px 12px rgba(28, 36, 48, 0.2);
+}
+
+.m0-screen--season1 .m0-action {
+  border-color: #fffdf6;
+  background: var(--s1-hud-pear);
+  box-shadow: 0 8px 0 var(--s1-hud-pear-shadow), 0 12px 24px rgba(28, 36, 48, 0.2);
+}
+
+.m0-screen--season1 .m0-action-paw,
+.m0-screen--season1 .m0-action-label {
+  color: #584816;
+}
+
+.m0-screen--season1 .m0-skip {
+  color: var(--s1-hud-muted);
+  border-color: #fff;
+  background: rgba(255, 253, 246, 0.94);
+  box-shadow: 0 4px 0 #d8e6cb, 0 9px 18px rgba(28, 36, 48, 0.14);
+}
+
+.m0-screen--season1 .m0-outro {
+  background: rgba(28, 36, 48, 0.5);
+  backdrop-filter: none;
+}
+
+.m0-screen--season1 .m0-outro-card {
+  border: 2px solid #fff;
+  background: var(--s1-hud-paper);
+  box-shadow: 0 9px 0 #c9dabb, 0 20px 48px rgba(28, 36, 48, 0.3);
+}
+
+.m0-screen--season1 .m0-outro-badge {
+  background: var(--s1-hud-cyan);
+}
+
+.m0-screen--season1 .m0-outro-title {
+  color: var(--s1-hud-ink);
+}
+
+.m0-screen--season1 .m0-outro-line,
+.m0-screen--season1 .m0-progress-label {
+  color: var(--s1-hud-muted);
+}
+
+.m0-screen--season1 .plush-btn-primary {
+  color: #584816;
+  background: var(--s1-hud-pear);
+  box-shadow: 0 5px 0 var(--s1-hud-pear-shadow), 0 10px 20px rgba(201, 168, 18, 0.28);
+}
+
+.m0-screen--season1 .plush-btn-secondary {
+  background: var(--s1-hud-cyan);
+  box-shadow: 0 5px 0 var(--s1-hud-cyan-shadow), 0 10px 20px rgba(42, 168, 216, 0.26);
+}
+
+.m0-screen--season1 .m0-rotate-hint {
+  background: var(--s1-hud-ink);
+  box-shadow: 0 5px 0 rgba(12, 18, 24, 0.45), 0 10px 22px rgba(28, 36, 48, 0.24);
+  backdrop-filter: none;
+}
+
+.m0-screen--season1 .m0-rotate-icon {
+  display: inline-flex;
+  color: var(--s1-hud-pear);
+}
+
+.m0-screen--season1 .m0-pause-btn:focus-visible,
+.m0-screen--season1 .m0-action:focus-visible,
+.m0-screen--season1 .m0-jump:focus-visible,
+.m0-screen--season1 .m0-dialogue-btn:focus-visible,
+.m0-screen--season1 .m0-dialogue-tab:focus-visible,
+.m0-screen--season1 .m0-skip:focus-visible {
+  outline: 3px solid var(--s1-hud-pear);
+  outline-offset: 3px;
+}
