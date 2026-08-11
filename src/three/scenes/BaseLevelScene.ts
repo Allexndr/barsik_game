@@ -1724,7 +1724,12 @@ export abstract class BaseLevelScene {
    * that runs sideways or doubles back is still walled along its actual
    * direction rather than along z.
    */
-  protected async enclosePath(loader: GLTFLoader, rows = 4, step = 3.0) {
+  protected async enclosePath(
+    loader: GLTFLoader,
+    rows = 4,
+    step = 3.0,
+    visualClearZones: ReadonlyArray<{ x: number; z: number; r: number }> = [],
+  ) {
     if (!this.playPath || this.playPath.length < 2 || this.disposed) return;
     const kit = this.assetKit(loader);
     const near = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
@@ -1732,6 +1737,12 @@ export abstract class BaseLevelScene {
     const far = ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_tall'];
     const placements: Array<{ names: string[]; x: number; z: number; height: number }> = [];
     const base = this.playPathHalf + this.corridorSlack;
+    // A follow camera may need to sit just beyond the start/end of a route.
+    // Keep this a visual-only exclusion: route reachability and collision data
+    // still come solely from the authored path and rooms.
+    const isInVisualClearZone = (x: number, z: number) => visualClearZones.some((zone) =>
+      Math.hypot(x - zone.x, z - zone.z) < zone.r,
+    );
 
     const plantAt = (px: number, pz: number, nx: number, nz: number, sign: number) => {
       // Step outward until we clear whatever is here, rather than giving up.
@@ -1756,7 +1767,12 @@ export abstract class BaseLevelScene {
         const out = start + row * 2.6 + Math.random() * 1.1;
         const x = px + nx * out * sign;
         const z = pz + nz * out * sign;
-        if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z) || this.isInsidePlayArea(x, z)) continue;
+        if (
+          this.isReserved(x, z, 0.8)
+          || this.isUnderwater(x, z)
+          || this.isInsidePlayArea(x, z)
+          || isInVisualClearZone(x, z)
+        ) continue;
         placements.push({
           names: row === 0 ? near : row === 1 ? mid : far,
           x, z,
@@ -1793,7 +1809,12 @@ export abstract class BaseLevelScene {
           const out = 1.6 + row * 2.6 + Math.random();
           const x = end.x + dx * out + -dz * off;
           const z = end.z + dz * out + dx * off;
-          if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z) || this.isInsidePlayArea(x, z)) continue;
+          if (
+            this.isReserved(x, z, 0.8)
+            || this.isUnderwater(x, z)
+            || this.isInsidePlayArea(x, z)
+            || isInVisualClearZone(x, z)
+          ) continue;
           placements.push({
             names: row === 0 ? mid : far,
             x, z,
