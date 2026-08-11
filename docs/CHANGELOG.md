@@ -12,6 +12,16 @@ short: implementation detail remains in the commit and linked ADR.
 | `aff1389` | Level 0 arrival/HUD | Purple/glass UI, emoji and a second pixel game fought the soft 3D world. L0 now has a calm paper/lantern entry and scoped cream/pear/cyan/mint HUD without repainting all missions. | Mobile 390×844 start/HUD flow, accessibility state, console check; type-check, lint, build. See ADR 002. |
 | `0e3fe9a` | Level 0 yurt camera | A temporary free-look orbit happened after the former yurt clamp and could show the hidden exterior. The final rendered camera pose now respects a conservative yurt safe volume. | Repeated touch orbits at 390×844 and Q/E at 1440×900; no console errors; type-check, lint, build. See ADR 003. |
 | `68f53d9` | Season 1 art contract | The team needed one practical definition of “premium, solid and mobile-safe” before replacing assets. | Repository-grounded hero/environment/asset audit; `git diff --check`. See `SEASON_1_ART_PIPELINE.md`. |
+| `e915dba` → `7c3ed2c` | Qualified Barsik rig | A static model slides and a raw generated model can overload phones. The runtime will take only a qualified rigged Barsik, otherwise it keeps the playable avatar. | Type-check, lint, build, GLB probe and L0 390×844 default/avatar/rigged fallback checks. See ADR 004. |
+| `bd3f2b2` → `9245aa2` | Level 0 forest floor | The terrain had relief but still read as a flat coloured field. L0 now gets scoped macro detail, a worn path/green verge and one-draw-call grass tufts. | Type-check, lint, build; live 390×844 and 1440×900 checks without console errors. See ADR 005. |
+| `a720d6b` → `aba1448` | Season 1 forest hygiene | Mission 1 used a legacy flat plane and Levels 2/3/10 duplicated environment systems. M1 keeps its level gameplay route while gaining shared horizon/grass; duplicate sky, clouds and fireflies were removed. | Type-check, lint, build; 390×844 smoke for missions 1/2/3/10 with no console errors. See ADR 006. |
+
+### Known follow-up
+
+- Level 10 mobile begins with a tree canopy occluding too much of the camera.
+  This is documented in ADR 006 and deliberately stays out of the environment
+  cleanup package; it needs a focused camera/tree-layout pass and screenshot
+  approval rather than a hidden one-line move.
 
 ## Required entry format
 
