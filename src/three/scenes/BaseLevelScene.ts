@@ -1362,6 +1362,7 @@ export abstract class BaseLevelScene {
    */
   private withCameraOrbit(render: () => void) {
     if (Math.abs(this.camYaw) < 0.0005) {
+      this.beforeRenderCamera();
       render();
       return;
     }
@@ -1371,10 +1372,21 @@ export abstract class BaseLevelScene {
     const offset = pos.clone().sub(this.hero.position).applyQuaternion(q);
     this.camera.position.copy(this.hero.position).add(offset);
     this.camera.quaternion.premultiply(q);
+    // The orbit is a temporary render transform. A confined level can clamp
+    // that *final* camera pose here without corrupting the un-orbited follow
+    // camera stored for the next simulation frame.
+    this.beforeRenderCamera();
     render();
     this.camera.position.copy(pos);
     this.camera.quaternion.copy(quat);
   }
+
+  /**
+   * Last chance for a level to constrain the camera pose that will actually
+   * be rendered. The default is intentionally empty: wide outdoor levels
+   * retain their existing free orbit behaviour.
+   */
+  protected beforeRenderCamera() {}
 
   /** Q/E on desktop, drag anywhere outside the joystick on touch. */
   protected updateCameraOrbit(dt: number) {
