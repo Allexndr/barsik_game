@@ -246,23 +246,105 @@ function makeDombra(): THREE.Group {
 }
 
 /**
+ * Cheap deterministic value noise — enough to break a flat felt colour into
+ * something hand-dyed, not a real Perlin field and not worth one.
+ */
+function feltHash(x: number, y: number) {
+  const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+/**
+ * Bakes mottled vertex colour onto felt geometry — the same "paint the
+ * geometry, don't texture it" idiom the flowers use, aimed at a different
+ * problem: the yurt read as a flat-shaded cylinder because it *was* one
+ * colour, not because it was low-poly.
+ */
+function paintFelt(geo: THREE.BufferGeometry, base: THREE.Color, vary: THREE.Color, freq: number) {
+  const pos = geo.attributes.position;
+  const colours = new Float32Array(pos.count * 3);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const t = feltHash(x * freq, z * freq) * 0.65 + feltHash(y * freq * 1.6, x * freq * 0.8) * 0.35;
+    c.copy(base).lerp(vary, t);
+    colours[i * 3] = c.r;
+    colours[i * 3 + 1] = c.g;
+    colours[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+  return geo;
+}
+
+/**
  * A yurt, in the game's plush idiom: a felt drum with a domed roof, a red
  * door frame and a shanyrak — the wheel at the crown, which is the shape on
  * the flag and the one detail that must not be got wrong.
+ *
+ * The first version was a cylinder, a cone and a black box for the door —
+ * correct silhouette, nothing a child would call a home. This pass does not
+ * change that silhouette; it adds the things that make felt read as felt
+ * (mottled colour, not flat), a structure read at the door (posts, not a
+ * frame floating on the wall), and the one cue that was actively wrong: the
+ * doorway was a hole, and a lived-in yurt is warm inside before you reach it.
  */
 function makeYurt(): THREE.Group {
   const g = new THREE.Group();
-  const felt = new THREE.MeshStandardMaterial({ color: 0xf1ece0, roughness: 0.95 });
   const trim = new THREE.MeshStandardMaterial({ color: 0xc4462f, roughness: 0.8 });
   const wood = new THREE.MeshStandardMaterial({ color: 0x9c6b3c, roughness: 0.85 });
+  const feltMat = new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.92, color: 0xffffff,
+  });
+  const CREAM = new THREE.Color(0xf1ece0);
+  const TAN = new THREE.Color(0xd9c9a3);
 
-  const wall = new THREE.Mesh(new THREE.CylinderGeometry(2.9, 3.0, 1.9, 22), felt);
+  const wallGeo = paintFelt(new THREE.CylinderGeometry(2.9, 3.0, 1.9, 22, 3), CREAM, TAN, 0.55);
+  const wall = new THREE.Mesh(wallGeo, feltMat);
   wall.position.y = 0.95;
   wall.castShadow = true;
 
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(3.05, 1.7, 22), felt);
+  const roofGeo = paintFelt(new THREE.ConeGeometry(3.05, 1.7, 22, 3), CREAM, TAN, 0.5);
+  const roof = new THREE.Mesh(roofGeo, feltMat);
   roof.position.y = 2.72;
   roof.castShadow = true;
+
+  // A reinforced base course — every real yurt has one, and it is what was
+  // missing from the ground contact: without it the wall looked pinned to
+  // the grass rather than standing on it.
+  const baseBand = new THREE.Mesh(
+    new THREE.CylinderGeometry(3.03, 3.1, 0.34, 22),
+    new THREE.MeshStandardMaterial({ color: 0x8a6a3e, roughness: 0.95 }),
+  );
+  baseBand.position.y = 0.17;
+  baseBand.castShadow = true;
+
+  // Panel seams. Felt yurts are built from tied sections, not poured as one
+  // shell — a handful of vertical rope-lines is what tells a child that,
+  // without needing a tutorial popup to say so.
+  const seamMat = new THREE.MeshStandardMaterial({ color: 0xb98f52, roughness: 0.9 });
+  const seamCount = 9;
+  for (let i = 0; i < seamCount; i++) {
+    const a = (i / seamCount) * Math.PI * 2 + 0.18;
+    if (Math.abs(Math.sin(a)) < 0.32 && Math.cos(a) > 0) continue; // leave the door face clear
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.045, 1.86, 0.05), seamMat);
+    seam.position.set(Math.sin(a) * 2.95, 0.95, Math.cos(a) * 2.95);
+    seam.rotation.y = a;
+    g.add(seam);
+  }
+
+  // A mended patch, off to one side. Quiet continuity with the level's own
+  // beat — the gardener fixes torn felt for a living, so his own home
+  // should show one repair, not just be the place repairs happen.
+  const patch = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.52, 0.4, 2, 2),
+    new THREE.MeshStandardMaterial({ color: 0xe9dfc8, roughness: 0.95, side: THREE.DoubleSide }),
+  );
+  const patchA = 2.35;
+  patch.position.set(Math.sin(patchA) * 2.93, 1.12, Math.cos(patchA) * 2.93);
+  patch.rotation.y = patchA + Math.PI;
+  patch.rotation.z = 0.06;
 
   const shanyrak = new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.09, 8, 16), wood);
   shanyrak.rotation.x = Math.PI / 2;
@@ -272,6 +354,19 @@ function makeYurt(): THREE.Group {
     spoke.rotation.set(Math.PI / 2, 0, (i / 4) * Math.PI);
     spoke.position.y = 3.52;
     g.add(spoke);
+  }
+
+  // A soft, static smoke wisp over the shanyrak — three stretched, fading
+  // blobs rather than a particle system, because a lived-in home has a fire
+  // in it and a silhouette-only hearth does not say so from outside.
+  const smokeMat = new THREE.MeshBasicMaterial({
+    color: 0xf3f0ea, transparent: true, opacity: 0.32, depthWrite: false,
+  });
+  for (let i = 0; i < 3; i++) {
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.22 + i * 0.1, 8, 6), smokeMat);
+    puff.position.set(i * 0.05, 3.85 + i * 0.42, i * -0.03);
+    puff.scale.set(1, 1.3, 1);
+    g.add(puff);
   }
 
   // A band of ornament at the eaves. Kept to a simple repeating diamond —
@@ -287,13 +382,29 @@ function makeYurt(): THREE.Group {
 
   const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.25, 1.65, 0.16), trim);
   doorFrame.position.set(0, 0.82, 2.94);
+
+  // Wood corner posts, so the frame reads as built rather than painted onto
+  // the wall. Real ones carry the door's weight; these just need to look
+  // like they could.
+  const postGeo = new THREE.CylinderGeometry(0.075, 0.09, 1.72, 6);
+  for (const side of [-1, 1]) {
+    const post = new THREE.Mesh(postGeo, wood);
+    post.position.set(side * 0.64, 0.86, 2.98);
+    g.add(post);
+  }
+
+  // The one thing that was actively wrong, not just plain: a black hole
+  // read as broken, not as an unlit room. Warm and emissive, the same
+  // "lit from within" trick the lanterns use once struck.
   const doorway = new THREE.Mesh(
     new THREE.BoxGeometry(0.95, 1.35, 0.1),
-    new THREE.MeshStandardMaterial({ color: 0x3a2b1e, roughness: 1 }),
+    new THREE.MeshStandardMaterial({
+      color: 0xffcf8a, emissive: 0xffb347, emissiveIntensity: 0.8, roughness: 0.6,
+    }),
   );
   doorway.position.set(0, 0.72, 3.02);
 
-  g.add(wall, roof, shanyrak, doorFrame, doorway);
+  g.add(wall, roof, baseBand, patch, shanyrak, doorFrame, doorway);
   return g;
 }
 
