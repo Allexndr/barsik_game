@@ -22,6 +22,37 @@ import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityPr
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
+/**
+ * The shared Fruit Forest profile intentionally stays cheap: two short,
+ * crossed leaves per instance read as a soft tuft rather than a tall dark
+ * needle, while `WindGrass` still submits one instanced mesh. The number of
+ * instances is reduced to keep this visual improvement mobile-safe. Level 0
+ * supplies its own explicit profile and therefore remains the approved
+ * benchmark.
+ */
+const FOREST_GRASS_DEFAULTS = {
+  // Contrast-balanced for the desktop ACES path: the former double conversion
+  // made these pins black, while an over-bright correction made them read like
+  // dry paper stems.
+  rootColor: 0x396f35,
+  tipColor: 0x709e4b,
+  tipWarmColor: 0xb4a157,
+  bladeHeight: [0.16, 0.38] as [number, number],
+  bladeWidth: 1.45,
+  bladesPerTuft: 2 as const,
+  colorMode: 'managed' as const,
+};
+
+// Mobile uses the compact quality path rather than the desktop composer. Its
+// grass needs a lifted but still green palette to avoid collapsing back to
+// black at phone pixel density. Scene-specific profiles (notably Level 0)
+// still override this object entirely when they provide their own colours.
+const FOREST_GRASS_MOBILE_COLORS = {
+  rootColor: 0x8fbd65,
+  tipColor: 0xc0df86,
+  tipWarmColor: 0xe2d38d,
+};
+
 type HeroSelection = 'auto' | 'avatar' | 'rigged';
 
 /**
@@ -1022,6 +1053,7 @@ export abstract class BaseLevelScene {
       tipColor?: number;
       tipWarmColor?: number;
       bladeHeight?: [number, number];
+      bladeWidth?: number;
       bladesPerTuft?: 1 | 2 | 3;
       colorMode?: 'legacy' | 'managed';
     } = {},
@@ -1038,8 +1070,14 @@ export abstract class BaseLevelScene {
       tipColor: opts.tipColor,
       tipWarmColor: opts.tipWarmColor,
       bladeHeight: opts.bladeHeight,
+      bladeWidth: opts.bladeWidth,
       bladesPerTuft: opts.bladesPerTuft,
-      colorMode: opts.colorMode,
+      // Forest levels are rendered through ACES + OutputPass. `THREE.Color`
+      // already reaches the shader in the right working space, so legacy's
+      // second conversion made otherwise healthy blades read as black pins.
+      // Level 0 stays explicitly `managed` in its authored profile; a scene
+      // can still request `legacy` if it genuinely needs compatibility.
+      colorMode: opts.colorMode ?? 'managed',
       heightAt: this.groundHeightAt,
       exclude: (x, z) => this.isReserved(x, z, 0.4) || this.isUnderwater(x, z),
     });
@@ -1303,7 +1341,23 @@ export abstract class BaseLevelScene {
       }
     }
     if (fireflies) this.setupFireflies();
-    if (opts.grass !== false) this.pendingGrass = opts.grass ?? {};
+    if (opts.grass !== false) {
+      // Scene-local art can override any field, as Level 0 already does. The
+      // common forest default is deliberately a short crossed tuft: it fixes
+      // the old black pin field without adding a texture, asset fetch, or a
+      // second grass draw call.
+      this.pendingGrass = {
+        ...FOREST_GRASS_DEFAULTS,
+        ...(this.isMobile ? FOREST_GRASS_MOBILE_COLORS : {}),
+        // Two leaves per tuft still produce only one instanced grass draw.
+        // The field stays at a conservative 6.4k/16k maximum grass triangles
+        // on mobile/desktop — only +1.4k/+2k over the old 5k/14k cards — so
+        // a child gets a fuller near field without a material, texture or
+        // draw-call regression.
+        count: this.isMobile ? 3200 : 8000,
+        ...(opts.grass ?? {}),
+      };
+    }
     void loader;
   }
 

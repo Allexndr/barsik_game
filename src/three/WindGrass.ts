@@ -12,14 +12,17 @@ export type WindGrassOptions = {
   /** Return terrain Y at (x, z) for blade root. */
   heightAt?: (x: number, z: number) => number;
   bladeHeight?: [min: number, max: number];
+  /** Horizontal multiplier for a tuft. Keep 1 for an authored profile. */
+  bladeWidth?: number;
   /**
    * Crossed triangles per instance. A tuft has more depth than a single
    * billboard while remaining one instanced draw call.
    */
   bladesPerTuft?: 1 | 2 | 3;
   /**
-   * `legacy` preserves the earlier double conversion for untouched levels.
-   * `managed` uses Three's current working colour space directly.
+   * `managed` uses Three's current working colour space directly. `legacy`
+   * remains only as an explicit compatibility escape hatch for a deliberately
+   * authored older scene.
    */
   colorMode?: 'legacy' | 'managed';
   /** Must match the scene fog, or far grass stays vivid while the world fades. */
@@ -39,8 +42,9 @@ export type WindGrass = {
  * Painterly wind-reactive grass: one instanced draw call, all motion on GPU.
  * No textures, no assets — vertex-shader sway + root→tip gradient
  * (same technique as the viral “one HTML file” Three.js field demos).
- * Colors are converted to linear because the scene renders through
- * EffectComposer + OutputPass (tone map happens at the end of the frame).
+ * Shader colours arrive in Three's current linear working space.  Do not
+ * convert a `THREE.Color` a second time: ColorManagement has already done
+ * that for hex input before ACES/output conversion runs.
  */
 export function createWindGrass(opts: WindGrassOptions): WindGrass {
   const {
@@ -54,8 +58,9 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
     tipColor = 0xa2d46b,
     tipWarmColor = 0xe0cf7c,
     bladeHeight = [0.3, 0.68],
+    bladeWidth = 1,
     bladesPerTuft = 1,
-    colorMode = 'legacy',
+    colorMode = 'managed',
     heightAt,
     fogColor = 0xc8e4f2,
     fogNear = 24,
@@ -77,9 +82,13 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
         : []),
     ];
   const base = new THREE.BufferGeometry();
+  // Width is a profile-level control rather than a second mesh: widening the
+  // forest leaves makes their silhouette read as a soft tuft from a mobile
+  // camera, while Level 0 keeps its authored width of 1 exactly.
+  const tuftPositions = tuft.map((value, index) => index % 3 === 1 ? value : value * bladeWidth);
   base.setAttribute(
     'position',
-    new THREE.Float32BufferAttribute(tuft, 3),
+    new THREE.Float32BufferAttribute(tuftPositions, 3),
   );
 
   const geometry = new THREE.InstancedBufferGeometry();
@@ -117,9 +126,9 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
     uniforms: {
       uTime: { value: 0 },
       // Three r161 already converts a hex colour into the renderer's working
-      // space. Level 0 opts into that managed path so its richer near-field
-      // tufts retain their intended colour through ACES; the legacy route is
-      // kept as the default for untouched levels until their own visual pass.
+      // space. The old extra conversion crushed every default forest field
+      // toward black through ACES, leaving needle-like scratches instead of
+      // readable grass. `legacy` is retained only for an explicit exception.
       uRoot: { value: colorMode === 'managed' ? new THREE.Color(rootColor) : new THREE.Color(rootColor).convertSRGBToLinear() },
       uTip: { value: colorMode === 'managed' ? new THREE.Color(tipColor) : new THREE.Color(tipColor).convertSRGBToLinear() },
       uTipWarm: { value: colorMode === 'managed' ? new THREE.Color(tipWarmColor) : new THREE.Color(tipWarmColor).convertSRGBToLinear() },
