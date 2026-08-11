@@ -15,7 +15,6 @@ import {
   bush,
   tulip,
   hill,
-  skyDome,
   pathArrow,
   placeWoodSign,
 } from './BaseLevelScene';
@@ -343,10 +342,13 @@ export class Level3Scene extends BaseLevelScene {
     const loader = createGameGltfLoader();
 
     this.camera.position.set(-8, 6, 14);
-    await this.setupForestEnvironment(loader, { flatRadius: 24, flatCenterZ: -16, fireflies: true });
-    this.scene.add(skyDome());
-    this.setupClouds(7, 26, 60);
-    this.setupFireflies();
+    await this.setupForestEnvironment(loader, {
+      sky: ['#66c8f5', '#94d8ef', '#e8faf3'],
+      clouds: 7,
+      flatRadius: 24,
+      flatCenterZ: -16,
+      fireflies: true,
+    });
 
     // Hills + overlook for search (GDD: verticality)
     for (const [hx, hz, hr, hh] of [
