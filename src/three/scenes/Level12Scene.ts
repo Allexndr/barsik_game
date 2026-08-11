@@ -10,6 +10,7 @@ import {
 } from './BaseLevelScene';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { TrailPath } from '../TrailPath';
+import { makeIceRibbonDetailMap } from '../LevelTerrain';
 import { CAST_PROP_GLB, CAST_CHAR_GLB } from '../castModels';
 import { AudioManager } from '@/audio/AudioManager';
 
@@ -154,11 +155,14 @@ export class Level12Scene extends BaseLevelScene {
     // ── Trail surface ────────────────────────────────────────────
     const iceMat = new THREE.MeshStandardMaterial({
       color: 0xdff2fb,
-      roughness: 0.06,
-      metalness: 0.42,
+      map: makeIceRibbonDetailMap(12),
+      roughness: 0.24,
+      metalness: 0.06,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.94,
     });
+    // Material-only detail. yOffset stays fixed, so the authored zero-height
+    // sliding route, checkpoints and collectible placements do not move.
     const trailMesh = this.trail.buildSurface(iceMat, { segments: 180, yOffset: 0.07 });
     this.scene.add(trailMesh);
 
