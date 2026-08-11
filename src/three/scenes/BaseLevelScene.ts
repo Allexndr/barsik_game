@@ -10,7 +10,7 @@ import { useUIStore } from '@/store/useUIStore';
 import { createFireflies, type Fireflies } from '../Fireflies';
 import { createLevelTerrain, type LevelTerrain, type LevelTerrainOptions } from '../LevelTerrain';
 import { createWindGrass, type WindGrass } from '../WindGrass';
-import { AssetKit } from '../AssetKit';
+import { AssetKit, type KitPack } from '../AssetKit';
 import { placePatch, ringAnchors, type PatchSpec } from '../sceneComposition';
 import { placeMany, placementGround, setPlacementGround } from '../s1Place';
 import { disposeObject3DResources, fitHeight, fitMaxSize, groundY, measurePlinthFraction, repairDefaultMaterial } from '../modelUtils';
@@ -52,6 +52,40 @@ export interface BaseHud {
   showActionHint: boolean;
   outro: boolean;
 }
+
+/**
+ * Boundary vegetation is a biome decision, not a hard-coded forest decision.
+ * Every enclosure is instanced, so using the right existing kit does not turn
+ * a winter scene into a cloud of individually drawn props.
+ */
+type TreelineStyle = {
+  pack: KitPack;
+  near: string[];
+  mid: string[];
+  far: string[];
+  /** Keep a cheap winter boundary behind the authored decor. */
+  maxRows: number;
+};
+
+const FOREST_TREELINE: TreelineStyle = {
+  pack: 'nature',
+  near: ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'],
+  mid: ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default'],
+  far: ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_tall'],
+  maxRows: 4,
+};
+
+const WINTER_TREELINE: TreelineStyle = {
+  pack: 'holiday',
+  // `tree-snow-c` is the lightest snow-laden holiday tree (234 triangles,
+  // one material). Existing nearby decor already gives each Ice Valley level
+  // its mixed a/b/c silhouettes, so the distant boundary needs only this
+  // cheap, coherent variant rather than four dense rows of focal assets.
+  near: ['tree-snow-c'],
+  mid: ['tree-snow-c'],
+  far: ['tree-snow-c'],
+  maxRows: 2,
+};
 
 // ─── Shared constants ───────────────────────────────────────────
 export const CC0 = '/assets/models/cc0/';
@@ -853,6 +887,8 @@ export abstract class BaseLevelScene {
   protected quality: QualityPipeline | null = null;
   protected renderQuality: RenderQualityProfile;
   protected kit: AssetKit | null = null;
+  /** Chosen by the shared biome setup before a level draws its enclosure. */
+  protected treelineStyle: TreelineStyle = FOREST_TREELINE;
   protected levelTerrain: LevelTerrain | null = null;
   protected windGrass: WindGrass[] = [];
   /**
@@ -1195,6 +1231,9 @@ export abstract class BaseLevelScene {
       terrain?: LevelTerrainOptions | false;
     } = {},
   ) {
+    // Enclosures are placed after setup in most winter scenes. Mark their
+    // boundary here so a snow valley never grows a ring of green forest trees.
+    this.treelineStyle = WINTER_TREELINE;
     this.footstepSurface = opts.ground === 'ice' ? 'stone' : 'snow';
     const sky = opts.sky ?? (['#4a6a8a', '#8ab0c8', '#d0e8f0'] as [string, string, string]);
     // Snow bounces a lot of light, so the sky term sits higher here than in
@@ -1281,6 +1320,7 @@ export abstract class BaseLevelScene {
       fireflies = false,
     } = opts;
 
+    this.treelineStyle = FOREST_TREELINE;
     this.footstepSurface = 'grass';
     this.setupLighting(fogColor, sunColor, sunIntensity, hemiSky, hemiGround);
     this.setupSculptedGround({
@@ -1756,9 +1796,8 @@ export abstract class BaseLevelScene {
   ) {
     if (!this.playPath || this.playPath.length < 2 || this.disposed) return;
     const kit = this.assetKit(loader);
-    const near = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
-    const mid = ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default'];
-    const far = ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_tall'];
+    const { near, mid, far } = this.treelineStyle;
+    const effectiveRows = Math.min(rows, this.treelineStyle.maxRows);
     const placements: Array<{ names: string[]; x: number; z: number; height: number }> = [];
     const base = this.playPathHalf + this.corridorSlack;
     // A follow camera may need to sit just beyond the start/end of a route.
@@ -1787,7 +1826,7 @@ export abstract class BaseLevelScene {
         }
       }
       if (start < 0) return;
-      for (let row = 0; row < rows; row++) {
+      for (let row = 0; row < effectiveRows; row++) {
         const out = start + row * 2.6 + Math.random() * 1.1;
         const x = px + nx * out * sign;
         const z = pz + nz * out * sign;
@@ -1829,7 +1868,7 @@ export abstract class BaseLevelScene {
       const dx = (end.x - other.x) / len;
       const dz = (end.z - other.z) / len;
       for (let off = -base - 2; off <= base + 2; off += 2.6) {
-        for (let row = 0; row < 3; row++) {
+        for (let row = 0; row < Math.min(3, effectiveRows); row++) {
           const out = 1.6 + row * 2.6 + Math.random();
           const x = end.x + dx * out + -dz * off;
           const z = end.z + dz * out + dx * off;
@@ -1859,12 +1898,11 @@ export abstract class BaseLevelScene {
   protected async encloseArena(loader: GLTFLoader, rows = 4) {
     if (!this.playArena || this.disposed) return;
     const kit = this.assetKit(loader);
-    const near = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
-    const mid = ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default'];
-    const far = ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_tall'];
+    const { near, mid, far } = this.treelineStyle;
+    const effectiveRows = Math.min(rows, this.treelineStyle.maxRows);
     const arena = this.playArena;
     const placements: Array<{ names: string[]; x: number; z: number; height: number }> = [];
-    for (let row = 0; row < rows; row++) {
+    for (let row = 0; row < effectiveRows; row++) {
       const radius = arena.r + this.corridorSlack + 1.4 + row * 2.6;
       // Constant arc spacing, so the outer rings are not sparse.
       const count = Math.max(8, Math.round((2 * Math.PI * radius) / 3.2));
@@ -1918,9 +1956,8 @@ export abstract class BaseLevelScene {
     if (!this.pathCorridor || this.disposed) return;
     const { zFrom, zTo, rows = 4, step = 3.2 } = opts;
     const kit = this.assetKit(loader);
-    const near = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
-    const mid = ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default'];
-    const far = ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_tall'];
+    const { near, mid, far } = this.treelineStyle;
+    const effectiveRows = Math.min(rows, this.treelineStyle.maxRows);
 
     /** How far the walkable area reaches sideways at this z, either way. */
     const reachAt = (z: number, sign: number) => {
@@ -1944,7 +1981,7 @@ export abstract class BaseLevelScene {
     for (let z = lo - 6; z <= hi + 6; z += step) {
       for (const sign of [-1, 1]) {
         const edge = reachAt(z, sign);
-        for (let row = 0; row < rows; row++) {
+        for (let row = 0; row < effectiveRows; row++) {
           const out = 1.4 + row * 2.6 + Math.random() * 1.1;
           const x = edge + sign * out;
           const jz = z + (Math.random() - 0.5) * step;
@@ -1972,7 +2009,7 @@ export abstract class BaseLevelScene {
       const left = reachAt(endZ, -1);
       const right = reachAt(endZ, 1);
       for (let x = left - 4; x <= right + 4; x += 2.8) {
-        for (let row = 0; row < 3; row++) {
+        for (let row = 0; row < Math.min(3, effectiveRows); row++) {
           const z = endZ + dir * (1.2 + row * 2.6 + Math.random());
           if (this.isReserved(x, z, 0.8) || this.isInsidePlayArea(x, z)) continue;
           placements.push({
@@ -2003,6 +2040,7 @@ export abstract class BaseLevelScene {
   private async plantTreeline(
     kit: ReturnType<BaseLevelScene['assetKit']>,
     placements: Array<{ names: string[]; x: number; z: number; height: number }>,
+    pack: KitPack = this.treelineStyle.pack,
   ) {
     const byName = new Map<string, typeof placements>();
     for (const p of placements) {
@@ -2013,7 +2051,7 @@ export abstract class BaseLevelScene {
     }
 
     for (const [name, list] of byName) {
-      const template = await kit.spawn('nature', name, { maxSize: 1 });
+      const template = await kit.spawn(pack, name, { maxSize: 1 });
       if (!template) continue;
       // A kit tree is a couple of meshes (trunk, canopy); each becomes one
       // InstancedMesh carrying every copy of that tree in the wall.

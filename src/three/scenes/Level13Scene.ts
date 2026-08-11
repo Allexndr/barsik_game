@@ -219,7 +219,9 @@ export class Level13Scene extends BaseLevelScene {
     for (const [x, z] of SHARDS) this.reserve(x, z, 3);
 
     await this.setupWinterEnvironment(loader, {
-      decorCount: 42,
+      // The sculpture ring and the one-row boundary already frame the route;
+      // keep the remote scatter below the normal-phone triangle guard.
+      decorCount: 34,
       decorCenterZ: -14,
       terrain: {
         relief: 0.95,
@@ -350,7 +352,12 @@ export class Level13Scene extends BaseLevelScene {
     // and right going down. Drawing that as an actual route, then walling it,
     // is what stops it reading as a clearing with things scattered in it.
     this.derivePathFromRooms({ x: 0, z: 5 });
-    await this.enclosePath(loader);
+    // Keep the rear cap out of the follow camera's opening lens volume. This
+    // only excludes boundary decoration; the serpentine route stays authored.
+    // This dense sculpture garden already owns its nearby snow-tree silhouettes;
+    // one instanced boundary row keeps the lens clear without spending the
+    // mobile triangle budget on a second invisible row behind it.
+    await this.enclosePath(loader, 1, 3.0, [{ x: 0.8, z: 16.5, r: 9.5 }]);
 
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;

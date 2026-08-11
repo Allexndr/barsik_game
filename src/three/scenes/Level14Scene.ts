@@ -372,7 +372,9 @@ export class Level14Scene extends BaseLevelScene {
     // and right going down. Drawing that as an actual route, then walling it,
     // is what stops it reading as a clearing with things scattered in it.
     this.derivePathFromRooms({ x: 0, z: 5 });
-    await this.enclosePath(loader);
+    // The follow camera sits behind the spawn before the first warm-camp beat.
+    // Do not plant the visual snow boundary inside that initial lens bay.
+    await this.enclosePath(loader, 4, 3.0, [{ x: 0.8, z: 17, r: 10 }]);
 
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
