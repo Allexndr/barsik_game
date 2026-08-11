@@ -1,8 +1,8 @@
 # Season 1 premium roadmap
 
-**Status:** active production programme · 2026-08-11  
+**Status:** active production programme · 2026-08-11
 **Owner:** shared between Codex and Claude through small, attributable Git
-commits.  
+commits.
 **North star:** a warm, substantial soft-stylised toy world that reads clearly
 to a child on a phone. It is not a race for photorealism or polygon count.
 
