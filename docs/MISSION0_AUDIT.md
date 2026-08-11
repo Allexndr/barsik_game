@@ -1,5 +1,12 @@
 # Анализ Mission0Scene «Первое утро» — аудит по книгам
 
+> **Архив (2026-08-11).** Этот документ описывает удалённую сцену
+> `Mission0Scene` и старый сюжет «Первое утро» с яблоками. Актуальный
+> вертикальный срез — `Level0Scene` / «Тропа домбры»: звук домбры → фонари →
+> ручей → войлок юрты → интерьер и ритм. Не брать отсюда механику, сюжет или
+> список дефектов в новую работу. См. `docs/CANON_RECONCILIATION.md` (C15),
+> `docs/S1_COMPLETION_PLAN.md` §28 и `docs/LEVEL0_PLAYTEST_CONTRACT.md`.
+
 > Критический разбор уровня 0 по рекомендациям из:
 > - *The Level Design Book* (layout, critical path, signposting, flow, metrics)
 > - *UNITY Ebook: Introduction to Level Design* (rule of three, blockout, pacing)

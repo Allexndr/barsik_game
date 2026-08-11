@@ -84,6 +84,12 @@ export function Mission0Screen() {
 
   const handlePlayFromLoading = () => {
     AudioManager.sfx('click');
+    // `Level0Scene.init()` starts a render loop so the completed 3D world can
+    // be drawn behind the ready screen. It was deliberately paused as soon as
+    // it finished initialising; unpausing here shifts the scene's timed
+    // markers forward by the wait, so the first spoken beat starts now rather
+    // than disappearing while the child is in the loading mini-game.
+    sceneRef.current?.setPaused(false);
     setLoading(false);
   };
 
@@ -103,11 +109,12 @@ export function Mission0Screen() {
     let active = true;
     void scene.init(player?.nick || '', lang, setHud).then(() => {
       if (!active) return;
-      if (useUIStore.getState().paused) scene.setPaused(true);
-      // The level does not actually start until the loading screen's own
-      // "Играть" is pressed — see handlePlayFromLoading below. Finishing
-      // early just means there is time to keep playing the runner instead
-      // of staring at a full progress bar.
+      // `init()` has created a working render loop by this point. Freeze its
+      // simulation before exposing the ready button: a long-lived loading
+      // overlay must not consume the intro, timers, or movement hints behind
+      // itself. BaseLevelScene preserves every `*At` / `*Until` marker when
+      // it is resumed in handlePlayFromLoading.
+      scene.setPaused(true);
       setAssetsReady(true);
     });
     return () => {
@@ -232,8 +239,8 @@ export function Mission0Screen() {
 
       {/* Mission 0 is the heaviest scene and the first thing anyone sees, so
           it gets the same real-progress screen as the rest, not a spinner.
-          The level itself does not start until "Играть" is pressed here —
-          assetsReady only unlocks the button, it does not skip it. */}
+          assetsReady unlocks "Играть"; the completed scene remains paused
+          until that press, so its intro cannot play behind this overlay. */}
       {loading ? (
         <LoadingOverlay lang={lang} assetsReady={assetsReady} onPlay={handlePlayFromLoading} />
       ) : null}
