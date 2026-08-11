@@ -1286,6 +1286,8 @@ export abstract class BaseLevelScene {
     if (opts.terrain === false) {
       this.setupGround(opts.ground === 'ice' ? makeIceTexture() : makeSnowTexture());
     } else {
+      const terrain = opts.terrain ?? {};
+      const { surface: winterSurface, ...terrainOptions } = terrain;
       // Keep the gameplay area flat by default: Ice Valley levels place their
       // props, NPCs and quest zones by hand at y=0, and relief under them
       // would tilt quest markers and bury collectibles.
@@ -1294,7 +1296,18 @@ export abstract class BaseLevelScene {
         relief: 0.85,
         rimHeight: 3.4,
         features: [{ kind: 'flat', x: 0, z: opts.decorCenterZ ?? -20, r: 22 }],
-        ...opts.terrain,
+        ...terrainOptions,
+        // One generated map and baked vertex colour only: no extra geometry,
+        // render pass or movement work. A scene may tune this profile only
+        // with an explicit surface override.
+        surface: {
+          macroVariation: 0.52,
+          corridorVerge: 1.15,
+          corridorWear: 0.18,
+          winterDetail: true,
+          winterDetailScale: opts.ground === 'ice' ? 10.5 : 8.5,
+          ...winterSurface,
+        },
       });
     }
     const dome = skyDome(sky[0], sky[1], sky[2]);
