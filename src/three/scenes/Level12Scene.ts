@@ -401,7 +401,9 @@ export class Level12Scene extends BaseLevelScene {
     let projection = this.trail.project(this.hero.position);
 
     if (sliding) {
-      const d = this.dir();
+      // Ice owns acceleration/inertia instead of `updateMovement`, but input
+      // must obey the same camera-space contract as every walking level.
+      const d = this.cameraRelativeDirection(this.dir());
       const speed = this.baseSpeed * 0.8;
       const inertia = this.inertia;
       this.velocity.x += d.x * speed * dt * 2.4;
