@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { RotateHint } from './ui/RotateHint';
+import { CameraLookHint } from './ui/CameraLookHint';
 import { DialoguePanel } from './ui/DialoguePanel';
 import { useUIStore } from '@/store/useUIStore';
 import { useGameStore } from '@/store/useGameStore';
@@ -240,7 +241,8 @@ export function MissionScreen({
     <div className={`m0-screen m0-screen--season1 m0-screen--level-${levelId}`}>
       <canvas ref={canvasRef} className="m0-canvas" />
 
-      <RotateHint lang={lang} />
+      {!loading ? <RotateHint lang={lang} /> : null}
+      {!loading ? <CameraLookHint lang={lang} /> : null}
 
       {loading ? (
         <LoadingOverlay lang={lang} assetsReady={assetsReady} onPlay={handlePlayFromLoading} />
