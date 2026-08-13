@@ -16,6 +16,20 @@ request or release must still explain why its code changed.
 5. Release owner alone integrates, pushes to the protected release branch and
    deploys production. Other branches receive preview deployments only.
 
+## 2026-08-13 — BARSIK game-director contract and Level 0 control recovery
+
+- **Branch:** `codex/s1-premium-integration`
+- **Scope:** repository skill/routing; Level 0 camera-relative controls, yurt
+  entry/collision truth and procedural hero quality in separate atomic patches.
+- **Why:** visual smoke checks missed a player-blocking mismatch between camera,
+  movement and the authored route, plus unreadable yurt boundaries/entry.
+- **Out of scope:** changing L0's canonical story order; importing an unrigged
+  generated hero; unrelated level-budget and hub-nav work.
+- **Required verification:** complete L0 through normal input on desktop and
+  390x844 mobile; 360-degree orbit; forward movement at reversed heading;
+  collider/river/door tests; type-check, lint and build; production only after
+  the integrated route passes.
+
 ## 2026-08-11 — Hub navigation foundation
 
 - **Branch:** `codex/ui-navigation-foundation`

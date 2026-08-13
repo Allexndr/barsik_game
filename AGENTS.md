@@ -3,6 +3,13 @@
 This repository is worked on by humans, Codex and Claude Code in parallel.
 Treat a clean, understandable history as a product requirement.
 
+## Required BARSIK workflow
+
+For every gameplay, level, character, quest, interaction, camera, collision,
+HUD or whole-game improvement task, read and follow
+`.agents/skills/barsik-game-director/SKILL.md` before planning or editing. It is
+the canonical cross-agent quality and hands-on QA contract.
+
 ## Before editing
 
 1. Read `docs/CANON_RECONCILIATION.md`, then the relevant current specification.

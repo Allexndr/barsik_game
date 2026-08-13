@@ -1,0 +1,4 @@
+interface:
+  display_name: "BARSIK Game Director"
+  short_description: "AA-quality gameplay, level design and QA"
+  default_prompt: "Use $barsik-game-director to analyze, plan, implement, and playtest this BARSIK change."
