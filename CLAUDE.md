@@ -1,5 +1,12 @@
 # BARSIK — контекст проекта
 
+## Обязательный workflow гейм-директора
+
+Перед любой задачей по gameplay, уровню, персонажу, квесту, интеракции,
+камере, коллизиям, HUD или общему улучшению игры прочитай и выполни
+`.agents/skills/barsik-game-director/SKILL.md`. Это единый quality/QA contract
+для Claude Code, Codex и людей; не копируй его частично в локальные промпты.
+
 Браузерная 3D story-adventure для детей 5–12 лет. Бренд сладостей из Алматы.
 React 18 + Vite + TypeScript + императивный Three.js. RU + KK.
 
