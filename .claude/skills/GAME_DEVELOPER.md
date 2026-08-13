@@ -1,35 +1,21 @@
 ---
 name: game-developer-barsik
-description: Geomancy разработчик для BARSIK — помощь с дизайном уровней, механиками и geomplay-системами
+description: Совместимый вход в канонический BARSIK Game Director workflow
 metadata:
-  type: skill
-  category: game-development
-  focus: [level-design, gameplay, game-loops, progression]
+  type: skill-alias
   project: barsik
 ---
 
-# Game Developer Skill для BARSIK
+# BARSIK Game Developer — compatibility entry
 
-## Назначение
-Помощь в разработке и полировке игровых механик, дизайне уровней, кривых сложности и progression-систем.
+Этот файл больше не содержит самостоятельных правил разработки.
 
-## Используемые подходы
-- **Level Design** — 6 миров, 100 уровней, каждый 20-40 сек
-- **Progression** — друзья барсика каждые 5 уровней, город растёт
-- **Валюта** — звёзды дружбы (не реальные деньги)
-- **Реальные призы** — мотивация через физические награды
+Перед любой задачей по gameplay, камере, управлению, уровням, коллизиям,
+квестам или QA полностью прочитай и выполни:
 
-## Как использовать
-```
-/barsik-game-design [action] [params]
-```
+1. `.agents/skills/barsik-game-director/SKILL.md` — канонический workflow;
+2. `CLAUDE.md` — маршрутизация и инженерные ограничения;
+3. `docs/CANON_RECONCILIATION.md` — актуальный продуктовый канон.
 
-### Примеры
-- `/barsik-game-design level-config 15` — конфиг для 15-го уровня
-- `/barsik-game-design progression-curve` — анализ кривой сложности
-- `/barsik-game-design friend-unlock-timing` — расчёт времени разблокировки друзей
-
-## Ключевые файлы
-- `src/game/levels.ts` — конфиги уровней
-- `src/game/progression.ts` — система прогресса
-- `src/game/friends.ts` — коллекция друзей
+Текущий Season 1 — уровни L0–L16. Нельзя придумывать другую структуру,
+длительность или схему наград без отдельного одобренного решения в `docs/decisions/`.
