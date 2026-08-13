@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { RotateHint } from './ui/RotateHint';
+import { CameraLookHint } from './ui/CameraLookHint';
 import { DialoguePanel } from './ui/DialoguePanel';
 import { useUIStore } from '@/store/useUIStore';
 import { useGameStore } from '@/store/useGameStore';
@@ -228,7 +229,11 @@ export function Mission0Screen() {
     <div className="m0-screen">
       <canvas ref={canvasRef} className="m0-canvas" />
 
-      <RotateHint lang={lang} />
+      {/* Start the one-time rotate timer only when the child can actually see
+          it. Mounting it under the loading overlay spent its entire 6–12 s
+          lifetime invisibly and could mark the hint as already seen. */}
+      {!loading ? <RotateHint lang={lang} /> : null}
+      {!loading ? <CameraLookHint lang={lang} /> : null}
 
       {/* Mission 0 is the heaviest scene and the first thing anyone sees, so
           it gets the same real-progress screen as the rest, not a spinner.
