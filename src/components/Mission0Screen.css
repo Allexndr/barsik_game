@@ -296,16 +296,6 @@
   }
 }
 
-/* Touch-only controls. A mouse-and-keyboard desktop has WASD/arrows and
-   Space already (see .m0-keys below) — a virtual stick and jump button
-   there are a phone UI shown to someone who never asked for one. */
-@media not (pointer: coarse) {
-  .m0-stick,
-  .m0-jump {
-    display: none;
-  }
-}
-
 .m0-stick-hidden {
   opacity: 0;
   pointer-events: none;
@@ -1222,4 +1212,62 @@
 .m0-screen--season1 .m0-skip:focus-visible {
   outline: 3px solid var(--s1-hud-pear);
   outline-offset: 3px;
+}
+
+/* Touch-only controls. Keep this after every base and themed `.m0-jump`
+   declaration: the old early media rule lost the cascade to the later
+   `display: flex`, so desktop showed a phone-sized jump button even though
+   its joystick was hidden. A precise-pointer device uses keyboard + mouse. */
+@media (hover: hover) and (pointer: fine) {
+  .m0-stick,
+  .m0-jump {
+    display: none;
+  }
+}
+
+/* Free-camera affordance. Low and centred between the two thumb zones, below
+   the dialogue card; it never steals a drag from the canvas. */
+.m0-camera-hint {
+  position: absolute;
+  left: 50%;
+  bottom: max(22px, calc(3vh + env(safe-area-inset-bottom)));
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: min(70vw, 34rem);
+  padding: 0.55rem 0.85rem;
+  transform: translateX(-50%);
+  border: 2px solid #fff;
+  border-radius: 999px;
+  color: #1c2430;
+  background: rgba(255, 253, 246, 0.94);
+  box-shadow: 0 4px 0 rgba(28, 36, 48, 0.18), 0 10px 20px rgba(28, 36, 48, 0.16);
+  font-size: clamp(0.72rem, 1.5vw, 0.9rem);
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  pointer-events: none;
+}
+
+.m0-camera-hint-icon {
+  flex: 0 0 auto;
+  color: #197da6;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+@media (pointer: coarse) {
+  .m0-camera-hint {
+    bottom: max(142px, calc(17vh + env(safe-area-inset-bottom)));
+    max-width: min(56vw, 18rem);
+  }
+}
+
+@media (max-height: 480px) and (orientation: landscape) {
+  .m0-camera-hint {
+    bottom: max(12px, env(safe-area-inset-bottom));
+    max-width: min(44vw, 20rem);
+    padding-block: 0.4rem;
+  }
 }
