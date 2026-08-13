@@ -110,7 +110,10 @@ function routeX(z: number) {
 const LANTERNS: Array<{ x: number; z: number; rotZ: number }> = [
   { x: routeX(8) + 2.2, z: 8, rotZ: 1.35 },
   { x: routeX(-2) - 3.4, z: -2, rotZ: -1.5 },
-  { x: routeX(-13) + 4.1, z: -13, rotZ: 1.2 },
+  // Still off the path enough to reward looking, but on the dry near-bank
+  // shelf rather than the river feather. At z=-13 its centre was only 0.20 m
+  // above the water and a direct arrow-led approach crossed the steep trench.
+  { x: routeX(-10.5) + 3.2, z: -10.5, rotZ: 1.2 },
 ];
 
 /**
@@ -127,13 +130,13 @@ const LANTERNS: Array<{ x: number; z: number; rotZ: number }> = [
  * The first version was four stones over seven metres — three hops and it was
  * behind you. The brief is a real bit of difficulty you spend half a minute
  * on, so the stream is a long bend rather than a strip: twelve stones over
- * thirty metres of water, with the gaps growing, a couple of stones that sink
- * under you if you dawdle, and a checkpoint on the near bank.
+ * thirty metres of water, with the gaps growing, three stones that settle a
+ * little under Barsik's weight, and a checkpoint on the near bank.
  *
- * `sink` marks a stone that starts dropping the moment it takes weight. It is
- * the only pressure in the level and it is gentle: you get about a second and
- * a half, and it floats back up once you are off it, so a child who freezes
- * loses nothing but the hop.
+ * `sink` now marks feedback, not a hidden timer. After a readable pause the
+ * stone yields slightly but its top stays dry and fully jumpable. A first
+ * level should teach aiming and jumping before it asks a child to react to a
+ * moving take-off surface.
  */
 const CROSSING_FROM = -14;
 // Ends well short of the yurt. At -44 the far shore came out a metre from the
@@ -143,12 +146,21 @@ const CROSSING_TO = -40;
 
 /** Pad radius. Wide on purpose: a five-year-old aims for the stone, not for a point. */
 const STONE_R = 1.35;
+/** A wider, visibly matching landing pad after each settling stone. */
+const STONE_CATCH_R = 1.5;
 /** Before the lanterns are lit, every stepping-stone top is visibly underwater. */
 const STONE_LOCK_DEPTH = 0.62;
+/** Let a child settle and line up the next hop before a marked stone reacts. */
+const STONE_SETTLE_GRACE = 1.2;
+/** Visual weight response only: the top remains 0.16 m above the water. */
+const STONE_SETTLE_DEPTH = 0.14;
+/** Mobile landing buffer for the marked turns; still leaves visible water. */
+const STONE_TURN_CATCH_R = 1.5;
 
 /**
- * Laid out by marching an S-curve at a fixed *chord* — every hop is 3.30 m
- * centre to centre, so no stone is harder than any other.
+ * Laid out along an S-curve at roughly 3.1 m centre to centre. The three
+ * wider catch pads after settling stones are visible in the mesh as well as
+ * physics, so extra forgiveness never becomes an invisible floor.
  *
  * The first version was hand-typed, and two of its gaps (4.36 m and 4.32 m)
  * were beyond the hero's reach entirely: a 5.4 m/s jump under 12.2 m/s²
@@ -156,24 +168,26 @@ const STONE_LOCK_DEPTH = 0.62;
  * could have crossed it. Spacing is generated and checked now — see
  * `assertCrossingIsJumpable`.
  *
- * With a 1.35 m pad at each end, the real ask is 3.10 − 1.35 = 1.75 m against
- * 2.83 m of reach: 62% of margin, and 0.40 m of open water still shows
- * between pads, so it reads as a jump rather than a walkway.
+ * The ordinary 1.35 m pads and 1.50 m catch pads leave 0.167–0.467 m of open
+ * water between every pair. Walking still falls through; jumping gets an
+ * honest, child-sized visible target.
  */
-const STONES: Array<{ x: number; z: number; sink?: boolean }> = [
+const STONES: Array<{ x: number; z: number; sink?: boolean; radius?: number }> = [
   // Pulled in to the shore so the first hop is the easiest one, not the
   // hardest: at z −16 the step off the bank was 2.44 m of the 2.83 m reach.
   { x: 1.25, z: -15.2 },
   { x: 2.24, z: -18.1 },
   { x: 0.18, z: -20.5 },
   { x: -2.57, z: -22.1, sink: true },
-  { x: -0.15, z: -23.9 },
+  { x: -0.15, z: -23.9, radius: STONE_CATCH_R },
   { x: 2.33, z: -25.5 },
-  { x: -0.24, z: -27.5, sink: true },
-  { x: -1.16, z: -30.6 },
+  { x: -0.24, z: -27.5, sink: true, radius: STONE_TURN_CATCH_R },
+  { x: -1.16, z: -30.6, radius: STONE_CATCH_R },
   { x: 1.21, z: -32.2 },
-  { x: -0.33, z: -35.2, sink: true },
-  { x: -0.06, z: -38.1 },
+  { x: -0.33, z: -35.2, sink: true, radius: STONE_TURN_CATCH_R },
+  // A visible 0.12 m downstream offset preserves a readable strip of water
+  // despite the two child-sized tops on this tight turn.
+  { x: -0.06, z: -38.22, radius: STONE_CATCH_R },
   // The exit stone, placed against the shore the terrain actually built
   // rather than against CROSSING_TO. Without it the last hop was 3.60 m.
   { x: 1.5, z: -40.4 },
@@ -1045,7 +1059,7 @@ export class Level0Scene extends BaseLevelScene {
       centre: { x: routeX(midZ), z: midZ },
       y: waterY,
       bedAt: (x, z) => this.groundHeightAt(x, z),
-      obstacles: STONES.map((s) => ({ x: routeX(s.z) + s.x, z: s.z, r: STONE_R })),
+      obstacles: STONES.map((s) => ({ x: routeX(s.z) + s.x, z: s.z, r: s.radius ?? STONE_R })),
     });
     this.scene.add(this.river.mesh);
 
@@ -1056,10 +1070,11 @@ export class Level0Scene extends BaseLevelScene {
     const stoneMat = new THREE.MeshStandardMaterial({ color: 0x9aa3a8, roughness: 0.95 });
     for (const s of STONES) {
       const x = routeX(s.z) + s.x;
+      const radius = s.radius ?? STONE_R;
       const bed = this.groundHeightAt(x, s.z);
       const h = Math.max(1.2, topY - bed + 0.6);
       const stone = new THREE.Mesh(
-        new THREE.CylinderGeometry(STONE_R, STONE_R + 0.16, h, 12),
+        new THREE.CylinderGeometry(radius, radius + 0.16, h, 12),
         stoneMat,
       );
       stone.position.set(x, topY - h / 2, s.z);
@@ -1067,6 +1082,7 @@ export class Level0Scene extends BaseLevelScene {
       stone.userData.restY = stone.position.y;
       stone.userData.sink = !!s.sink;
       stone.userData.sunk = 0;
+      stone.userData.loadedFor = 0;
       // Until the lantern beat is complete, the route is visibly unavailable:
       // the stone tops sit below the water instead of an invisible quest wall
       // pretending an otherwise usable bridge is closed.
@@ -1077,12 +1093,12 @@ export class Level0Scene extends BaseLevelScene {
       // scenery: height comes from `groundHeightAt`, which knows only the
       // terrain, so the hero's feet tracked the river bed and sank straight
       // through every one of them.
-      // Match the visible top. Expanding support to STONE_R + .25 made two
-      // neighbouring 1.60 m support circles overlap across ~3.1 m chords, so
-      // a child could simply walk the centre line without ever jumping.
-      // The visible 1.35 m disc still gives a generous 2.70 m landing span,
-      // while leaving ~0.32–0.47 m of real water between every pair.
-      this.addPlatform(stone, STONE_R, h / 2);
+      // Match every visible top exactly. The ordinary 1.35 m pads leave
+      // obvious gaps; the three 1.50 m catch pads after settling stones make
+      // one-thumb jump-then-steer input forgiving while still leaving real
+      // water between both neighbours. The dev assertion below rejects any
+      // later layout edit that lets these supports touch or overlap.
+      this.addPlatform(stone, radius, h / 2);
     }
     this.assertCrossingIsJumpable(waterY);
 
@@ -1345,17 +1361,26 @@ export class Level0Scene extends BaseLevelScene {
       return best;
     };
 
-    const pads = STONES.map((s) => ({ x: routeX(s.z) + s.x, z: s.z }));
+    const pads = STONES.map((s) => ({
+      x: routeX(s.z) + s.x,
+      z: s.z,
+      radius: s.radius ?? STONE_R,
+    }));
     const hops: Array<{ what: string; need: number }> = [];
     // Entry: from the near shore onto the first pad. The pad's radius counts,
     // the shore's does not.
-    hops.push({ what: 'bank → stone 1', need: nearestDryFrom(pads[0].x, pads[0].z, 1) - STONE_R });
+    hops.push({ what: 'bank → stone 1', need: nearestDryFrom(pads[0].x, pads[0].z, 1) - pads[0].radius });
     for (let i = 1; i < pads.length; i++) {
+      const centreGap = Math.hypot(pads[i].x - pads[i - 1].x, pads[i].z - pads[i - 1].z);
+      const visibleWater = centreGap - pads[i - 1].radius - pads[i].radius;
+      if (visibleWater <= 0) {
+        console.error(`[L0] stone ${i} → ${i + 1} supports overlap by ${Math.abs(visibleWater).toFixed(2)} m`);
+      }
       // Take off from the centre of one pad, land on the near lip of the next.
       // Nobody should have to use the far lip.
       hops.push({
         what: `stone ${i} → ${i + 1}`,
-        need: Math.hypot(pads[i].x - pads[i - 1].x, pads[i].z - pads[i - 1].z) - STONE_R,
+        need: centreGap - pads[i].radius,
       });
     }
     const last = pads[pads.length - 1];
@@ -1812,27 +1837,28 @@ export class Level0Scene extends BaseLevelScene {
     const standing = crossingOpen ? this.stones.find((s) => this.isStandingOn(s)) : undefined;
 
     // All stones animate between the visibly submerged locked state and the
-    // dry route. Sinking pressure exists only during the authored crossing;
-    // after the child reaches the far bank, returning stones are stable.
+    // dry route. Three marked stones also settle a little under Barsik's
+    // weight, but never become a timed failure: the pause lets the child line
+    // up a hop and the capped dip always leaves a dry, jumpable top.
     for (const s of this.stones) {
       const loaded = this.phase === 'crossing' && s.userData.sink && s === standing && !this.airborne;
-      const targetSunk = loaded ? Math.min(1, (s.userData.sunk as number) + dt / 1.5) : 0;
-      s.userData.sunk = loaded
-        ? targetSunk
-        : Math.max(0, (s.userData.sunk as number) - dt * 1.6);
+      const loadedFor = loaded ? (s.userData.loadedFor as number) + dt : 0;
+      s.userData.loadedFor = loadedFor;
+      const targetSunk = loadedFor >= STONE_SETTLE_GRACE ? 1 : 0;
+      const settleRate = targetSunk ? 2.4 : 4.0;
+      s.userData.sunk += (targetSunk - (s.userData.sunk as number)) * Math.min(1, dt * settleRate);
       const targetY = (s.userData.restY as number)
         - (crossingOpen ? 0 : STONE_LOCK_DEPTH)
-        - (s.userData.sunk as number) * 0.75;
+        - (s.userData.sunk as number) * STONE_SETTLE_DEPTH;
       s.position.y += (targetY - s.position.y) * Math.min(1, dt * 5);
     }
-    const sunkUnder = Boolean(standing && (standing.userData.sunk as number) > 0.92);
 
     if (outdoors) {
       const inChannel = h.z < CROSSING_FROM + 1.5 && h.z > CROSSING_TO - 1.5;
       // Judged at the water line, not at the river bed. Before the lanterns,
       // even the submerged stone footprints are water; after they rise, the
       // top platform is the only safe surface.
-      const wet = inChannel && (!standing || sunkUnder) && h.y < this.waterY + 0.05;
+      const wet = inChannel && !standing && h.y < this.waterY + 0.05;
       if (wet && now > this.wetUntil) {
         this.wetUntil = now + 1500;
         AudioManager.sfx('stumble');
@@ -1848,6 +1874,7 @@ export class Level0Scene extends BaseLevelScene {
         this.airborne = false;
         for (const s of this.stones) {
           s.userData.sunk = 0;
+          s.userData.loadedFor = 0;
           s.position.y = (s.userData.restY as number) - (crossingOpen ? 0 : STONE_LOCK_DEPTH);
         }
         this.pushHud();
