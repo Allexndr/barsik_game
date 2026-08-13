@@ -21,8 +21,8 @@ Avatar Preview, so a quality pass must remain small enough for the primary
 - Keep `createBarsikAvatar()` as the honest animated fallback behind the ADR
   004 rigged-asset gate. Do not auto-release a static or unqualified GLB.
 - Improve only its existing procedural rig: a flatter, wider snow-leopard
-  skull, lower rounded ears, broader hoodie/limbs, shaped shoes, richer muzzle,
-  warmer eyes, readable tail and garment construction.
+  skull, lower rounded ears, broader hoodie/limbs, rounded fur paws, richer
+  muzzle, warmer eyes, a low tapered tail and garment construction.
 - Use neutral cached weave maps and material colour for wardrobe recolours.
   Shared `furMaps()` / `fabricMap()` textures are never disposed by an avatar;
   only the avatar-owned tiled coat clones are released.
