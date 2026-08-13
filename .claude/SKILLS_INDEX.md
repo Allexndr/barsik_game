@@ -1,111 +1,33 @@
-# 🎮 BARSIK Skills Index
+# BARSIK skills index
 
-Все установленные skills для разработки игры BARSIK находятся в `.claude/skills/`.
+## Канонический workflow
 
-## Установленные Skills
+Для gameplay, камеры, управления, уровней, коллизий, квестов, HUD и игрового QA
+используется один источник правил:
 
-### 1. **Game Developer** (`GAME_DEVELOPER.md`)
-Помощь с дизайном уровней, механиками, progression-системами.
-```bash
-/barsik-game-design level-config 15
-/barsik-game-design progression-curve
-/barsik-game-design friend-unlock-timing
-```
+- `.agents/skills/barsik-game-director/SKILL.md`
 
-### 2. **UI/UX Designer** (`UI_UX_DESIGNER.md`)
-Переделка интерфейса в премиум-стиль, адаптивность, иерархия.
-```bash
-/barsik-ui-redesign main-menu
-/barsik-ui-redesign responsive-check
-/barsik-ui-redesign color-system
-```
+Он требует цикл `Анализ → План → Патч → QA`, реальное прохождение, журнал
+изменений и проверку desktop/mobile. Маршрутизация закреплена также в `AGENTS.md`
+и `CLAUDE.md`.
 
-### 3. **Code Refactor** (`CODE_REFACTOR.md`)
-Упрощение кода, удаление дублей, оптимизация, type-safety.
-```bash
-/barsik-refactor components simplify
-/barsik-refactor performance audit
-/barsik-refactor types strengthen
-```
+## Совместимые Claude entries
 
-### 4. **Level Designer** (`LEVEL_DESIGNER.md`)
-Проектирование всех 100 уровней, кривая сложности, нарратив уровней.
-```bash
-/barsik-level-design generate-all
-/barsik-level-design difficulty-curve
-/barsik-level-design world-theme 3
-```
+- `skills/GAME_DEVELOPER.md` — alias на BARSIK Game Director;
+- `skills/LEVEL_DESIGNER.md` — alias для level-design задач;
+- `skills/NARRATIVE_WRITER.md` — alias для нарратива в рамках канона;
+- `skills/UI_UX_DESIGNER.md` — дополнительная UI/UX специализация;
+- `skills/PERFORMANCE_OPTIMIZER.md` — дополнительная performance специализация;
+- `skills/ARCHITECTURE_REVIEWER.md` — дополнительный архитектурный аудит;
+- `skills/CODE_REFACTOR.md` — дополнительный локальный рефакторинг.
 
-### 5. **Performance Optimizer** (`PERFORMANCE_OPTIMIZER.md`)
-Bundle size, load time, FPS оптимизация для мобильных.
-```bash
-/barsik-performance bundle-size
-/barsik-performance load-time
-/barsik-performance mobile-check
-```
+Дополнительные специализации не переопределяют `BARSIK Game Director`,
+`CLAUDE.md`, `AGENTS.md` или `docs/CANON_RECONCILIATION.md`.
 
-### 6. **Architecture Reviewer** (`ARCHITECTURE_REVIEWER.md`)
-Структура проекта, модули, паттерны, масштабируемость.
-```bash
-/barsik-architecture audit
-/barsik-architecture state-management
-/barsik-architecture scaling-plan
-```
+## Актуальный scope
 
-### 7. **Narrative Writer** (`NARRATIVE_WRITER.md`)
-Лор, диалоги, истории персонажей, казахский контекст.
-```bash
-/barsik-narrative characters-generate
-/barsik-narrative main-story
-/barsik-narrative dialogues-world 2
-```
-
-## Как использовать
-
-1. **Прочитай описание skill** в соответствующем .md файле
-2. **Выбери нужное действие** из примеров
-3. **Запусти команду** в формате `/barsik-[skill] [action] [params]`
-4. Получи результаты и интегрируй в проект
-
-## Приоритеты использования
-
-### Phase 1 (Текущая) — Структура и архитектура
-- `/barsik-architecture audit` — понять текущее состояние
-- `/barsik-level-design generate-all` — создать конфиги всех 100 уровней
-
-### Phase 2 — UI/UX полировка
-- `/barsik-ui-redesign main-menu`
-- `/barsik-ui-redesign responsive-check`
-- Остальные экраны по очереди
-
-### Phase 3 — Контент и нарратив
-- `/barsik-narrative characters-generate`
-- `/barsik-narrative main-story`
-- Диалоги для всех уровней
-
-### Phase 4 — Оптимизация
-- `/barsik-performance bundle-size`
-- `/barsik-performance load-time`
-- `/barsik-refactor components simplify`
-
-## Файлы проекта для изменения
-
-- `src/components/` — UI компоненты
-- `src/game/` — игровая логика
-- `src/styles/` — стили
-- `src/data/` — конфиги (уровни, персонажи)
-- `CLAUDE.md` — документация проекта
-
-## Контакты с Бэком
-
-При работе с API:
-- Base URL: `https://api.barsik.me` (если есть)
-- Endpoints: `/levels`, `/progress`, `/friends`, `/rewards`
-- QR API: `/qr-unlock`
-
-## Дополнительно
-
-- Палитра цветов: `.claude/design/PALETTE.md`
-- Brand guide: `.claude/design/BRAND_GUIDE.md`
-- Level templates: `.claude/data/level-templates/`
-- Character profiles: `.claude/data/characters/`
+- Season 1: L0–L16;
+- Forest и Winter — игровые миры сезона;
+- прочие миры — только тизеры до отдельного продуктового решения;
+- целевая продолжительность содержательного уровня задаётся актуальным gameplay
+  blueprint, а не устаревшими генераторами уровней.

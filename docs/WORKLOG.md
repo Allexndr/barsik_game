@@ -21,6 +21,9 @@ request or release must still explain why its code changed.
 - **Branch:** `codex/s1-premium-integration`
 - **Scope:** repository skill/routing; Level 0 camera-relative controls, yurt
   entry/collision truth and procedural hero quality in separate atomic patches.
+- **Agent compatibility:** legacy Claude gameplay/level/narrative prompts now
+  route to the same Game Director contract; their conflicting generated-level
+  targets are retired rather than left as a second source of truth.
 - **Why:** visual smoke checks missed a player-blocking mismatch between camera,
   movement and the authored route, plus unreadable yurt boundaries/entry.
 - **Out of scope:** changing L0's canonical story order; importing an unrigged
