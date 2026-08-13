@@ -185,14 +185,51 @@ function shapeTorso(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   });
 }
 
-/** Broad toe, narrow heel and a softly flattened sole without another mesh. */
-function shapeShoe(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+/** Broad toes, a narrow ankle and a softly flattened paw pad. */
+function shapeFoot(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   return deform(geo, (v) => {
     const front = THREE.MathUtils.clamp(v.z / 0.075, -1, 1);
     v.x *= 0.94 + Math.max(0, front) * 0.18;
     v.z *= 1.15 + Math.max(0, front) * 0.16;
     if (v.y < -0.035) v.y = -0.035 + (v.y + 0.035) * 0.28;
   });
+}
+
+/**
+ * A gently tapered tube following a curve.
+ *
+ * TubeGeometry gives us stable low-poly topology and UVs, while rescaling each
+ * ring gives the tail a cub-like taper without stacking decorative rings or
+ * adding a high-resolution sculpt. The root and inter-segment ends are tucked
+ * into overlapping geometry, so the intentionally open tube caps never show.
+ */
+function taperedTube(
+  curve: THREE.Curve<THREE.Vector3>,
+  radiusStart: number,
+  radiusEnd: number,
+  tubularSegments = 8,
+  radialSegments = 8,
+): THREE.BufferGeometry {
+  const geo = new THREE.TubeGeometry(curve, tubularSegments, 1, radialSegments, false);
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const centre = new THREE.Vector3();
+  const point = new THREE.Vector3();
+
+  for (let ring = 0; ring <= tubularSegments; ring++) {
+    const along = ring / tubularSegments;
+    curve.getPointAt(along, centre);
+    const radius = THREE.MathUtils.lerp(radiusStart, radiusEnd, along);
+    for (let side = 0; side <= radialSegments; side++) {
+      const index = ring * (radialSegments + 1) + side;
+      point.fromBufferAttribute(pos, index);
+      point.sub(centre).multiplyScalar(radius).add(centre);
+      pos.setXYZ(index, point.x, point.y, point.z);
+    }
+  }
+
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
 }
 
 /** One low-cost embroidered paw, made as one geometry and one draw call. */
@@ -261,18 +298,18 @@ const POSES: Record<AvatarPose, PoseTargets> = {
     shoulderL: { z: -0.26 }, shoulderR: { z: 0.26 },
     elbowL: { x: -0.18 }, elbowR: { x: -0.18 },
     hipL: {}, hipR: {}, kneeL: {}, kneeR: {},
-    torso: {}, head: {}, tailA: { x: -0.28 }, tailB: { x: 0.35 },
+    torso: {}, head: {}, tailA: { x: -0.12 }, tailB: { x: 0.18 },
   },
   walk: {
     shoulderL: { z: -0.22 }, shoulderR: { z: 0.22 },
     elbowL: { x: -0.25 }, elbowR: { x: -0.25 },
-    tailA: { x: -0.2 }, tailB: { x: 0.3 },
+    tailA: { x: -0.08 }, tailB: { x: 0.16 },
   },
   run: {
     shoulderL: { z: -0.16 }, shoulderR: { z: 0.16 },
     elbowL: { x: -0.7 }, elbowR: { x: -0.7 },
     torso: { x: 0.16 },
-    tailA: { x: 0.04 }, tailB: { x: 0.2 },
+    tailA: { x: 0.02 }, tailB: { x: 0.12 },
   },
   jump: {
     shoulderL: { z: -2.15, x: -0.4 }, shoulderR: { z: 2.15, x: -0.4 },
@@ -420,8 +457,11 @@ export function createBarsikAvatar(
   const hipR = joint(hips, 0.108, -0.03, 0);
   const kneeL = joint(hipL, 0, -0.205, 0);
   const kneeR = joint(hipR, 0, -0.205, 0);
-  const tailA = joint(hips, -0.02, 0.035, -0.19);
-  const tailB = joint(tailA, 0, 0, -0.29);
+  // The tail leaves the lower back and drops before curling to the side. The
+  // previous joints pointed straight backwards at hip height, so even a thick
+  // snow-leopard tail inevitably read as a horizontal pipe from side/back.
+  const tailA = joint(hips, 0, -0.015, -0.165);
+  const tailB = joint(tailA, 0.065, -0.205, -0.035);
 
   const joints: Joints = {
     hips, torso, head, earL, earR,
@@ -567,35 +607,38 @@ export function createBarsikAvatar(
   for (const [hip, knee] of [[hipL, kneeL], [hipR, kneeR]] as const) {
     const thigh = add(hip, new THREE.Mesh(new THREE.CapsuleGeometry(0.074, 0.105, 6, 10), mats.trousers));
     thigh.position.y = -0.11;
-    const shin = add(knee, new THREE.Mesh(new THREE.CapsuleGeometry(0.063, 0.085, 6, 10), mats.trousers));
-    shin.position.y = -0.086;
-    // Trouser cuff, matching the sleeves — the paw comes out of the leg the
-    // same way the hand comes out of the arm.
-    const legCuff = add(knee, new THREE.Mesh(new THREE.CylinderGeometry(0.063, 0.059, 0.03, 12), mats.furSmall), false);
-    legCuff.position.y = -0.146;
-    const foot = add(knee, new THREE.Mesh(shapeShoe(new THREE.SphereGeometry(0.075, 14, 10)), mats.sclera));
-    foot.scale.set(1.06, 0.72, 1.48);
-    foot.position.set(0, -0.179, 0.04);
+    // The reference has fur paws, not white shoes. The trouser capsule ends
+    // inside one rounded paw, removing the separate cuff and the intersecting
+    // scalloped edges that read as broken footwear from side/back.
+    const shin = add(knee, new THREE.Mesh(new THREE.CapsuleGeometry(0.058, 0.035, 6, 12), mats.trousers));
+    shin.position.y = -0.065;
+    const foot = add(knee, new THREE.Mesh(shapeFoot(new THREE.SphereGeometry(0.078, 16, 12)), mats.furSmall));
+    foot.scale.set(1.06, 0.78, 1.42);
+    foot.position.set(0, -0.18, 0.037);
   }
 
-  // Tail in two segments so it can curl rather than swing as one stick.
-  // A snow leopard's tail is nearly as thick as its leg and almost as long as
-  // its body — the first one was a 6 cm wire at hip height, hidden behind the
-  // legs from every angle a player ever sees.
-  const tailSegA = add(tailA, new THREE.Mesh(new THREE.CapsuleGeometry(0.072, 0.19, 6, 12), mats.furSmall));
-  tailSegA.position.z = -0.145;
-  tailSegA.rotation.x = Math.PI / 2;
-  const tailSegB = add(tailB, new THREE.Mesh(new THREE.CapsuleGeometry(0.061, 0.17, 6, 12), mats.furSmall));
-  tailSegB.position.z = -0.135;
-  tailSegB.rotation.x = Math.PI / 2;
-  const tailTip = add(tailB, new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), mats.spots), false);
-  tailTip.scale.z = 1.18;
-  tailTip.position.z = -0.245;
-  for (const [i, z] of [-0.1, -0.19].entries()) {
-    const band = add(tailB, new THREE.Mesh(new THREE.SphereGeometry(0.063 - i * 0.004, 10, 8), mats.spots), false);
-    band.scale.set(1, 1, 0.2);
-    band.position.z = z;
-  }
+  // Two curved, overlapping tapered sections keep the existing animated
+  // joints but read as one organic tail. Coat markings come from the same fur
+  // map as the paws; separate grey bands and the ball-like dark tip were the
+  // source of the previous "microphone" silhouette.
+  const tailCurveA = new THREE.CubicBezierCurve3(
+    new THREE.Vector3(0, 0.018, 0.028),
+    new THREE.Vector3(0, -0.045, 0.002),
+    new THREE.Vector3(0.025, -0.145, -0.04),
+    new THREE.Vector3(0.065, -0.205, -0.035),
+  );
+  add(tailA, new THREE.Mesh(taperedTube(tailCurveA, 0.058, 0.047), mats.furSmall));
+
+  const tailCurveB = new THREE.CubicBezierCurve3(
+    new THREE.Vector3(-0.008, 0.012, 0.004),
+    new THREE.Vector3(0.025, -0.075, 0),
+    new THREE.Vector3(0.105, -0.105, 0.028),
+    new THREE.Vector3(0.145, -0.075, 0.055),
+  );
+  add(tailB, new THREE.Mesh(taperedTube(tailCurveB, 0.048, 0.028), mats.furSmall));
+  const tailTip = add(tailB, new THREE.Mesh(new THREE.SphereGeometry(0.029, 10, 8), mats.furSmall), false);
+  tailTip.scale.set(1.08, 0.95, 1);
+  tailTip.position.set(0.145, -0.075, 0.055);
 
   // ── Clothing sockets ──────────────────────────────────────
   // Each one hangs off the joint that owns that part of the body, so a hat
@@ -611,7 +654,7 @@ export function createBarsikAvatar(
     back: socketAt(torso, 0, 0.2, -0.2),
     handL: socketAt(elbowL, 0, -0.202, 0),
     handR: socketAt(elbowR, 0, -0.202, 0),
-    tail: socketAt(tailB, 0, 0, -0.24),
+    tail: socketAt(tailB, 0.145, -0.075, 0.055),
     footL: socketAt(kneeL, 0, -0.205, 0.05),
     footR: socketAt(kneeR, 0, -0.205, 0.05),
   };
@@ -660,8 +703,8 @@ export function createBarsikAvatar(
       const gait = pose === 'walk' || pose === 'run' ? Math.sin(phase) : 0;
       const amp = pose === 'run' ? 0.8 : 0.5;
       const breath = Math.sin(t * 2.1) * 0.02;
-      const tailRestA = 0.62;
-      const tailRestB = -0.12;
+      const tailRestA = 0.08;
+      const tailRestB = -0.04;
 
       const extra: PoseTargets = {};
       if (pose === 'walk' || pose === 'run') {
@@ -676,9 +719,9 @@ export function createBarsikAvatar(
         extra.shoulderR = { x: gait * amp * 0.7, z: POSES[pose].shoulderR?.z };
         extra.tailA = {
           x: (POSES[pose].tailA?.x ?? 0),
-          y: tailRestA + Math.sin(phase * 0.5) * 0.17,
+          y: tailRestA + Math.sin(phase * 0.5) * 0.1,
         };
-        extra.tailB = { y: tailRestB - Math.sin(phase * 0.5) * 0.1 };
+        extra.tailB = { y: tailRestB - Math.sin(phase * 0.5) * 0.06 };
       } else if (pose === 'wave') {
         extra.elbowR = { x: -0.3, z: Math.sin(t * 9) * 0.5 };
       } else if (pose === 'dance') {
@@ -696,8 +739,8 @@ export function createBarsikAvatar(
         extra.head = { y: Math.sin(t * 0.7) * 0.12 };
         extra.earL = { z: Math.sin(t * 0.85) * 0.035 };
         extra.earR = { z: -Math.sin(t * 0.85) * 0.035 };
-        extra.tailA = { x: -0.28, y: tailRestA + Math.sin(t * 1.3) * 0.13 };
-        extra.tailB = { y: tailRestB - Math.sin(t * 1.3) * 0.08 };
+        extra.tailA = { x: -0.12, y: tailRestA + Math.sin(t * 1.3) * 0.08 };
+        extra.tailB = { y: tailRestB - Math.sin(t * 1.3) * 0.045 };
       }
 
       for (const name of Object.keys(joints) as JointName[]) {
