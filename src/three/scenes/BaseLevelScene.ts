@@ -886,6 +886,8 @@ export abstract class BaseLevelScene {
   /** Where the orbit is heading; camYaw eases toward it. */
   protected camYawTarget = 0;
   protected orbitDragging = false;
+  /** The pointer that owns camera look; a second finger may still use controls. */
+  private orbitPointerId: number | null = null;
   private orbitCleanup: (() => void) | null = null;
   private orientationCleanup: (() => void) | null = null;
   protected disposed = false;
@@ -1488,18 +1490,24 @@ export abstract class BaseLevelScene {
    */
   protected beforeRenderCamera() {}
 
-  /** Q/E on desktop, drag anywhere outside the joystick on touch. */
+  /** Pointer drag; yaw is intentionally unbounded for a true 360° orbit. */
   protected updateCameraOrbit(dt: number) {
-    const rate = 1.6;
-    if (this.keys.has('KeyQ')) this.camYawTarget += rate * dt;
-    if (this.keys.has('KeyE')) this.camYawTarget -= rate * dt;
     // No auto-recenter: the camera is free, and stays wherever the player
     // left it. It used to ease back to behind-the-hero the moment a key or
     // drag released, which is an automatic rotation toward Barsik's heading
     // in every way that matters to the person holding the phone — turn to
     // look at something, and the view yanks itself back the instant you let
     // go. Position still tracks the hero; orbit angle only moves on input.
-    this.camYawTarget = THREE.MathUtils.clamp(this.camYawTarget, -Math.PI * 0.75, Math.PI * 0.75);
+    // Do not clamp to a front-facing arc. The previous ±135° stop was only a
+    // 270° camera and made the last quarter-turn physically impossible.
+    // Keep values numerically small after complete turns without changing the
+    // rendered heading or introducing a discontinuity between target/current.
+    if (!this.orbitDragging && Math.abs(this.camYawTarget) > Math.PI * 4) {
+      const turns = Math.trunc(this.camYawTarget / (Math.PI * 2));
+      const wrappedTurns = turns * Math.PI * 2;
+      this.camYawTarget -= wrappedTurns;
+      this.camYaw -= wrappedTurns;
+    }
     // The angle itself is eased rather than set. Pressing a key used to move
     // the view by a fixed step every frame, which starts and stops dead — the
     // camera has weight now, so it accelerates in and settles out.
@@ -1509,20 +1517,31 @@ export abstract class BaseLevelScene {
   protected bindCameraOrbitDrag() {
     const canvas = this.canvas;
     let lastX = 0;
+    let announcedLook = false;
     const start = (e: PointerEvent) => {
+      if (this.orbitPointerId !== null) return;
       // Left edge belongs to the virtual joystick.
       if (e.pointerType === 'touch' && e.clientX < window.innerWidth * 0.32) return;
       this.orbitDragging = true;
+      this.orbitPointerId = e.pointerId;
+      announcedLook = false;
       lastX = e.clientX;
       canvas.setPointerCapture?.(e.pointerId);
     };
     const move = (e: PointerEvent) => {
-      if (!this.orbitDragging) return;
-      this.camYawTarget -= (e.clientX - lastX) * 0.006;
+      if (!this.orbitDragging || e.pointerId !== this.orbitPointerId) return;
+      const dx = e.clientX - lastX;
+      this.camYawTarget -= dx * 0.006;
+      if (!announcedLook && Math.abs(dx) >= 2) {
+        announcedLook = true;
+        window.dispatchEvent(new CustomEvent('barsik:camera-look'));
+      }
       lastX = e.clientX;
     };
     const end = (e: PointerEvent) => {
+      if (e.pointerId !== this.orbitPointerId) return;
       this.orbitDragging = false;
+      this.orbitPointerId = null;
       canvas.releasePointerCapture?.(e.pointerId);
     };
     canvas.addEventListener('pointerdown', start);
@@ -2307,7 +2326,7 @@ export abstract class BaseLevelScene {
         if (this.interactTarget) this.tryInteract();
         else this.jump();
       }
-      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         e.preventDefault();
       }
     };
@@ -2330,6 +2349,24 @@ export abstract class BaseLevelScene {
     const v = new THREE.Vector2(x, z);
     if (v.lengthSq() > 1) v.normalize();
     return v;
+  }
+
+  /**
+   * Convert local stick/WASD input into the horizontal direction in view.
+   *
+   * `dir()` deliberately stays local: x is strafe and y is forward/back.
+   * Orbit is a render transform around world-up, so applying the same yaw to
+   * that vector makes W follow the visible camera heading at 0°, 90°, 180°
+   * and every angle between. Collision and level bounds continue to receive a
+   * normal world-space candidate; only the player's intent changes basis.
+   */
+  protected cameraRelativeDirection(local: THREE.Vector2) {
+    const sin = Math.sin(this.camYaw);
+    const cos = Math.cos(this.camYaw);
+    return new THREE.Vector2(
+      local.x * cos + local.y * sin,
+      local.y * cos - local.x * sin,
+    );
   }
 
   // ── Movement ─────────────────────────────────────────────────
@@ -2486,8 +2523,9 @@ export abstract class BaseLevelScene {
   protected readonly ledgeFallDrop = 0.55;
 
   protected updateMovement(dt: number, canMove: boolean, speed: number, clampMin = -45, clampMax = 45, zMin = -50, zMax = 15) {
-    const d = this.dir();
-    const moving = canMove && d.lengthSq() > 0.01;
+    const localDirection = this.dir();
+    const d = this.cameraRelativeDirection(localDirection);
+    const moving = canMove && localDirection.lengthSq() > 0.01;
     const now = performance.now();
     const isRunning = speed > this.baseSpeed + 0.2;
     this.running = isRunning;
