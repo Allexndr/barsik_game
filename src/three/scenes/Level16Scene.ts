@@ -150,7 +150,7 @@ export class Level16Scene extends BaseLevelScene {
       this.chest.add(meshyChest);
     }
     this.scene.add(this.chest);
-    this.colliders.push({ kind: 'circle', x: 0, z: -4, r: 1.2 });
+    this.colliders.push({ kind: 'circle', x: 0, z: CHEST_Z, r: 1.2 });
 
     // Party prep pads — place 3 presents before opening the season chest
     // Spread along the climb, not clustered around the spawn pad. All three
