@@ -431,6 +431,32 @@ function boulder(x: number, z: number, scale: number, groundY: number): THREE.Gr
 }
 
 /**
+ * A wooden tent peg: tapered shaft driven in at a slight angle, a rounded
+ * head standing proud of the felt. The single 6-sided cone this replaced
+ * read as a flat sliver at gameplay camera distance — barely a peg at all,
+ * just a dark triangle on the panel.
+ */
+function makePeg(): THREE.Group {
+  const g = new THREE.Group();
+  const shaft = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.045, 0.02, 0.5, 7),
+    new THREE.MeshStandardMaterial({ color: 0x8a5c30, roughness: 0.88 }),
+  );
+  shaft.position.y = 0.25;
+  shaft.castShadow = true;
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.075, 8, 6),
+    new THREE.MeshStandardMaterial({ color: 0x6b431f, roughness: 0.8 }),
+  );
+  head.position.y = 0.52;
+  head.scale.set(1, 0.65, 1);
+  head.castShadow = true;
+  g.add(shaft, head);
+  g.rotation.z = 0.14;
+  return g;
+}
+
+/**
  * One loose felt panel with its peg. Flapping while loose, still once pegged
  * — the animation is the whole read: a child sees which ones still need
  * doing without being told a number.
@@ -444,12 +470,8 @@ function makeFeltPanel(): THREE.Group {
   panel.position.y = 0.62;
   panel.castShadow = true;
 
-  const peg = new THREE.Mesh(
-    new THREE.ConeGeometry(0.07, 0.42, 6),
-    new THREE.MeshStandardMaterial({ color: 0x8a5c30, roughness: 0.9 }),
-  );
-  peg.rotation.x = Math.PI;
-  peg.position.set(0, 0.2, 0.28);
+  const peg = makePeg();
+  peg.position.set(0, 0.05, 0.3);
   peg.visible = false;
 
   const ring = new THREE.Mesh(
