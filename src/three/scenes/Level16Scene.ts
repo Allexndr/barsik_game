@@ -258,17 +258,21 @@ export class Level16Scene extends BaseLevelScene {
     // Always show gardener + aya as story anchors; rest respect unlocks
     unlocked.add('gardener');
     unlocked.add('aya');
-    const friendIds = ['gardener', 'aya', 'hedgehog', 'squirrel', 'putalo', 'ice_master', 'ice_friend_rare'] as const;
+    // Full nine-friend roster (season1Friends.ts). yagodka_rare (L9) and
+    // snowman (L15) were missing here — the finale photo of "everyone Barsik
+    // met" was missing two of the nine people it claimed to be of.
+    const friendIds = ['gardener', 'aya', 'hedgehog', 'squirrel', 'putalo', 'yagodka_rare', 'ice_master', 'snowman', 'ice_friend_rare'] as const;
     // A wide arc around the chest rather than a 7x6 huddle in front of the
     // spawn. Everyone Barsik met across the season is standing at the end of
     // the walk, which is the shot the finale is for.
     const friendPositions: [number, number][] = [
       [-7.4, CHEST_Z + 3.4], [7.4, CHEST_Z + 3.4],
       [-8.6, CHEST_Z - 1.2], [8.6, CHEST_Z - 1.2],
+      [-10.2, CHEST_Z - 3.2], [10.2, CHEST_Z - 3.2],
       [-5.2, CHEST_Z - 5.4], [5.2, CHEST_Z - 5.4],
       [0, CHEST_Z - 7.2],
     ];
-    const friendColors = [0xa29bfe, 0xfdcb6e, 0x55efc4, 0xff7675, 0x74b9ff, 0xe17055, 0x81ecec];
+    const friendColors = [0xa29bfe, 0xfdcb6e, 0x55efc4, 0xff7675, 0x74b9ff, 0xffeaa7, 0xe17055, 0xdfe6e9, 0x81ecec];
     for (let i = 0; i < friendPositions.length; i++) {
       const [x, z] = friendPositions[i];
       const id = friendIds[i];
