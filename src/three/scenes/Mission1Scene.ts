@@ -546,7 +546,6 @@ export class Mission1Scene extends BaseLevelScene {
       { key: 'berry', opts: { x: -4.2, z: -27, maxSize: 0.4 } },
       { key: 'mushroom', opts: { x: 3.5, z: -10, maxSize: 0.45 } },
       { key: 'mushroom', opts: { x: -5, z: -8, maxSize: 0.35, rotY: 1.1 } },
-      { key: 'wood_bridge', opts: { x: 0, z: -14.2, maxSize: 3.0 } },
       { key: 'lantern', opts: { x: 2.8, z: -6, maxSize: 0.6 } },
       { key: 'lantern_hang', opts: { x: -3.2, z: -5.5, maxSize: 0.5 } },
       { key: 'pinecone', opts: { x: 4, z: -22, maxSize: 0.3 } },
@@ -554,8 +553,14 @@ export class Mission1Scene extends BaseLevelScene {
       { key: 'honey', opts: { x: 5.5, z: -18, maxSize: 0.4 } },
       { key: 'flowers', opts: { x: -6.5, z: -12, maxSize: 0.75 } },
       { key: 'flowers_tall', opts: { x: 5, z: -30, maxSize: 0.95 } },
-      { key: 'bridge_mini', opts: { x: 0, z: -14.5, maxSize: 2.4 } },
     ]);
+    // `wood_bridge` and `bridge_mini` used to be placed here too, stacked
+    // within half a metre of each other and of the procedural bridge() a few
+    // lines up — three overlapping crossings at the same spot. The dug creek
+    // channel is now sized and shaded to match the procedural bridge and its
+    // support posts specifically; dropping either GLTF one back in without
+    // first checking its real footprint against the new banks would risk
+    // the same clutter again.
     await placeAmbientCritters(this.scene, loader, [
       { key: 'frog', x: 4.5, z: -15.5, rotY: -2.0, h: 0.4 },
       { key: 'owl', x: 7, z: -35, rotY: -1.0, h: 0.7 },
