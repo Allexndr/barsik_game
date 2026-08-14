@@ -620,6 +620,38 @@ export class Level2Scene extends BaseLevelScene {
     // Sign at entrance
     this.scene.add(await placeWoodSign(loader, -2.5, 0, 0.3, 0xffeaa7));
 
+    // Second threshold: the garden gate, between meeting the gardener and
+    // the orchard proper. One archway alone made the whole level read as a
+    // single room — meeting Жұлдыз and sorting apples happened in the same
+    // undivided field. This does not gate movement or story (both sides are
+    // already reachable), it gives the eye a second "you have arrived
+    // somewhere new" beat the way the arch gives the first.
+    const gateGroup = new THREE.Group();
+    const fenceMat = new THREE.MeshStandardMaterial({ color: 0x7a5c3e, roughness: 1 });
+    for (const side of [-1, 1] as const) {
+      for (const gx of [3.2, 5.2] as const) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.1, 6), fenceMat);
+        post.position.set(side * gx, 0.55, -9);
+        post.castShadow = true;
+        gateGroup.add(post);
+        this.colliders.push({ kind: 'circle', x: side * gx, z: -9, r: 0.22 });
+      }
+      for (const railY of [0.35, 0.75]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.07, 0.07), fenceMat);
+        rail.position.set(side * 4.2, railY, -9);
+        rail.castShadow = true;
+        gateGroup.add(rail);
+      }
+    }
+    // Gate posts either side of the path gap (x ±1.5..3.2 stays open).
+    for (const gx of [-3.2, 3.2] as const) {
+      const gatePost = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.6, 6), fenceMat);
+      gatePost.position.set(gx, 0.8, -9);
+      gatePost.castShadow = true;
+      gateGroup.add(gatePost);
+    }
+    this.scene.add(gateGroup);
+
     // Trees (orchard)
     await this.loadTrees(loader, 30, 22, -14, 4.5);
     await this.loadProps(loader, 8, 6, 30, -16);
