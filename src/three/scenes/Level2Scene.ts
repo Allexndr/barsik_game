@@ -599,6 +599,11 @@ export class Level2Scene extends BaseLevelScene {
     archTop.position.set(0, 2.5, -4);
     archTop.castShadow = true;
     this.archway.add(postL, postR, archTop);
+    // Only the two posts are solid — the gap between them is the entrance.
+    this.colliders.push(
+      { kind: 'circle', x: -1.5, z: -4, r: 0.3 },
+      { kind: 'circle', x: 1.5, z: -4, r: 0.3 },
+    );
     // Decorative apples on arch
     for (let i = -1; i <= 1; i++) {
       const a = new THREE.Mesh(
