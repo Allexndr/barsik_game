@@ -247,6 +247,17 @@ export class Level12Scene extends BaseLevelScene {
     gate.position.copy(this.gatePos);
     gate.rotation.y = Math.atan2(gateTan.x, gateTan.z);
     this.scene.add(gate);
+    // Only the two posts are solid — the gap between them is the finish
+    // line itself, and a player has to be able to slide through it.
+    for (const side of [-1, 1] as const) {
+      const rotY = gate.rotation.y;
+      this.colliders.push({
+        kind: 'circle',
+        x: this.gatePos.x + side * 1.8 * Math.cos(rotY),
+        z: this.gatePos.z - side * 1.8 * Math.sin(rotY),
+        r: 0.42,
+      });
+    }
 
     // Ice master waiting past the gate — gives the outro a destination.
     const master = await loadCharModel(loader, CAST_CHAR_GLB.ice_master, 1.5);
