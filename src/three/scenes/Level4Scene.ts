@@ -17,6 +17,7 @@ import { AYA_LOOK } from '../characterLooks';
 import { createPlushCharacter, updatePlushCharacter } from '../PlushCharacter';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeS1Prop } from '../s1Place';
+import { createRiverWater, type RiverWater } from '../RiverWater';
 
 /**
  * Level 4 «Качающийся мостик» — GDD Chapter 1 Level 4, timing without a fail
@@ -319,6 +320,7 @@ export class Level4Scene extends BaseLevelScene {
   private readonly totalWinchTurns = 3;
   private crankTarget = 0;
   private tensionRope: THREE.Mesh | null = null;
+  private stream: RiverWater | null = null;
   private ayaWalkStart = 0;
   private ayaWave = false;
 
@@ -477,18 +479,18 @@ export class Level4Scene extends BaseLevelScene {
     bed.position.set(0, -GORGE_DEPTH, (NEAR_EDGE + FAR_EDGE) / 2);
     this.scene.add(bed);
 
-    const stream = new THREE.Mesh(
-      new THREE.PlaneGeometry(320, bedWidth * 0.55),
-      new THREE.MeshStandardMaterial({
-        color: 0x5fa8d3,
-        roughness: 0.22,
-        transparent: true,
-        opacity: 0.85,
-      }),
-    );
-    stream.rotation.x = -Math.PI / 2;
-    stream.position.set(0, -GORGE_DEPTH + 0.06, (NEAR_EDGE + FAR_EDGE) / 2);
-    this.scene.add(stream);
+    // Same shader-based water Level 0 and Level 1 use — waves, depth tint and
+    // shore foam — instead of a flat tinted rectangle. The bed itself was
+    // already a real dug gorge (`GORGE_DEPTH`); only the water surface was
+    // still the old flat plane.
+    this.stream = createRiverWater({
+      width: 320,
+      length: bedWidth * 0.55,
+      centre: { x: 0, z: (NEAR_EDGE + FAR_EDGE) / 2 },
+      y: -GORGE_DEPTH + 0.06,
+      bedAt: () => -GORGE_DEPTH,
+    });
+    this.scene.add(this.stream.mesh);
 
     const bedRocks: Array<{ x: number; z: number; maxSize: number }> = [];
     for (let i = 0; i < 14; i++) {
@@ -1161,6 +1163,7 @@ export class Level4Scene extends BaseLevelScene {
     if (this.renderPausedFrame()) return;
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
+    this.stream?.update(now * 0.001);
 
     if (this.phase === 'intro' && now > this.nextAt) {
       this.introI += 1;
