@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { AudioManager } from '@/audio/AudioManager';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeMany, placeAmbientCritters } from '../s1Place';
-import { createWaterSurface, type WaterSurface } from '../WaterSurface';
+import { createRiverWater, type RiverWater } from '../RiverWater';
 import {
   BaseLevelScene,
   CC0,
@@ -21,7 +21,6 @@ import {
   hill,
   skyDome,
   makeGrassTexture,
-  streamSegment,
   bridge,
 } from './BaseLevelScene';
 
@@ -195,7 +194,7 @@ export class Mission1Scene extends BaseLevelScene {
   private ayaMarker: THREE.Group | null = null;
   private stickyGroup: THREE.Group | null = null;
   private butterflies: THREE.Group[] = [];
-  private creekWater: WaterSurface | null = null;
+  private river: RiverWater | null = null;
   private pullPulseUntil = 0;
   private checkpoints = [
     new THREE.Vector3(0, 0, 2),
@@ -363,16 +362,81 @@ export class Mission1Scene extends BaseLevelScene {
 
     this.scene.add(spawnPad(0, 4));
 
-    this.scene.add(streamSegment(-16, -13.7, 16, -14.3, 2.0));
-    this.creekWater = createWaterSurface(2.8, 40);
-    this.creekWater.mesh.rotation.x = -Math.PI / 2;
-    this.creekWater.mesh.scale.set(6.5, 1, 1.15);
-    this.creekWater.mesh.position.set(0, 0.03, -14);
-    this.scene.add(this.creekWater.mesh);
-    this.scene.add(bridge(0, -14, 0));
+    // The creek used to be two flat blue planes sitting on top of flat
+    // ground — no bank, no depth, so the bridge floated over a puddle
+    // instead of spanning anything. Dig a real channel: a sloped bed that
+    // reaches the surrounding ground exactly at its rim (same y = 0, so
+    // there is no seam), with the bridge deck fixed at the height that used
+    // to be its whole world position and everything else in the level
+    // (spawn at z = 4, thicket at z = -29) far outside the band it touches.
+    const CREEK_Z = -14;
+    const CREEK_HALF_WIDTH = 3.2;
+    const CREEK_DEPTH = 0.55;
+    const creekDepthAt = (z: number) => {
+      const d = Math.abs(z - CREEK_Z);
+      if (d >= CREEK_HALF_WIDTH) return 0;
+      const t = d / CREEK_HALF_WIDTH;
+      const ease = t * t * (3 - 2 * t); // smoothstep: 1 at the rim, 0 at the centre
+      return -CREEK_DEPTH * (1 - ease);
+    };
+    const bankY = 0;
+    const bedY = -CREEK_DEPTH;
+    const waterY = bedY + Math.max(0.25, (bankY - bedY) * 0.55);
+    const BRIDGE_HALF_X = 1.6;
+    const BRIDGE_DECK_Y = 0.25; // matches bridge()'s own plank height, so the deck and the hero's feet agree
+
+    // Bed geometry: flat in X (a straight ditch, matching the wide collider
+    // band below), sloped in Z. Vertex colour fades from bank grass to wet
+    // creek soil with depth, so the rim blends into the lawn instead of
+    // reading as a dropped-in brown patch.
+    const bedGeo = new THREE.PlaneGeometry(40, CREEK_HALF_WIDTH * 2, 1, 20);
+    const posAttr = bedGeo.attributes.position;
+    const grassColor = new THREE.Color(0x6fbf6a);
+    const soilColor = new THREE.Color(0x6b5637);
+    const colors: number[] = [];
+    for (let i = 0; i < posAttr.count; i++) {
+      const localZ = posAttr.getY(i); // pre-rotation Y is world Z offset from centre
+      const depth = creekDepthAt(CREEK_Z + localZ);
+      posAttr.setZ(i, depth); // pre-rotation Z becomes world height after rotation.x = -90°
+      const t = CREEK_DEPTH > 0 ? Math.min(1, -depth / CREEK_DEPTH) : 0;
+      const c = grassColor.clone().lerp(soilColor, t);
+      colors.push(c.r, c.g, c.b);
+    }
+    bedGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    bedGeo.computeVertexNormals();
+    const bedMesh = new THREE.Mesh(
+      bedGeo,
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96 }),
+    );
+    bedMesh.rotation.x = -Math.PI / 2;
+    bedMesh.position.set(0, 0, CREEK_Z);
+    bedMesh.receiveShadow = true;
+    this.scene.add(bedMesh);
+
+    this.river = createRiverWater({
+      width: 36,
+      length: CREEK_HALF_WIDTH * 2,
+      centre: { x: 0, z: CREEK_Z },
+      y: waterY,
+      bedAt: (_x, z) => creekDepthAt(z),
+    });
+    this.scene.add(this.river.mesh);
+
+    this.scene.add(bridge(0, CREEK_Z, 0, { deckY: BRIDGE_DECK_Y, bedY }));
+
+    // Hero feet and prop placement follow the bed everywhere, and the deck
+    // height on the narrow gap the colliders leave open for the bridge.
+    this.groundHeightAt = (x, z) =>
+      Math.abs(x) <= BRIDGE_HALF_X && Math.abs(z - CREEK_Z) <= CREEK_HALF_WIDTH + 0.6
+        ? BRIDGE_DECK_Y
+        : creekDepthAt(z);
+    this.waterLineY = waterY;
+
+    // Blocks a straight wade through the water on either side of the
+    // bridge; the gap between the two AABBs is exactly the bridge's width.
     this.colliders.push(
-      { kind: 'aabb', x: -9, z: -14, halfW: 8, halfD: 1.3 },
-      { kind: 'aabb', x: 9, z: -14, halfW: 8, halfD: 1.3 },
+      { kind: 'aabb', x: -9.3, z: CREEK_Z, halfW: 7.7, halfD: 2.4 },
+      { kind: 'aabb', x: 9.3, z: CREEK_Z, halfW: 7.7, halfD: 2.4 },
     );
 
     this.scene.add(bush(-3, -29, 1.6));
@@ -631,7 +695,7 @@ export class Mission1Scene extends BaseLevelScene {
     if (this.renderPausedFrame()) return;
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
-    this.creekWater?.update(now * 0.001);
+    this.river?.update(now * 0.001);
 
     if (this.phase === 'intro' && now > this.nextAt) {
       this.introI += 1;
@@ -740,8 +804,8 @@ export class Mission1Scene extends BaseLevelScene {
   };
 
   dispose() {
-    this.creekWater?.dispose();
-    this.creekWater = null;
+    this.river?.dispose();
+    this.river = null;
     super.dispose();
   }
 }
