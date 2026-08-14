@@ -372,6 +372,42 @@ export class Level7Scene extends BaseLevelScene {
       this.scene.add(p);
     }
 
+    // HIDES[2] is the one he names out loud — «Здесь моё самое тихое место» —
+    // but nothing there used to look different from the other three transient
+    // hiding spots. A moss nest and his best photographs kept close, at a
+    // consistent gallery height instead of the trail's random scatter, so the
+    // line has somewhere real to land.
+    {
+      const denX = HIDES[2].x - 2.2;
+      const denZ = HIDES[2].z + 0.4;
+      const denY = this.groundHeightAt(denX, denZ);
+      const nest = new THREE.Group();
+      const nestBase = new THREE.Mesh(
+        new THREE.TorusGeometry(0.55, 0.16, 8, 16),
+        new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 }),
+      );
+      nestBase.rotation.x = -Math.PI / 2;
+      nestBase.position.y = 0.08;
+      const blanket = new THREE.Mesh(
+        new THREE.CircleGeometry(0.48, 16),
+        new THREE.MeshStandardMaterial({ color: 0x8b5a8f, roughness: 0.95 }),
+      );
+      blanket.rotation.x = -Math.PI / 2;
+      blanket.position.y = 0.1;
+      nest.add(nestBase, blanket);
+      nest.position.set(denX, denY, denZ);
+      this.scene.add(nest);
+
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + 0.4;
+        const px = HIDES[2].x + Math.cos(a) * 1.9;
+        const pz = HIDES[2].z + Math.sin(a) * 1.9;
+        const p = makePhoto(px, this.groundHeightAt(px, pz) + 1.35, pz, a + Math.PI);
+        this.photos.push(p);
+        this.scene.add(p);
+      }
+    }
+
     // The three the wind took. Built now and hidden, so the gather phase does
     // not have to load anything at the moment it starts.
     for (const spot of LOST_PHOTOS) {
