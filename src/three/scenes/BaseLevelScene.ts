@@ -468,20 +468,42 @@ export function streamSegment(x1: number, z1: number, x2: number, z2: number, w:
   return g;
 }
 
-export function bridge(x: number, z: number, rotY: number) {
+export function bridge(
+  x: number,
+  z: number,
+  rotY: number,
+  opts: { deckY?: number; bedY?: number } = {},
+) {
+  const deckY = opts.deckY ?? 0.25;
+  const bedY = opts.bedY ?? deckY - 0.5;
   const g = new THREE.Group();
   const wood = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 1 });
   for (let i = -3; i <= 3; i++) {
     const plank = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.08, 2.4), wood);
-    plank.position.set(i * 0.42, 0.25, 0);
+    plank.position.set(i * 0.42, deckY, 0);
     plank.castShadow = true; plank.receiveShadow = true;
     g.add(plank);
   }
   const railL = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.1, 0.1), wood);
-  railL.position.set(0, 0.55, -1.15);
+  railL.position.set(0, deckY + 0.3, -1.15);
   const railR = railL.clone();
   railR.position.z = 1.15;
   g.add(railL, railR);
+
+  // Support posts, so the deck reads as spanning a gap rather than resting
+  // on the ground it was drawn a few centimetres above. One pair per end,
+  // reaching from just under the deck down to the bed the water sits in.
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x6d4c34, roughness: 1 });
+  const postHeight = Math.max(0.2, deckY - bedY);
+  for (const px of [-1.35, 1.35]) {
+    for (const pz of [-1.0, 1.0]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, postHeight, 6), postMat);
+      post.position.set(px, bedY + postHeight / 2, pz);
+      post.castShadow = true;
+      g.add(post);
+    }
+  }
+
   g.position.set(x, 0, z);
   g.rotation.y = rotY;
   return g;
