@@ -476,6 +476,7 @@ export class Level3Scene extends BaseLevelScene {
           rock2.scene.position.set(sd.x + 1.2, 0, sd.z + 0.8);
           groundY(rock2.scene);
           this.scene.add(rock2.scene);
+          this.colliders.push({ kind: 'circle', x: sd.x + 1.2, z: sd.z + 0.8, r: 0.6 });
         }
       } else if (sd.label === 'log') {
         const log = makeFallenLog(sd.x, sd.z, 0.3);
