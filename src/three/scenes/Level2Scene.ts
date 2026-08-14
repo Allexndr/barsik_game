@@ -23,6 +23,7 @@ import { ZHULDYZ_LOOK } from '../characterLooks';
 import type { AssetKit } from '../AssetKit';
 import { CAST_PROP_GLB } from '../castModels';
 import { createGameGltfLoader } from '../createGameGltfLoader';
+import { makeOldOak } from './Level3Scene';
 /**
  * Level 3 «Яблоневый сад» — GDD Chapter 1 Level 2:
  * Apple orchard sorting. Collect apples, sort into colored baskets.
@@ -331,6 +332,7 @@ export class Level2Scene extends BaseLevelScene {
   private carryingMesh: THREE.Mesh | null = null;
   private gardener: THREE.Object3D | null = null;
   private gardenerMarker: THREE.Group | null = null;
+  private oldOakMarker: THREE.Group | null = null;
   private demoApple: ApplePickup | null = null;
   private demoBasket: Basket | null = null;
   private demoDone = false;
@@ -701,6 +703,21 @@ export class Level2Scene extends BaseLevelScene {
       this.scene.add(tulip(x, z, [0xe74c3c, 0xf1c40f, 0xe67e22, 0xfd79a8, 0xa29bfe][i % 5]));
     }
 
+    // The old oak from L3, seen from a distance here first. The orchard used
+    // to be one sealed room with nothing past its own task — this is the
+    // level's own outro line ("у старого дуба потерялся ёжик") made into
+    // something the player can actually see, not just be told about, and it
+    // is the same landmark prop L3 stands the whole level in and L10
+    // revisits — one tree, three levels, instead of three unrelated oaks.
+    const oak = makeOldOak(1.5, -31);
+    oak.scale.setScalar(0.85);
+    this.scene.add(oak);
+    this.oldOakMarker = questMarker(0xd8b4fe, 0x8b5cf6);
+    this.oldOakMarker.position.set(1.5, this.groundHeightAt(1.5, -29), -29);
+    this.oldOakMarker.visible = false;
+    this.scene.add(this.oldOakMarker);
+    this.scene.add(tulip(0.2, -28.5, 0xf1c40f), tulip(2.8, -29.5, 0xe74c3c));
+
     // Hero
     this.hero.position.set(0, 0, 4);
     // One room, not one road. A corridor here would put a wall through the
@@ -909,9 +926,13 @@ export class Level2Scene extends BaseLevelScene {
       this.carryingMesh.rotation.y += dt * 2;
     }
 
-    // Guide arrow
-    const obj = this.objectiveWorldPos();
-    this.updateGuideArrow(now, obj, ['intro', 'outro']);
+    // Guide arrow — points at the old oak once the sort is done, so the
+    // outro line ("у старого дуба потерялся ёжик") has something in the
+    // world to actually point at, not just a HUD sentence.
+    const obj = this.phase === 'outro'
+      ? new THREE.Vector3(1.5, 0, -29)
+      : this.objectiveWorldPos();
+    this.updateGuideArrow(now, obj, ['intro']);
 
     // Gardener marker — stay visible through demo until player finishes watching
     if (this.gardenerMarker) {
@@ -920,6 +941,15 @@ export class Level2Scene extends BaseLevelScene {
       bang.rotation.y += dt * 2;
       this.gardenerMarker.visible =
         this.phase === 'intro' || (this.phase === 'demo' && !this.demoDone);
+    }
+
+    // Old oak marker — lights up only once the orchard is sorted, pointing
+    // at exactly the thing the outro line just told the player about.
+    if (this.oldOakMarker) {
+      const bang = this.oldOakMarker.userData.bang as THREE.Object3D;
+      bang.position.y = 4.2 + Math.sin(now * 0.005) * 0.18;
+      bang.rotation.y += dt * 1.6;
+      this.oldOakMarker.visible = this.phase === 'outro';
     }
 
     // Basket beams pulse
