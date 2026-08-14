@@ -953,6 +953,14 @@ export abstract class BaseLevelScene {
    */
   protected pathCorridor: ((z: number) => number) | null = null;
   protected pathCorridorHalf = 1.8;
+  /**
+   * Where the corridor's own reach along z stops, set by `encloseLevel`.
+   * Without this, `clampToPlayArea`'s pathCorridor branch only ever bounds x
+   * — a periodic corridor function like `sin(z)` re-enters its valid x range
+   * forever, so a level using it alone has no back or forward wall at all.
+   */
+  protected corridorZMin: number | null = null;
+  protected corridorZMax: number | null = null;
   protected hasTakenFirstStep = false;
   protected paused = false;
   protected prefersReducedMotion = typeof window !== 'undefined'
@@ -1926,6 +1934,11 @@ export abstract class BaseLevelScene {
       zMin = Math.min(zMin, room.z - room.r);
       zMax = Math.max(zMax, room.z + room.r);
     }
+    // The forest wall only ever grew along the sides of the corridor as z
+    // moves; nothing stopped a player walking off the near or far end of it.
+    // These are what clampToPlayArea now holds z inside.
+    this.corridorZMin = zMin - pad;
+    this.corridorZMax = zMax + pad;
     await this.encloseWithForest(loader, { zFrom: zMin - pad, zTo: zMax + pad });
   }
 
@@ -2315,22 +2328,31 @@ export abstract class BaseLevelScene {
     }
     if (!this.pathCorridor) return { x, z };
 
-    const cx = this.pathCorridor(z);
+    // Hold z inside the level's own declared range first. A room can never
+    // legitimately sit outside it — the range is derived from the rooms
+    // themselves, with slack to spare — so this only ever bites on a z the
+    // level has nothing at, and it does so before pathCorridor(z) is even
+    // evaluated (a periodic corridor has no natural edge to catch it on).
+    let cz = z;
+    if (this.corridorZMin !== null) cz = Math.max(this.corridorZMin, cz);
+    if (this.corridorZMax !== null) cz = Math.min(this.corridorZMax, cz);
+
+    const cx = this.pathCorridor(cz);
     const half = this.pathCorridorHalf + this.corridorSlack;
-    if (Math.abs(x - cx) <= half) return { x, z };
+    if (cz === z && Math.abs(x - cx) <= half) return { x, z };
 
     let bestX = cx + Math.sign(x - cx || 1) * half;
-    let bestZ = z;
+    let bestZ = cz;
     // How far outside the corridor we are; any room that holds this point,
     // or holds it less far outside, wins.
     let bestPush = Math.abs(x - cx) - half;
 
     for (const room of this.reserved) {
       const dx = x - room.x;
-      const dz = z - room.z;
+      const dz = cz - room.z;
       const d = Math.hypot(dx, dz) || 1e-4;
       const r = room.r + this.corridorSlack;
-      if (d <= r) return { x, z };
+      if (d <= r) return { x, z: cz };
       const push = d - r;
       if (push < bestPush) {
         bestPush = push;
