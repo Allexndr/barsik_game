@@ -716,6 +716,9 @@ export class Level2Scene extends BaseLevelScene {
     groundY(gardener);
     this.gardener = gardener;
     this.scene.add(gardener);
+    // The one standing character in the whole orchard had no collider —
+    // everything else in reach (archway posts, baskets) already did.
+    this.colliders.push({ kind: 'circle', x: gardener.position.x, z: gardener.position.z, r: 0.55 });
     this.gardenerMarker = questMarker(0xa8e6cf, 0x55a630);
     this.gardenerMarker.position.copy(this.gardener.position);
     this.scene.add(this.gardenerMarker);

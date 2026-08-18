@@ -267,6 +267,10 @@ export class Level12Scene extends BaseLevelScene {
       this.snapToGround(master);
       master.lookAt(this.gatePos.x, master.position.y, this.gatePos.z);
       this.scene.add(master);
+      // A destination a player is meant to run at, on an icy trail, needs a
+      // body — same gap as L13's ice_master: nothing here stopped a fast
+      // approach from sliding straight through him.
+      this.colliders.push({ kind: 'circle', x: master.position.x, z: master.position.z, r: 0.55 });
     }
 
     this.scene.add(zoneDisc(0, 6, 3.6, 0xe1f5fe, this.groundHeightAt(0, 6) + 0.06));
