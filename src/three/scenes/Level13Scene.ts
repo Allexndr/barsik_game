@@ -261,6 +261,11 @@ export class Level13Scene extends BaseLevelScene {
       masterGlb.lookAt(0, masterGlb.position.y, -9);
       this.master = masterGlb;
       this.scene.add(masterGlb);
+      // The podium collider (0,-9, r1.4) doesn't reach him — he stands
+      // 2.5m off its centre — so without his own circle he was the one
+      // solid-looking figure in the level a player could walk straight
+      // through.
+      this.colliders.push({ kind: 'circle', x: -2.1, z: -7.6, r: 0.55 });
     }
 
     this.sculpture = makeSculpture();
