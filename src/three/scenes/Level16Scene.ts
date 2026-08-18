@@ -56,6 +56,7 @@ export class Level16Scene extends BaseLevelScene {
   private prepMarkers: THREE.Object3D[] = [];
   private prepDone = 0;
   private readonly prepTotal = 3;
+  private crystals: THREE.Object3D[] = [];
 
   protected currentPhase() { return this.phase; }
 
@@ -233,6 +234,7 @@ export class Level16Scene extends BaseLevelScene {
         crystal.castShadow = true;
       }
       crystal.userData.spin = i;
+      this.crystals.push(crystal);
       this.scene.add(crystal);
     }
 
@@ -540,6 +542,13 @@ export class Level16Scene extends BaseLevelScene {
 
     for (const f of this.friends) {
       if (f.visible) f.position.y = Math.sin(now * 0.003 + f.position.x) * 0.05;
+    }
+
+    // Ring of crystals around the chest — `userData.spin` was set at build
+    // time and never read, so all eight sat dead still.
+    for (const c of this.crystals) {
+      c.rotation.y += dt * (0.6 + (c.userData.spin as number) * 0.05);
+      c.position.y = 0.5 + Math.sin(now * 0.0025 + (c.userData.spin as number)) * 0.12;
     }
 
     this.updateGuideArrow(now, this.objectiveWorldPos(), ['intro', 'outro', 'unlock', 'open']);
