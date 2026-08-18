@@ -178,6 +178,14 @@ export const useGameStore = create<GameState>((set) => ({
         levelStars: state.levelStars,
         stars,
         cityObjects: state.cityObjects,
+        // `outfit` is optional on the payload and JSON.stringify drops
+        // undefined keys, so omitting it here rewrites the save without one —
+        // and migrateProgress reads a missing outfit as "pre-wardrobe save"
+        // and hands back the starter cap and glasses. The other four persist
+        // calls all pass it. Nothing calls addStars today (completeLevel owns
+        // the reward path, to avoid the double-award this replaced), so this
+        // never fired; it would have the moment a QR or bonus reward used it.
+        outfit: state.outfit,
         season1Complete: state.season1Complete,
       });
       return { stars };
