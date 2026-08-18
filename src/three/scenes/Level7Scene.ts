@@ -94,7 +94,7 @@ export interface L8Hud extends BaseHud {
   photosTotal: number;
 }
 
-function makePutalo(x: number, z: number): THREE.Group {
+export function makePutalo(x: number, z: number): THREE.Group {
   const g = new THREE.Group();
   const bodyMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
 

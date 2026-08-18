@@ -13,6 +13,7 @@ import { groundY } from '../modelUtils';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { AudioManager } from '@/audio/AudioManager';
 import { placeAmbientCritters, placeS1Char } from '../s1Place';
+import { makePutalo } from './Level7Scene';
 
 /**
  * Level 7 «Лесная загадка» — GDD Chapter 1 Level 6:
@@ -266,6 +267,15 @@ export class Level6Scene extends BaseLevelScene {
   private hedgehog: THREE.Object3D | null = null;
   /** Owed a trip back to the stump after a wrong answer. */
   private mustReturnToStump = false;
+  /**
+   * The outro line promises «там за поляной кто-то фотографирует» — Putalo,
+   * met properly next level. Visible the whole level (see loop) rather than
+   * gated to outro, since outro itself is covered within one tick by
+   * MissionScreen's level-complete card.
+   */
+  private readonly putaloPos = { x: -5, z: -28 };
+  private putaloGlimpse: THREE.Group | null = null;
+  private putaloFlash: THREE.Mesh | null = null;
 
   /**
    * Every answer is a thing seen in the world, never a word in the question.
@@ -510,6 +520,30 @@ export class Level6Scene extends BaseLevelScene {
       this.scene.add(tree.group);
       this.colliders.push({ kind: 'circle', x: spec.x, z: spec.z, r: 1.5 });
     }
+
+    // Putalo, glimpsed at the treeline beyond the green tree — the same
+    // procedural figure the player meets properly next level. No collider:
+    // he is scenery here, not an interactable.
+    //
+    // Visible from the start, not gated to outro: the outro HUD flag makes
+    // MissionScreen mount a blurred level-complete card over the canvas in
+    // the same tick the riddle is solved, so a reveal gated to that phase
+    // would never actually be on screen. A background figure noticed while
+    // hunting clues, paid off by the outro line naming him, is the version
+    // of this that a player can actually see.
+    this.putaloGlimpse = makePutalo(this.putaloPos.x, this.putaloPos.z);
+    this.putaloGlimpse.position.y = this.groundHeightAt(this.putaloPos.x, this.putaloPos.z);
+    this.scene.add(this.putaloGlimpse);
+    this.putaloFlash = new THREE.Mesh(
+      new THREE.CircleGeometry(0.22, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 }),
+    );
+    this.putaloFlash.position.set(
+      this.putaloPos.x + 0.3,
+      this.putaloGlimpse.position.y + 0.9,
+      this.putaloPos.z + 0.2,
+    );
+    this.scene.add(this.putaloFlash);
 
     // A clue at the foot of each tree. Collecting them is the tour that
     // teaches the answers: you cannot know which tree has the yellow-tailed
@@ -816,6 +850,17 @@ export class Level6Scene extends BaseLevelScene {
     if (this.hedgehog) {
       this.hedgehog.scale.y = 1 + Math.sin(now * 0.0028) * 0.035;
       this.hedgehog.rotation.y += Math.sin(now * 0.0006) * dt * 0.35;
+    }
+
+    // Putalo, working the treeline all level — a periodic camera-flash
+    // pulse is what makes «кто-то фотографирует» read as an event rather
+    // than a figure that just happens to be standing in the trees.
+    if (this.putaloGlimpse) {
+      this.putaloGlimpse.rotation.y = Math.sin(now * 0.0004) * 0.25;
+      if (this.putaloFlash) {
+        const cyclePos = (now % 2600) / 2600;
+        (this.putaloFlash.material as THREE.MeshBasicMaterial).opacity = cyclePos < 0.05 ? 0.9 : 0;
+      }
     }
 
     for (const b of this.butterflies) {
