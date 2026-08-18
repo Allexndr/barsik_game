@@ -86,21 +86,29 @@ const DESKTOP_H = 1066;
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 2.75;
 
-/** Keep the camera inside the art — never show empty SVG outside the image. */
+/**
+ * Keep the camera inside the art — never show empty SVG outside the image.
+ *
+ * Takes the content's own bounding box (`mapX0..mapX1`, `mapY0..mapY1`)
+ * rather than assuming it starts at the origin: the portrait band starts at
+ * `BAND_LEFT`, not 0, and its top is the first chapter's clip rect, not 0.
+ */
 function clampCenter(
   cx: number,
   cy: number,
   vw: number,
   vh: number,
-  mapW: number,
-  mapH: number
+  mapX0: number,
+  mapY0: number,
+  mapX1: number,
+  mapY1: number
 ) {
   const halfW = vw / 2;
   const halfH = vh / 2;
-  const minX = halfW;
-  const maxX = Math.max(halfW, mapW - halfW);
-  const minY = halfH;
-  const maxY = Math.max(halfH, mapH - halfH);
+  const minX = mapX0 + halfW;
+  const maxX = Math.max(minX, mapX1 - halfW);
+  const minY = mapY0 + halfH;
+  const maxY = Math.max(minY, mapY1 - halfH);
   return {
     x: Math.min(maxX, Math.max(minX, cx)),
     y: Math.min(maxY, Math.max(minY, cy)),
@@ -278,6 +286,16 @@ export function TravelMapScreen() {
   const currentPin =
     pins.find((p) => p.id === currentLevel) ?? pins[pins.length - 1] ?? portrait.pins[0];
   const wideChapterIdx = wideData.chapterIdx;
+  // The portrait band's own bounding box — chapter art is clipped to each
+  // band's [top, bottom], so nothing ever renders above the first band's
+  // top or below the last one's bottom, whatever the cover-fitted image's
+  // own extent is.
+  const portraitBounds = {
+    x0: BAND_LEFT,
+    y0: bands[0]?.top ?? TOP_PAD - V_STEP / 2,
+    x1: BAND_LEFT + BAND_WIDTH,
+    y1: bands[bands.length - 1]?.bottom ?? portrait.totalHeight,
+  };
 
   const [zoom, setZoom] = useState(ZOOM_MIN);
   const [center, setCenter] = useState(() =>
@@ -326,8 +344,11 @@ export function TravelMapScreen() {
   }
 
   const safeCenter = wide
-    ? clampCenter(center.x, center.y, viewW, viewH, DESKTOP_W, DESKTOP_H)
-    : center;
+    ? clampCenter(center.x, center.y, viewW, viewH, 0, 0, DESKTOP_W, DESKTOP_H)
+    : clampCenter(
+        center.x, center.y, viewW, viewH,
+        portraitBounds.x0, portraitBounds.y0, portraitBounds.x1, portraitBounds.y1
+      );
   const viewBox = `${safeCenter.x - viewW / 2} ${safeCenter.y - viewH / 2} ${viewW} ${viewH}`;
 
   const handleZoomIn = () =>
@@ -337,7 +358,7 @@ export function TravelMapScreen() {
         const { viewW: nw, viewH: nh } = wideViewSize(aspect, next);
         // Zoom toward current pin, but stay inside the art.
         setCenter(
-          clampCenter(currentPin.x, currentPin.y, nw, nh, DESKTOP_W, DESKTOP_H)
+          clampCenter(currentPin.x, currentPin.y, nw, nh, 0, 0, DESKTOP_W, DESKTOP_H)
         );
       }
       return next;
@@ -348,7 +369,7 @@ export function TravelMapScreen() {
       const next = Math.max(z - 0.25, ZOOM_MIN);
       if (wide) {
         const { viewW: nw, viewH: nh } = wideViewSize(aspect, next);
-        setCenter(clampCenter(currentPin.x, currentPin.y, nw, nh, DESKTOP_W, DESKTOP_H));
+        setCenter(clampCenter(currentPin.x, currentPin.y, nw, nh, 0, 0, DESKTOP_W, DESKTOP_H));
       }
       return next;
     });
@@ -389,7 +410,12 @@ export function TravelMapScreen() {
     dragRef.current = { x: e.clientX, y: e.clientY };
     setCenter((c) => {
       const next = { x: c.x - dx, y: c.y - dy };
-      return wide ? clampCenter(next.x, next.y, viewW, viewH, DESKTOP_W, DESKTOP_H) : next;
+      return wide
+        ? clampCenter(next.x, next.y, viewW, viewH, 0, 0, DESKTOP_W, DESKTOP_H)
+        : clampCenter(
+            next.x, next.y, viewW, viewH,
+            portraitBounds.x0, portraitBounds.y0, portraitBounds.x1, portraitBounds.y1
+          );
     });
   };
   const onPointerUp = () => setIsDragging(false);
