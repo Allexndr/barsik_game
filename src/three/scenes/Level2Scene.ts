@@ -332,7 +332,6 @@ export class Level2Scene extends BaseLevelScene {
   private carryingMesh: THREE.Mesh | null = null;
   private gardener: THREE.Object3D | null = null;
   private gardenerMarker: THREE.Group | null = null;
-  private oldOakMarker: THREE.Group | null = null;
   private demoApple: ApplePickup | null = null;
   private demoBasket: Basket | null = null;
   private demoDone = false;
@@ -741,13 +740,15 @@ export class Level2Scene extends BaseLevelScene {
     // something the player can actually see, not just be told about, and it
     // is the same landmark prop L3 stands the whole level in and L10
     // revisits — one tree, three levels, instead of three unrelated oaks.
+    //
+    // Visible the whole level, on purpose: it used to carry a questMarker
+    // beacon gated to phase==='outro', but MissionScreen covers the canvas
+    // with the level-complete card the same tick outro starts, so that
+    // beacon — promising an interaction the oak doesn't have — could never
+    // actually be seen. The tree alone, always there, is the real payoff.
     const oak = makeOldOak(1.5, -31);
     oak.scale.setScalar(0.85);
     this.scene.add(oak);
-    this.oldOakMarker = questMarker(0xd8b4fe, 0x8b5cf6);
-    this.oldOakMarker.position.set(1.5, this.groundHeightAt(1.5, -29), -29);
-    this.oldOakMarker.visible = false;
-    this.scene.add(this.oldOakMarker);
     this.scene.add(tulip(0.2, -28.5, 0xf1c40f), tulip(2.8, -29.5, 0xe74c3c));
 
     // Hero
@@ -958,12 +959,8 @@ export class Level2Scene extends BaseLevelScene {
       this.carryingMesh.rotation.y += dt * 2;
     }
 
-    // Guide arrow — points at the old oak once the sort is done, so the
-    // outro line ("у старого дуба потерялся ёжик") has something in the
-    // world to actually point at, not just a HUD sentence.
-    const obj = this.phase === 'outro'
-      ? new THREE.Vector3(1.5, 0, -29)
-      : this.objectiveWorldPos();
+    // Guide arrow
+    const obj = this.objectiveWorldPos();
     this.updateGuideArrow(now, obj, ['intro']);
 
     // Gardener marker — stay visible through demo until player finishes watching
@@ -973,15 +970,6 @@ export class Level2Scene extends BaseLevelScene {
       bang.rotation.y += dt * 2;
       this.gardenerMarker.visible =
         this.phase === 'intro' || (this.phase === 'demo' && !this.demoDone);
-    }
-
-    // Old oak marker — lights up only once the orchard is sorted, pointing
-    // at exactly the thing the outro line just told the player about.
-    if (this.oldOakMarker) {
-      const bang = this.oldOakMarker.userData.bang as THREE.Object3D;
-      bang.position.y = 4.2 + Math.sin(now * 0.005) * 0.18;
-      bang.rotation.y += dt * 1.6;
-      this.oldOakMarker.visible = this.phase === 'outro';
     }
 
     // Basket beams pulse
