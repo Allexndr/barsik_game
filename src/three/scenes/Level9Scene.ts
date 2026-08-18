@@ -472,6 +472,9 @@ export class Level9Scene extends BaseLevelScene {
       if (guard) {
         this.guardians.push(guard);
         this.scene.add(guard);
+        // The chest, seals and pillars all got colliders — the three
+        // guardians a player actually walks up to trade with didn't.
+        this.colliders.push({ kind: 'circle', x: sh.x + 1.6, z: sh.z + 1.1, r: 0.45 });
       }
     }
 
