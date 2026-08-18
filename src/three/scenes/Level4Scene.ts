@@ -891,6 +891,9 @@ export class Level4Scene extends BaseLevelScene {
     ayaGroup.rotation.y = Math.PI; // face the bridge, and the arriving player
     this.aya = ayaGroup;
     this.scene.add(ayaGroup);
+    // Waiting on the far bank, "visible from the start" per the comment
+    // above — but reachable, and had no collider of her own.
+    this.colliders.push({ kind: 'circle', x: ayaGroup.position.x, z: ayaGroup.position.z, r: 0.55 });
     this.ayaMarker = questMarker(0xa29bfe, 0x6c5ce7);
     this.ayaMarker.position.copy(this.aya.position);
     // Lit from the start. Somebody waiting on the far side, visible from the

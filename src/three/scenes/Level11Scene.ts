@@ -134,6 +134,9 @@ export class Level11Scene extends BaseLevelScene {
       ayaGlb.lookAt(0, ayaGlb.position.y, -12);
       this.aya = ayaGlb;
       this.scene.add(ayaGlb);
+      // Only the snowman had a collider — the standing character next to
+      // it didn't.
+      this.colliders.push({ kind: 'circle', x: ayaGlb.position.x, z: ayaGlb.position.z, r: 0.55 });
     }
 
     await this.placeProps(loader, [
