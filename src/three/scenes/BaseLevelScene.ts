@@ -898,6 +898,12 @@ export abstract class BaseLevelScene {
   protected praiseUntil = 0;
   protected lastStepAt = 0;
   protected footstepSurface: 'grass' | 'snow' | 'stone' = 'grass';
+  /** Paw prints left behind on soft ground. Built on the first step taken. */
+  private footprints: THREE.InstancedMesh | null = null;
+  private footprintAge: Float32Array | null = null;
+  private footprintPose: Float32Array | null = null;
+  private footprintNext = 0;
+  private footprintFoot = 1;
   protected isMobile = typeof window !== 'undefined' && (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
   protected quality: QualityPipeline | null = null;
   protected renderQuality: RenderQualityProfile;
@@ -2459,6 +2465,9 @@ export abstract class BaseLevelScene {
             ? 'stepStone'
             : 'stepGrass',
       );
+      // On the same beat as the sound: a print that drifts out of step with
+      // the footfall reads as somebody else's.
+      this.dropFootprint();
     }
     if (moving && !this.hasTakenFirstStep) {
       this.hasTakenFirstStep = true;
@@ -2594,6 +2603,7 @@ export abstract class BaseLevelScene {
     this.fpsSampler.frame(now);
     this.updateCameraOrbit(dt);
     this.updateJump(dt);
+    this.updateFootprints(dt);
     const motionScale = this.prefersReducedMotion ? 0.25 : 1;
 
     // Wings. Collected from the scene once rather than threaded through
@@ -2928,6 +2938,138 @@ export abstract class BaseLevelScene {
     this.fireflies = null;
     this.snowfall = null;
     this.sparks.length = 0;
+  }
+
+  // ── Footprints ───────────────────────────────────────────────
+  /**
+   * A paw: one pad and three toes, flat on the ground.
+   *
+   * Built as a single BufferGeometry rather than four meshes, because every
+   * print is one instance of this and an instance cannot be a Group.
+   */
+  private static pawGeometry(): THREE.BufferGeometry {
+    const pos: number[] = [];
+    const disc = (cx: number, cz: number, rx: number, rz: number, seg = 10) => {
+      for (let i = 0; i < seg; i++) {
+        const a0 = (i / seg) * Math.PI * 2;
+        const a1 = ((i + 1) / seg) * Math.PI * 2;
+        pos.push(cx, 0, cz);
+        pos.push(cx + Math.cos(a0) * rx, 0, cz + Math.sin(a0) * rz);
+        pos.push(cx + Math.cos(a1) * rx, 0, cz + Math.sin(a1) * rz);
+      }
+    };
+    disc(0, 0.045, 0.075, 0.058);            // pad
+    disc(-0.06, -0.055, 0.031, 0.031);       // toes
+    disc(0, -0.075, 0.031, 0.031);
+    disc(0.06, -0.055, 0.031, 0.031);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    return g;
+  }
+
+  private static readonly FOOTPRINT_CAPACITY = 24;
+  private static readonly FOOTPRINT_FADE_MS = 5200;
+
+  private ensureFootprints() {
+    if (this.footprints) return this.footprints;
+    const capacity = BaseLevelScene.FOOTPRINT_CAPACITY;
+    // Snow takes a bluish dent; soil takes a darker scuff. Stone takes
+    // nothing, and callers skip it before reaching here.
+    const snow = this.footstepSurface === 'snow';
+    const mat = new THREE.MeshBasicMaterial({
+      color: snow ? 0x8fa8c0 : 0x5a4632,
+      transparent: true,
+      opacity: snow ? 0.45 : 0.3,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    const mesh = new THREE.InstancedMesh(BaseLevelScene.pawGeometry(), mat, capacity);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.frustumCulled = false;
+    // Park every slot at zero scale until it is used, so the pool starts invisible.
+    const m = new THREE.Matrix4().makeScale(0, 0, 0);
+    for (let i = 0; i < capacity; i++) mesh.setMatrixAt(i, m);
+    mesh.instanceMatrix.needsUpdate = true;
+
+    this.footprints = mesh;
+    this.footprintAge = new Float32Array(capacity);
+    // x, y, z, yaw per slot, so the fade can rebuild each matrix without
+    // reading back from the GPU buffer.
+    this.footprintPose = new Float32Array(capacity * 4);
+    this.scene.add(mesh);
+    return mesh;
+  }
+
+  /**
+   * Leave one print. Called from the footstep beat in `updateMovement`, so
+   * prints land in step with the sound instead of on a timer of their own.
+   */
+  protected dropFootprint() {
+    if (this.footstepSurface === 'stone') return;
+    if (this.prefersReducedMotion) return;
+    const mesh = this.ensureFootprints();
+    const age = this.footprintAge;
+    const pose = this.footprintPose;
+    if (!age || !pose) return;
+
+    const i = this.footprintNext % BaseLevelScene.FOOTPRINT_CAPACITY;
+    this.footprintNext++;
+    this.footprintFoot = -this.footprintFoot;
+
+    // Beside the centre line, on the side of whichever foot is falling, and a
+    // little behind the hero so the print appears under him rather than ahead.
+    const side = this.footprintFoot * 0.13;
+    const cos = Math.cos(this.yaw);
+    const sin = Math.sin(this.yaw);
+    const x = this.hero.position.x + cos * side - sin * 0.06;
+    const z = this.hero.position.z - sin * side - cos * 0.06;
+
+    age[i] = 1;
+    pose[i * 4] = x;
+    pose[i * 4 + 1] = this.groundHeightAt(x, z) + 0.015;
+    pose[i * 4 + 2] = z;
+    pose[i * 4 + 3] = this.yaw;
+    this.writeFootprint(mesh, i, 1);
+    mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  private footprintMatrix = new THREE.Matrix4();
+
+  private writeFootprint(mesh: THREE.InstancedMesh, i: number, scale: number) {
+    const pose = this.footprintPose!;
+    const m = this.footprintMatrix;
+    m.makeRotationY(pose[i * 4 + 3]);
+    m.scale(new THREE.Vector3(scale, scale, scale));
+    m.setPosition(pose[i * 4], pose[i * 4 + 1], pose[i * 4 + 2]);
+    mesh.setMatrixAt(i, m);
+  }
+
+  /**
+   * Age the prints. Driven from `updateAmbient`, which every level calls.
+   *
+   * Fades by shrinking rather than by per-instance alpha. Alpha would need a
+   * custom attribute and an `onBeforeCompile` patch against three's own
+   * shader chunks — which was the first attempt, and it silently produced a
+   * material that drew nothing at all. Scale needs no shader internals and
+   * cannot break on a three.js upgrade.
+   */
+  private updateFootprints(dt: number) {
+    const age = this.footprintAge;
+    const mesh = this.footprints;
+    if (!age || !mesh) return;
+    const step = (dt * 1000) / BaseLevelScene.FOOTPRINT_FADE_MS;
+    let dirty = false;
+    for (let i = 0; i < age.length; i++) {
+      if (age[i] <= 0) continue;
+      age[i] = Math.max(0, age[i] - step);
+      // Hold near full size for the first stretch, then shrink away, so a
+      // print reads as settled snow rather than as something deflating from
+      // the moment it lands.
+      this.writeFootprint(mesh, i, Math.min(1, age[i] * 1.9));
+      dirty = true;
+    }
+    if (dirty) mesh.instanceMatrix.needsUpdate = true;
   }
 
   dispose() {
