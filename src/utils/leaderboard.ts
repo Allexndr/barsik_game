@@ -32,6 +32,35 @@ export function scoreOf(row: LeaderboardRow): number {
   return row.total_stars ?? row.stars ?? 0;
 }
 
+/** Season 1 ships 17 levels and 9 friends — see levels.ts / season1Friends.ts. */
+const SEASON1_LEVELS = 17;
+const SEASON1_FRIEND_COUNT = 9;
+
+/**
+ * Drop rows the game could not have produced.
+ *
+ * `barsik_leaderboard` is a view over `barsik_saves`, and until the RLS fix
+ * (`supabase/fix_leaderboard_rls.sql`, 2026-08-04) anon held full write access
+ * to that table. Rows from that window are still in there — the top one claims
+ * 1486 stars across **91 levels** with **18 friends**, in a season that has 17
+ * and 9. It sits at rank 1 and every child sees it as the score to beat.
+ *
+ * The test is structural, not a guessed score ceiling: a run cannot finish more
+ * levels than exist or collect more friends than were written. That catches the
+ * corrupt row without risking a real high scorer, whose star total depends on
+ * in-level pickups and has no clean upper bound to compare against.
+ *
+ * Client-side because the view is read-only from here by design; the rows
+ * themselves need a migration, which is the owner's to run.
+ */
+function isPlausible(row: LeaderboardRow): boolean {
+  const levels = Number(row.levels);
+  const friends = Number(row.friends);
+  if (Number.isFinite(levels) && (levels < 0 || levels > SEASON1_LEVELS)) return false;
+  if (Number.isFinite(friends) && (friends < 0 || friends > SEASON1_FRIEND_COUNT)) return false;
+  return scoreOf(row) >= 0;
+}
+
 /**
  * Best row per player.
  *
@@ -59,5 +88,5 @@ export async function fetchLeaderboard(limit = 20): Promise<LeaderboardRow[]> {
     throw new Error(`leaderboard_${res.status}`);
   }
   const rows = (await res.json()) as LeaderboardRow[];
-  return Array.isArray(rows) ? dedupeByName(rows).slice(0, limit) : [];
+  return Array.isArray(rows) ? dedupeByName(rows.filter(isPlausible)).slice(0, limit) : [];
 }
