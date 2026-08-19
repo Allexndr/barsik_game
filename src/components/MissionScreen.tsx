@@ -56,6 +56,7 @@ export function MissionScreen({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<ILevelScene | null>(null);
   const stickRef = useRef<HTMLDivElement>(null);
+  const zoneRef = useRef<HTMLDivElement>(null);
   const [hud, setHud] = useState<BaseHud>(emptyHud);
   const [loading, setLoading] = useState(true);
   const [assetsReady, setAssetsReady] = useState(false);
@@ -125,48 +126,87 @@ export function MissionScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang, player?.nick, levelId]);
 
+  /**
+   * Плавающий джойстик.
+   *
+   * Раньше стик был прибит к кружку в углу и слушал только сам себя: палец,
+   * опустившийся в двух сантиметрах мимо, не делал ничего. Ребёнок из этого
+   * делает вывод, что игра не слушается, — и это была главная жалоба на
+   * управление.
+   *
+   * Теперь касание в любой точке левой половины поднимает стик под палец:
+   * центр там, где палец коснулся, а не там, где нарисован кружок. Радиус
+   * отклонения берётся от размера самого стика, поэтому на планшете он
+   * больше, а не «тот же в пикселях».
+   */
   useEffect(() => {
+    const zone = zoneRef.current;
     const el = stickRef.current;
-    if (!el) return;
-    let active = false;
+    if (!zone || !el) return;
+    let pointer: number | null = null;
     let cx = 0;
     let cy = 0;
+    let radius = 48;
     const knob = el.querySelector('.m0-knob') as HTMLDivElement;
 
     const setJoy = (x: number, y: number) => {
       sceneRef.current?.setJoystick(x, y);
-      if (knob) knob.style.transform = `translate(${x * 28}px, ${y * 28}px)`;
+      if (knob) {
+        const travel = radius * 0.55;
+        knob.style.transform = `translate(${x * travel}px, ${y * travel}px)`;
+      }
+    };
+
+    const park = () => {
+      el.style.left = '';
+      el.style.top = '';
+      el.style.bottom = '';
+      el.classList.remove('is-held');
     };
 
     const onStart = (e: PointerEvent) => {
-      active = true;
-      el.setPointerCapture(e.pointerId);
-      const r = el.getBoundingClientRect();
-      cx = r.left + r.width / 2;
-      cy = r.top + r.height / 2;
+      if (pointer !== null) return;
+      pointer = e.pointerId;
+      zone.setPointerCapture(e.pointerId);
+      cx = e.clientX;
+      cy = e.clientY;
+      const size = el.getBoundingClientRect().width || 110;
+      radius = size / 2;
+      // Стик встаёт ровно под палец. Координаты пересчитываются относительно
+      // зоны: она сама position:absolute, поэтому она и есть система отсчёта
+      // для стика, а не экран.
+      const zr = zone.getBoundingClientRect();
+      el.style.left = `${cx - zr.left - radius}px`;
+      el.style.top = `${cy - zr.top - radius}px`;
+      el.style.bottom = 'auto';
+      el.classList.add('is-held');
+      setJoy(0, 0);
     };
     const onMove = (e: PointerEvent) => {
-      if (!active) return;
+      if (e.pointerId !== pointer) return;
       const dx = e.clientX - cx;
       const dy = e.clientY - cy;
       const len = Math.hypot(dx, dy) || 1;
-      const cl = Math.min(1, len / 48);
+      const cl = Math.min(1, len / radius);
       setJoy((dx / len) * cl, (dy / len) * cl);
     };
-    const onEnd = () => {
-      active = false;
+    const onEnd = (e: PointerEvent) => {
+      if (e.pointerId !== pointer) return;
+      pointer = null;
+      zone.releasePointerCapture?.(e.pointerId);
       setJoy(0, 0);
+      park();
     };
 
-    el.addEventListener('pointerdown', onStart);
-    el.addEventListener('pointermove', onMove);
-    el.addEventListener('pointerup', onEnd);
-    el.addEventListener('pointercancel', onEnd);
+    zone.addEventListener('pointerdown', onStart);
+    zone.addEventListener('pointermove', onMove);
+    zone.addEventListener('pointerup', onEnd);
+    zone.addEventListener('pointercancel', onEnd);
     return () => {
-      el.removeEventListener('pointerdown', onStart);
-      el.removeEventListener('pointermove', onMove);
-      el.removeEventListener('pointerup', onEnd);
-      el.removeEventListener('pointercancel', onEnd);
+      zone.removeEventListener('pointerdown', onStart);
+      zone.removeEventListener('pointermove', onMove);
+      zone.removeEventListener('pointerup', onEnd);
+      zone.removeEventListener('pointercancel', onEnd);
     };
   }, []);
 
@@ -322,12 +362,16 @@ export function MissionScreen({
       ) : null}
 
       {showStick ? (
-        <div className="m0-stick" ref={stickRef} aria-label="Joystick">
-          <div className="m0-knob" />
+        <div className="m0-stick-zone" ref={zoneRef} aria-hidden>
+          <div className="m0-stick" ref={stickRef} aria-label="Joystick">
+            <div className="m0-knob" />
+          </div>
         </div>
       ) : (
-        <div className="m0-stick m0-stick-hidden" ref={stickRef} aria-hidden>
-          <div className="m0-knob" />
+        <div className="m0-stick-zone m0-stick-hidden" ref={zoneRef} aria-hidden>
+          <div className="m0-stick" ref={stickRef}>
+            <div className="m0-knob" />
+          </div>
         </div>
       )}
 

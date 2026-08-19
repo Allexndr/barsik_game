@@ -1468,8 +1468,11 @@ export abstract class BaseLevelScene {
     let announcedLook = false;
     const start = (e: PointerEvent) => {
       if (this.orbitPointerId !== null) return;
-      // Left edge belongs to the virtual joystick.
-      if (e.pointerType === 'touch' && e.clientX < window.innerWidth * 0.32) return;
+      // Мёртвой зоны слева больше нет. Она защищала виртуальный стик, пока
+      // тот был прибит к кружку в углу; теперь стик — это собственный слой на
+      // всю левую половину, и палец, попавший на него, до канваса просто не
+      // доходит. А та треть экрана, где стика нет, снова умеет крутить камеру:
+      // раньше касание там не делало ничего вообще.
       this.orbitDragging = true;
       this.orbitPointerId = e.pointerId;
       announcedLook = false;
