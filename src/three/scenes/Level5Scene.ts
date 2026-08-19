@@ -44,7 +44,15 @@ import { placeS1Prop } from '../s1Place';
  *       is the reward for solving it.
  */
 
-export type L6Phase = 'intro' | 'escort' | 'blocked' | 'handover' | 'carry' | 'arrived' | 'outro';
+export type L6Phase =
+  | 'intro'
+  | 'escort'
+  | 'spilled'
+  | 'blocked'
+  | 'handover'
+  | 'carry'
+  | 'arrived'
+  | 'outro';
 
 export interface L6Hud extends BaseHud {
   escortDistance: number;
@@ -68,9 +76,47 @@ function routeX(z: number) {
 }
 
 const ROUTE_START_Z = 4;
-const ROUTE_END_Z = -46;
+/**
+ * Конец маршрута.
+ *
+ * Было −46, и на третий акт — тот, ради которого уровень назван, — оставалось
+ * двенадцать метров: Барсик брал корзину и через четыре секунды приходил.
+ * Обмен ролями успевал случиться, но не успевал сыграть. Теперь после
+ * передачи корзины остаётся тридцать семь метров и три остановки, на которых
+ * белочка, впервые за уровень налегке, убегает вперёд и ждёт.
+ */
+const ROUTE_END_Z = -68;
 /** Where the burrow sits, a little past the end of the walked route. */
-const HOME_Z = -49;
+const HOME_Z = -71;
+
+/** Где белочка спотыкается и рассыпает орехи. */
+const SPILL_Z = -7;
+
+/**
+ * Остановки третьего акта.
+ *
+ * Белочка добегает до точки и ждёт Барсика, чтобы что-то показать. Это не
+ * задания: пройти мимо нельзя только потому, что дальше она не пойдёт, пока
+ * он не подойдёт — ровно та же механика сопровождения, но зеркальная. Ждёт
+ * теперь она.
+ */
+const STORY_STOPS: ReadonlyArray<{ z: number; ru: string; kk: string }> = [
+  {
+    z: -48,
+    ru: 'Смотри, какой я лёгкая стала! Побежали, я покажу дорогу!',
+    kk: 'Қара, қандай жеңіл болдым! Жүгірдік, жолды көрсетемін!',
+  },
+  {
+    z: -56,
+    ru: 'Вот этот пень — мой любимый. С него видно всю поляну.',
+    kk: 'Мына томар — менің сүйіктім. Одан бүкіл алаң көрінеді.',
+  },
+  {
+    z: -63,
+    ru: 'Уже пахнет домом! Слышишь, как шумят сосны у норки?',
+    kk: 'Үйдің иісі шығып тұр! Ін жанындағы қарағайлардың сыбдырын естисің бе?',
+  },
+];
 
 interface Obstacle {
   /** Object the child taps. */
@@ -223,6 +269,17 @@ export class Level5Scene extends BaseLevelScene {
   private activeBlockage: Blockage | null = null;
   private butterflies: THREE.Group[] = [];
 
+  /** Первый акт: орехи, которые белочка рассыпала. */
+  private spilledNuts: Array<{ mesh: THREE.Object3D; taken: boolean }> = [];
+  private spillDone = false;
+  /** Третий акт: остановки, на которых она ждёт и рассказывает. */
+  private stops: Array<{ z: number; told: boolean; ru: string; kk: string }> =
+    STORY_STOPS.map((s) => ({ ...s, told: false }));
+  private stopWaiting: (typeof this.stops)[number] | null = null;
+  private stopLineUntil = 0;
+  private stopRu = '';
+  private stopKk = '';
+
   protected currentPhase() { return this.phase; }
 
   protected onMovementHintDismiss() {
@@ -250,6 +307,25 @@ export class Level5Scene extends BaseLevelScene {
           this.activeBlockage.marker.visible = false;
           this.stars += 2;
           this.activeBlockage = null;
+          this.phase = 'escort';
+        }
+        this.pushHud();
+      }
+      return;
+    }
+
+    if (this.phase === 'spilled') {
+      const nut = this.spilledNuts.find((o) => !o.taken && o.mesh === t);
+      if (nut) {
+        nut.taken = true;
+        nut.mesh.visible = false;
+        this.stars += 1;
+        this.spawnSparks(nut.mesh.position, 8, [0xd7a86e, 0xfff1a8]);
+        AudioManager.sfx('success');
+        this.praiseUntil = now + 500;
+        this.interactTarget = null;
+        if (this.spilledNuts.every((o) => o.taken)) {
+          this.stars += 2;
           this.phase = 'escort';
         }
         this.pushHud();
@@ -315,8 +391,16 @@ export class Level5Scene extends BaseLevelScene {
       // third of it, burrow included. Pushed out so the ground only starts to
       // rise as the walk ends, which is where the spec wants the burrow
       // visible from a distance anyway.
-      terrain: { playHalfExtent: 56, rimFalloff: 16 },
-      grass: { area: { xMin: -34, xMax: 34, zMin: -54, zMax: 14 } },
+      terrain: { playHalfExtent: 78, rimFalloff: 16 },
+      // Площадь выросла с 4624 до 6120 м² вместе с третьим актом. Счётчик по
+      // умолчанию задан на уровень, а не на метр, поэтому та же трава на
+      // большей земле стала бы на четверть реже — и это было бы видно как раз
+      // в новой части. Одна инстансированная отрисовка, один треугольник на
+      // травинку: 7000 добавленных стоят дешевле, чем лысая половина уровня.
+      grass: {
+        count: this.isMobile ? 10600 : 29000,
+        area: { xMin: -34, xMax: 34, zMin: -76, zMax: 14 },
+      },
     });
     // setupForestEnvironment already puts up the sky, the clouds and the ridge
     // backdrop; the level used to add a second set of each on top.
@@ -325,6 +409,10 @@ export class Level5Scene extends BaseLevelScene {
       [-26, -12, 11, 1.2],
       [27, -34, 12, 1.4],
       [-24, -44, 10, 1.1],
+      // Третий акт получил свою землю — ему нужен и свой горизонт, иначе
+      // последние двадцать метров идут по пустому полю.
+      [26, -58, 12, 1.3],
+      [-27, -66, 11, 1.2],
     ] as const) {
       this.scene.add(hill(hx, hz, hr, hh));
     }
@@ -417,6 +505,54 @@ export class Level5Scene extends BaseLevelScene {
       this.blockages.push({ z, kind, items, marker });
     }
 
+    // ── Act I: рассыпанные орехи ──────────────────────────────
+    // Лежат по обе стороны тропы в двух-трёх метрах: собрать их — это обойти
+    // белочку кругом, а не сойти с маршрута.
+    const spillX = routeX(SPILL_Z);
+    for (const [ox, oz] of [
+      [-2.4, 0.9], [-1.3, -1.6], [0.8, 1.8], [2.2, -0.7], [2.9, 1.5],
+    ] as const) {
+      const nut = new THREE.Mesh(
+        new THREE.SphereGeometry(0.13, 10, 8),
+        new THREE.MeshStandardMaterial({
+          color: 0xb5763c,
+          emissive: 0x8a5a2a,
+          emissiveIntensity: 0.35,
+          roughness: 0.7,
+        }),
+      );
+      const nx = spillX + ox;
+      const nz = SPILL_Z + oz;
+      nut.position.set(nx, this.groundHeightAt(nx, nz) + 0.16, nz);
+      nut.castShadow = true;
+      nut.visible = false;
+      this.scene.add(nut);
+      this.spilledNuts.push({ mesh: nut, taken: false });
+    }
+
+    // ── Act III: то, что белочка показывает по дороге ─────────
+    // Реплика на второй остановке называет пень. Пня в сцене не было бы, и
+    // она показывала бы на пустое место.
+    const stumpZ = STORY_STOPS[1].z;
+    const stump = await kit.spawn('nature', 'stump_oldTall', {
+      maxSize: 1.5,
+      position: [routeX(stumpZ) + 2.6, 0, stumpZ - 0.4],
+    });
+    if (stump) {
+      this.snapToGround(stump);
+      this.scene.add(stump);
+      this.colliders.push({ kind: 'circle', x: stump.position.x, z: stump.position.z, r: 0.6 });
+    }
+    for (const [mx, mz] of [[-2.2, 1.2], [2.4, -1.4], [-1.8, -2.6]] as const) {
+      const shroom = await kit.spawn('nature', mz > 0 ? 'mushroom_redGroup' : 'mushroom_tanGroup', {
+        maxSize: 0.55,
+        position: [routeX(STORY_STOPS[0].z) + mx, 0, STORY_STOPS[0].z + mz],
+      });
+      if (!shroom) continue;
+      this.snapToGround(shroom);
+      this.scene.add(shroom);
+    }
+
     // ── The burrow ────────────────────────────────────────────
     const homeX = routeX(HOME_Z);
     const home = await buildSquirrelHome(kit, homeX, HOME_Z);
@@ -498,6 +634,10 @@ export class Level5Scene extends BaseLevelScene {
 
     await this.loadTrees(loader, 34, 26, -22, 4.5);
     await this.loadProps(loader, 9, 7, 26, -24);
+    // Подлесок был рассыпан вокруг (0, −24) и до третьего акта не доходил:
+    // замерено 90 вызовов отрисовки на кадр в новой части против 463 на
+    // старте — то есть последняя треть пути шла по голой земле.
+    await this.loadProps(loader, 8, 6, 24, -56);
 
     for (let i = 0; i < 6; i++) {
       const z = -5 - Math.random() * 36;
@@ -595,6 +735,14 @@ export class Level5Scene extends BaseLevelScene {
         line = this.copy('Идём вместе! Ты молодец!', 'Бірге жүреміз! Жарайсың!');
         objective = this.copy('🐿️ Иди рядом с белочкой', '🐿️ Тиіннің жанында жүр');
       }
+    } else if (p === 'spilled') {
+      const left = this.spilledNuts.filter((o) => !o.taken).length;
+      speaker = this.copy('Белочка', 'Тиін');
+      line = this.copy(
+        'Ой, я споткнулась! Орешки рассыпались… Соберёшь их?',
+        'Ой, сүрініп кеттім! Жаңғақтар шашылып қалды… Жинап бересің бе?',
+      );
+      objective = this.copy(`🌰 Собери орешки: ${left}`, `🌰 Жаңғақтарды жина: ${left}`);
     } else if (p === 'blocked') {
       speaker = this.copy('Белочка', 'Тиін');
       if (this.activeBlockage?.kind === 'stones') {
@@ -614,11 +762,21 @@ export class Level5Scene extends BaseLevelScene {
         ? this.copy('Возьми корзину — нажми лапку', 'Себетті ал — табанды бас')
         : this.copy('Возьми корзину — нажми E', 'Себетті ал — E пернесін бас');
     } else if (p === 'carry') {
-      line = this.copy(
-        'Давай я понесу! Теперь тебе легко — идём к норке.',
-        'Мен көтерейін! Енді саған жеңіл — інге барайық.',
-      );
-      objective = this.copy('🌰 Донеси корзину до норки', '🌰 Себетті інге жеткіз');
+      if (this.stopWaiting) {
+        speaker = this.copy('Белочка', 'Тиін');
+        line = this.copy('Догоняй! Я тебе кое-что покажу.', 'Қуып жет! Мен саған бірдеңе көрсетемін.');
+        objective = this.copy('🐿️ Догони белочку', '🐿️ Тиінді қуып жет');
+      } else if (performance.now() < this.stopLineUntil) {
+        speaker = this.copy('Белочка', 'Тиін');
+        line = this.copy(this.stopRu, this.stopKk);
+        objective = this.copy('🌰 Донеси корзину до норки', '🌰 Себетті інге жеткіз');
+      } else {
+        line = this.copy(
+          'Давай я понесу! Теперь тебе легко — идём к норке.',
+          'Мен көтерейін! Енді саған жеңіл — інге барайық.',
+        );
+        objective = this.copy('🌰 Донеси корзину до норки', '🌰 Себетті інге жеткіз');
+      }
     } else if (p === 'arrived') {
       speaker = this.copy('Белочка', 'Тиін');
       line = this.copy('Ура, мы дошли! Спасибо! Вот жёлудь-ключ!', 'Жеттік! Рахмет! Міне жаңғақ-кілт!');
@@ -663,6 +821,18 @@ export class Level5Scene extends BaseLevelScene {
       return best;
     }
 
+    if (this.phase === 'spilled') {
+      let best: THREE.Object3D | null = null;
+      let bestD = 2.4;
+      for (const nut of this.spilledNuts) {
+        if (nut.taken) continue;
+        // По плоскости: орех лежит на своей высоте рельефа, герой на своей.
+        const d = Math.hypot(hp.x - nut.mesh.position.x, hp.z - nut.mesh.position.z);
+        if (d < bestD) { bestD = d; best = nut.mesh; }
+      }
+      return best;
+    }
+
     if ((this.phase === 'handover' || this.phase === 'arrived') && this.squirrel) {
       if (hp.distanceTo(this.squirrel.position) < 2.0) return this.squirrel;
     }
@@ -676,6 +846,12 @@ export class Level5Scene extends BaseLevelScene {
       const next = this.activeBlockage.items.find((o) => !o.cleared);
       if (next) return next.mesh.position.clone();
     }
+    if (p === 'spilled') {
+      const next = this.spilledNuts.find((o) => !o.taken);
+      if (next) return next.mesh.position.clone();
+    }
+    // Пока она ждёт на остановке — стрелка ведёт к ней, а не к норке.
+    if (p === 'carry' && this.stopWaiting && this.squirrel) return this.squirrel.position.clone();
     if (p === 'carry') return new THREE.Vector3(routeX(HOME_Z), 0, HOME_Z);
     if (this.squirrel && (p === 'escort' || p === 'handover' || p === 'arrived')) {
       return this.squirrel.position.clone();
@@ -703,7 +879,13 @@ export class Level5Scene extends BaseLevelScene {
     }
 
     const canMove = !['intro', 'outro'].includes(this.phase);
-    this.updateMovement(dt, canMove, this.baseSpeed, -22, 22, -56, 8);
+    // Корзина тяжёлая — это посылка всего уровня, и до третьего акта она
+    // держалась только на репликах белочки. С корзиной в лапах Барсик идёт
+    // медленнее неё (2.30 против 3.00), поэтому обмен ролями наконец
+    // чувствуется: теперь ждут его. Это не растянутая ходьба — вне третьего
+    // акта скорость прежняя.
+    const speed = this.carrying ? this.baseSpeed * 0.72 : this.baseSpeed;
+    this.updateMovement(dt, canMove, speed, -22, 22, -78, 8);
 
     this.updateSquirrel(dt, now);
     this.updateClearedObstacles(dt);
@@ -771,6 +953,54 @@ export class Level5Scene extends BaseLevelScene {
       mat.opacity = isNearby ? 0.32 + Math.sin(now * 0.004) * 0.08 : 0.45;
     }
 
+
+    // ── Первый акт: она спотыкается и рассыпает орехи ──
+    //
+    // Уровень весь построен на «корзина тяжёлая», но до этого места ребёнок
+    // знал это только со слов. Рассыпанные орехи — первое, что показывает вес
+    // корзины действием, и они же готовят обмен ролями в третьем акте.
+    if (this.phase === 'escort' && !this.spillDone && s.position.z < SPILL_Z) {
+      this.spillDone = true;
+      this.squirrelMoving = false;
+      this.phase = 'spilled';
+      for (const nut of this.spilledNuts) nut.mesh.visible = true;
+      this.spawnSparks(s.position, 14, [0xd7a86e, 0xb98a52]);
+      AudioManager.sfx('stumble');
+      this.pushHud();
+      return;
+    }
+
+    // ── Третий акт: она добегает до точки и ждёт ──
+    if (this.phase === 'carry' && !this.stopWaiting) {
+      const stop = this.stops.find((st) => !st.told && s.position.z <= st.z);
+      if (stop) {
+        this.stopWaiting = stop;
+        this.squirrelMoving = false;
+        this.pushHud();
+      }
+    }
+    if (this.stopWaiting) {
+      if (distToHero <= 2.8) {
+        this.stopWaiting.told = true;
+        this.stopRu = this.stopWaiting.ru;
+        this.stopKk = this.stopWaiting.kk;
+        this.stopLineUntil = now + 4600;
+        this.stopWaiting = null;
+        this.stars += 1;
+        const heart = makeHeart(s.position.x, s.position.y + 1.0, s.position.z);
+        this.hearts.push(heart);
+        this.scene.add(heart);
+        AudioManager.sfx('found');
+        this.pushHud();
+      } else {
+        // Пока ждёт — не идёт. Дальше по коду её движение не запускается.
+        this.squirrelMoving = false;
+        if (s.userData.isPlushAnimal || s.userData.isPlushCharacter) {
+          updatePlushAnimal(s, false, now * 0.001);
+        }
+        return;
+      }
+    }
 
     if (walking && (isNearby || this.carrying) && this.currentWaypoint < this.waypoints.length) {
       const wp = this.waypoints[this.currentWaypoint];
