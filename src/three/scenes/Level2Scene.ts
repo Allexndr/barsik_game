@@ -129,33 +129,58 @@ function appleIndicators(
   displayColor: number,
   ground = 0,
 ): { ring: THREE.Mesh; beam: THREE.Mesh } {
+  // Кольцо шире и ярче прежнего (было 0.3–0.5 при непрозрачности 0.6).
+  // Трава здесь ростом 30–68 см и после уплотнения до 22 000 травинок
+  // закрывает и метку, и само яблоко: узкое бледное кольцо в такой траве
+  // просто не видно.
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.3, 0.5, 20),
+    new THREE.RingGeometry(0.5, 0.86, 24),
     new THREE.MeshBasicMaterial({
       color: displayColor,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.75,
       side: THREE.DoubleSide,
       depthWrite: false,
+      toneMapped: false,
     }),
   );
   ring.rotation.x = -Math.PI / 2;
-  ring.position.set(x, ground + 0.04, z);
+  ring.position.set(x, ground + 0.05, z);
 
+  // Столб света от земли — единственное, что читается поверх травы с другого
+  // конца сада. Прежний был высотой 1.6 м от y = ground + 1.0, то есть начинал
+  // расти уже НАД травой и снизу ни к чему не крепился.
   const beam = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.04, 0.08, 1.6, 6),
+    new THREE.CylinderGeometry(0.07, 0.24, 2.4, 8, 1, true),
     new THREE.MeshStandardMaterial({
       color: displayColor,
       emissive: displayColor,
-      emissiveIntensity: 0.7,
+      emissiveIntensity: 0.9,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.3,
       depthWrite: false,
+      side: THREE.DoubleSide,
     }),
   );
-  beam.position.set(x, ground + 1.0, z);
+  beam.position.set(x, ground + 1.2, z);
 
   return { ring, beam };
+}
+
+/**
+ * Посадить пикап на землю по его собственным габаритам.
+ *
+ * Высота задавалась от начала координат модели, а начало у разных файлов
+ * яблок в разных местах. Замерено на живой сцене: при одном и том же
+ * `y = ground + 0.22` одна модель стояла низом на 9 см НАД землёй, а другая
+ * на 2 см ПОД ней — четыре из семи наземных яблок были частично закопаны.
+ * Ребёнку это читается как «яблоко утонуло в траве», потому что оно и утонуло.
+ */
+function seatOnGround(obj: THREE.Object3D, ground: number, lift: number) {
+  obj.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(obj);
+  if (!Number.isFinite(box.min.y)) return;
+  obj.position.y += ground + lift - box.min.y;
 }
 
 function makeApple(
@@ -212,7 +237,10 @@ async function makeKitApple(
     : color === 'red'
       ? CAST_PROP_GLB.apple
       : CAST_PROP_GLB.apple_discover;
-  const meshyApple = await loadPropModel(loader, meshyFile, { maxSize: bonus ? 0.55 : 0.48 });
+  // Крупнее: было 0.48 у обычного яблока при траве ростом до 0.68 м —
+  // яблоко было НИЖЕ травы, в которой лежало. Замерено: верх наземных яблок
+  // стоял на 35–46 см, то есть внутри травяного полога.
+  const meshyApple = await loadPropModel(loader, meshyFile, { maxSize: bonus ? 0.85 : 0.78 });
   if (meshyApple) {
     if (!bonus && color !== 'red') tintAppleRoot(meshyApple, displayColor, 0.22);
     else if (bonus) tintAppleRoot(meshyApple, displayColor, 0.45);
@@ -235,7 +263,7 @@ async function makeKitApple(
   }
 
   const kitApple = await kit.spawn('food', 'apple', {
-    maxSize: bonus ? 0.55 : 0.48,
+    maxSize: bonus ? 0.85 : 0.78,
     position: [x, y, z],
     ground: false,
   });
@@ -1613,6 +1641,13 @@ export class Level2Scene extends BaseLevelScene {
       const apple = await makeKitApple(
         kit, loader, p.x, p.z, g + p.y, p.color, p.onGround, p.bonus, g,
       );
+      // Низ яблока на 10 см над землёй у наземных и на метр у висящих —
+      // считается от габаритов модели, а не от её начала координат.
+      seatOnGround(apple.mesh, g, p.bonus ? 1.0 : 0.1);
+      // Трава сюда не растёт: 22 000 травинок ростом до 68 см иначе стоят
+      // прямо сквозь пикап. Резерв ставится до `activate`, где трава и
+      // раскладывается.
+      this.reserve(p.x, p.z, 1.1);
       this.apples.push(apple);
       this.scene.add(apple.mesh, apple.ring, apple.beam);
     }
@@ -1622,6 +1657,8 @@ export class Level2Scene extends BaseLevelScene {
     this.demoApple = await makeKitApple(
       kit, loader, -1.5, -6, demoGround + 0.22, 'red', true, false, demoGround,
     );
+    seatOnGround(this.demoApple.mesh, demoGround, 0.1);
+    this.reserve(-1.5, -6, 1.1);
     this.apples.push(this.demoApple);
     this.scene.add(this.demoApple.mesh, this.demoApple.ring, this.demoApple.beam);
 
