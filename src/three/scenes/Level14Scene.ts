@@ -249,7 +249,10 @@ export class Level14Scene extends BaseLevelScene {
     this.ayaGroup = ayaGlb ?? createPlushCharacter(AYA_LOOK);
     this.ayaGroup.position.copy(AYA_POS);
     this.ayaGroup.rotation.y = Math.PI;
-    const scarfGlb = await loadPropModel(loader, CAST_PROP_GLB.scarf, { maxSize: 0.55 });
+    // Крупнее: с игровой камеры в девяти метрах предмет меньше двух третей
+    // метра ребёнок не опознаёт как «то, что надо взять». Тот же класс, что
+    // яблоки на L2, только тонуть здесь не в чем — снег без высокой травы.
+    const scarfGlb = await loadPropModel(loader, CAST_PROP_GLB.scarf, { maxSize: 0.82 });
     const scarf = scarfGlb ?? new THREE.Mesh(
       new THREE.TorusGeometry(0.32, 0.08, 8, 16),
       new THREE.MeshStandardMaterial({ color: 0xff6b6b, emissive: 0xff6b6b, emissiveIntensity: 0.3 }),

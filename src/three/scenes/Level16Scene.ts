@@ -284,7 +284,10 @@ export class Level16Scene extends BaseLevelScene {
     this.iceKey.visible = this.hasIceKey;
     this.scene.add(this.iceKey);
 
-    const crystalTpl = await loadPropModel(loader, CAST_PROP_GLB.ice_crystal, { maxSize: 0.5 });
+    // Крупнее: с игровой камеры в девяти метрах предмет меньше двух третей
+    // метра ребёнок не опознаёт как «то, что надо взять». Тот же класс, что
+    // яблоки на L2, только тонуть здесь не в чем — снег без высокой травы.
+    const crystalTpl = await loadPropModel(loader, CAST_PROP_GLB.ice_crystal, { maxSize: 0.75 });
     for (let i = 0; i < 8; i++) {
       const angle = (i / 8) * Math.PI * 2;
       const r = 5.4;

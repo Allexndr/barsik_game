@@ -217,7 +217,9 @@ export class Level11Scene extends BaseLevelScene {
     const z = THREE.MathUtils.clamp(cz + (Math.random() - 0.5) * spread, -26, 6);
 
     const mesh = new THREE.Mesh(
-      new THREE.OctahedronGeometry(gold ? 0.26 : 0.2),
+      // Снежинку надо успеть поймать в воздухе — значит, её надо сначала
+      // увидеть. Радиус 0.2 на фоне снега это точка.
+      new THREE.OctahedronGeometry(gold ? 0.38 : 0.3),
       new THREE.MeshStandardMaterial({
         color: gold ? 0xffe27a : 0xffffff,
         emissive: gold ? 0xf1c40f : 0xe1f5fe,
