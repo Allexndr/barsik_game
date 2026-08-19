@@ -512,7 +512,7 @@ export class Level5Scene extends BaseLevelScene {
       this.scene.add(tulip(routeX(z) + side * (2.4 + Math.random() * 1.4), z, [0xe74c3c, 0xf1c40f, 0xfd79a8, 0xa29bfe][i % 4]));
     }
 
-    this.hero.position.set(routeX(4), 0, 4);
+    this.hero.position.set(routeX(4), this.groundHeightAt(routeX(4), 4), 4);
     // The wall. Planted last, so it can read the corridor and every room the
     // level reserved and hug the outside of both.
     await this.encloseLevel(loader);
@@ -527,7 +527,7 @@ export class Level5Scene extends BaseLevelScene {
 
       const start = this.devStart();
       if (start) {
-        this.hero.position.set(start.x, 0, start.z);
+        this.hero.position.set(start.x, this.groundHeightAt(start.x, start.z), start.z);
         this.phase = 'escort';
         // Advance her to just behind wherever we were dropped, and open every
         // blockage already passed, so the level is consistent from any point.

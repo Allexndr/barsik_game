@@ -584,7 +584,7 @@ export class Level3Scene extends BaseLevelScene {
     }
 
     // Hero
-    this.hero.position.set(0, 0, 4);
+    this.hero.position.set(0, this.groundHeightAt(0, 4), 4);
     // This level is a serpentine, not a field: its beats sit alternately left
     // and right going down. Drawing that as an actual route, then walling it,
     // is what stops it reading as a clearing with things scattered in it.

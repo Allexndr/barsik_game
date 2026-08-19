@@ -755,7 +755,7 @@ export class Level2Scene extends BaseLevelScene {
     this.scene.add(tulip(0.2, -28.5, 0xf1c40f), tulip(2.8, -29.5, 0xe74c3c));
 
     // Hero
-    this.hero.position.set(0, 0, 4);
+    this.hero.position.set(0, this.groundHeightAt(0, 4), 4);
     // One room, not one road. A corridor here would put a wall through the
     // middle of the only space the level has.
     // Taken from the movement bounds the level already declares: x ±20, z −25..8 — the radius is that rectangle's half-diagonal, so the

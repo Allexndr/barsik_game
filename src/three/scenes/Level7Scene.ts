@@ -460,7 +460,7 @@ export class Level7Scene extends BaseLevelScene {
     this.colliders.push({ kind: 'circle', x: -9, z: -8, r: 1.5 });
 
     // Hero
-    this.hero.position.set(0, 0, 6);
+    this.hero.position.set(0, this.groundHeightAt(0, 6), 6);
     // The wall. Planted last, so it can read the corridor and every room the
     // level reserved and hug the outside of both.
     await this.encloseLevel(loader);
