@@ -13,6 +13,8 @@ const SUPABASE_ANON =
   import.meta.env.VITE_SUPABASE_ANON_KEY
   ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdXFhYXRwenlhdHpobW1kbXVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwODYwNDUsImV4cCI6MjA5OTY2MjA0NX0.fA7_lyCIPUppg_DmgMuwKHaFR93jMLXD7T7tEfWsceo';
 
+import { POINTS_PER_FRIEND, POINTS_PER_LEVEL, POINTS_PER_STAR, maxSeasonScore } from './score';
+
 export interface LeaderboardRow {
   name: string;
   stars: number;
@@ -28,8 +30,24 @@ function headers(): HeadersInit {
   };
 }
 
+/**
+ * Место в рейтинге.
+ *
+ * Раньше это было просто число звёзд. Звёзды капают за подобранные предметы,
+ * поэтому наверх выходил не тот, кто прошёл сезон, а тот, кто дольше ходил по
+ * одному уровню. Теперь вес несут пройденные уровни и найденные друзья, а
+ * звёзды остаются, но перестают быть единственным мерилом — веса общие с
+ * `score.ts`, чтобы строка с сервера и собственный результат игрока считались
+ * одинаково.
+ *
+ * Идеальных прохождений и купленных вещей во вьюхе нет, поэтому в счёте
+ * серверной строки их слагаемых нет тоже: сравнивать надо то, что есть у всех.
+ */
 export function scoreOf(row: LeaderboardRow): number {
-  return row.total_stars ?? row.stars ?? 0;
+  const stars = Number(row.total_stars ?? row.stars ?? 0) || 0;
+  const levels = Math.max(0, Number(row.levels) || 0);
+  const friends = Math.max(0, Number(row.friends) || 0);
+  return levels * POINTS_PER_LEVEL + friends * POINTS_PER_FRIEND + stars * POINTS_PER_STAR;
 }
 
 /** Season 1 ships 17 levels and 9 friends — see levels.ts / season1Friends.ts. */
@@ -58,7 +76,11 @@ function isPlausible(row: LeaderboardRow): boolean {
   const friends = Number(row.friends);
   if (Number.isFinite(levels) && (levels < 0 || levels > SEASON1_LEVELS)) return false;
   if (Number.isFinite(friends) && (friends < 0 || friends > SEASON1_FRIEND_COUNT)) return false;
-  return scoreOf(row) >= 0;
+  const score = scoreOf(row);
+  // Потолок сезона с четырёхкратным запасом по звёздам: честного собирателя
+  // такой порог не заденет, а строка, которой в этой игре набрать нельзя,
+  // детям не показывается.
+  return score >= 0 && score <= maxSeasonScore();
 }
 
 /**
