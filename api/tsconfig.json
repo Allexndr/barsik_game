@@ -1,0 +1,18 @@
+{
+  "//": "Функции Vercel собираются самой платформой и в основной tsconfig не входят (там include: ['src']). Этот конфиг нужен, чтобы ошибки в них ловились локально, а не в проде.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": false
+  },
+  "include": ["**/*.ts"]
+}
