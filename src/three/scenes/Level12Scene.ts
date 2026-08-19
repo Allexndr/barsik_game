@@ -26,7 +26,7 @@ import { AudioManager } from '@/audio/AudioManager';
  * teach the mechanic the level is named after.
  */
 
-export type L12Phase = 'intro' | 'learn' | 'turn' | 'run' | 'outro';
+export type L12Phase = 'intro' | 'learn' | 'turn' | 'run' | 'drop' | 'outro';
 
 export interface L12Hud extends BaseHud {
   segmentsCrossed: number;
@@ -35,7 +35,17 @@ export interface L12Hud extends BaseHud {
   slipped: boolean;
 }
 
-/** Route down the valley: straight, then three bends of increasing bite. */
+/**
+ * Route down the valley: straight, then bends of increasing bite, then the
+ * drop.
+ *
+ * Долина кончалась на z = −39: 55 м осевой линии при плановых 300 с — самый
+ * короткий маршрут главы при самой высокой планке. Продлена до −64 четвёртым
+ * актом «Спуск», где лёд быстрее, а колена короче и злее. Это та же механика
+ * на большей громкости, а не новая: уровень называется «Ледяная тропа», и
+ * последнее, что он должен показать, — тропу, на которой инерция наконец
+ * решает всё.
+ */
 const WAYPOINTS: Array<[number, number]> = [
   [0, 8],
   [0, 2],
@@ -46,20 +56,34 @@ const WAYPOINTS: Array<[number, number]> = [
   [2, -28],
   [7, -33],
   [8.5, -39],
+  // ── Четвёртый акт: быстрый лёд ──
+  [5.5, -44],
+  [-1.5, -48],
+  [-7, -52.5],
+  [-4.5, -58],
+  [2.5, -62],
+  [4, -66],
 ];
 
 /** Normalised checkpoint positions along the route. */
-const CHECKPOINTS = [0.2, 0.38, 0.56, 0.74, 0.92];
+const CHECKPOINTS = [0.13, 0.25, 0.37, 0.49, 0.6, 0.71, 0.82, 0.93];
 
 /** Crystals sit off the racing line, so the golden path costs a steer. */
 const CRYSTALS: Array<[t: number, lateral: number]> = [
-  [0.28, 0.55],
-  [0.44, -0.6],
-  [0.6, 0.65],
-  [0.72, -0.55],
-  [0.84, 0.6],
-  [0.95, 0],
+  [0.19, 0.55],
+  [0.3, -0.6],
+  [0.4, 0.65],
+  [0.48, -0.55],
+  [0.56, 0.6],
+  [0.63, 0],
+  [0.7, -0.62],
+  [0.77, 0.58],
+  [0.85, -0.6],
+  [0.95, 0.5],
 ];
+
+/** Где начинается спуск — по нормали вдоль тропы. */
+const DROP_T = 0.6;
 
 export class Level12Scene extends BaseLevelScene {
   private phase: L12Phase = 'intro';
@@ -90,14 +114,18 @@ export class Level12Scene extends BaseLevelScene {
 
   /** Inertia and trail width both tighten as the level progresses. */
   private get inertia() {
-    return this.phase === 'learn' ? 0.78 : this.phase === 'turn' ? 0.82 : 0.85;
+    if (this.phase === 'learn') return 0.78;
+    if (this.phase === 'turn') return 0.82;
+    // Спуск: лёд держит скорость дольше, поэтому поворот надо начинать раньше.
+    return this.phase === 'drop' ? 0.9 : 0.85;
   }
 
   private static halfWidthAt(t: number) {
-    // Wide while learning, tightening through the bends.
-    if (t < 0.2) return 1.95;
-    if (t < 0.38) return 1.75;
-    return THREE.MathUtils.lerp(1.6, 1.15, (t - 0.38) / 0.62);
+    // Wide while learning, tightening through the bends, tightest on the drop.
+    if (t < 0.13) return 1.95;
+    if (t < 0.25) return 1.75;
+    if (t < DROP_T) return THREE.MathUtils.lerp(1.6, 1.25, (t - 0.25) / (DROP_T - 0.25));
+    return THREE.MathUtils.lerp(1.25, 0.95, (t - DROP_T) / (1 - DROP_T));
   }
 
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: L12Hud) => void) {
@@ -111,7 +139,7 @@ export class Level12Scene extends BaseLevelScene {
     // Keep decoration and relief off the racing line.
     this.pathCorridorHalf = 3.0;
     this.pathCorridor = (z) => {
-      const t = THREE.MathUtils.clamp((8 - z) / 47, 0, 1);
+      const t = THREE.MathUtils.clamp((8 - z) / 74, 0, 1);
       // flatPointAt, not pointAt: this runs inside the terrain sampler.
       return this.trail ? this.trail.flatPointAt(t).x : 0;
     };
@@ -135,7 +163,10 @@ export class Level12Scene extends BaseLevelScene {
       terrain: {
         relief: 1.15,
         rimHeight: 4.2,
-        playHalfExtent: 34,
+        // Долина стала длиннее на 25 м, и подъём кромки надо отодвинуть вместе
+        // с ней: при прежних 34 «стена холма» в 4.2 м вставала бы поперёк
+        // финишных ворот. Кромка теперь начинается сразу за ними.
+        playHalfExtent: 82,
         seed: 12,
         // No flat features: the corridor above already carves the winding
         // route, so the trail descends a real valley rather than crossing a
@@ -348,6 +379,21 @@ export class Level12Scene extends BaseLevelScene {
         `🧊 ${this.segmentsCrossed}/${this.segmentsTotal}  💎 ${this.crystals}/${this.crystalsTotal}`,
         `🧊 ${this.segmentsCrossed}/${this.segmentsTotal}  💎 ${this.crystals}/${this.crystalsTotal}`,
       );
+    } else if (p === 'drop') {
+      if (this.slipped && performance.now() < this.slipMsgUntil) {
+        line = this.copy('Ой! Здесь лёд быстрее. Тормози заранее.', 'Ой! Мұнда мұз жылдамырақ. Алдын ала баяула.');
+      } else if (performance.now() < this.turnHintUntil) {
+        line = this.copy(
+          'Дальше лёд скользкий по-настоящему — поворачивай раньше!',
+          'Әрі қарай мұз шын сырғанақ — ертерек бұрыл!',
+        );
+      } else {
+        line = this.copy('Держись середины — тропа совсем узкая.', 'Ортасын ұста — жол мүлдем тар.');
+      }
+      objective = this.copy(
+        `🧊 ${this.segmentsCrossed}/${this.segmentsTotal}  💎 ${this.crystals}/${this.crystalsTotal}`,
+        `🧊 ${this.segmentsCrossed}/${this.segmentsTotal}  💎 ${this.crystals}/${this.crystalsTotal}`,
+      );
     } else if (p === 'outro') {
       speaker = this.copy('Мастер льда', 'Мұз шебері');
       line = this.copy('Ты прошёл! Я жду на поляне — помоги со скульптурой!', 'Өттің! Мен алаңда күтемін — мүсінге көмектес!');
@@ -408,7 +454,8 @@ export class Level12Scene extends BaseLevelScene {
       this.pushHud();
     }
 
-    const sliding = this.phase === 'learn' || this.phase === 'turn' || this.phase === 'run';
+    const sliding = this.phase === 'learn' || this.phase === 'turn'
+      || this.phase === 'run' || this.phase === 'drop';
     let projection = this.trail.project(this.hero.position);
 
     if (sliding) {
@@ -464,6 +511,11 @@ export class Level12Scene extends BaseLevelScene {
           this.turnHintUntil = now + 3200;
         } else if (this.segmentsCrossed === 2 && this.phase === 'turn') {
           this.phase = 'run';
+        } else if (this.phase === 'run' && CHECKPOINTS[i] >= DROP_T) {
+          // Спуск объявляется аркой, а не текстом посреди дороги: игрок
+          // проезжает ворота и сразу чувствует, что лёд стал быстрее.
+          this.phase = 'drop';
+          this.turnHintUntil = now + 3600;
         } else if (this.segmentsCrossed >= this.segmentsTotal) {
           this.phase = 'outro';
           this.stars += 10;
