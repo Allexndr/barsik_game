@@ -29,6 +29,31 @@ type SfxName =
 
 import { lineId, VOICE_BASE, type VoiceManifest } from './voiceLines';
 
+/**
+ * Приведение казахской кириллицы к буквам, которые умеет произнести русский
+ * движок синтеза.
+ *
+ * Таблица перенесена из avtobus-speak-app (`src/data/providers/ExpoTtsProvider.ts`)
+ * — там она написана для приложения незрячим, где ошибка произношения стоит
+ * дороже всего. Нужна ровно потому, что казахского голоса на устройствах
+ * практически не бывает: см. `speakWithBrowser`.
+ */
+const KK_TO_RU_APPROX: Array<[RegExp, string]> = [
+  [/ә/g, 'а'], [/Ә/g, 'А'],
+  [/қ/g, 'к'], [/Қ/g, 'К'],
+  [/ң/g, 'н'], [/Ң/g, 'Н'],
+  [/ғ/g, 'г'], [/Ғ/g, 'Г'],
+  [/ү/g, 'у'], [/Ү/g, 'У'],
+  [/ұ/g, 'у'], [/Ұ/g, 'У'],
+  [/һ/g, 'х'], [/Һ/g, 'Х'],
+  [/і/g, 'и'], [/І/g, 'И'],
+  [/ө/g, 'о'], [/Ө/g, 'О'],
+];
+
+export function approximateKazakhForRuVoice(text: string): string {
+  return KK_TO_RU_APPROX.reduce((acc, [pattern, to]) => acc.replace(pattern, to), text);
+}
+
 export type MusicTheme = 'forest' | 'ice' | 'hub' | 'none';
 
 class AudioManagerClass {
@@ -60,6 +85,12 @@ class AudioManagerClass {
   private voiceEl: HTMLAudioElement | null = null;
   /** Ids that 404'd. Asking twice for a clip that is not there is waste. */
   private voiceMissing = new Set<string>();
+
+  constructor() {
+    // Перечисление голосов не требует жеста пользователя, в отличие от
+    // AudioContext, — поэтому делается сразу, а не ждёт первого касания.
+    this.loadVoices();
+  }
 
   get muted() {
     return this._muted;
@@ -114,15 +145,30 @@ class AudioManagerClass {
       console.warn('[Audio] Web Audio API not supported');
     }
 
-    if ('speechSynthesis' in window) {
-      const loadVoices = () => {
-        this._voices = window.speechSynthesis.getVoices();
-        this._ruVoice = this._voices.find((v) => v.lang.startsWith('ru')) || null;
-        this._kkVoice = this._voices.find((v) => v.lang.startsWith('kk')) || null;
-      };
-      loadVoices();
-      window.speechSynthesis.onvoiceschanged = loadVoices;
-    }
+    this.loadVoices();
+  }
+
+  /**
+   * Перечисление голосов синтеза.
+   *
+   * Вынесено из `init()`, потому что `init()` ждёт первого касания (политика
+   * автовоспроизведения звука), а перечисление голосов никакого жеста не
+   * требует. Пока они были связаны, до первого тапа `_ruVoice` был пустым — и
+   * казахская реплика, попавшая в этот промежуток, уходила в никуда, потому
+   * что резервный русский голос ещё не найден.
+   *
+   * `getVoices()` при первом вызове часто возвращает пустой список и
+   * досылает голоса событием, поэтому подписка обязательна.
+   */
+  private loadVoices() {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const read = () => {
+      this._voices = window.speechSynthesis.getVoices();
+      this._ruVoice = this._voices.find((v) => v.lang.toLowerCase().startsWith('ru')) || null;
+      this._kkVoice = this._voices.find((v) => v.lang.toLowerCase().startsWith('kk')) || null;
+    };
+    read();
+    window.speechSynthesis.onvoiceschanged = read;
   }
 
   // ── SFX (procedural via Web Audio API) ────────────────────────
@@ -415,16 +461,50 @@ class AudioManagerClass {
     this.speakWithBrowser(text, lang);
   }
 
+  /**
+   * Резервный синтез через браузер, когда готовой озвучки для реплики нет.
+   *
+   * Казахского голоса в системе почти никогда нет. Замерено здесь же: 180
+   * голосов, среди них тамильский, телугу и малайский, — и ни одного kk.
+   * Ни Google TTS, ни голоса Apple не ставят kk-KZ по умолчанию.
+   *
+   * Что происходило раньше: `u.lang = 'kk-KZ'`, голос не назначен, потому что
+   * `_kkVoice` пустой, и движок брал какой-нибудь свой по умолчанию — на этой
+   * машине русский, на другой английский. Английский голос, читающий казахскую
+   * кириллицу, выдаёт кашу, и ребёнок слышит бессмыслицу вместо реплики.
+   *
+   * Решение взято из avtobus-speak-app (`ExpoTtsProvider`, политика
+   * `ru_voice_transliterated`): если казахского голоса нет, читаем русским, но
+   * сначала приводим казахские буквы к близким русским. Это честная деградация
+   * — звучит с акцентом, но словами. Если нет и русского, молчим: лучше тихо,
+   * чем вслух неправдой.
+   */
   private speakWithBrowser(text: string, lang: 'ru' | 'kk') {
     if (!('speechSynthesis' in window)) return;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = lang === 'kk' ? 'kk-KZ' : 'ru-RU';
+
+    let spoken = text;
+    let voice = lang === 'kk' ? this._kkVoice : this._ruVoice;
+    let tag = lang === 'kk' ? 'kk-KZ' : 'ru-RU';
+
+    if (lang === 'kk' && !voice) {
+      if (!this._ruVoice) return;
+      voice = this._ruVoice;
+      tag = 'ru-RU';
+      spoken = approximateKazakhForRuVoice(text);
+    }
+
+    const u = new SpeechSynthesisUtterance(spoken);
+    u.lang = tag;
     u.rate = this._ttsRate;
     u.pitch = this._ttsPitch;
     u.volume = this._volume;
-    const voice = lang === 'kk' ? this._kkVoice : this._ruVoice;
     if (voice) u.voice = voice;
     window.speechSynthesis.speak(u);
+  }
+
+  /** Есть ли на устройстве настоящий казахский голос. */
+  get hasKazakhVoice() {
+    return Boolean(this._kkVoice);
   }
 
   stopTts() {
