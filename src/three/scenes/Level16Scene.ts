@@ -22,12 +22,38 @@ import { useGameStore } from '@/store/useGameStore';
 /** The cave sits at the far end of the climb, not four metres from spawn. */
 const CHEST_Z = -34;
 
-export type L16Phase = 'intro' | 'prep' | 'approach' | 'unlock' | 'open' | 'outro';
+export type L16Phase = 'intro' | 'gather' | 'lock' | 'approach' | 'unlock' | 'open' | 'outro';
 export interface L16Hud extends BaseHud {
   chestOpen: boolean;
   prepDone: number;
   prepTotal: number;
 }
+
+/**
+ * Кого Барсик встречает по дороге к пещере.
+ *
+ * Индексы — в списке `friendIds` общего снимка. Эти пятеро ждут вдоль подъёма
+ * и уходят к пещере, когда с ними поздороваются; остальные четверо уже там.
+ * Финальный снимок «все, кого Барсик встретил за сезон» раньше просто
+ * включался в конце — девять фигур появлялись из воздуха. Теперь их приводит
+ * игрок, и к последнему кадру они идут за ним процессией.
+ */
+const WAITING_FRIENDS: ReadonlyArray<{
+  index: number;
+  x: number;
+  z: number;
+  ru: string;
+  kk: string;
+}> = [
+  { index: 0, x: -9, z: -4, ru: 'Садовник! Я дошёл до самых гор, как обещал.', kk: 'Бағбан! Мен уәде еткендей, тауларға дейін жеттім.' },
+  { index: 2, x: 10, z: -11, ru: 'Ёжик, ты добрался сюда по снегу? Вот молодец!', kk: 'Кірпі, сен мұнда қар үстімен жеттің бе? Жарайсың!' },
+  { index: 3, x: -12, z: -19, ru: 'Твой жёлудь открыл сундук в лесу. Спасибо тебе!', kk: 'Сенің жаңғағың орманда сандықты ашты. Саған рахмет!' },
+  { index: 4, x: 11, z: -25, ru: 'Путало, ты пришёл! Снимешь нас всех вместе?', kk: 'Путало, сен келдің! Бәрімізді бірге түсіресің бе?' },
+  { index: 5, x: -7, z: -30, ru: 'Ягодка, и ты здесь! Пойдём, пещера уже близко.', kk: 'Жидек, сен де мұндасың! Жүр, үңгір жақын қалды.' },
+];
+
+/** Сколько лучей у снежинки-замка. */
+const LOCK_RAYS = 3;
 
 function makeFriendSilhouette(color: number, x: number, z: number): THREE.Group {
   const g = new THREE.Group();
@@ -55,8 +81,17 @@ export class Level16Scene extends BaseLevelScene {
   private hasIceKey = false;
   private prepMarkers: THREE.Object3D[] = [];
   private prepDone = 0;
-  private readonly prepTotal = 3;
+  private readonly prepTotal = WAITING_FRIENDS.length;
   private crystals: THREE.Object3D[] = [];
+  /** Кристаллы, которые надо вставить в снежинку-замок. */
+  private lockCrystals: THREE.Object3D[] = [];
+  private lockSet = 0;
+  private lockRays: THREE.Mesh[] = [];
+  /** Летящие в замок кристаллы: from → to за 900 мс. */
+  private flying: Array<{ obj: THREE.Object3D; from: THREE.Vector3; to: THREE.Vector3; start: number; ray: number }> = [];
+  private beatRu = '';
+  private beatKk = '';
+  private beatUntil = 0;
 
   protected currentPhase() { return this.phase; }
 
@@ -64,22 +99,58 @@ export class Level16Scene extends BaseLevelScene {
     this.pushHud();
   }
 
+  private say(ru: string, kk: string, ms = 4200) {
+    this.beatRu = ru;
+    this.beatKk = kk;
+    this.beatUntil = performance.now() + ms;
+  }
+
   tryInteract() {
-    if (this.phase === 'prep') {
+    if (this.phase === 'gather') {
       const t = this.interactTarget;
-      if (!t?.userData.isPrep || t.userData.done) return;
-      t.userData.done = true;
+      if (!t?.userData.isWaitingFriend || t.userData.greeted) return;
+      t.userData.greeted = true;
       this.prepDone += 1;
       this.stars += 3;
-      this.spawnSparks(t.position, 10, [0xffd700, 0x4fc3f7]);
-      AudioManager.sfx('interact');
-      // Reveal present visual
-      const gift = t.userData.gift as THREE.Object3D | undefined;
-      if (gift) gift.visible = true;
+      this.spawnSparks(t.position, 12, [0xffd700, 0x4fc3f7]);
+      AudioManager.sfx('found');
+      this.say(t.userData.greetRu as string, t.userData.greetKk as string);
+      // Друг уходит к пещере сам — к финальному кадру он уже стоит на месте.
+      t.userData.walking = true;
       if (this.prepDone >= this.prepTotal) {
-        this.phase = 'approach';
-        AudioManager.sfx('found');
+        this.phase = 'lock';
         this.spawnSparks(this.chest?.position ?? this.hero.position, 16, [0xffd700, 0xffffff]);
+        this.say(
+          'Все в сборе! Снежинка-замок пустая — верни в неё три кристалла.',
+          'Бәрі жиналды! Қар құлыбы бос — оған үш кристалды қайтар.',
+        );
+      }
+      this.pushHud();
+      return;
+    }
+
+    if (this.phase === 'lock') {
+      const t = this.interactTarget;
+      if (!t?.userData.isLockCrystal || t.userData.set) return;
+      t.userData.set = true;
+      this.lockSet += 1;
+      this.stars += 4;
+      AudioManager.sfx('sparkle');
+      const rayIndex = this.lockSet - 1;
+      const ray = this.lockRays[rayIndex];
+      this.flying.push({
+        obj: t,
+        from: t.position.clone(),
+        to: ray ? ray.getWorldPosition(new THREE.Vector3()) : (this.chest?.position.clone() ?? t.position.clone()),
+        start: performance.now(),
+        ray: rayIndex,
+      });
+      if (this.lockSet >= LOCK_RAYS) {
+        this.phase = 'approach';
+        this.say(
+          'Снежинка светится! Теперь ключ подойдёт.',
+          'Ұлпа жарқырап тұр! Енді кілт келеді.',
+        );
       }
       this.pushHud();
       return;
@@ -153,31 +224,27 @@ export class Level16Scene extends BaseLevelScene {
     this.scene.add(this.chest);
     this.colliders.push({ kind: 'circle', x: 0, z: CHEST_Z, r: 1.2 });
 
-    // Party prep pads — place 3 presents before opening the season chest
-    // Spread along the climb, not clustered around the spawn pad. All three
-    // used to sit within eight metres of where the player starts, so the
-    // season's last errand was three steps and a turn.
-    for (const [x, z] of [[-7.5, -6], [8, -17], [-5.5, -27]] as const) {
-      const pad = new THREE.Group();
+    // Здесь стояли три золотых круга «поставь подарок». Круг — это не место и
+    // не человек: последним делом сезона было трижды нажать лапку на пустой
+    // траве. Теперь вдоль подъёма ждут пятеро друзей (`WAITING_FRIENDS`), и
+    // финальный снимок собирает игрок, а не движок.
+    //
+    // Кольца-подсветки остаются: они отмечают, где ждёт друг.
+    for (const spot of WAITING_FRIENDS) {
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.55, 0.85, 24),
-        new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.55, side: THREE.DoubleSide }),
+        new THREE.RingGeometry(0.6, 0.95, 24),
+        new THREE.MeshBasicMaterial({
+          color: 0xffe066,
+          transparent: true,
+          opacity: 0.5,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        }),
       );
       ring.rotation.x = -Math.PI / 2;
-      ring.position.y = 0.04;
-      const gift = new THREE.Mesh(
-        new THREE.BoxGeometry(0.45, 0.45, 0.45),
-        new THREE.MeshStandardMaterial({ color: 0xff6b6b, emissive: 0xff6b6b, emissiveIntensity: 0.25 }),
-      );
-      gift.position.y = 0.35;
-      gift.visible = false;
-      pad.add(ring, gift);
-      pad.position.set(x, 0, z);
-      pad.userData.isPrep = true;
-      pad.userData.done = false;
-      pad.userData.gift = gift;
-      this.prepMarkers.push(pad);
-      this.scene.add(pad);
+      ring.position.set(spot.x, this.groundHeightAt(spot.x, spot.z) + 0.05, spot.z);
+      this.scene.add(ring);
+      this.prepMarkers.push(ring);
     }
 
     const marker = questMarker(0x4fc3f7, 0x81d4fa);
@@ -296,8 +363,55 @@ export class Level16Scene extends BaseLevelScene {
       groundY(f);
       f.visible = false;
       f.userData.unlockedFriend = isUnlocked;
+      f.userData.photoX = x;
+      f.userData.photoZ = z;
+
+      // Пятеро ждут по дороге. Они видны с начала уровня — это и есть цели
+      // первого акта, а не невидимки, которые появятся в конце.
+      const waiting = WAITING_FRIENDS.find((w) => w.index === i);
+      if (waiting) {
+        f.position.set(waiting.x, f.position.y, waiting.z);
+        f.rotation.y = Math.atan2(-waiting.x, 4 - waiting.z);
+        f.visible = true;
+        f.userData.isWaitingFriend = true;
+        f.userData.greeted = false;
+        f.userData.walking = false;
+        f.userData.greetRu = waiting.ru;
+        f.userData.greetKk = waiting.kk;
+      }
+
       this.friends.push(f);
       this.scene.add(f);
+    }
+
+    // ── Снежинка-замок ──
+    // Три луча над сундуком, каждый гаснет, пока в него не вернут кристалл.
+    // Кристаллы уже кольцом стоят вокруг сундука с прошлой итерации и были
+    // чистой декорацией.
+    for (let i = 0; i < LOCK_RAYS; i++) {
+      const a = (i / LOCK_RAYS) * Math.PI * 2;
+      const ray = new THREE.Mesh(
+        new THREE.BoxGeometry(0.12, 0.12, 1.1),
+        new THREE.MeshStandardMaterial({
+          color: 0x9fd8ff,
+          emissive: 0x2b7fb8,
+          emissiveIntensity: 0.15,
+          transparent: true,
+          opacity: 0.55,
+        }),
+      );
+      ray.position.set(Math.sin(a) * 0.75, 2.35, CHEST_Z + Math.cos(a) * 0.75);
+      ray.rotation.y = a;
+      this.scene.add(ray);
+      this.lockRays.push(ray);
+    }
+    // Три кристалла из восьми — те, что вернутся в замок.
+    for (const i of [0, 3, 6]) {
+      const c = this.crystals[i];
+      if (!c) continue;
+      c.userData.isLockCrystal = true;
+      c.userData.set = false;
+      this.lockCrystals.push(c);
     }
 
     for (let z = 0; z > CHEST_Z + 6; z -= 3.5) this.scene.add(pathArrow(0, z, 0));
@@ -375,16 +489,31 @@ export class Level16Scene extends BaseLevelScene {
           ]
         : [
             this.copy('Зимний сундук! Финал зимы!', 'Қысқы сандық! Қыс финалы!'),
-            this.copy(`Сначала украсим поляну подарками, ${n}!`, `Алдымен алаңды сыйлықтармен безендірейік, ${n}!`),
-            this.copy('Три золотых круга — поставь подарки, потом откроем сундук!', 'Үш алтын шеңбер — сыйлық қой, сосын сандықты ашамыз!'),
+            this.copy(`Смотри, ${n} — вдоль подъёма нас ждут друзья!`, `Қара, ${n} — өрлеу бойында бізді достар күтіп тұр!`),
+            this.copy('Позови каждого — и все дойдём до пещеры вместе.', 'Әрқайсысын шақыр — сонда бәріміз үңгірге бірге жетеміз.'),
           ];
       line = lines[Math.min(this.introI, lines.length - 1)];
       objective = !this.hasIceKey
         ? this.copy('Нужен ледяной ключ (ур. 13)', 'Мұз кілті керек (13-деңгей)')
-        : this.copy('🎁 Поставь 3 подарка', '🎁 3 сыйлық қой');
-    } else if (p === 'prep') {
-      line = this.copy('Поставь подарок на золотой круг — готовь праздник!', 'Алтын шеңберге сыйлық қой — мерекені дайында!');
-      objective = this.copy(`🎁 Подарки: ${this.prepDone}/${this.prepTotal}`, `🎁 Сыйлық: ${this.prepDone}/${this.prepTotal}`);
+        : this.copy('👥 Позови друзей', '👥 Достарды шақыр');
+    } else if (p === 'gather') {
+      line = this.copy(
+        'Друзья ждут вдоль подъёма — позови каждого, и все дойдут до пещеры вместе.',
+        'Достар өрлеу бойында күтіп тұр — әрқайсысын шақыр, сонда бәрі үңгірге бірге жетеді.',
+      );
+      objective = this.copy(
+        `👥 Друзья: ${this.prepDone}/${this.prepTotal}`,
+        `👥 Достар: ${this.prepDone}/${this.prepTotal}`,
+      );
+    } else if (p === 'lock') {
+      line = this.copy(
+        'Снежинка-замок пустая. Верни в неё три кристалла из круга.',
+        'Қар құлыбы бос. Шеңберден үш кристалды оған қайтар.',
+      );
+      objective = this.copy(
+        `❄️ Кристаллы в замок: ${this.lockSet}/${LOCK_RAYS}`,
+        `❄️ Құлыпқа кристалл: ${this.lockSet}/${LOCK_RAYS}`,
+      );
     } else if (p === 'approach') {
       line = this.hasIceKey
         ? this.copy('Поляна готова! Ключ подходит — открой сундук!', 'Алаң дайын! Кілт сәйкес — сандықты аш!')
@@ -410,6 +539,12 @@ export class Level16Scene extends BaseLevelScene {
       objective = this.copy('🗺️ Глава 3: Горное озеро', '🗺️ 3-тарау: Тау көлі');
     }
 
+    // Реплика последнего события держится, пока её читают: подсказка фазы
+    // поверх только что произошедшего спорит с тем, что видно на экране.
+    if (performance.now() < this.beatUntil && p !== 'intro' && p !== 'outro') {
+      line = this.copy(this.beatRu, this.beatKk);
+    }
+
     this.onHud?.({
       phase: p, speaker, line, objective,
       chestOpen: this.chestOpen,
@@ -417,21 +552,32 @@ export class Level16Scene extends BaseLevelScene {
       prepTotal: this.prepTotal,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'prep'),
+      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'gather'),
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
   }
 
   private nearestInteract(): THREE.Object3D | null {
-    if (this.phase === 'prep') {
-      const hp = this.hero.position;
+    const hp = this.hero.position;
+    if (this.phase === 'gather') {
+      let best: THREE.Object3D | null = null;
+      let bestD = 2.6;
+      for (const f of this.friends) {
+        if (!f.userData.isWaitingFriend || f.userData.greeted) continue;
+        // По плоскости: друг стоит на своей высоте рельефа, герой на своей.
+        const d = Math.hypot(hp.x - f.position.x, hp.z - f.position.z);
+        if (d < bestD) { bestD = d; best = f; }
+      }
+      return best;
+    }
+    if (this.phase === 'lock') {
       let best: THREE.Object3D | null = null;
       let bestD = 2.4;
-      for (const m of this.prepMarkers) {
-        if (m.userData.done) continue;
-        const d = hp.distanceTo(m.position);
-        if (d < bestD) { bestD = d; best = m; }
+      for (const c of this.lockCrystals) {
+        if (c.userData.set) continue;
+        const d = Math.hypot(hp.x - c.position.x, hp.z - c.position.z);
+        if (d < bestD) { bestD = d; best = c; }
       }
       return best;
     }
@@ -441,8 +587,12 @@ export class Level16Scene extends BaseLevelScene {
   }
 
   private objectiveWorldPos(): THREE.Vector3 | null {
-    if (this.phase === 'prep') {
-      const next = this.prepMarkers.find((m) => !m.userData.done);
+    if (this.phase === 'gather') {
+      const next = this.friends.find((f) => f.userData.isWaitingFriend && !f.userData.greeted);
+      return next?.position.clone() ?? null;
+    }
+    if (this.phase === 'lock') {
+      const next = this.lockCrystals.find((c) => !c.userData.set);
       return next?.position.clone() ?? null;
     }
     if (this.chest && (this.phase === 'intro' || this.phase === 'approach')) {
@@ -460,7 +610,7 @@ export class Level16Scene extends BaseLevelScene {
 
     if (this.phase === 'intro' && now > this.nextAt) {
       this.introI += 1;
-      if (this.introI >= 3) { this.phase = this.hasIceKey ? 'prep' : 'approach'; this.pushHud(); }
+      if (this.introI >= 3) { this.phase = this.hasIceKey ? 'gather' : 'approach'; this.pushHud(); }
       else { this.nextAt = now + 2600; this.pushHud(); }
     }
 
@@ -540,8 +690,60 @@ export class Level16Scene extends BaseLevelScene {
       this.iceKey.rotation.y += dt * 1.8;
     }
 
+    // Позванный друг идёт к своему месту на общем снимке. К последнему кадру
+    // все девять уже стоят — потому что пятерых привёл игрок.
     for (const f of this.friends) {
+      if (f.userData.walking) {
+        const tx = f.userData.photoX as number;
+        const tz = f.userData.photoZ as number;
+        const dx = tx - f.position.x;
+        const dz = tz - f.position.z;
+        const d = Math.hypot(dx, dz);
+        if (d < 0.25) {
+          f.userData.walking = false;
+          f.position.x = tx;
+          f.position.z = tz;
+          f.rotation.y = Math.atan2(-tx, CHEST_Z - tz);
+        } else {
+          const step = Math.min(d, 2.6 * dt);
+          f.position.x += (dx / d) * step;
+          f.position.z += (dz / d) * step;
+          f.rotation.y = Math.atan2(dx, dz);
+        }
+      }
       if (f.visible) f.position.y = Math.sin(now * 0.003 + f.position.x) * 0.05;
+    }
+
+    // Кристалл летит в свой луч снежинки-замка.
+    for (let i = this.flying.length - 1; i >= 0; i--) {
+      const fl = this.flying[i];
+      const t = Math.min(1, (now - fl.start) / 900);
+      fl.obj.position.lerpVectors(fl.from, fl.to, t);
+      fl.obj.position.y += Math.sin(t * Math.PI) * 1.6;
+      fl.obj.rotation.y += dt * 6;
+      if (t >= 1) {
+        fl.obj.visible = false;
+        const ray = this.lockRays[fl.ray];
+        if (ray) {
+          const mat = ray.material as THREE.MeshStandardMaterial;
+          mat.emissiveIntensity = 1.1;
+          mat.opacity = 1;
+        }
+        this.spawnSparks(fl.to, 14, [0x9fd8ff, 0xffffff]);
+        this.flying.splice(i, 1);
+      }
+    }
+
+    for (const ray of this.lockRays) {
+      const mat = ray.material as THREE.MeshStandardMaterial;
+      if (mat.emissiveIntensity > 0.9) {
+        ray.rotation.z = Math.sin(now * 0.004 + ray.position.x) * 0.08;
+      }
+    }
+
+    if (this.beatUntil && now > this.beatUntil) {
+      this.beatUntil = 0;
+      this.pushHud();
     }
 
     // Ring of crystals around the chest — `userData.spin` was set at build
