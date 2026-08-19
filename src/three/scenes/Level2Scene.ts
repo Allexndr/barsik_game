@@ -17,6 +17,7 @@ import {
   loadPropModel,
 } from './BaseLevelScene';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { AudioManager } from '@/audio/AudioManager';
 import { createPlushCharacter, updatePlushCharacter } from '../PlushCharacter';
 import { ZHULDYZ_LOOK } from '../characterLooks';
@@ -30,7 +31,16 @@ import { makeOldOak } from './Level3Scene';
  * Mechanic: collect + sort (throw fruit into correct basket).
  */
 
-export type L3Phase = 'intro' | 'collect' | 'sort' | 'demo' | 'outro';
+export type L3Phase =
+  | 'intro'
+  | 'demo'
+  | 'collect'
+  | 'sort'
+  | 'aryk'
+  | 'clear'
+  | 'gift'
+  | 'deliver'
+  | 'outro';
 
 export interface L3Hud extends BaseHud {
   bag: number;
@@ -318,6 +328,375 @@ function makeBasket(x: number, z: number, color: 'red' | 'yellow' | 'green'): Ba
   return { group: g, color, x, z, count: 0, beam };
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Арык — второй акт сада
+//
+// Первый акт помещается в одно поле: собери и разложи. За ним западная
+// половина сада стоит сухая, потому что арык закрыт створкой и забит тремя
+// завалами. Аутро раньше просто ОБЪЯВЛЯЛО «сад ожил» — теперь сад оживает
+// потому, что игрок довёл до него воду, и видно это по деревьям, а не по
+// строчке текста.
+//
+// Осевая линия идёт с запада, где в сад приходит ручей из L1, на восток к
+// самой старой яблоне. Колено наливается только когда снят завал в его
+// голове, поэтому вода и есть индикатор прогресса — читается без цифр.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Осевая линия арыка: створка → три завала → корни старой яблони. */
+const CHANNEL: ReadonlyArray<readonly [number, number]> = [
+  [-13.8, -19.0],
+  [-8.6, -22.0],
+  [-2.6, -24.0],
+  [3.6, -24.8],
+  [9.2, -24.6],
+  [12.8, -24.2],
+];
+
+/**
+ * Живые яблони сада.
+ *
+ * Четыре первых стоят у бонусных яблок: те лежали на высоте 0.55 м посреди
+ * пустого поля и назывались в коде «низко висящими на дереве» — дерева не
+ * было ни одного. Остальные держат ряды, по которым сад читается как сад.
+ */
+const ORCHARD_ROWS: ReadonlyArray<readonly [number, number]> = [
+  [-6.2, -10.4],
+  [6.2, -14.4],
+  [-5.2, -18.3],
+  [5.7, -20.3],
+  [-7.8, -8.4],
+  [7.8, -8.8],
+  [-8.6, -13.2],
+  [8.6, -13.0],
+  [-8.0, -16.6],
+  [8.0, -17.0],
+];
+
+/** Три сохнущих яблони — по одной на завал, у самой воды. */
+const DRY_TREES: ReadonlyArray<readonly [number, number]> = [
+  [-7.4, -19.6],
+  [-1.6, -21.6],
+  [7.8, -22.0],
+];
+
+/** Самая старая яблоня сада, в конце арыка. */
+const BIG_TREE: readonly [number, number] = [13.8, -22.2];
+
+/** Подсегмент канавы: короткий, чтобы плоская лента шла по рельефу. */
+const CHANNEL_STEP = 1.5;
+
+const LEAF_DRY = new THREE.Color(0x9d8a5e);
+const BARK_DRY = new THREE.Color(0x6f5f4a);
+
+interface Tint {
+  material: THREE.MeshStandardMaterial;
+  dry: THREE.Color;
+  alive: THREE.Color;
+}
+
+interface OrchardTree {
+  root: THREE.Object3D;
+  tints: Tint[];
+  /** Плоды приходят вместе с зеленью — дерево не просто перекрасилось. */
+  fruit: THREE.Mesh | null;
+  /** performance.now() начала полива; 0 пока дерево не напоено. */
+  wateredAt: number;
+}
+
+interface ChannelLeg {
+  water: THREE.Mesh;
+  from: THREE.Vector2;
+  to: THREE.Vector2;
+  /** performance.now() когда вода пошла; 0 пока колено сухое. */
+  filledAt: number;
+}
+
+interface Blockage {
+  group: THREE.Object3D;
+  x: number;
+  z: number;
+  /** Колена, которые открывает снятие этого завала. */
+  legs: number[];
+  tree: OrchardTree | null;
+  /** Куда завал уходит, когда его убрали. */
+  away: THREE.Vector3;
+  cleared: boolean;
+  /**
+   * Сколько раз нужно налечь.
+   *
+   * Ветка и листья идут с одного раза, камень — с трёх. Три одинаковых
+   * нажатия подряд читаются как одно задание, растянутое втрое; камень,
+   * который поддаётся не сразу, — это третий бит, а не третья копия.
+   */
+  pushes: number;
+  pushed: number;
+  ru: string;
+  kk: string;
+  /** Реплика на промежуточный сдвиг — только у тяжёлого завала. */
+  strainRu: string;
+  strainKk: string;
+}
+
+/**
+ * Плоды в кроне — один меш на дерево.
+ *
+ * В «Яблоневом саду» не было ни одной яблони: пикапы лежали в пустом поле, а
+ * деревья стояли кольцом по краю, как лес. Крона с яблоками — это то, что
+ * делает место садом, и она же — видимая награда за политое дерево.
+ */
+function fruitGeometry(x: number, y: number, z: number, radius: number, count: number) {
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < count; i++) {
+    // Золотой угол: плоды не выстраиваются в спицы, как при делении на count.
+    const a = i * 2.3999;
+    const r = radius * (0.5 + ((i * 7) % 5) / 9);
+    const g = new THREE.SphereGeometry(0.15, 8, 6);
+    g.translate(x + Math.cos(a) * r, y + ((i * 3) % 5) * 0.17 - 0.34, z + Math.sin(a) * r);
+    parts.push(g);
+  }
+  const merged = mergeGeometries(parts, false);
+  for (const g of parts) g.dispose();
+  return merged ?? new THREE.SphereGeometry(0.15, 8, 6);
+}
+
+function fruitMaterial(color: number) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    emissive: color,
+    emissiveIntensity: 0.15,
+    roughness: 0.35,
+  });
+}
+
+/**
+ * Крона одного дерева отдельным мешем — только там, где она должна появиться
+ * в кадре. Живые ряды сада сливаются в один меш на весь сад: они не меняются
+ * за уровень, и десять отдельных крон стоили бы десять вызовов отрисовки.
+ */
+function fruitCanopy(x: number, y: number, z: number, radius: number, count: number, color: number) {
+  const mesh = new THREE.Mesh(fruitGeometry(0, 0, 0, radius, count), fruitMaterial(color));
+  mesh.position.set(x, y, z);
+  mesh.castShadow = false;
+  return mesh;
+}
+
+/**
+ * Обесцветить крону.
+ *
+ * AssetKit раздаёт клоны, которые ДЕЛЯТ материалы шаблона, поэтому красить на
+ * месте нельзя: посереет каждое дерево, заспавненное из того же файла. Клон
+ * материала — та же защита, что уже стоит на яблоках (`tintAppleRoot`).
+ */
+function drainTree(root: THREE.Object3D): Tint[] {
+  const tints: Tint[] = [];
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const drain = (material: THREE.Material) => {
+      const next = material.clone() as THREE.MeshStandardMaterial;
+      if (!next.color) return next;
+      const alive = next.color.clone();
+      // Зелень — листва, остальное кора. По имени материала не отличить:
+      // имена в разных файлах кита не совпадают, а цвет совпадает.
+      const leaf = alive.g > alive.r && alive.g > alive.b * 0.8;
+      const dry = (leaf ? LEAF_DRY : BARK_DRY).clone().lerp(alive, 0.18);
+      next.color.copy(dry);
+      tints.push({ material: next, dry, alive });
+      return next;
+    };
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(drain) : drain(mesh.material);
+  });
+  return tints;
+}
+
+/**
+ * Канава со створкой и пятью коленами.
+ *
+ * Русло и берега сливаются в два меша на весь арык; вода — по мешу на колено,
+ * потому что она одна должна появляться по частям. Уровень и так самый тяжёлый
+ * в сезоне, и шестьдесят отдельных сегментов канавы стоили бы шестьдесят
+ * вызовов отрисовки.
+ *
+ * Геометрия колена строится в СВОИХ координатах — начало в голове колена, +Z
+ * вдоль русла, — поэтому наполнение играется через scale.z от нуля к единице:
+ * вода растёт от завала вперёд, без единой строки шейдера. Патчить чанки
+ * three.js через onBeforeCompile здесь уже пробовали: материал молча перестаёт
+ * рисоваться.
+ */
+function buildChannel(groundAt: (x: number, z: number) => number) {
+  const bedParts: THREE.BufferGeometry[] = [];
+  const bankParts: THREE.BufferGeometry[] = [];
+  const legs: ChannelLeg[] = [];
+  const rot = new THREE.Matrix4();
+
+  for (let i = 0; i < CHANNEL.length - 1; i++) {
+    const [x1, z1] = CHANNEL[i];
+    const [x2, z2] = CHANNEL[i + 1];
+    const len = Math.hypot(x2 - x1, z2 - z1);
+    const steps = Math.max(2, Math.round(len / CHANNEL_STEP));
+    // rotY(a) переводит локальный +Z в (sin a, cos a) — направление колена.
+    const ang = Math.atan2(x2 - x1, z2 - z1);
+    rot.makeRotationY(ang);
+    const headY = groundAt(x1, z1);
+    const waterParts: THREE.BufferGeometry[] = [];
+
+    for (let s = 0; s < steps; s++) {
+      const mid = (s + 0.5) / steps;
+      const cx = x1 + (x2 - x1) * mid;
+      const cz = z1 + (z2 - z1) * mid;
+      const cy = groundAt(cx, cz);
+      // Нахлёст: без него на стыках подсегментов проступает полоска земли.
+      const segLen = len / steps + 0.08;
+
+      const bed = new THREE.PlaneGeometry(1.55, segLen);
+      bed.rotateX(-Math.PI / 2);
+      bed.applyMatrix4(rot);
+      bed.translate(cx, cy + 0.02, cz);
+      bedParts.push(bed);
+
+      for (const side of [-1, 1] as const) {
+        const bank = new THREE.BoxGeometry(0.44, 0.26, segLen);
+        bank.translate(side * 0.92, 0.09, 0);
+        bank.applyMatrix4(rot);
+        bank.translate(cx, cy, cz);
+        bankParts.push(bank);
+      }
+
+      const water = new THREE.PlaneGeometry(1.12, segLen);
+      water.rotateX(-Math.PI / 2);
+      water.translate(0, cy - headY + 0.055, (s + 0.5) * (len / steps));
+      waterParts.push(water);
+    }
+
+    const mergedWater = mergeGeometries(waterParts, false);
+    for (const g of waterParts) g.dispose();
+    const water = new THREE.Mesh(
+      mergedWater ?? new THREE.PlaneGeometry(1.12, len),
+      new THREE.MeshStandardMaterial({
+        color: 0x36b7f0,
+        emissive: 0x0d5f8c,
+        emissiveIntensity: 0.25,
+        roughness: 0.15,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.88,
+        // Не DoubleSide: прозрачный двусторонний материал three.js рисует в
+        // два прохода, и пять лент воды стоили десять вызовов отрисовки
+        // вместо пяти (замерено). Нормаль ленты и так смотрит вверх —
+        // снизу на арык посмотреть неоткуда.
+        side: THREE.FrontSide,
+        depthWrite: false,
+      }),
+    );
+    water.position.set(x1, headY, z1);
+    water.rotation.y = ang;
+    water.scale.z = 0.0001;
+    water.visible = false;
+    water.castShadow = false;
+    water.receiveShadow = false;
+    legs.push({
+      water,
+      from: new THREE.Vector2(x1, z1),
+      to: new THREE.Vector2(x2, z2),
+      filledAt: 0,
+    });
+  }
+
+  const bedGeo = mergeGeometries(bedParts, false);
+  for (const g of bedParts) g.dispose();
+  const bankGeo = mergeGeometries(bankParts, false);
+  for (const g of bankParts) g.dispose();
+
+  const bed = new THREE.Mesh(
+    bedGeo ?? new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x6b573c, roughness: 1 }),
+  );
+  bed.receiveShadow = true;
+  bed.castShadow = false;
+
+  const banks = new THREE.Mesh(
+    bankGeo ?? new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x8a6c48, roughness: 1 }),
+  );
+  banks.castShadow = true;
+  banks.receiveShadow = true;
+
+  return { bed, banks, legs };
+}
+
+/**
+ * Створка арыка: рама, доска и ручка.
+ *
+ * Доска возвращается отдельно — она единственное, что двигается, и слить её в
+ * раму нельзя. Всё остальное уходит в один меш.
+ */
+function makeSluice(x: number, y: number, z: number, ang: number) {
+  const group = new THREE.Group();
+  const frameParts: THREE.BufferGeometry[] = [];
+  for (const side of [-1, 1] as const) {
+    const post = new THREE.CylinderGeometry(0.11, 0.13, 1.7, 7);
+    post.translate(side * 0.95, 0.85, 0);
+    frameParts.push(post);
+    const wing = new THREE.BoxGeometry(0.9, 0.5, 0.16);
+    wing.translate(side * 1.62, 0.25, 0);
+    frameParts.push(wing);
+  }
+  const lintel = new THREE.BoxGeometry(2.3, 0.16, 0.18);
+  lintel.translate(0, 1.62, 0);
+  frameParts.push(lintel);
+  const frameGeo = mergeGeometries(frameParts, false);
+  for (const g of frameParts) g.dispose();
+  const frame = new THREE.Mesh(
+    frameGeo ?? new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x7b5b39, roughness: 1 }),
+  );
+  frame.castShadow = true;
+  frame.receiveShadow = true;
+  group.add(frame);
+
+  const board = new THREE.Mesh(
+    new THREE.BoxGeometry(1.75, 1.15, 0.12),
+    new THREE.MeshStandardMaterial({ color: 0x9c7a4f, roughness: 0.9 }),
+  );
+  board.position.set(0, 0.58, 0);
+  board.castShadow = true;
+  const handle = new THREE.Mesh(
+    new THREE.TorusGeometry(0.16, 0.035, 6, 14),
+    new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.8 }),
+  );
+  handle.position.set(0, 0.38, 0.1);
+  board.add(handle);
+  group.add(board);
+
+  group.position.set(x, y, z);
+  group.rotation.y = ang;
+  return { group, board };
+}
+
+/** Слипшаяся пробка из листьев — один меш. */
+function makeLeafClog() {
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 14; i++) {
+    const a = i * 2.3999;
+    const r = 0.14 + (i % 4) * 0.13;
+    const leaf = new THREE.SphereGeometry(0.26, 6, 4);
+    leaf.scale(1, 0.26, 1.25);
+    leaf.rotateY(a);
+    leaf.translate(Math.cos(a) * r, 0.11 + (i % 3) * 0.07, Math.sin(a) * r * 0.7);
+    parts.push(leaf);
+  }
+  const merged = mergeGeometries(parts, false);
+  for (const g of parts) g.dispose();
+  const mesh = new THREE.Mesh(
+    merged ?? new THREE.SphereGeometry(0.3, 6, 4),
+    new THREE.MeshStandardMaterial({ color: 0xb5762e, roughness: 1 }),
+  );
+  mesh.castShadow = true;
+  const group = new THREE.Group();
+  group.add(mesh);
+  return group;
+}
+
 export class Level2Scene extends BaseLevelScene {
   private phase: L3Phase = 'intro';
   private onHud: ((h: L3Hud) => void) | null = null;
@@ -337,6 +716,31 @@ export class Level2Scene extends BaseLevelScene {
   private demoDone = false;
   private mistakeUntil = 0;
   protected archway: THREE.Group | null = null;
+
+  // ── Второй акт: арык ──
+  private legs: ChannelLeg[] = [];
+  private blockages: Blockage[] = [];
+  private cleared = 0;
+  private sluice: { group: THREE.Group; board: THREE.Mesh } | null = null;
+  private sluiceOpenAt = 0;
+  private surge: THREE.Mesh | null = null;
+  private taskMarker: THREE.Group | null = null;
+  private bigTree: OrchardTree | null = null;
+  /** Когда вода дойдёт до старой яблони и та уронит золотое яблоко. */
+  private giftAt = 0;
+  private giftApple: THREE.Object3D | null = null;
+  private giftMesh: THREE.Object3D | null = null;
+  private clearing: Array<{
+    group: THREE.Object3D;
+    from: THREE.Vector3;
+    away: THREE.Vector3;
+    start: number;
+    until: number;
+  }> = [];
+  /** Реплика последнего снятого завала — держится, пока игрок её читает. */
+  private beatRu = '';
+  private beatKk = '';
+  private beatUntil = 0;
 
   protected currentPhase() { return this.phase; }
 
@@ -373,6 +777,190 @@ export class Level2Scene extends BaseLevelScene {
       this.pushHud();
       return;
     }
+
+    // Second act: the head gate, then the three blockages, then the gift.
+    if (this.phase === 'aryk' && this.sluice && t === this.sluice.group) {
+      this.openSluice();
+      return;
+    }
+
+    if (this.phase === 'clear') {
+      const blockage = this.blockages.find((b) => !b.cleared && b.group === t);
+      if (blockage) {
+        this.clearBlockage(blockage);
+        return;
+      }
+    }
+
+    if (this.phase === 'gift' && this.giftApple && t === this.giftApple) {
+      this.takeGift();
+      return;
+    }
+
+    if (this.phase === 'deliver' && t === this.gardener) {
+      this.deliverGift();
+      return;
+    }
+  }
+
+  /**
+   * Один маркер на всю вторую половину уровня.
+   *
+   * Отдельный questMarker на каждой из пяти целей — это пять групп мешей,
+   * четыре из которых в любой момент указывают на то, что игроку сейчас
+   * делать не надо. Маркер переезжает к текущей цели, стрелка-поводырь ведёт
+   * к ней же.
+   */
+  private moveTaskMarker(at: THREE.Vector3 | null) {
+    if (!this.taskMarker) return;
+    if (!at) {
+      this.taskMarker.visible = false;
+      return;
+    }
+    this.taskMarker.position.copy(at);
+    this.taskMarker.visible = true;
+  }
+
+  private say(ru: string, kk: string, ms = 4200) {
+    this.beatRu = ru;
+    this.beatKk = kk;
+    this.beatUntil = performance.now() + ms;
+  }
+
+  private openSluice() {
+    if (!this.sluice || this.sluiceOpenAt) return;
+    this.sluiceOpenAt = performance.now();
+    this.phase = 'clear';
+    this.letWaterThrough([0]);
+    AudioManager.sfx('success');
+    this.say(
+      'Створка поднялась — вода пошла в сад!',
+      'Қақпақ көтерілді — су баққа жүрді!',
+    );
+    this.moveTaskMarker(this.nextBlockage()?.group.position ?? null);
+    this.pushHud();
+  }
+
+  private nextBlockage() {
+    return this.blockages.find((b) => !b.cleared) ?? null;
+  }
+
+  private letWaterThrough(indices: number[]) {
+    const now = performance.now();
+    // Колена стартуют с задержкой друг за другом: вода бежит дальше, а не
+    // появляется во всём русле разом.
+    indices.forEach((index, order) => {
+      const leg = this.legs[index];
+      if (!leg || leg.filledAt) return;
+      leg.filledAt = now + order * 850;
+    });
+  }
+
+  private clearBlockage(blockage: Blockage) {
+    const now = performance.now();
+    blockage.pushed += 1;
+
+    // Тяжёлый завал поддаётся не сразу: сдвинулся, но встал.
+    if (blockage.pushed < blockage.pushes) {
+      blockage.group.position.addScaledVector(blockage.away, 0.22);
+      // Подсказка и маркер должны переехать вместе с камнем, иначе лапка
+      // загорается там, где камня уже нет.
+      blockage.x = blockage.group.position.x;
+      blockage.z = blockage.group.position.z;
+      blockage.group.rotation.z += 0.28;
+      this.spawnSparks(blockage.group.position, 6, [0xd7ccc8, 0xa1887f]);
+      AudioManager.sfx('stumble');
+      this.say(
+        `${blockage.strainRu} (${blockage.pushed} из ${blockage.pushes})`,
+        `${blockage.strainKk} (${blockage.pushes} ішінен ${blockage.pushed})`,
+        2600,
+      );
+      this.pushHud();
+      return;
+    }
+
+    blockage.cleared = true;
+    this.cleared += 1;
+    this.clearing.push({
+      group: blockage.group,
+      from: blockage.group.position.clone(),
+      away: blockage.group.position.clone().add(blockage.away),
+      start: now,
+      until: now + 780,
+    });
+    this.spawnSparks(blockage.group.position, 12, [0x8fd8f5, 0xffffff]);
+    AudioManager.sfx('success');
+    this.letWaterThrough(blockage.legs);
+    if (blockage.tree) this.waterTree(blockage.tree, now + 700);
+    // Своя реплика вместо общего «Так держать!»: она называет, что именно
+    // мешало воде, и показывает, куда смотреть.
+    this.say(blockage.ru, blockage.kk);
+
+    if (this.cleared >= this.blockages.length) {
+      // Последний завал открывает сразу два колена — вода убегает вперёд
+      // игрока к старой яблоне, и это единственный отрезок пути, который
+      // проходится не за целью, а за водой.
+      this.giftAt = now + 3400;
+      this.moveTaskMarker(null);
+    } else {
+      this.moveTaskMarker(this.nextBlockage()?.group.position ?? null);
+    }
+    this.pushHud();
+  }
+
+  private waterTree(tree: OrchardTree, at: number) {
+    if (tree.wateredAt) return;
+    tree.wateredAt = at;
+  }
+
+  private takeGift() {
+    if (!this.giftApple) return;
+    this.giftApple.visible = false;
+    this.phase = 'deliver';
+    this.stars += 2;
+    this.spawnSparks(this.giftApple.position, 18, [0xffd700, 0xfff1a8]);
+    AudioManager.sfx('success');
+
+    const carried = new THREE.Mesh(
+      sharedAppleGeo,
+      new THREE.MeshStandardMaterial({
+        color: 0xffd700,
+        emissive: 0xffd700,
+        emissiveIntensity: 0.7,
+        roughness: 0.25,
+      }),
+    );
+    carried.scale.setScalar(1.15);
+    carried.position.set(0.3, 1.6, 0);
+    this.giftMesh = carried;
+    this.hero.add(carried);
+
+    this.moveTaskMarker(this.gardener?.position ?? null);
+    this.pushHud();
+  }
+
+  private deliverGift() {
+    this.clearGiftMesh();
+    this.phase = 'outro';
+    this.stars += 3;
+    this.spawnSparks(this.hero.position, 26, [0xffd700, 0xf1c40f]);
+    this.reviveOrchard();
+    this.moveTaskMarker(null);
+    this.pushHud();
+  }
+
+  private clearGiftMesh() {
+    if (!this.giftMesh) return;
+    const carried = this.giftMesh;
+    this.hero.remove(carried);
+    carried.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      if (mesh !== carried) mesh.geometry.dispose();
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const material of materials) material.dispose();
+    });
+    this.giftMesh = null;
   }
 
   private pickApple(apple: ApplePickup) {
@@ -427,10 +1015,12 @@ export class Level2Scene extends BaseLevelScene {
       basket.group.userData.bounceUntil = performance.now() + 220;
 
       if (this.sorted >= this.sortNeed) {
-        this.phase = 'outro';
+        // Корзины полны — но полсада стоит сухим. Уровень не заканчивается на
+        // выполненном поручении, он на нём поворачивает.
+        this.phase = 'aryk';
         this.stars += 3;
         this.spawnSparks(this.hero.position, 24);
-        this.reviveOrchard();
+        this.moveTaskMarker(this.sluice?.group.position ?? null);
       }
     } else {
       // Wrong basket — retain the carried apple and teach the matching pattern.
@@ -454,6 +1044,109 @@ export class Level2Scene extends BaseLevelScene {
       for (const material of materials) material.dispose();
     });
     this.carryingMesh = null;
+  }
+
+  /**
+   * Вода, деревья и уезжающие завалы — один проход за кадр.
+   *
+   * Все анимации здесь считаются от `performance.now()`, а не накапливаются
+   * по dt: уровень можно поставить на паузу и вернуться, и вода не окажется
+   * налитой наполовину навсегда.
+   */
+  private updateAryk(now: number) {
+    // Наполнение колен.
+    let head: THREE.Vector2 | null = null;
+    let headAt = 0;
+    for (const leg of this.legs) {
+      if (!leg.filledAt || now < leg.filledAt) continue;
+      const t = Math.min(1, (now - leg.filledAt) / 1100);
+      // easeOutCubic: вода срывается с места и мягко доходит до конца колена.
+      const eased = 1 - Math.pow(1 - t, 3);
+      leg.water.visible = true;
+      leg.water.scale.z = Math.max(0.0001, eased);
+      if (t < 1 && leg.filledAt > headAt) {
+        head = leg.from.clone().lerp(leg.to, eased);
+        headAt = leg.filledAt;
+      }
+    }
+
+    // Гребень волны — только пока вода в пути.
+    if (this.surge) {
+      if (head) {
+        this.surge.visible = true;
+        this.surge.position.set(head.x, this.groundHeightAt(head.x, head.y) + 0.1, head.y);
+        this.surge.rotation.z += 0.12;
+        const material = this.surge.material as THREE.MeshBasicMaterial;
+        material.opacity = 0.55 + Math.sin(now * 0.02) * 0.2;
+      } else {
+        this.surge.visible = false;
+      }
+    }
+
+    // Створка ползёт вверх в раме.
+    if (this.sluice && this.sluiceOpenAt) {
+      const t = Math.min(1, (now - this.sluiceOpenAt) / 900);
+      this.sluice.board.position.y = 0.58 + (1 - Math.pow(1 - t, 2)) * 1.02;
+    }
+
+    // Дерево зеленеет и обрастает плодами.
+    for (const tree of [...this.blockages.map((b) => b.tree), this.bigTree]) {
+      if (!tree || !tree.wateredAt || now < tree.wateredAt) continue;
+      const t = Math.min(1, (now - tree.wateredAt) / 1500);
+      for (const tint of tree.tints) tint.material.color.copy(tint.dry).lerp(tint.alive, t);
+      if (tree.fruit) {
+        tree.fruit.visible = true;
+        tree.fruit.scale.setScalar(Math.max(0.001, Math.min(1, (t - 0.45) / 0.55)));
+      }
+    }
+
+    // Убранные завалы уезжают в сторону и тают.
+    for (let i = this.clearing.length - 1; i >= 0; i--) {
+      const anim = this.clearing[i];
+      const t = Math.min(1, (now - anim.start) / (anim.until - anim.start));
+      anim.group.position.lerpVectors(anim.from, anim.away, 1 - Math.pow(1 - t, 2));
+      anim.group.position.y = anim.from.y + Math.sin(t * Math.PI) * 0.55;
+      anim.group.rotation.z += 0.09;
+      anim.group.scale.setScalar(Math.max(0.001, 1 - t));
+      if (t >= 1) {
+        anim.group.visible = false;
+        this.clearing.splice(i, 1);
+      }
+    }
+
+    // Старая яблоня просыпается последней и роняет золотое яблоко.
+    if (this.giftAt && now > this.giftAt) {
+      this.giftAt = 0;
+      if (this.bigTree) this.waterTree(this.bigTree, now);
+      if (this.giftApple) {
+        this.giftApple.visible = true;
+        this.spawnSparks(this.giftApple.position, 20, [0xffd700, 0xfff1a8]);
+      }
+      this.phase = 'gift';
+      AudioManager.sfx('success');
+      this.moveTaskMarker(this.giftApple?.position ?? null);
+      this.pushHud();
+    }
+
+    if (this.giftApple?.visible) {
+      this.giftApple.rotation.y += 0.02;
+    }
+
+    if (this.taskMarker?.visible) {
+      const bang = this.taskMarker.userData.bang as THREE.Object3D | undefined;
+      if (bang) {
+        bang.position.y = 4.2 + Math.sin(now * 0.006) * 0.15;
+        bang.rotation.y += 0.03;
+      }
+    }
+
+    // HUD перерисовывается только когда меняется цель под лапой, поэтому
+    // истёкшую реплику надо снять самому — иначе «Ветку сюда занесло ветром»
+    // висит до следующего подхода к завалу.
+    if (this.beatUntil && now > this.beatUntil) {
+      this.beatUntil = 0;
+      this.pushHud();
+    }
   }
 
   /** Garden comes alive on clear — brighter baskets + orchard-wide sparks. */
@@ -530,6 +1223,216 @@ export class Level2Scene extends BaseLevelScene {
       }
     };
     animate();
+  }
+
+  /**
+   * Ряды живых яблонь.
+   *
+   * Кроны всех десяти деревьев — один меш: за уровень они не меняются, а
+   * десять отдельных стоили бы десять вызовов отрисовки на уровне, который и
+   * так самый тяжёлый в сезоне.
+   */
+  private async buildOrchardRows(kit: AssetKit) {
+    const names = ['tree_fat', 'tree_default', 'tree_oak'];
+    const placements = ORCHARD_ROWS.map(([x, z], i) => ({
+      x,
+      z,
+      height: 4.2 + (i % 3) * 0.55,
+    }));
+    const trees = await kit.scatter('nature', names, placements);
+    const canopies: THREE.BufferGeometry[] = [];
+    trees.forEach((tree, i) => {
+      this.snapToGround(tree);
+      this.markSwaying(tree, 0.8);
+      this.scene.add(tree);
+      this.colliders.push({ kind: 'circle', x: tree.position.x, z: tree.position.z, r: 1.05 });
+      const height = placements[i].height;
+      canopies.push(
+        fruitGeometry(tree.position.x, tree.position.y + height * 0.62, tree.position.z, height * 0.26, 7),
+      );
+    });
+    if (!canopies.length) return;
+    const merged = mergeGeometries(canopies, false);
+    for (const g of canopies) g.dispose();
+    if (!merged) return;
+    const fruit = new THREE.Mesh(merged, fruitMaterial(0xe8412f));
+    fruit.castShadow = false;
+    this.scene.add(fruit);
+  }
+
+  /**
+   * Западный край, арык и сухая половина сада.
+   *
+   * Строится целиком на старте, а не по ходу акта: подгрузка GLB в момент,
+   * когда игрок снял завал, дала бы паузу ровно там, где должна быть награда.
+   */
+  private async buildAryk(loader: GLTFLoader, kit: AssetKit) {
+    const groundAt = (x: number, z: number) => this.groundHeightAt(x, z);
+    const { bed, banks, legs } = buildChannel(groundAt);
+    this.legs = legs;
+    this.scene.add(bed, banks);
+    for (const leg of legs) this.scene.add(leg.water);
+
+    // Гребень волны: один меш на весь уровень, переезжает по руслу.
+    this.surge = new THREE.Mesh(
+      new THREE.RingGeometry(0.18, 0.62, 16),
+      new THREE.MeshBasicMaterial({
+        color: 0xdff4ff,
+        transparent: true,
+        opacity: 0.6,
+        side: THREE.FrontSide,
+        depthWrite: false,
+      }),
+    );
+    this.surge.rotation.x = -Math.PI / 2;
+    this.surge.visible = false;
+    this.scene.add(this.surge);
+
+    // Створка: рама поперёк русла, доска ходит вверх.
+    const [hx, hz] = CHANNEL[0];
+    const [nx, nz] = CHANNEL[1];
+    const sluice = makeSluice(hx, groundAt(hx, hz), hz, Math.atan2(nx - hx, nz - hz));
+    this.sluice = sluice;
+    this.scene.add(sluice.group);
+    // Один коллайдер на всю раму, а не по одному на стойку. Две окружности
+    // r = 0.3 в 1.9 м друг от друга оставляют щель шириной 0.4 м с учётом
+    // PLAYER_RADIUS — ровно та ширина, в которой герой начинает дёргаться
+    // между двумя выталкиваниями. Проходить сквозь створку незачем: её
+    // открывают, стоя перед ней, а дальность взаимодействия 2.4 м.
+    this.colliders.push({ kind: 'circle', x: hx, z: hz, r: 1.15 });
+
+    // Сухие яблони — по одной на завал.
+    const dry: OrchardTree[] = [];
+    for (let i = 0; i < DRY_TREES.length; i++) {
+      const [x, z] = DRY_TREES[i];
+      const height = 4.0 + i * 0.4;
+      const tree = await this.plantThirstyTree(kit, ['tree_default', 'tree_fat', 'tree_oak'][i], x, z, height, 0.95);
+      if (tree) dry.push(tree);
+    }
+
+    // Старая яблоня в конце русла — крупнее всех и последняя, кто проснётся.
+    this.bigTree = await this.plantThirstyTree(kit, 'tree_oak', BIG_TREE[0], BIG_TREE[1], 6.4, 1.6);
+
+    // Три завала: ветка, слежавшиеся листья, камень. Разные силуэты, чтобы
+    // «почему вода встала» читалось с расстояния, а не только из подсказки.
+    const branch = (await kit.spawn('nature', 'log', { maxSize: 2.4, ground: false })) ?? makeLeafClog();
+    const stone = (await kit.spawn('nature', 'rock_largeB', { maxSize: 1.35, ground: false })) ?? makeLeafClog();
+    const clog = makeLeafClog();
+    const shapes = [branch, clog, stone];
+    const away = [
+      new THREE.Vector3(-1.6, 0, 1.5),
+      new THREE.Vector3(0.4, 0, 2.0),
+      new THREE.Vector3(1.7, 0, 1.3),
+    ];
+    const lines: Array<[string, string]> = [
+      ['Ветку сюда занесло ветром. Вода побежала дальше!', 'Бұл бұтақты жел әкелген. Су әрі қарай жүгірді!'],
+      ['Листья слежались в плотную пробку — вот и всё. Смотри на яблоню!', 'Жапырақтар тығындалып қалыпты — бар кедергі осы. Алма ағашына қара!'],
+      ['Пошёл! Вода бежит к самой старой яблоне!', 'Қозғалды! Су ең кәрі алма ағашына қарай ағып барады!'],
+    ];
+    // Ветка и листья идут с одного раза, камень — с трёх.
+    const pushes = [1, 1, 3];
+    const strain: Array<[string, string]> = [
+      ['', ''],
+      ['', ''],
+      ['Тяжёлый! Ещё разок, упрись лапами', 'Ауыр екен! Тағы бір рет, табаныңмен тіре'],
+    ];
+    // Последний завал открывает сразу два колена: вода убегает вперёд игрока,
+    // и последний отрезок пути проходится за ней, а не за целью.
+    const opens = [[1], [2], [3, 4]];
+
+    for (let i = 0; i < 3; i++) {
+      const [x, z] = CHANNEL[i + 1];
+      const group = new THREE.Group();
+      const shape = shapes[i];
+      shape.position.set(0, 0, 0);
+      groundY(shape);
+      group.add(shape);
+      group.position.set(x, groundAt(x, z) + 0.05, z);
+      group.rotation.y = i * 1.9;
+      this.scene.add(group);
+      this.blockages.push({
+        group,
+        x,
+        z,
+        legs: opens[i],
+        tree: dry[i] ?? null,
+        away: away[i],
+        cleared: false,
+        pushes: pushes[i],
+        pushed: 0,
+        ru: lines[i][0],
+        kk: lines[i][1],
+        strainRu: strain[i][0],
+        strainKk: strain[i][1],
+      });
+    }
+
+    // Золотое яблоко у корней старой яблони — появляется, когда дойдёт вода.
+    const [gx, gz] = [BIG_TREE[0] - 0.8, BIG_TREE[1] - 1.0];
+    const gift = await makeKitApple(
+      kit, loader, gx, gz, groundAt(gx, gz) + 0.3, 'red', true, true, groundAt(gx, gz),
+    );
+    this.giftApple = gift.mesh;
+    this.giftApple.visible = false;
+    gift.ring.visible = false;
+    gift.beam.visible = false;
+    this.scene.add(this.giftApple);
+
+    // Один маркер на все пять целей второй половины уровня.
+    this.taskMarker = questMarker(0x9be7ff, 0x0d8bd9);
+    this.taskMarker.visible = false;
+    this.scene.add(this.taskMarker);
+
+    // Камыш и камни по берегам — чтобы канава читалась как живое место, а не
+    // как канава.
+    for (let i = 0; i < CHANNEL.length - 1; i++) {
+      const [x1, z1] = CHANNEL[i];
+      const [x2, z2] = CHANNEL[i + 1];
+      for (const t of [0.3, 0.72]) {
+        const cx = x1 + (x2 - x1) * t;
+        const cz = z1 + (z2 - z1) * t;
+        const side = i % 2 === 0 ? 1.35 : -1.35;
+        const reed = await kit.spawn('nature', i % 2 === 0 ? 'grass_leafsLarge' : 'plant_flatTall', {
+          maxSize: 0.9,
+          position: [cx + side * 0.9, 0, cz + side * 0.35],
+          ground: false,
+        });
+        if (!reed) continue;
+        this.snapToGround(reed);
+        this.markSwaying(reed, 0.5);
+        this.scene.add(reed);
+      }
+    }
+  }
+
+  /**
+   * Яблоня, которой не хватает воды.
+   *
+   * Материалы клонируются до обесцвечивания: AssetKit раздаёт клоны, делящие
+   * материалы шаблона, и покраска на месте посерила бы каждое дерево из того
+   * же файла — включая живые ряды сада.
+   */
+  private async plantThirstyTree(
+    kit: AssetKit,
+    name: string,
+    x: number,
+    z: number,
+    height: number,
+    colliderR: number,
+  ): Promise<OrchardTree | null> {
+    const root = await kit.spawn('nature', name, { height, position: [x, 0, z], ground: false });
+    if (!root) return null;
+    this.snapToGround(root);
+    this.markSwaying(root, 0.6);
+    this.scene.add(root);
+    this.colliders.push({ kind: 'circle', x, z, r: colliderR });
+
+    const fruit = fruitCanopy(x, root.position.y + height * 0.6, z, height * 0.24, 8, 0xe8412f);
+    fruit.visible = false;
+    fruit.scale.setScalar(0.001);
+    this.scene.add(fruit);
+
+    return { root, tints: drainTree(root), fruit, wateredAt: 0 };
   }
 
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: L3Hud) => void) {
@@ -651,6 +1554,14 @@ export class Level2Scene extends BaseLevelScene {
     }
     this.scene.add(gateGroup);
 
+    // Второй акт занимает свою полосу земли, а не щели между яблонями.
+    // Резерв ставится ДО посадки: `loadTrees` и `loadProps` спрашивают
+    // `isReserved`, и без этого в русле арыка вырастает сосна.
+    for (const [cx, cz] of CHANNEL) this.reserve(cx, cz, 2.6);
+    for (const [cx, cz] of ORCHARD_ROWS) this.reserve(cx, cz, 1.8);
+    for (const [cx, cz] of DRY_TREES) this.reserve(cx, cz, 2.0);
+    this.reserve(BIG_TREE[0], BIG_TREE[1], 3.2);
+
     // Trees (orchard)
     await this.loadTrees(loader, 30, 22, -14, 4.5);
     await this.loadProps(loader, 8, 6, 30, -16);
@@ -683,11 +1594,16 @@ export class Level2Scene extends BaseLevelScene {
       { x: 3, z: -16, y: 0.22, color: 'red', onGround: true },
       { x: -3.5, z: -18, y: 0.22, color: 'yellow', onGround: true },
       { x: 1.5, z: -20, y: 0.22, color: 'green', onGround: true },
-      // Tree apples — low hanging, reachable without jump (kids UX)
-      { x: -5, z: -10, y: 0.55, color: 'red', onGround: false, bonus: true },
-      { x: 5, z: -14, y: 0.55, color: 'yellow', onGround: false, bonus: true },
-      { x: -4, z: -18, y: 0.5, color: 'green', onGround: false, bonus: true },
-      { x: 4.5, z: -20, y: 0.55, color: 'red', onGround: false, bonus: true },
+      // Tree apples — low hanging, reachable without jump (kids UX).
+      //
+      // Высота поднята с 0.55 до 1.3: на каждое из этих мест теперь посажена
+      // яблоня (`ORCHARD_ROWS`), и яблоко висит на краю кроны, на уровне плеча
+      // Барсика, а не лежит на траве рядом со стволом. Дотянуться всё так же
+      // можно откуда угодно: `nearestInteract` меряет расстояние по плоскости.
+      { x: -5, z: -10, y: 1.3, color: 'red', onGround: false, bonus: true },
+      { x: 5, z: -14, y: 1.3, color: 'yellow', onGround: false, bonus: true },
+      { x: -4, z: -18, y: 1.25, color: 'green', onGround: false, bonus: true },
+      { x: 4.5, z: -20, y: 1.3, color: 'red', onGround: false, bonus: true },
     ];
 
     const kit = this.assetKit(loader);
@@ -722,6 +1638,9 @@ export class Level2Scene extends BaseLevelScene {
     this.gardenerMarker = questMarker(0xa8e6cf, 0x55a630);
     this.gardenerMarker.position.copy(this.gardener.position);
     this.scene.add(this.gardenerMarker);
+
+    await this.buildOrchardRows(kit);
+    await this.buildAryk(loader, kit);
 
     // Butterflies
     for (let i = 0; i < 6; i++) {
@@ -830,12 +1749,46 @@ export class Level2Scene extends BaseLevelScene {
           `Себетті тап · жолақ: ${patternCount(this.carryingColor)}`,
         );
       }
+    } else if (p === 'aryk') {
+      line = this.copy(
+        'Корзины полны! Но смотри — дальний край сада сохнет: арык закрыт створкой.',
+        'Себеттер толды! Бірақ қара — бақтың арғы шеті құрғап тұр: арық қақпақпен жабылған.',
+      );
+      objective = this.copy('💧 Открой створку на западе', '💧 Батыстағы қақпақты аш');
+    } else if (p === 'clear') {
+      line = this.copy(
+        'Вода дошла до завала. Убери его — и она побежит дальше.',
+        'Су бөгетке тірелді. Оны алып таста — су әрі қарай жүреді.',
+      );
+      objective = this.copy(
+        `🌊 Расчисти арык: ${this.cleared}/${this.blockages.length}`,
+        `🌊 Арықты тазала: ${this.cleared}/${this.blockages.length}`,
+      );
+    } else if (p === 'gift') {
+      line = this.copy(
+        'Самая старая яблоня напилась и уронила золотое яблоко!',
+        'Ең кәрі алма ағашы суға қанып, алтын алма түсірді!',
+      );
+      objective = this.copy('🍏 Возьми золотое яблоко', '🍏 Алтын алманы ал');
+    } else if (p === 'deliver') {
+      line = this.copy(
+        'Отнеси яблоко садовнику — он ждёт у ворот. Смотри, каким стал сад!',
+        'Алманы бағбанға апар — ол қақпа жанында күтіп тұр. Бақтың қандай болғанын қара!',
+      );
+      objective = this.copy('🎁 Отнеси яблоко садовнику', '🎁 Алманы бағбанға апар');
     } else if (p === 'outro') {
       line = this.copy(
-        'Ура! Сад ожил! Садовник говорит, у старого дуба потерялся маленький ёжик…',
-        'Ура! Бақ жанданды! Бағбанның айтуынша, ескі еменнің жанында кішкентай кірпі адасып қалыпты…',
+        'Сад ожил и напился! Садовник говорит, у старого дуба потерялся маленький ёжик…',
+        'Бақ жанданып, суға қанды! Бағбанның айтуынша, ескі еменнің жанында кішкентай кірпі адасып қалыпты…',
       );
       objective = this.copy('🎉 Уровень пройден', '🎉 Деңгей өтілді');
+    }
+
+    // Реплика последнего события перекрывает подсказку, пока её читают:
+    // «убери завал» поверх только что убранного завала — это подсказка,
+    // которая спорит с тем, что игрок видит на экране.
+    if (performance.now() < this.beatUntil && p !== 'outro') {
+      line = this.copy(this.beatRu, this.beatKk);
     }
 
     if (performance.now() < this.mistakeUntil && p === 'sort') {
@@ -898,6 +1851,31 @@ export class Level2Scene extends BaseLevelScene {
       }
     }
 
+    // Второй акт. Везде по плоскости: створка, завалы и золотое яблоко стоят
+    // на рельефе, а герой — на своём, и 3D-дистанция брала бы за это плату.
+    if (this.phase === 'aryk' && this.sluice) {
+      const d = Math.hypot(hp.x - this.sluice.group.position.x, hp.z - this.sluice.group.position.z);
+      if (d < bestD) { bestD = d; best = this.sluice.group; }
+    }
+
+    if (this.phase === 'clear') {
+      for (const b of this.blockages) {
+        if (b.cleared) continue;
+        const d = Math.hypot(hp.x - b.x, hp.z - b.z);
+        if (d < bestD) { bestD = d; best = b.group; }
+      }
+    }
+
+    if (this.phase === 'gift' && this.giftApple?.visible) {
+      const d = Math.hypot(hp.x - this.giftApple.position.x, hp.z - this.giftApple.position.z);
+      if (d < bestD) { bestD = d; best = this.giftApple; }
+    }
+
+    if (this.phase === 'deliver' && this.gardener) {
+      const d = Math.hypot(hp.x - this.gardener.position.x, hp.z - this.gardener.position.z);
+      if (d < bestD) best = this.gardener;
+    }
+
     return best;
   }
 
@@ -915,6 +1893,15 @@ export class Level2Scene extends BaseLevelScene {
       const basket = this.baskets.find((b) => b.color === this.carryingColor);
       return basket ? new THREE.Vector3(basket.x, 0, basket.z) : null;
     }
+    if (p === 'aryk') return this.sluice?.group.position.clone() ?? null;
+    if (p === 'clear') {
+      // Пока вода бежит к последней яблоне, стрелка молчит: вести игрока
+      // некуда, идти надо за водой.
+      const next = this.nextBlockage();
+      return next ? next.group.position.clone() : null;
+    }
+    if (p === 'gift') return this.giftApple?.visible ? this.giftApple.position.clone() : null;
+    if (p === 'deliver') return this.gardener?.position.clone() ?? null;
     return null;
   }
 
@@ -945,7 +1932,11 @@ export class Level2Scene extends BaseLevelScene {
 
     const canMove = !['intro', 'outro'].includes(this.phase) && !(this.phase === 'demo' && this.demoDone);
     const speed = this.baseSpeed;
-    this.updateMovement(dt, canMove, speed, -20, 20, -25, 8);
+    // Южная граница отодвинута с −25 до −27.5: арык и сухая половина сада
+    // получили свою полосу земли, а не щели между яблонями. Старый дуб на
+    // z = −31 остаётся за границей — он ландмарк для L3, а не цель здесь.
+    this.updateMovement(dt, canMove, speed, -20, 20, -27.5, 8);
+    this.updateAryk(now);
 
     if (this.gardener) updatePlushCharacter(this.gardener, now * 0.001, false);
 
@@ -961,6 +1952,10 @@ export class Level2Scene extends BaseLevelScene {
       this.carryingMesh.position.y = 1.6 + Math.sin(now * 0.006) * 0.05;
       this.carryingMesh.rotation.y += dt * 2;
     }
+    if (this.giftMesh) {
+      this.giftMesh.position.y = 1.6 + Math.sin(now * 0.006) * 0.05;
+      this.giftMesh.rotation.y += dt * 2;
+    }
 
     // Guide arrow
     const obj = this.objectiveWorldPos();
@@ -972,7 +1967,7 @@ export class Level2Scene extends BaseLevelScene {
       bang.position.y = 4.2 + Math.sin(now * 0.006) * 0.15;
       bang.rotation.y += dt * 2;
       this.gardenerMarker.visible =
-        this.phase === 'intro' || (this.phase === 'demo' && !this.demoDone);
+        this.phase === 'intro' || (this.phase === 'demo' && !this.demoDone) || this.phase === 'deliver';
     }
 
     // Basket beams pulse
