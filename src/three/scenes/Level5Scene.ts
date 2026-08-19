@@ -513,7 +513,8 @@ export class Level5Scene extends BaseLevelScene {
       [-2.4, 0.9], [-1.3, -1.6], [0.8, 1.8], [2.2, -0.7], [2.9, 1.5],
     ] as const) {
       const nut = new THREE.Mesh(
-        new THREE.SphereGeometry(0.13, 10, 8),
+        // Орех крупнее: лежит в траве, которую я же уплотнил до 29 000 травинок.
+        new THREE.SphereGeometry(0.19, 10, 8),
         new THREE.MeshStandardMaterial({
           color: 0xb5763c,
           emissive: 0x8a5a2a,

@@ -307,7 +307,10 @@ export class Level13Scene extends BaseLevelScene {
     this.scene.add(this.iceKey);
 
     // ── Shards ───────────────────────────────────────────────────
-    const crystalTpl = await loadPropModel(loader, CAST_PROP_GLB.ice_crystal, { maxSize: 0.55 });
+    // Крупнее: с игровой камеры в девяти метрах предмет меньше двух третей
+    // метра ребёнок не опознаёт как «то, что надо взять». Тот же класс, что
+    // яблоки на L2, только тонуть здесь не в чем — снег без высокой травы.
+    const crystalTpl = await loadPropModel(loader, CAST_PROP_GLB.ice_crystal, { maxSize: 0.82 });
     for (const [x, z] of SHARDS) {
       const y = this.groundHeightAt(x, z);
       let mesh: THREE.Object3D;

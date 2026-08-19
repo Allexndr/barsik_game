@@ -41,10 +41,12 @@ const FEATURES: Array<{
   size: number;
   slot: [number, number, number];
 }> = [
-  { key: 'carrot', id: 'nose', x: -17, z: -6, size: 0.42, slot: [0, 2.05, 0.5] },
-  { key: 'winter_hat', id: 'hat', x: 16, z: -22, size: 0.5, slot: [0, 2.72, 0] },
-  { key: 'scarf', id: 'scarf', x: -14, z: -27, size: 0.55, slot: [0, 1.62, 0.08] },
-  { key: 'pinecone', id: 'buttons', x: 19, z: -9, size: 0.34, slot: [0, 1.2, 0.55] },
+  // Размеры подняты в ~1.4 раза: с игровой камеры прежние 34–55 см
+  // не читались как предметы, которые надо найти и принести.
+  { key: 'carrot', id: 'nose', x: -17, z: -6, size: 0.6, slot: [0, 2.05, 0.5] },
+  { key: 'winter_hat', id: 'hat', x: 16, z: -22, size: 0.72, slot: [0, 2.72, 0] },
+  { key: 'scarf', id: 'scarf', x: -14, z: -27, size: 0.78, slot: [0, 1.62, 0.08] },
+  { key: 'pinecone', id: 'buttons', x: 19, z: -9, size: 0.5, slot: [0, 1.2, 0.55] },
 ];
 
 /** Drifts: the first sits close, the rest are a real walk away. */

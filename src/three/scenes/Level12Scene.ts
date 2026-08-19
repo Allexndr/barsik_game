@@ -230,7 +230,10 @@ export class Level12Scene extends BaseLevelScene {
     }
 
     // ── Crystals on the golden path ──────────────────────────────
-    const crystalTpl = await loadPropModel(loader, CAST_PROP_GLB.ice_crystal, { maxSize: 0.5 });
+    // Крупнее: с игровой камеры в девяти метрах предмет меньше двух третей
+    // метра ребёнок не опознаёт как «то, что надо взять». Тот же класс, что
+    // яблоки на L2, только тонуть здесь не в чем — снег без высокой травы.
+    const crystalTpl = await loadPropModel(loader, CAST_PROP_GLB.ice_crystal, { maxSize: 0.75 });
     for (const [t, lateral] of CRYSTALS) {
       const half = Level12Scene.halfWidthAt(t);
       const pos = this.trail.offsetAt(t, lateral * half);

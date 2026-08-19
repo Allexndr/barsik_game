@@ -130,7 +130,8 @@ export class Level10Scene extends BaseLevelScene {
         this.carryingGift = true;
         this.giftsDone += 1;
         const berry = new THREE.Mesh(
-          new THREE.SphereGeometry(0.18, 10, 10),
+          // Ягода в лапах — единственное, по чему видно, что подарок несут.
+          new THREE.SphereGeometry(0.26, 10, 10),
           new THREE.MeshStandardMaterial({ color: 0xe84393, emissive: 0xad1457, emissiveIntensity: 0.45 }),
         );
         berry.position.set(0.25, 1.45, 0);
