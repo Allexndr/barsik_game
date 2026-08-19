@@ -21,6 +21,7 @@ import { createPlushCharacter } from '../PlushCharacter';
 import { ZHULDYZ_LOOK } from '../characterLooks';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { makeOldOak } from './Level3Scene';
+import { makePutalo } from './Level7Scene';
 import { placeAmbientCritters } from '../s1Place';
 
 /**
@@ -29,7 +30,7 @@ import { placeAmbientCritters } from '../s1Place';
  * Circular route with bonus stars.
  */
 
-export type L11Phase = 'intro' | 'gifts' | 'farewell' | 'outro';
+export type L11Phase = 'intro' | 'gifts' | 'farewell' | 'leaving' | 'outro';
 
 export interface L11Hud extends BaseHud {
   farewellDone: number;
@@ -43,6 +44,20 @@ interface FarewellSpot {
   pos: THREE.Vector3;
   npcName: string;
   npcNameKk: string;
+  /**
+   * Что здесь было.
+   *
+   * Уровень назван прощанием, а прощаться было не с чем: каждое место — это
+   * NPC на траве и одна реплика. Ландмарки своих уровней тут уже стояли
+   * декорацией (дом садовника, старый дуб, нора белочки), но никто про них не
+   * вспоминал вслух. Воспоминание — первое, что происходит на месте: сначала
+   * узнаёшь место, потом даришь, потом прощаешься.
+   */
+  memoryRu: string;
+  memoryKk: string;
+  remembered: boolean;
+  /** Огонёк над ландмарком: гаснет, когда воспоминание рассказано. */
+  spark: THREE.Object3D | null;
   farewellRu: string;
   farewellKk: string;
   done: boolean;
@@ -81,16 +96,27 @@ export class Level10Scene extends BaseLevelScene {
   private nextAt = 0;
   private spots: FarewellSpot[] = [];
   private farewellDone = 0;
-  private readonly farewellTotal = 4;
+  /** Пятое место — Путало: друг из L7, которого в прощании не было. */
+  private readonly farewellTotal = 5;
   private activeFarewell: FarewellSpot | null = null;
   private farewellUntil = 0;
   private butterflies: THREE.Group[] = [];
   private trailMeshes: THREE.Mesh[] = [];
   private giftPile: THREE.Object3D | null = null;
   private giftsDone = 0;
-  private readonly giftsTotal = 4;
+  private readonly giftsTotal = 5;
   private carryingGift = false;
   private carryingMesh: THREE.Mesh | null = null;
+  /**
+   * Карта у выхода из леса.
+   *
+   * Она уже лежала на z = −35 с комментарием «карта, которая отправляет всех в
+   * горы, лежит у выхода» — и была чистой декорацией: уровень заканчивался на
+   * четвёртом прощании, посреди леса. Теперь прощание — не конец, а разрешение
+   * уйти: за картой надо дойти до опушки и оглянуться.
+   */
+  private exitMap: THREE.Object3D | null = null;
+  private exitMarker: THREE.Group | null = null;
 
   protected currentPhase() { return this.phase; }
 
@@ -117,11 +143,31 @@ export class Level10Scene extends BaseLevelScene {
       }
     }
 
+    if (this.phase === 'leaving') {
+      if (this.interactTarget === this.exitMap) this.leaveForest();
+      return;
+    }
+
     if (this.phase !== 'farewell') return;
     const t = this.interactTarget;
     if (!t) return;
     const spot = this.spots.find(s => s.marker === t && !s.done);
     if (!spot) return;
+
+    // Сначала узнать место. Три нажатия на одном месте — это не три подхода,
+    // а разговор: вспомнил, подарил, попрощался.
+    if (!spot.remembered) {
+      spot.remembered = true;
+      this.stars += 1;
+      this.activeFarewell = spot;
+      this.farewellUntil = performance.now() + 3600;
+      if (spot.spark) {
+        this.spawnSparks(spot.spark.position, 14, [0xffe9a8, 0xffd700]);
+        spot.spark.visible = false;
+      }
+      this.pushHud();
+      return;
+    }
 
     if (!spot.gifted) {
       if (!this.carryingGift) {
@@ -154,11 +200,34 @@ export class Level10Scene extends BaseLevelScene {
     this.spawnSparks(spot.pos, 12, [0xf1c40f, 0xa29bfe]);
     spot.marker.visible = false;
     if (this.farewellDone >= this.farewellTotal) {
-      this.phase = 'outro';
+      // Прощание — не конец уровня, а разрешение уйти.
+      this.phase = 'leaving';
       this.stars += 3;
       this.spawnSparks(new THREE.Vector3(0, 2, 0), 20, [0xffd700, 0x00cec9]);
+      if (this.exitMarker) this.exitMarker.visible = true;
     } else if (this.giftsDone < this.giftsTotal) {
       this.phase = 'gifts';
+    }
+    this.pushHud();
+  }
+
+  /**
+   * Опушка: карта в лапах, лес за спиной.
+   *
+   * Все пять маркеров загораются в последний раз — не как цели, а как «мы
+   * здесь». Это единственный кадр, в котором видно весь пройденный лес сразу.
+   */
+  private leaveForest() {
+    this.phase = 'outro';
+    this.stars += 5;
+    if (this.exitMarker) this.exitMarker.visible = false;
+    if (this.exitMap) {
+      this.spawnSparks(this.exitMap.position, 22, [0xffd700, 0x8fd8f5]);
+      this.exitMap.visible = false;
+    }
+    for (const spot of this.spots) {
+      spot.marker.visible = true;
+      this.spawnSparks(spot.pos, 8, [0xf1c40f, 0xa29bfe]);
     }
     this.pushHud();
   }
@@ -196,12 +265,14 @@ export class Level10Scene extends BaseLevelScene {
     );
     basket.position.y = 0.22;
     this.giftPile.add(basket);
-    for (let i = 0; i < 4; i++) {
+    // Ягод в корзине столько, сколько друзей: пятая появилась вместе с Путало.
+    for (let i = 0; i < this.giftsTotal; i++) {
       const berry = new THREE.Mesh(
         new THREE.SphereGeometry(0.14, 8, 8),
         new THREE.MeshStandardMaterial({ color: 0xe84393, emissive: 0xad1457, emissiveIntensity: 0.35 }),
       );
-      berry.position.set(Math.cos((i / 4) * Math.PI * 2) * 0.25, 0.5, Math.sin((i / 4) * Math.PI * 2) * 0.25);
+      const a = (i / this.giftsTotal) * Math.PI * 2;
+      berry.position.set(Math.cos(a) * 0.25, 0.5, Math.sin(a) * 0.25);
       this.giftPile.add(berry);
     }
     this.giftPile.position.set(0, 0, -4);
@@ -218,22 +289,54 @@ export class Level10Scene extends BaseLevelScene {
     // each spot now sits where its level was: the gardener by the house, the
     // stump on its riddle clearing, the hedgehog at the old oak, the squirrel
     // out by her burrow on the way to the mountains.
-    const spotConfigs: [number, number, string, string, string, string, string | null][] = [
-      [-16, 4, 'Садовник', 'Бағбан', 'Береги наш сад, Барсик. Мы будем ждать!', 'Бағбаны сақта, Барсик. Күтеміз!', 'zhuldyz.glb'],
-      [15, -9, 'Пенёк', 'Түпкі', 'Приходи — загадки не кончаются!', 'Кел — жұмбақтар бітпейді!', null],
-      [-13, -21, 'Ёжик', 'Кірпі', 'Спасибо, что нашёл меня тогда!', 'Сол кезде мені тапқаның үшін рахмет!', 'hedgehog.glb'],
-      [12, -30, 'Белочка', 'Тиін', 'Жёлудь сработал! Увидимся в горах!', 'Жаңғақ жарамды! Тауда кездесеміз!', 'squirrel.glb'],
+    const spotConfigs: [
+      number, number, string, string, string, string, string, string, string | null,
+    ][] = [
+      [-16, 4, 'Садовник', 'Бағбан',
+        'Здесь я собирал яблоки в три корзины — по числу светлых полосок.',
+        'Мұнда мен алмаларды үш себетке жинағанмын — ашық жолақтардың санына қарай.',
+        'Береги наш сад, Барсик. Мы будем ждать!', 'Бағбаны сақта, Барсик. Күтеміз!', 'zhuldyz.glb'],
+      [15, -9, 'Пенёк', 'Түпкі',
+        'А тут пенёк загадывал загадки. Я угадал все до одной!',
+        'Ал мұнда томар жұмбақ айтқан. Мен бәрін тапқанмын!',
+        'Приходи — загадки не кончаются!', 'Кел — жұмбақтар бітпейді!', null],
+      // Путало — единственный друг сезона, которого в прощании не было.
+      [19, -19, 'Путало', 'Путало',
+        'Здесь я шёл тихо-тихо, чтобы не спугнуть тебя. И ты показал мне закат.',
+        'Мұнда мен сені үркітпейін деп жайлап басқанмын. Сен маған батқан күнді көрсеттің.',
+        'Я сниму горы и пришлю тебе снимок!', 'Мен тауларды түсіріп, саған суретін жіберемін!', null],
+      [-13, -21, 'Ёжик', 'Кірпі',
+        'Под этим дубом я нашёл тебя по следам лап.',
+        'Осы еменнің түбінен мен сені із бойынша тапқанмын.',
+        'Спасибо, что нашёл меня тогда!', 'Сол кезде мені тапқаның үшін рахмет!', 'hedgehog.glb'],
+      [12, -30, 'Белочка', 'Тиін',
+        'Отсюда я нёс твою корзину до самой норки. Тяжёлая была!',
+        'Осы жерден мен сенің себетіңді інге дейін көтеріп барғанмын. Ауыр екен!',
+        'Жёлудь сработал! Увидимся в горах!', 'Жаңғақ жарамды! Тауда кездесеміз!', 'squirrel.glb'],
     ];
 
     for (let i = 0; i < spotConfigs.length; i++) {
-      const [x, z, nameRu, nameKk, farewellRu, farewellKk, glbFile] = spotConfigs[i];
+      const [x, z, nameRu, nameKk, memoryRu, memoryKk, farewellRu, farewellKk, glbFile] = spotConfigs[i];
       const marker = questMarker(0xf1c40f, 0xff9f43);
       marker.position.set(x, 0, z);
       this.scene.add(marker);
+
+      // Огонёк воспоминания: тёплая искра над местом, гаснет, когда вспомнили.
+      const spark = new THREE.Mesh(
+        new THREE.SphereGeometry(0.2, 10, 8),
+        new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.85, toneMapped: false }),
+      );
+      spark.position.set(x, this.groundHeightAt(x, z) + 2.1, z);
+      this.scene.add(spark);
+
       this.spots.push({
         pos: new THREE.Vector3(x, 0, z),
         npcName: nameRu,
         npcNameKk: nameKk,
+        memoryRu,
+        memoryKk,
+        remembered: false,
+        spark,
         farewellRu,
         farewellKk,
         done: false,
@@ -247,9 +350,12 @@ export class Level10Scene extends BaseLevelScene {
         npc = await loadCharModel(loader, glbFile, glbFile.includes('hedgehog') || glbFile.includes('squirrel') ? 0.95 : 1.25);
       }
       if (!npc) {
+        // Порядок мест сменился: Путало встал третьим, поэтому индексы
+        // запасных моделей больше не совпадают с прежними.
         if (i === 0) npc = createPlushCharacter({ ...ZHULDYZ_LOOK, height: 1.2 });
-        else if (i === 2) npc = createPlushHedgehog();
-        else if (i === 3) npc = createPlushSquirrel();
+        else if (i === 2) npc = makePutalo(0, 0);
+        else if (i === 3) npc = createPlushHedgehog();
+        else if (i === 4) npc = createPlushSquirrel();
         else {
           // Stump stand-in for Пенёк
           const stump = new THREE.Group();
@@ -322,7 +428,7 @@ export class Level10Scene extends BaseLevelScene {
     this.scene.add(oak);
     this.colliders.push({ kind: 'circle', x: -15.5, z: -23, r: 1.2 });
 
-    for (const [x, z] of [[-16, 4], [15, -9], [-13, -21], [12, -30], [0, -35]] as const) {
+    for (const [x, z] of [[-16, 4], [15, -9], [19, -19], [-13, -21], [12, -30], [0, -35]] as const) {
       this.reserve(x, z, 4.5);
     }
     await this.loadTrees(loader, 26, 26, -16, 4.0);
@@ -330,7 +436,7 @@ export class Level10Scene extends BaseLevelScene {
 
     // A landmark at each farewell spot, so the place is recognisable as the
     // one from its own level rather than an NPC standing on blank grass.
-    await this.placeProps(loader, [
+    const exitProps = await this.placeProps(loader, [
       // Gardener — the house and its garden fence (L0).
       { key: 'cabin', opts: { x: -19, z: 7, maxSize: 3.4, rotY: 0.5 } },
       { key: 'fence', opts: { x: -13, z: 5, maxSize: 1.6, rotY: 0.2 } },
@@ -348,6 +454,19 @@ export class Level10Scene extends BaseLevelScene {
       { key: 'map_scroll', opts: { x: 0, z: -35, maxSize: 0.6, y: 0.12 } },
       { key: 'wood_sign', opts: { x: 2.5, z: -34, maxSize: 1.3, rotY: 0.3 } },
     ]);
+
+    // Карту берут в лапы, а не просто проходят мимо. Ищем по месту, а не по
+    // индексу в списке: список правят чаще, чем координаты выхода.
+    this.exitMap =
+      exitProps.reduce<THREE.Object3D | null>((best, obj) => {
+        const d = Math.hypot(obj.position.x, obj.position.z + 35);
+        const bd = best ? Math.hypot(best.position.x, best.position.z + 35) : Infinity;
+        return d < bd ? obj : best;
+      }, null) ?? null;
+    this.exitMarker = questMarker(0x8fd8f5, 0x0984e3);
+    this.exitMarker.position.set(0, 0, -35);
+    this.exitMarker.visible = false;
+    this.scene.add(this.exitMarker);
     await placeAmbientCritters(this.scene, loader, [
       { key: 'fox', x: 6.5, z: -6, rotY: -1.2, h: 0.85 },
       { key: 'rabbit', x: -7, z: -8, rotY: 0.5, h: 0.7 },
@@ -403,21 +522,36 @@ export class Level10Scene extends BaseLevelScene {
       );
     } else if (p === 'farewell') {
       if (this.activeFarewell && performance.now() < this.farewellUntil) {
-        speaker = this.lang === 'kk' ? this.activeFarewell.npcNameKk : this.activeFarewell.npcName;
-        line = this.activeFarewell.gifted && !this.activeFarewell.done
-          ? this.copy('Спасибо за ягоду! Обними на прощание!', 'Жидек үшін рахмет! Қоштасуға құшақта!')
-          : (this.lang === 'kk' ? this.activeFarewell.farewellKk : this.activeFarewell.farewellRu);
+        const a = this.activeFarewell;
+        if (a.remembered && !a.gifted) {
+          // Вспоминает сам Барсик — это его память, а не реплика друга.
+          speaker = 'Барсик';
+          line = this.copy(a.memoryRu, a.memoryKk);
+        } else {
+          speaker = this.lang === 'kk' ? a.npcNameKk : a.npcName;
+          line = a.gifted && !a.done
+            ? this.copy('Спасибо за ягоду! Обними на прощание!', 'Жидек үшін рахмет! Қоштасуға құшақта!')
+            : this.copy(a.farewellRu, a.farewellKk);
+        }
       } else {
         this.activeFarewell = null;
         const next = this.spots.find(s => !s.done);
         const name = next ? (this.lang === 'kk' ? next.npcNameKk : next.npcName) : '';
-        line = this.carryingGift
-          ? this.copy(`Отдай подарок: ${name}`, `Сыйлықты бер: ${name}`)
-          : name
-            ? this.copy(`Попрощайся с: ${name}`, `Қоштас: ${name}`)
-            : this.copy('Все друзья попрощались!', 'Барлық достар қоштасты!');
+        line = next && !next.remembered
+          ? this.copy(`Подойди и вспомни, что здесь было: ${name}`, `Жақында да, мұнда не болғанын есіңе түсір: ${name}`)
+          : this.carryingGift
+            ? this.copy(`Отдай подарок: ${name}`, `Сыйлықты бер: ${name}`)
+            : name
+              ? this.copy(`Попрощайся с: ${name}`, `Қоштас: ${name}`)
+              : this.copy('Все друзья попрощались!', 'Барлық достар қоштасты!');
       }
       objective = this.copy(`👋 Прощание: ${this.farewellDone}/${this.farewellTotal}`, `👋 Қоштасу: ${this.farewellDone}/${this.farewellTotal}`);
+    } else if (p === 'leaving') {
+      line = this.copy(
+        'Все попрощались. На опушке лежит карта в горы — забери её и оглянись на лес.',
+        'Бәрі қоштасты. Орман шетінде тауларға апаратын карта жатыр — оны ал да, орманға бұрылып қара.',
+      );
+      objective = this.copy('🗺️ Забери карту у опушки', '🗺️ Орман шетінен картаны ал');
     } else if (p === 'outro') {
       speaker = this.copy('Садовник', 'Бағбан');
       line = this.copy(
@@ -459,11 +593,21 @@ export class Level10Scene extends BaseLevelScene {
       if (spot.done) continue;
       const d = hp.distanceTo(spot.pos);
       if (d >= bestD) continue;
-      if (this.phase === 'farewell' && this.carryingGift && !spot.gifted) {
+      if (this.phase !== 'farewell') continue;
+      // Воспоминание берётся до подарка и не требует ягоды в лапах: иначе
+      // ребёнок, пришедший к месту с пустыми руками, не может даже узнать его.
+      if (!spot.remembered) {
         bestD = d; best = spot.marker;
-      } else if (this.phase === 'farewell' && !this.carryingGift && spot.gifted) {
+      } else if (this.carryingGift && !spot.gifted) {
+        bestD = d; best = spot.marker;
+      } else if (!this.carryingGift && spot.gifted) {
         bestD = d; best = spot.marker;
       }
+    }
+
+    if (this.phase === 'leaving' && this.exitMap) {
+      const d = Math.hypot(hp.x - this.exitMap.position.x, hp.z - this.exitMap.position.z);
+      if (d < bestD) best = this.exitMap;
     }
 
     return best;
@@ -479,6 +623,13 @@ export class Level10Scene extends BaseLevelScene {
       let bestD = Infinity;
       for (const spot of this.spots) {
         if (spot.done) continue;
+        // Непрочитанное воспоминание — сама по себе цель: к такому месту
+        // стрелка ведёт даже с пустыми лапами.
+        if (!spot.remembered) {
+          const dm = hp.distanceTo(spot.pos);
+          if (dm < bestD) { bestD = dm; best = spot.pos.clone(); }
+          continue;
+        }
         if (this.carryingGift && spot.gifted) continue;
         if (!this.carryingGift && !spot.gifted && this.phase === 'farewell') continue;
         const d = hp.distanceTo(spot.pos);
@@ -486,6 +637,7 @@ export class Level10Scene extends BaseLevelScene {
       }
       return best;
     }
+    if (this.phase === 'leaving' && this.exitMap) return this.exitMap.position.clone();
     return null;
   }
 
@@ -526,6 +678,20 @@ export class Level10Scene extends BaseLevelScene {
     for (const spot of this.spots) {
       if (!spot.done) {
         spot.marker.position.y = Math.sin(now * 0.004 + spot.pos.x) * 0.08;
+      }
+      if (spot.spark?.visible) {
+        spot.spark.position.y =
+          this.groundHeightAt(spot.pos.x, spot.pos.z) + 2.1 + Math.sin(now * 0.0035 + spot.pos.z) * 0.22;
+        const mat = (spot.spark as THREE.Mesh).material as THREE.MeshBasicMaterial;
+        mat.opacity = 0.6 + Math.sin(now * 0.006 + spot.pos.x) * 0.25;
+      }
+    }
+
+    if (this.exitMarker?.visible) {
+      const bang = this.exitMarker.userData.bang as THREE.Object3D | undefined;
+      if (bang) {
+        bang.position.y = 4.2 + Math.sin(now * 0.006) * 0.15;
+        bang.rotation.y += dt * 2;
       }
     }
 
