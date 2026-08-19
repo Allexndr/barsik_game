@@ -58,6 +58,12 @@ export const PLAYER_RADIUS = 0.45;
 // ─── Shared utility functions ───────────────────────────────────
 export { fitHeight, groundY, disposeObject3DResources };
 
+/**
+ * Below this world height a mesh receives shadow but does not cast one.
+ * Applied after the level is built — see `demoteSmallShadowCasters`.
+ */
+const SHADOW_CASTER_MIN_HEIGHT = 0.5;
+
 export async function loadGlb(loader: GLTFLoader, url: string) {
   try {
     const g = await Promise.race([
@@ -1074,7 +1080,10 @@ export abstract class BaseLevelScene {
     } = {},
   ) {
     const {
-      count = this.isMobile ? 5000 : 14000,
+      // Denser field. Each blade is one triangle inside a single instanced
+      // draw call, so +60% density costs about 8 000 triangles against scene
+      // totals of 131 000–428 000, and not one extra draw call.
+      count = this.isMobile ? 8000 : 22000,
       area = { xMin: -34, xMax: 34, zMin: -46, zMax: 16 },
     } = opts;
     if (!this.renderQuality.useComposer && count <= 0) return null;
@@ -1181,6 +1190,9 @@ export abstract class BaseLevelScene {
     // dropped into the Ice Valley.
     for (const tree of await kit.scatter('holiday', ['tree-snow-a', 'tree-snow-b', 'tree-snow-c'], trees)) {
       this.snapToGround(tree);
+      // Winter firs sway less: they are stiffer, and snow-laden branches that
+      // wave like summer foliage read as wrong before they read as alive.
+      this.markSwaying(tree, 0.55);
       this.scene.add(tree);
       this.colliders.push({ kind: 'circle', x: tree.position.x, z: tree.position.z, r: 1.4 });
     }
@@ -2123,6 +2135,7 @@ export abstract class BaseLevelScene {
       const placed = await kit.scatter('nature', group, subset);
       for (const tree of placed) {
         this.snapToGround(tree);
+        this.markSwaying(tree);
         this.scene.add(tree);
         const bend = Math.sin((tree.position.z + 18) * -0.02) * 2.1;
         if (Math.abs(tree.position.x - bend) > 2.4) {
@@ -2604,6 +2617,7 @@ export abstract class BaseLevelScene {
     this.updateCameraOrbit(dt);
     this.updateJump(dt);
     this.updateFootprints(dt);
+    this.updateSway(now);
     const motionScale = this.prefersReducedMotion ? 0.25 : 1;
 
     // Wings. Collected from the scene once rather than threaded through
@@ -2846,6 +2860,7 @@ export abstract class BaseLevelScene {
       this.setupWindGrass(this.pendingGrass);
       this.pendingGrass = null;
     }
+    this.demoteSmallShadowCasters();
     document.addEventListener('visibilitychange', this.onVisibility);
     // Dev QA handle. The completion plan asks for a way to check a level's
     // later acts without replaying the earlier ones, and `?at=` only moves the
@@ -2938,6 +2953,90 @@ export abstract class BaseLevelScene {
     this.fireflies = null;
     this.snowfall = null;
     this.sparks.length = 0;
+  }
+
+  /**
+   * Stop tiny props from casting shadows.
+   *
+   * The shadow pass re-draws every caster into the depth map, and on L6 it
+   * measured at 104 of 219 draw calls and 70 000 of 157 000 triangles — 47%
+   * of the frame, for 164 casters. A pinecone's shadow is a couple of pixels
+   * from the game's camera; it costs the same draw call as an oak's.
+   *
+   * Measured in world space, after the level is built. The first attempt
+   * tested the model's own bounding box inside `loadGlb` and changed nothing,
+   * because a prop's size on screen comes from the scale applied when it is
+   * placed — a pinecone can be two units tall in its own file.
+   *
+   * The hero and anything skinned are exempt whatever their size: a character
+   * without a contact shadow reads as floating.
+   */
+  private demoteSmallShadowCasters() {
+    const box = new THREE.Box3();
+    const size = new THREE.Vector3();
+    this.scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || !m.castShadow) return;
+      if ((m as unknown as THREE.SkinnedMesh).isSkinnedMesh) return;
+      let node: THREE.Object3D | null = m;
+      while (node) {
+        if (node === this.hero) return;
+        node = node.parent;
+      }
+      box.setFromObject(m);
+      if (box.isEmpty()) return;
+      box.getSize(size);
+      if (Math.max(size.x, size.y, size.z) < SHADOW_CASTER_MIN_HEIGHT) m.castShadow = false;
+    });
+  }
+
+  // ── Wind sway ────────────────────────────────────────────────
+  private swayCache: THREE.Object3D[] | null = null;
+
+  /**
+   * Tag something to lean in the wind.
+   *
+   * On the CPU, not in a shader. The trees are GLB kit models sharing
+   * materials, so a vertex-shader bend means patching `onBeforeCompile`
+   * against three's own chunks — the same route that silently produced an
+   * invisible material for the footprints. A few dozen objects setting one
+   * euler each per frame does not register against a scene that is already
+   * issuing 253–634 draw calls.
+   *
+   * Rotating about the object's own origin works because every caller has
+   * run `snapToGround` first, which puts that origin at the foot — so the
+   * tree pivots where it meets the earth rather than about its middle.
+   */
+  protected markSwaying(object: THREE.Object3D, strength = 1) {
+    object.userData.sway = {
+      phase: Math.random() * Math.PI * 2,
+      // Spread the rates so a stand of trees does not breathe in unison.
+      rate: 0.45 + Math.random() * 0.35,
+      amp: (0.009 + Math.random() * 0.007) * strength,
+      baseZ: object.rotation.z,
+      baseX: object.rotation.x,
+    };
+    this.swayCache = null;
+  }
+
+  private updateSway(now: number) {
+    if (!this.swayCache) {
+      this.swayCache = [];
+      this.scene.traverse((o) => {
+        if (o.userData.sway) this.swayCache!.push(o);
+      });
+    }
+    if (!this.swayCache.length) return;
+    const scale = this.prefersReducedMotion ? 0.25 : 1;
+    const t = now * 0.001;
+    for (const o of this.swayCache) {
+      const s = o.userData.sway as { phase: number; rate: number; amp: number; baseZ: number; baseX: number };
+      const a = s.amp * scale;
+      // Two axes at different rates, so the lean traces a slow figure rather
+      // than a metronome swing in one plane.
+      o.rotation.z = s.baseZ + Math.sin(t * s.rate + s.phase) * a;
+      o.rotation.x = s.baseX + Math.sin(t * s.rate * 0.73 + s.phase * 1.7) * a * 0.6;
+    }
   }
 
   // ── Footprints ───────────────────────────────────────────────
