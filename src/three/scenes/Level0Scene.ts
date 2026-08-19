@@ -438,18 +438,28 @@ function boulder(x: number, z: number, scale: number, groundY: number): THREE.Gr
  */
 function makePeg(): THREE.Group {
   const g = new THREE.Group();
+  // Втрое толще и вдвое выше прежнего. С игровой камеры в девяти метрах
+  // колышек радиусом 4.5 см — это волосок: ребёнок не видит предмет, которым
+  // ему предлагают что-то сделать.
   const shaft = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.045, 0.02, 0.5, 7),
-    new THREE.MeshStandardMaterial({ color: 0x8a5c30, roughness: 0.88 }),
+    new THREE.CylinderGeometry(0.13, 0.055, 0.95, 8),
+    new THREE.MeshStandardMaterial({ color: 0x9c6a38, roughness: 0.85 }),
   );
-  shaft.position.y = 0.25;
+  shaft.position.y = 0.47;
   shaft.castShadow = true;
+  // Насечки на древке — по ним видно, что это струганое дерево, а не палка.
+  const notchMat = new THREE.MeshStandardMaterial({ color: 0x7a4f26, roughness: 0.9 });
+  for (const y of [0.3, 0.55]) {
+    const notch = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.016, 5, 12), notchMat);
+    notch.rotation.x = Math.PI / 2;
+    notch.position.y = y;
+    g.add(notch);
+  }
   const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.075, 8, 6),
-    new THREE.MeshStandardMaterial({ color: 0x6b431f, roughness: 0.8 }),
+    new THREE.CylinderGeometry(0.2, 0.17, 0.16, 8),
+    new THREE.MeshStandardMaterial({ color: 0x6b431f, roughness: 0.75 }),
   );
-  head.position.y = 0.52;
-  head.scale.set(1, 0.65, 1);
+  head.position.y = 1.0;
   head.castShadow = true;
   g.add(shaft, head);
   g.rotation.z = 0.14;
@@ -466,23 +476,54 @@ function makeFeltPanel(): THREE.Group {
   const felt = new THREE.MeshStandardMaterial({
     color: 0xe9e2d2, roughness: 0.95, side: THREE.DoubleSide,
   });
-  const panel = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.15, 4, 3), felt);
-  panel.position.y = 0.62;
-  panel.castShadow = true;
 
+  // Войлок, а не карточка.
+  //
+  // Здесь стояла `PlaneGeometry` без поворота — то есть плоский прямоугольник
+  // СТОЙМЯ на траве, ровно как игральная карта. Толщины нет, тени по кромке
+  // нет, лежать он не лежит: узнать в нём кусок войлока невозможно.
+  //
+  // Теперь это отвернувшийся край кошмы: коробка с толщиной, наклонённая от
+  // земли, и завёрнутый уголок сверху. Силуэт сразу читается как «тряпка
+  // отошла и хлопает», а хлопанье в `loop` наконец имеет что колыхать.
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.07, 1.35), felt);
+  panel.position.set(0, 0.42, -0.28);
+  panel.rotation.x = -0.62;
+  panel.castShadow = true;
+  panel.receiveShadow = true;
+
+  const curl = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.06, 0.5), felt);
+  curl.position.set(0, 0.92, -0.72);
+  curl.rotation.x = 0.55;
+  curl.castShadow = true;
+
+  // Прижимной ремешок: по нему видно, куда именно бить колышком.
+  const strap = new THREE.Mesh(
+    new THREE.BoxGeometry(0.22, 0.05, 1.0),
+    new THREE.MeshStandardMaterial({ color: 0xb08a5a, roughness: 0.9 }),
+  );
+  strap.position.set(0, 0.3, -0.1);
+  strap.rotation.x = -0.62;
+
+  // Колышек лежит рядом с самого начала.
+  //
+  // Он был `visible = false` до починки: ребёнку предлагалось «приколоть»
+  // предмет, которого он ни разу не видел. Теперь колышек лежит на траве
+  // рядом с заплатой, а после починки встаёт в неё стоймя.
   const peg = makePeg();
-  peg.position.set(0, 0.05, 0.3);
-  peg.visible = false;
+  peg.position.set(0.62, 0.13, 0.42);
+  peg.rotation.set(0, 0.5, Math.PI / 2 - 0.1);
 
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.62, 0.9, 20),
-    new THREE.MeshBasicMaterial({ color: 0xf0d24a, transparent: true, opacity: 0.45, side: THREE.DoubleSide }),
+    new THREE.RingGeometry(0.8, 1.16, 24),
+    new THREE.MeshBasicMaterial({ color: 0xf0d24a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }),
   );
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.03;
 
-  g.add(panel, peg, ring);
+  g.add(panel, curl, strap, peg, ring);
   g.userData.panel = panel;
+  g.userData.curl = curl;
   g.userData.peg = peg;
   g.userData.ring = ring;
   return g;
@@ -702,7 +743,9 @@ export class Level0Scene extends BaseLevelScene {
 
     if (this.phase === 'mend' && t.userData.isPanel && !t.userData.done) {
       t.userData.done = true;
-      (t.userData.peg as THREE.Object3D).visible = true;
+      // Колышек виден с самого начала и теперь просто встаёт в ремешок —
+      // анимация в `loop`. Раньше он до этого момента не существовал на
+      // экране: ребёнку предлагали приколоть предмет, которого он не видел.
       (t.userData.ring as THREE.Mesh).visible = false;
       this.pegsDone += 1;
       this.stars += 3;
@@ -1638,13 +1681,31 @@ export class Level0Scene extends BaseLevelScene {
       }
     }
 
-    // Loose felt flaps; pegged felt is still.
+    // Отошедший войлок хлопает; прижатый ложится, и колышек встаёт в него.
     for (const p of this.panels) {
       const panel = p.userData.panel as THREE.Mesh;
+      const curl = p.userData.curl as THREE.Mesh | undefined;
+      const peg = p.userData.peg as THREE.Object3D | undefined;
       if (p.userData.done) {
-        panel.rotation.x += (0 - panel.rotation.x) * Math.min(1, dt * 5);
+        const k = Math.min(1, dt * 5);
+        panel.rotation.x += (-1.44 - panel.rotation.x) * k;
+        panel.position.y += (0.1 - panel.position.y) * k;
+        if (curl) {
+          curl.rotation.x += (-1.3 - curl.rotation.x) * k;
+          curl.position.y += (0.14 - curl.position.y) * k;
+          curl.position.z += (-0.95 - curl.position.z) * k;
+        }
+        if (peg) {
+          peg.position.x += (0 - peg.position.x) * k;
+          peg.position.y += (0.02 - peg.position.y) * k;
+          peg.position.z += (-0.1 - peg.position.z) * k;
+          peg.rotation.y += (0 - peg.rotation.y) * k;
+          peg.rotation.z += (0.14 - peg.rotation.z) * k;
+        }
       } else {
-        panel.rotation.x = Math.sin(now * 0.005 + (p.userData.sway as number)) * 0.42;
+        // Качается вокруг поднятой позы, а не вокруг нуля: ноль — это плашмя,
+        // и старая анимация складывала войлок в землю на каждом полупериоде.
+        panel.rotation.x = -0.62 + Math.sin(now * 0.005 + (p.userData.sway as number)) * 0.26;
       }
     }
 
