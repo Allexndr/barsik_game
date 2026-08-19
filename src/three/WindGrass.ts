@@ -90,13 +90,33 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
   geometry.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
   geometry.setAttribute('tint', new THREE.InstancedBufferAttribute(tints, 1));
 
+  /**
+   * Цвет травы без двойного преобразования.
+   *
+   * Было `new THREE.Color(hex).convertSRGBToLinear()`. С включённым в three
+   * управлением цветом (по умолчанию с r152) конструктор `Color(hex)` УЖЕ
+   * переводит sRGB в рабочее линейное пространство, и второй вызов переводил
+   * ещё раз. Замерено на живой сцене: в буфер уходило (3, 22, 1) вместо
+   * (29, 82, 17) — трава была темнее вчетверо по зелёному и читалась в кадре
+   * как тёмные иглы, а не как трава.
+   *
+   * Второе: этот шейдер пишет `gl_FragColor` сам и не проходит через
+   * `<colorspace_fragment>`, которым штатные материалы переводят линейное
+   * обратно в sRGB на выходе. Значит, в буфер надо класть сразу sRGB-значение
+   * — освещения здесь всё равно нет, смешивать в линейном пространстве нечего.
+   *
+   * `LinearSRGBColorSpace` в `setHex` означает «эти числа уже в рабочем
+   * пространстве, не трогай»: компоненты остаются равны hex/255.
+   */
+  const raw = (hex: number) => new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace);
+
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
-      uRoot: { value: new THREE.Color(rootColor).convertSRGBToLinear() },
-      uTip: { value: new THREE.Color(tipColor).convertSRGBToLinear() },
-      uTipWarm: { value: new THREE.Color(tipWarmColor).convertSRGBToLinear() },
-      fogColor: { value: new THREE.Color(fogColor).convertSRGBToLinear() },
+      uRoot: { value: raw(rootColor) },
+      uTip: { value: raw(tipColor) },
+      uTipWarm: { value: raw(tipWarmColor) },
+      fogColor: { value: raw(fogColor) },
       fogNear: { value: fogNear },
       fogFar: { value: fogFar },
     },

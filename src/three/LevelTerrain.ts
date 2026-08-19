@@ -66,11 +66,85 @@ export interface LevelTerrain {
   dispose(): void;
 }
 
-const PALETTES: Record<TerrainBiome, { low: number; high: number; path: number }> = {
-  forest: { low: 0x4e8f45, high: 0x8fc46e, path: 0xc9a86a },
-  snow: { low: 0xdae8f2, high: 0xfdfeff, path: 0xc3d9e8 },
-  ice: { low: 0x9fd0e8, high: 0xd8f0fb, path: 0xbfe6f7 },
+/**
+ * Мелкое зерно поверх вершинного цвета.
+ *
+ * Замерено: кадр на 78% состоит из земли — она и есть картинка. При этом земля
+ * красилась ТОЛЬКО вершинными цветами, а вершины стоят в 1.67 м друг от друга,
+ * поэтому мельче трёх метров на ней не могло появиться ничего в принципе. Даже
+ * добавленное зерно по вершинам даёт пятна размером с дерево, а не фактуру.
+ *
+ * Текстура здесь работает множителем: three умножает `map` на вершинный цвет,
+ * поэтому серая карта со средним около единицы добавляет фактуру, НЕ сдвигая
+ * палитру. Отклонение намеренно маленькое — задача добавить зерно, а не грязь.
+ *
+ * Одна текстура на все уровни: биом задаётся вершинным цветом, а зерно у травы,
+ * снега и льда одинаковое по характеру.
+ */
+let grainTexture: THREE.Texture | null = null;
+
+function terrainGrain(): THREE.Texture | null {
+  if (typeof document === 'undefined') return null;
+  if (grainTexture) return grainTexture;
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const img = ctx.createImageData(size, size);
+  for (let i = 0; i < size * size; i++) {
+    // Два масштаба: крупные пятна и поверх них песок. Один масштаб читается
+    // как телевизионный шум, два — как поверхность.
+    const x = i % size, y = (i / size) | 0;
+    const blob = Math.sin(x * 0.08 + y * 0.05) * Math.sin(x * 0.03 - y * 0.07);
+    const sand = Math.random() * 2 - 1;
+    const v = 255 * (1 + blob * 0.055 + sand * 0.035);
+    const c = Math.max(0, Math.min(255, v));
+    img.data[i * 4] = c;
+    img.data[i * 4 + 1] = c;
+    img.data[i * 4 + 2] = c;
+    img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  // Земля почти всегда под скользящим углом — без анизотропии зерно
+  // размазывается в паре метров от героя.
+  tex.anisotropy = 8;
+  grainTexture = tex;
+  return tex;
+}
+
+const PALETTES: Record<TerrainBiome, { low: number; high: number; path: number; slope: number }> = {
+  // `slope` — цвет крутых мест: земля из-под травы, надув на снегу, тёмный
+  // лёд на изломе. Без него склон и равнина красились одинаково, и рельеф
+  // читался только по затенению.
+  forest: { low: 0x4e8f45, high: 0x8fc46e, path: 0xc9a86a, slope: 0x7a6440 },
+  snow: { low: 0xdae8f2, high: 0xfdfeff, path: 0xc3d9e8, slope: 0xa8c0d4 },
+  ice: { low: 0x9fd0e8, high: 0xd8f0fb, path: 0xbfe6f7, slope: 0x7fb4d2 },
 };
+
+/**
+ * Детерминированный шум по координате.
+ *
+ * Нужен, чтобы разбить сплошную заливку. Земля красилась в один цвет по
+ * высоте: все точки на одной высоте получали ровно один тон, и на площади в
+ * двести метров это читается как пластилин. Здесь не «настоящий» шум — хватает
+ * пары синусов на несовпадающих частотах, потому что зерно всё равно
+ * усредняется по вершинам в полутора метрах друг от друга.
+ *
+ * Считается один раз при сборке меша и запекается в атрибут цвета: во время
+ * игры не стоит ничего.
+ */
+function mottle(x: number, z: number): number {
+  const a = Math.sin(x * 0.37 + z * 0.21);
+  const b = Math.sin(x * 0.13 - z * 0.41 + 2.1);
+  const c = Math.sin((x + z) * 0.29 - 1.3);
+  return (a * 0.5 + b * 0.32 + c * 0.18);
+}
 
 /**
  * Build the height function first, so props, grass and the hero can all query
@@ -165,7 +239,11 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
   const cLow = new THREE.Color(palette.low);
   const cHigh = new THREE.Color(palette.high);
   const cPath = new THREE.Color(palette.path);
+  const cSlope = new THREE.Color(palette.slope);
   const scratch = new THREE.Color();
+  // Шаг для оценки уклона: половина клетки сетки, чтобы разница высот бралась
+  // с того же масштаба, на котором сетка вообще способна что-то показать.
+  const step = size / segments / 2;
 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
@@ -175,6 +253,19 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
 
     const t = THREE.MathUtils.clamp((y + 0.6) / 3.4, 0, 1);
     scratch.copy(cLow).lerp(cHigh, t);
+
+    // Крутизна: где склон, там из-под травы выходит земля. Это единственное,
+    // что даёт рельефу цвет — до сих пор он был виден только по затенению, а
+    // при мягком свете затенение почти ничего не показывает.
+    const dx = (sampleHeight(x + step, z) - sampleHeight(x - step, z)) / (2 * step);
+    const dz = (sampleHeight(x, z + step) - sampleHeight(x, z - step)) / (2 * step);
+    const slope = Math.min(1, Math.hypot(dx, dz) * 0.9);
+    if (slope > 0.12) scratch.lerp(cSlope, (slope - 0.12) * 0.72);
+
+    // Зерно: тот же тон по всей равнине читается как пластилин.
+    const n = mottle(x, z) * 0.045;
+    scratch.offsetHSL(0, 0, n);
+
     if (corridorTint && corridor) {
       const d = Math.abs(x - corridor(z));
       const band = corridorHalf * 1.15;
@@ -188,8 +279,15 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
 
+  const grain = terrainGrain();
+  if (grain) {
+    // Один тайл примерно на восемь метров: крупнее — видно повтор, мельче —
+    // зерно сливается в равномерную серость уже в десяти метрах.
+    grain.repeat.set(size / 8, size / 8);
+  }
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true,
+    map: grain,
     roughness: biome === 'ice' ? 0.28 : 0.94,
     metalness: biome === 'ice' ? 0.18 : 0,
   });
