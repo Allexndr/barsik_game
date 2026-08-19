@@ -529,6 +529,31 @@ export function woodSign(x: number, z: number, rotY: number, color = 0xffeaa7) {
 }
 
 // ─── Texture generators ─────────────────────────────────────────
+/**
+ * Анизотропия для земли.
+ *
+ * Было жёстко зашито 4 при том, что GPU здесь отдаёт 16 (замерено через
+ * EXT_texture_filter_anisotropic). Земля в этой игре почти всегда видна под
+ * скользящим углом — камера смотрит на неё сверху-сзади, — и именно на таких
+ * углах низкая анизотропия размазывает текстуру в кашу уже в паре метров от
+ * героя. Восемь берём, а не шестнадцать: разницы на глаз между 8 и 16 нет, а
+ * выборок вдвое меньше.
+ */
+function groundAnisotropy(): number {
+  if (typeof document === 'undefined') return 4;
+  try {
+    const gl = document.createElement('canvas').getContext('webgl2')
+      ?? document.createElement('canvas').getContext('webgl');
+    if (!gl) return 4;
+    const ext = gl.getExtension('EXT_texture_filter_anisotropic');
+    if (!ext) return 1;
+    const max = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT) as number;
+    return Math.min(8, Math.max(1, max));
+  } catch {
+    return 4;
+  }
+}
+
 export function makeGrassTexture() {
   const size = 512;
   const canvas = document.createElement('canvas');
@@ -544,7 +569,7 @@ export function makeGrassTexture() {
   tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(100, 100);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = groundAnisotropy();
   return tex;
 }
 
@@ -563,7 +588,7 @@ export function makeSnowTexture() {
   tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(80, 80);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = groundAnisotropy();
   return tex;
 }
 
@@ -584,6 +609,9 @@ export function makeIceTexture() {
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(4, 16);
   tex.colorSpace = THREE.SRGBColorSpace;
+  // Лёд был единственной поверхностью вообще без анизотропии, а смотрят на
+  // него ровно под тем углом, где она нужнее всего.
+  tex.anisotropy = groundAnisotropy();
   return tex;
 }
 
@@ -1009,7 +1037,7 @@ export abstract class BaseLevelScene {
     // Fog starts inside the play area so distance actually reads. At near=58
     // nothing in a ~50-unit level was ever touched by it.
     this.scene.fog = new THREE.Fog(fogColor, 26, 150);
-    const hemi = new THREE.HemisphereLight(hemiSky, hemiGround, 0.58);
+    const hemi = new THREE.HemisphereLight(hemiSky, hemiGround, 0.42);
     this.hemiLight = hemi;
     this.scene.add(hemi);
 
@@ -1031,11 +1059,26 @@ export abstract class BaseLevelScene {
     sun.shadow.camera.bottom = -24;
     this.scene.add(sun);
 
-    const fill = new THREE.DirectionalLight(0xbcd6f5, 0.34);
+    // Ключ против заполняющего.
+    //
+    // Замерено по гистограмме кадра: 58% пикселей сидели в средних тонах,
+    // ярче 0.7 было 2.4%, при пересвете 0.17%. То есть светов в картинке не
+    // было вообще, а запас сверху не использовался — отсюда ощущение плоского,
+    // «пластилинового» кадра.
+    //
+    // Причина арифметическая: сумма заполняющих (полусфера 0.58 + fill 0.34 +
+    // rim 0.62 = 1.54) была БОЛЬШЕ ключевого солнца (1.35 в лесных уровнях).
+    // Когда заполняющий перебивает ключ, объём пропадает: всё освещено ровно,
+    // теней по форме нет, солнцу нечего лепить.
+    //
+    // Значения снижены так, чтобы солнце стало заметно сильнее суммы
+    // остального. Общая яркость почти не меняется — меняется соотношение,
+    // то есть контраст формы.
+    const fill = new THREE.DirectionalLight(0xbcd6f5, 0.2);
     fill.position.set(16, 8, 12);
-    const rim = new THREE.DirectionalLight(0xdcefff, 0.62);
+    const rim = new THREE.DirectionalLight(0xdcefff, 0.34);
     rim.position.set(4, 12, -20);
-    const ambient = new THREE.AmbientLight(0xffffff, 0.06);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.05);
     this.ambientLight = ambient;
     this.scene.add(fill, rim, ambient);
   }
@@ -1327,7 +1370,11 @@ export abstract class BaseLevelScene {
     const {
       fogColor = 0x81c784,
       sunColor = 0xfff8e7,
-      sunIntensity = 1.35,
+      // Ключевой свет леса. Было 1.35 при сумме заполняющих 1.54 — солнце
+      // проигрывало заполняющему, и объём в кадре пропадал. Заполняющие
+      // снижены до 0.96, солнце поднято: соотношение стало примерно 2:1,
+      // как и положено ключу.
+      sunIntensity = 1.95,
       hemiSky = 0xfff6e0,
       hemiGround = 0x3d8b40,
       sky = ['#7cc6ef', '#a6dcf0', '#eaf9f2'] as [string, string, string],
