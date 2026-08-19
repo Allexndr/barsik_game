@@ -81,7 +81,7 @@
 | `hero_placeholder.glb` (лиса) | `loadBarsikHeroRig` |
 | Hunyuan raw 3D | Нет текстур/rig, артефакты |
 | Утёкший японский текст в UI | Только RU/KK |
-| «S1 полностью ✅ premium» без оговорок | L0 = premium; L1–4 ниже планки M0; L5–16 играбельны |
+| «S1 полностью ✅ premium» без оговорок | Все 17 сцен на BaseLevelScene + QualityPipeline; до premium не хватает только рига героя (см. §16) |
 
 ---
 
@@ -728,22 +728,40 @@ GamePage.tsx
 | `levels.ts` | ✅ | 17 уровней, RU/KK, sync с GDD |
 | Mission 0 (флагман) | ✅ | Premium bar; MISSION0_AUDIT P0/P1 |
 | BaseLevelScene | ✅ | L2–16 наследуют |
-| QualityPipeline | ✅ | M0; раскатка на L1–4 in progress |
-| L1 Mission1Scene | 🟡 | Отдельная сцена, без QP |
-| L2–4 | 🟡 | BaseLevel; **polish in progress** (handoff doc) |
-| L5–16 | 🟡 | Играбельны; ниже premium M0 |
+| QualityPipeline | ✅ | Все 17 сцен: `setupQuality()` вызывается в каждой |
+| L1 Mission1Scene | ✅ | Наследует BaseLevelScene, QP включён |
+| L2–4 | ✅ | BaseLevel + QP |
+| L5–16 | ✅ | BaseLevel + QP; единственное, чего не хватает до premium, — риг героя |
 | AudioManager + procedural music | ✅ | forest/ice + SFX/TTS в M0+MissionScreen |
 | Meta UI (map/friends/shop/QR/city) | ✅ | Не stubs |
 | Hero barsik.glb | ⏸️ | Swap-path готов; ждём asset от владельца |
 | Final QA mobile/perf | 🟡 | Следующий шаг |
-| Supabase full sync | ⬜ | Local-first; leaderboard wired |
+| Supabase full sync | ⬜ | Local-first; чтение рейтинга есть, записи нет |
+
+> **Проверено измерением 2026-08-19.** Три строки выше были устаревшими: они
+> утверждали, что Mission1Scene — отдельная сцена без QualityPipeline, что
+> раскатка QP на L1–4 «in progress», и что L5–16 «ниже premium». На деле все
+> семнадцать сцен наследуют `BaseLevelScene` и все семнадцать вызывают
+> `setupQuality()`. Планка premium по §16 — это BaseLevelScene + QualityPipeline
+> + риг героя; два пункта из трёх закрыты везде.
+>
+> Риг действительно отсутствует, и это не оговорка: у героя **0 костей, 0
+> скинированных мешей, микшера анимаций нет** — модель статична, Барсик
+> скользит. Закрывается покупкой риггованной модели, то есть на стороне
+> владельца.
 
 ### Приоритеты для нового агента
 
-1. L1–4 → premium bar M0 (BaseLevelScene + QualityPipeline + hero rig).
-2. Прогнать §15 на L5–16 выборочно, затем batch.
-3. Mobile perf pass + dispose audit.
+1. Риг героя (единственное, что осталось до premium-планки по §16) — asset от
+   владельца.
+2. Прогон §15 по матрице разрешений: 1280×720 и 390×844.
+3. Mobile perf pass: FPS на живом устройстве. В агентском окружении вкладка
+   держится скрытой и кадров не выдаёт — счётчик там померить нечем.
 4. KK copy review с носителем.
+5. Серверная запись рейтинга: вьюха `barsik_leaderboard` только на чтение,
+   запись в `barsik_saves` закрыта RLS-правкой. Открывать её из браузера
+   нельзя — так туда и попала накрутка; нужна серверная функция.
+6. Длительность уровней — закрыта, см. `S1_COMPLETION_PLAN.md` §29.
 
 ---
 
