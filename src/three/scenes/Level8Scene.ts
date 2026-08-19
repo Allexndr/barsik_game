@@ -708,7 +708,7 @@ export class Level8Scene extends BaseLevelScene {
         `🏮 Соқпақ бойындағы шамдарды жақ — ${this.lanternsDone}/${LANTERNS.length}`,
       );
     } else if (p === 'garlands') {
-      speaker = this.copy('Ая', 'Ая');
+      speaker = this.copy('Айя', 'Айя');
       line = this.copy(
         'Теперь гирлянды! У трёх больших дубов лежат мотки.',
         'Енді гирляндалар! Үш үлкен емен түбінде шумақтар жатыр.',
@@ -729,7 +729,7 @@ export class Level8Scene extends BaseLevelScene {
             `🍎 Дастарханға жеміс жина — ${this.fruitsDone}/${FRUIT_SPOTS.length}`,
           );
     } else if (p === 'gather') {
-      speaker = this.copy('Ая', 'Ая');
+      speaker = this.copy('Айя', 'Айя');
       line = this.copy('Смотрите, как красиво! Все сюда!', 'Қандай әдемі! Бәрі осында!');
       objective = this.copy('✨ Друзья идут на праздник', '✨ Достар мерекеге келе жатыр');
     } else if (p === 'celebrate') {
