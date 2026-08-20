@@ -26,6 +26,17 @@ export type TerrainFeature =
   /** Flatten an area completely — arenas, festival grounds, chest clearings. */
   | { kind: 'flat'; x: number; z: number; r: number }
   /**
+   * Rectangular flatten with a soft edge — exactly zero inside the rectangle.
+   *
+   * A disc cannot hold a level whose authored content runs in a strip: `flat`
+   * scales the height by the distance to its centre, so a chain of discs
+   * leaves a low hump between every pair of them, and any prop authored at
+   * y = 0 ends up buried in one. This returns a true zero across the whole
+   * rectangle, which is what lets a level built flat keep every position it
+   * was authored with while the ground outside it rolls.
+   */
+  | { kind: 'flatRect'; x: number; z: number; halfW: number; halfD: number; falloff?: number }
+  /**
    * A rectangular cut that the path corridor cannot fill back in: river beds,
    * ravines, moats — anything the route has to be crossed rather than walked.
    *
@@ -127,6 +138,25 @@ const PALETTES: Record<TerrainBiome, { low: number; high: number; path: number; 
   ice: { low: 0x9fd0e8, high: 0xd8f0fb, path: 0xbfe6f7, slope: 0x7fb4d2 },
 };
 
+const PALETTE_COLORS = new Map<TerrainBiome, { low: THREE.Color; high: THREE.Color }>();
+
+/**
+ * Цвет поверхности на заданной высоте — тот самый, которым красится рельеф.
+ *
+ * Нужен снаружи затем, что уровни лепят собственные куски земли: русло ручья,
+ * площадки, насыпи. Пока такой кусок красили «на глаз похожим» зелёным, он
+ * садился рядом с рельефом видимым пятном — у первого ручья юбка берега была
+ * заметно светлее лужайки, в которую должна была втекать незаметно.
+ */
+export function terrainSurfaceColor(biome: TerrainBiome, height = 0, out = new THREE.Color()) {
+  let c = PALETTE_COLORS.get(biome);
+  if (!c) {
+    c = { low: new THREE.Color(PALETTES[biome].low), high: new THREE.Color(PALETTES[biome].high) };
+    PALETTE_COLORS.set(biome, c);
+  }
+  return out.copy(c.low).lerp(c.high, THREE.MathUtils.clamp((height + 0.6) / 3.4, 0, 1));
+}
+
 /**
  * Детерминированный шум по координате.
  *
@@ -178,6 +208,14 @@ export function createTerrainSampler(opts: LevelTerrainOptions = {}) {
         const dz = Math.abs(z - f.z) - f.halfD;
         const outside = Math.max(dx, dz);
         if (outside < 3) h += f.height * (1 - THREE.MathUtils.clamp(outside / 3, 0, 1));
+        continue;
+      }
+      if (f.kind === 'flatRect') {
+        const fo = f.falloff ?? 6;
+        const dx = Math.abs(x - f.x) - f.halfW;
+        const dz = Math.abs(z - f.z) - f.halfD;
+        const t = THREE.MathUtils.clamp(Math.max(dx, dz) / fo, 0, 1);
+        h *= t * t * (3 - 2 * t);
         continue;
       }
       const dist = Math.hypot(x - f.x, z - f.z);
@@ -236,8 +274,6 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
   const pos = geo.attributes.position as THREE.BufferAttribute;
   const colors = new Float32Array(pos.count * 3);
   const palette = PALETTES[biome];
-  const cLow = new THREE.Color(palette.low);
-  const cHigh = new THREE.Color(palette.high);
   const cPath = new THREE.Color(palette.path);
   const cSlope = new THREE.Color(palette.slope);
   const scratch = new THREE.Color();
@@ -251,8 +287,7 @@ export function createLevelTerrain(opts: LevelTerrainOptions = {}): LevelTerrain
     const y = sampleHeight(x, z);
     pos.setY(i, y);
 
-    const t = THREE.MathUtils.clamp((y + 0.6) / 3.4, 0, 1);
-    scratch.copy(cLow).lerp(cHigh, t);
+    terrainSurfaceColor(biome, y, scratch);
 
     // Крутизна: где склон, там из-под травы выходит земля. Это единственное,
     // что даёт рельефу цвет — до сих пор он был виден только по затенению, а
