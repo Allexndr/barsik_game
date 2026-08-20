@@ -1109,6 +1109,61 @@ export abstract class BaseLevelScene {
   }
 
   /**
+   * Слить пачку статичных объектов в один меш.
+   *
+   * Уровень рисует десятки одинаковых мелочей — плитки тропы, подсветку,
+   * тюльпаны, — и каждая уходит отдельным вызовом отрисовки. Ни одна из них
+   * не двигается, поэтому геометрию можно запечь вместе с матрицей один раз.
+   *
+   * Сливается только то, что делит ровно один материал. Если материалы
+   * разошлись, функция возвращает null и не трогает ничего: молча выброшенный
+   * объект хуже лишнего вызова отрисовки, а «слить что получится» — это ровно
+   * такая потеря. Вызывающий в этом случае добавляет объекты как были.
+   *
+   * Плата — покадровое отсечение по пирамиде видимости: слитый меш рисуется
+   * целиком, даже если в кадре его край. Для мелочи, разбросанной вдоль
+   * маршрута, это выгодно; для крупных объектов, разнесённых по всей карте, —
+   * нет.
+   */
+  protected mergeStatic(objects: THREE.Object3D[]): THREE.Mesh | null {
+    const geos: THREE.BufferGeometry[] = [];
+    let material: THREE.Material | null = null;
+    let mixed = false;
+    let cast = false;
+    let receive = false;
+    for (const o of objects) {
+      o.updateMatrixWorld(true);
+      o.traverse((c) => {
+        const m = c as THREE.Mesh;
+        if (!m.isMesh || mixed) return;
+        const mat = Array.isArray(m.material) ? m.material[0] : m.material;
+        if (material === null) material = mat;
+        else if (material !== mat) {
+          mixed = true;
+          return;
+        }
+        cast = cast || m.castShadow;
+        receive = receive || m.receiveShadow;
+        const g = m.geometry.clone();
+        g.applyMatrix4(m.matrixWorld);
+        geos.push(g);
+      });
+    }
+    const bail = () => {
+      for (const g of geos) g.dispose();
+      return null;
+    };
+    if (mixed || material === null || geos.length < 2) return bail();
+    const merged = mergeGeometries(geos, false);
+    for (const g of geos) g.dispose();
+    if (!merged) return null;
+    const mesh = new THREE.Mesh(merged, material);
+    mesh.castShadow = cast;
+    mesh.receiveShadow = receive;
+    return mesh;
+  }
+
+  /**
    * Wind-reactive grass over the play area, keeping clear of the corridor and
    * any reserved gameplay zones. One instanced draw call.
    */

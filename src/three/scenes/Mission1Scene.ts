@@ -68,6 +68,17 @@ const CREEK_Z = -14;
 const CREEK_HALF_WIDTH = 3.2;
 const CREEK_DEPTH = 0.55;
 
+/**
+ * Полоса русла вместе с подходами к мосту.
+ *
+ * Ручей пересекают по мосту, поэтому внутри этой полосы декор не сажаем:
+ * пока земля была плоской, тюльпаны и камни тропы висели над водой, а с
+ * настоящей высотой они в неё сели. Ни то ни другое не читается как задумано.
+ */
+function inCreekBand(x: number, z: number) {
+  return Math.abs(x) <= STRIP_HALF_X && Math.abs(z - CREEK_Z) <= CREEK_HALF_WIDTH + 0.6;
+}
+
 const sharedFruitGeometry = new THREE.SphereGeometry(0.38, 16, 16);
 const sharedRingGeometry = new THREE.RingGeometry(0.5, 0.78, 28);
 const sharedRingMaterial = new THREE.MeshBasicMaterial({
@@ -364,38 +375,55 @@ export class Mission1Scene extends BaseLevelScene {
     this.scene.add(zoneDisc(-3, -28, 8, 0xffcc80, 0.025));
     this.scene.add(zoneDisc(-6, -40, 7, 0xf8bbd0, 0.03));
 
+    // Тропа, подсветка и тюльпаны — 94 объекта, которые никуда не двигаются, а
+    // уходили в отрисовку по одному. Каждая плитка вдобавок заводила себе
+    // собственный материал, из-за чего их нельзя было слить. Один материал на
+    // партию — и вся партия рисуется одним вызовом.
+    const addMerged = (objs: THREE.Object3D[]) => {
+      const merged = this.mergeStatic(objs);
+      if (merged) this.scene.add(merged);
+      else for (const o of objs) this.scene.add(o);
+    };
+
+    const dirtMat = new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 1 });
+    const dirtTiles: THREE.Object3D[] = [];
     for (let i = 0; i < 42; i++) {
       const bend = Math.sin(i * 0.24) * 2.1;
-      const dirt = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.6, 1.1),
-        new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 1 }),
-      );
+      const dirt = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.1), dirtMat);
       dirt.rotation.x = -Math.PI / 2;
       dirt.position.set(bend, 0.035, 8 - i * 1.05);
-      this.scene.add(dirt);
+      dirtTiles.push(dirt);
     }
+    addMerged(dirtTiles);
+
+    const glowMat = new THREE.MeshStandardMaterial({
+      color: 0xffeaa7,
+      emissive: 0xfdcb6e,
+      emissiveIntensity: 0.2,
+      transparent: true,
+      opacity: 0.34,
+    });
+    const glowTiles: THREE.Object3D[] = [];
     for (let i = 0; i < 12; i++) {
-      const tile = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.15, 0.65),
-        new THREE.MeshStandardMaterial({
-          color: 0xffeaa7,
-          emissive: 0xfdcb6e,
-          emissiveIntensity: 0.2,
-          transparent: true,
-          opacity: 0.34,
-        }),
-      );
+      const tile = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.65), glowMat);
       tile.rotation.x = -Math.PI / 2;
       const z = 6.5 - i * 4.2;
       const bend = Math.sin((7.5 - z) * 0.24) * 1.9;
       tile.position.set(bend, 0.05, z);
-      this.scene.add(tile);
+      glowTiles.push(tile);
     }
+    addMerged(glowTiles);
     for (let i = 0; i < 10; i++) {
       const z = 5.5 - i * 4.8;
       const bend = Math.sin((8 - z) * 0.24) * 2.1;
       const rot = -Math.sin((8 - z) * 0.24) * 0.4;
-      const a = pathArrow(bend, z, rot);
+      // Одна из десяти стрелок приходится ровно на ручей, а высоту они берут
+      // от земли каждый кадр — эта бултыхалась под водой на дне русла. То есть
+      // указатель пропадал ровно там, где ребёнок и может растеряться. Сдвиг
+      // на ось моста ставит её на настил: `groundHeightAt` над мостом отдаёт
+      // высоту настила, а не дна.
+      const ax = inCreekBand(bend, z) ? 0 : bend;
+      const a = pathArrow(ax, z, rot);
       a.scale.setScalar(0.72);
       this.pathArrows.push(a);
       this.scene.add(a);
@@ -525,16 +553,23 @@ export class Mission1Scene extends BaseLevelScene {
     for (let i = 0; i < 24; i++) {
       const z = 7 - i * 2.15;
       const bend = Math.sin((7.5 - z) * 0.24) * 1.9;
-      trailPts.push({ x: bend + (i % 2 ? 0.32 : -0.32), z });
+      const x = bend + (i % 2 ? 0.32 : -0.32);
+      // Четыре камня тропы приходились на само русло и уходили под воду —
+      // ручей переходят по мосту, тропа обрывается на его подходах.
+      if (inCreekBand(x, z)) continue;
+      trailPts.push({ x, z });
     }
     await this.layTrail(loader, trailPts, { size: 1.35 });
 
+    // Пять из сорока тюльпанов раскладка сажала прямо в ручей.
+    const tulips: THREE.Object3D[] = [];
     for (let i = 0; i < 40; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = 8 - (i / 40) * 55;
       const bend = Math.sin((z - 8) * -0.24) * 1.9;
       const x = side * (3.0 + (i % 5) * 0.32) + bend + Math.sin(i) * 0.4;
-      this.scene.add(tulip(x, z, [0xe74c3c, 0xf1c40f, 0xe67e22, 0xfd79a8, 0xa29bfe][i % 5]));
+      if (inCreekBand(x, z)) continue;
+      tulips.push(tulip(x, z, [0xe74c3c, 0xf1c40f, 0xe67e22, 0xfd79a8, 0xa29bfe][i % 5]));
     }
     for (let i = 0; i < 10; i++) {
       const bf = butterfly((Math.random() - 0.5) * 24, -4 - Math.random() * 44, [0xff7675, 0x74b9ff, 0xfdcb6e, 0xfd79a8][i % 4]);
@@ -602,8 +637,11 @@ export class Mission1Scene extends BaseLevelScene {
       [-6.0, -39.0],
       [-7.5, -38.0],
     ] as const) {
-      this.scene.add(tulip(fx, fz, 0xe84393));
+      tulips.push(tulip(fx, fz, 0xe84393));
     }
+    // Тюльпаны красятся вершинным цветом поверх общего материала, так что все
+    // 43 сливаются в один меш, не теряя ни одного оттенка.
+    addMerged(tulips);
 
     await placeMany(this.scene, loader, [
       { key: 'berry', opts: { x: -4.2, z: -27, maxSize: 0.4 } },
@@ -614,7 +652,9 @@ export class Mission1Scene extends BaseLevelScene {
       { key: 'pinecone', opts: { x: 4, z: -22, maxSize: 0.3 } },
       { key: 'strawberry', opts: { x: -2.5, z: -26, maxSize: 0.35 } },
       { key: 'honey', opts: { x: 5.5, z: -18, maxSize: 0.4 } },
-      { key: 'flowers', opts: { x: -6.5, z: -12, maxSize: 0.75 } },
+      // Было z = -12 — внутри русла: клумба стояла на мокром берегу, наполовину
+      // в воде. Отодвинуто на луг перед переправой.
+      { key: 'flowers', opts: { x: -6.5, z: -9.2, maxSize: 0.75 } },
       { key: 'flowers_tall', opts: { x: 5, z: -30, maxSize: 0.95 } },
     ]);
     // `wood_bridge` and `bridge_mini` used to be placed here too, stacked
