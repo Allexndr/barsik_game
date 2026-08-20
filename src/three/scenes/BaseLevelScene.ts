@@ -20,6 +20,12 @@ import { createFpsSampler } from '@/dev/fpsSampler';
 // Registers window.__audit under import.meta.env.DEV; absent from a build.
 import '@/dev/levelAudit';
 import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
+import {
+  VISUAL_PROFILES,
+  profileVector,
+  type VisualProfile,
+  type VisualProfileName,
+} from '../VisualProfiles';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -446,11 +452,20 @@ export function hill(x: number, z: number, r: number, h: number, color = 0x43a04
 export function cloud() {
   const g = new THREE.Group();
   const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.82, depthWrite: false });
+  const puffs: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 5; i++) {
-    const s = new THREE.Mesh(new THREE.SphereGeometry(1 + Math.random() * 1.5, 7, 7), mat);
-    s.position.set((Math.random() - 0.5) * 3.5, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 2);
-    g.add(s);
+    const puff = new THREE.SphereGeometry(1 + Math.random() * 1.5, 7, 7);
+    puff.translate(
+      (Math.random() - 0.5) * 3.5,
+      (Math.random() - 0.5) * 0.8,
+      (Math.random() - 0.5) * 2,
+    );
+    puffs.push(puff);
   }
+  const merged = mergeGeometries(puffs, false);
+  for (const puff of puffs) puff.dispose();
+  if (merged) g.add(new THREE.Mesh(merged, mat));
+  else mat.dispose();
   return g;
 }
 
@@ -615,7 +630,12 @@ export function makeIceTexture() {
   return tex;
 }
 
-export function makeSkyTexture(top = '#66c8f5', mid = '#94d8ef', bot = '#e8faf3') {
+export function makeSkyTexture(
+  top = '#66c8f5',
+  mid = '#94d8ef',
+  bot = '#e8faf3',
+  sunDisc?: VisualProfile['sunDisc'],
+) {
   const w = 512, h = 512;
   const canvas = document.createElement('canvas');
   canvas.width = w; canvas.height = h;
@@ -626,22 +646,48 @@ export function makeSkyTexture(top = '#66c8f5', mid = '#94d8ef', bot = '#e8faf3'
   grad.addColorStop(1, bot);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
+  // Fixed cloud wisps make before/after QA comparable. They are deliberately
+  // faint: the moving cloud groups carry the foreground sky motion.
+  let seed = 0x51f15e;
+  const random = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
   for (let i = 0; i < 8; i++) {
-    const cx = Math.random() * w;
-    const cy = (0.1 + Math.random() * 0.45) * h;
+    const cx = random() * w;
+    const cy = (0.1 + random() * 0.45) * h;
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.beginPath();
-    ctx.ellipse(cx, cy, 30 + Math.random() * 50, 12 + Math.random() * 20, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, cy, 30 + random() * 50, 12 + random() * 20, 0, 0, Math.PI * 2);
     ctx.fill();
+  }
+  if (sunDisc) {
+    const x = sunDisc.u * w;
+    const y = sunDisc.v * h;
+    const glow = ctx.createRadialGradient(x, y, 2, x, y, sunDisc.radius);
+    glow.addColorStop(0, sunDisc.inner);
+    glow.addColorStop(0.18, sunDisc.inner);
+    glow.addColorStop(1, sunDisc.outer);
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - sunDisc.radius, y - sunDisc.radius, sunDisc.radius * 2, sunDisc.radius * 2);
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
-export function skyDome(top = '#66c8f5', mid = '#94d8ef', bot = '#e8faf3') {
+export function skyDome(
+  top = '#66c8f5',
+  mid = '#94d8ef',
+  bot = '#e8faf3',
+  sunDisc?: VisualProfile['sunDisc'],
+) {
   const geo = new THREE.SphereGeometry(180, 32, 24);
-  const mat = new THREE.MeshBasicMaterial({ map: makeSkyTexture(top, mid, bot), side: THREE.BackSide, fog: false });
+  const mat = new THREE.MeshBasicMaterial({
+    map: makeSkyTexture(top, mid, bot, sunDisc),
+    side: THREE.BackSide,
+    fog: false,
+  });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.y = 40;
   return mesh;
@@ -941,6 +987,10 @@ export abstract class BaseLevelScene {
   protected isMobile = typeof window !== 'undefined' && (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
   protected quality: QualityPipeline | null = null;
   protected renderQuality: RenderQualityProfile;
+  /** Current art direction. Defaults preserve levels that have not opted in. */
+  protected visualProfile: VisualProfile = VISUAL_PROFILES.forest;
+  /** Boundary vegetation must agree with the environment, not the level number. */
+  private environmentBiome: 'forest' | 'winter' = 'forest';
   protected kit: AssetKit | null = null;
   protected levelTerrain: LevelTerrain | null = null;
   protected windGrass: WindGrass[] = [];
@@ -1032,18 +1082,26 @@ export abstract class BaseLevelScene {
    * shadows blue rather than black, and a cool rim so plush silhouettes
    * separate from the background.
    */
-  protected setupLighting(fogColor: number, sunColor: number, sunIntensity = 2.35, hemiSky = 0xfff6e0, hemiGround = 0x3d8b40) {
+  protected setupLighting(
+    fogColor: number,
+    sunColor: number,
+    sunIntensity = 2.35,
+    hemiSky = 0xfff6e0,
+    hemiGround = 0x3d8b40,
+    profile: VisualProfile = this.visualProfile,
+  ) {
+    this.visualProfile = profile;
     this.scene.background = new THREE.Color(fogColor);
     // Fog starts inside the play area so distance actually reads. At near=58
     // nothing in a ~50-unit level was ever touched by it.
-    this.scene.fog = new THREE.Fog(fogColor, 26, 150);
-    const hemi = new THREE.HemisphereLight(hemiSky, hemiGround, 0.42);
+    this.scene.fog = new THREE.Fog(fogColor, profile.fogNear, profile.fogFar);
+    const hemi = new THREE.HemisphereLight(hemiSky, hemiGround, profile.hemiIntensity);
     this.hemiLight = hemi;
     this.scene.add(hemi);
 
     const sun = new THREE.DirectionalLight(sunColor, sunIntensity);
     this.sunLight = sun;
-    sun.position.set(-14, 24, 12);
+    sun.position.copy(profileVector(profile.sunPosition));
     sun.castShadow = true;
     sun.shadow.mapSize.set(this.renderQuality.shadowMapSize, this.renderQuality.shadowMapSize);
     sun.shadow.bias = -0.0004;
@@ -1074,11 +1132,11 @@ export abstract class BaseLevelScene {
     // Значения снижены так, чтобы солнце стало заметно сильнее суммы
     // остального. Общая яркость почти не меняется — меняется соотношение,
     // то есть контраст формы.
-    const fill = new THREE.DirectionalLight(0xbcd6f5, 0.2);
+    const fill = new THREE.DirectionalLight(profile.fillColor, profile.fillIntensity);
     fill.position.set(16, 8, 12);
-    const rim = new THREE.DirectionalLight(0xdcefff, 0.34);
+    const rim = new THREE.DirectionalLight(profile.rimColor, profile.rimIntensity);
     rim.position.set(4, 12, -20);
-    const ambient = new THREE.AmbientLight(0xffffff, 0.05);
+    const ambient = new THREE.AmbientLight(0xffffff, profile.ambientIntensity);
     this.ambientLight = ambient;
     this.scene.add(fill, rim, ambient);
   }
@@ -1200,6 +1258,10 @@ export abstract class BaseLevelScene {
       tipWarmColor: opts.tipWarmColor,
       bladeHeight: opts.bladeHeight,
       heightAt: this.groundHeightAt,
+      fogColor: this.visualProfile.fogColor,
+      fogNear: this.visualProfile.fogNear,
+      fogFar: this.visualProfile.fogFar,
+      outputColorSpace: this.renderQuality.useComposer ? 'linear' : 'display',
       exclude: (x, z) =>
         this.isReserved(x, z, 0.4) || this.isUnderwater(x, z) || opts.exclude?.(x, z) === true,
     });
@@ -1354,20 +1416,30 @@ export abstract class BaseLevelScene {
       decorCenterZ?: number;
       clouds?: number;
       backdrop?: 'valley' | 'finale' | 'none';
+      profile?: Extract<VisualProfileName, 'winter' | 'iceTrail'>;
       /** Sculpted relief. Pass `false` only for levels on a built ice surface. */
       terrain?: LevelTerrainOptions | false;
     } = {},
   ) {
+    const profile = VISUAL_PROFILES[opts.profile ?? 'winter'];
+    this.environmentBiome = 'winter';
     this.footstepSurface = opts.ground === 'ice' ? 'stone' : 'snow';
-    const sky = opts.sky ?? (['#4a6a8a', '#8ab0c8', '#d0e8f0'] as [string, string, string]);
+    const sky = opts.sky ?? profile.sky;
     // Snow bounces a lot of light, so the sky term sits higher here than in
     // the forest; the key still has to out-punch it or drifts read as paper.
+    const effectiveProfile: VisualProfile = {
+      ...profile,
+      sky,
+      sunColor: opts.sunColor ?? profile.sunColor,
+      sunIntensity: opts.sunIntensity ?? profile.sunIntensity,
+    };
     this.setupLighting(
-      0xc2d4de,
-      opts.sunColor ?? 0xfff3e0,
-      opts.sunIntensity ?? 2.1,
-      0xdcecf5,
-      0x8fa8b8,
+      profile.fogColor,
+      effectiveProfile.sunColor,
+      effectiveProfile.sunIntensity,
+      profile.hemiSky,
+      profile.hemiGround,
+      effectiveProfile,
     );
     if (opts.terrain === false) {
       this.setupGround(opts.ground === 'ice' ? makeIceTexture() : makeSnowTexture());
@@ -1383,7 +1455,7 @@ export abstract class BaseLevelScene {
         ...opts.terrain,
       });
     }
-    const dome = skyDome(sky[0], sky[1], sky[2]);
+    const dome = skyDome(sky[0], sky[1], sky[2], effectiveProfile.sunDisc);
     // Named so a level that moves the player somewhere else can hide the
     // outdoors and keep the sky. Level 0 sees it through a smoke hole.
     dome.name = 'skyDome';
@@ -1428,19 +1500,21 @@ export abstract class BaseLevelScene {
       grass?: Parameters<BaseLevelScene['setupWindGrass']>[0] | false;
       backdrop?: boolean;
       fireflies?: boolean;
+      profile?: Extract<VisualProfileName, 'forest' | 'dombraGolden' | 'orchard'>;
     } = {},
   ) {
+    const profile = VISUAL_PROFILES[opts.profile ?? 'forest'];
     const {
-      fogColor = 0x81c784,
-      sunColor = 0xfff8e7,
+      fogColor = profile.fogColor,
+      sunColor = profile.sunColor,
       // Ключевой свет леса. Было 1.35 при сумме заполняющих 1.54 — солнце
       // проигрывало заполняющему, и объём в кадре пропадал. Заполняющие
       // снижены до 0.96, солнце поднято: соотношение стало примерно 2:1,
       // как и положено ключу.
-      sunIntensity = 1.95,
-      hemiSky = 0xfff6e0,
-      hemiGround = 0x3d8b40,
-      sky = ['#7cc6ef', '#a6dcf0', '#eaf9f2'] as [string, string, string],
+      sunIntensity = profile.sunIntensity,
+      hemiSky = profile.hemiSky,
+      hemiGround = profile.hemiGround,
+      sky = profile.sky,
       clouds = 6,
       flatRadius = 20,
       flatCenterZ = -14,
@@ -1448,8 +1522,25 @@ export abstract class BaseLevelScene {
       fireflies = false,
     } = opts;
 
+    this.environmentBiome = 'forest';
     this.footstepSurface = 'grass';
-    this.setupLighting(fogColor, sunColor, sunIntensity, hemiSky, hemiGround);
+    const effectiveProfile: VisualProfile = {
+      ...profile,
+      fogColor,
+      sky,
+      sunColor,
+      sunIntensity,
+      hemiSky,
+      hemiGround,
+    };
+    this.setupLighting(
+      fogColor,
+      sunColor,
+      sunIntensity,
+      hemiSky,
+      hemiGround,
+      effectiveProfile,
+    );
     this.setupSculptedGround({
       biome: 'forest',
       relief: 1.05,
@@ -1458,7 +1549,7 @@ export abstract class BaseLevelScene {
       features: [{ kind: 'flat', x: 0, z: flatCenterZ, r: flatRadius }],
       ...opts.terrain,
     });
-    const dome = skyDome(sky[0], sky[1], sky[2]);
+    const dome = skyDome(sky[0], sky[1], sky[2], effectiveProfile.sunDisc);
     // Named so a level that moves the player somewhere else can hide the
     // outdoors and keep the sky. Level 0 sees it through a smoke hole.
     dome.name = 'skyDome';
@@ -1470,7 +1561,14 @@ export abstract class BaseLevelScene {
       }
     }
     if (fireflies) this.setupFireflies();
-    if (opts.grass !== false) this.pendingGrass = opts.grass ?? {};
+    if (opts.grass !== false) {
+      this.pendingGrass = {
+        rootColor: effectiveProfile.grass?.root,
+        tipColor: effectiveProfile.grass?.tip,
+        tipWarmColor: effectiveProfile.grass?.warmTip,
+        ...opts.grass,
+      };
+    }
     void loader;
   }
 
@@ -1486,10 +1584,10 @@ export abstract class BaseLevelScene {
   protected setupQuality() {
     this.quality = new QualityPipeline(this.renderer, this.scene, this.camera, {
       mobile: !this.renderQuality.useComposer,
-      bloomStrength: this.renderQuality.bloomStrength,
-      bloomRadius: this.renderQuality.bloomRadius,
-      bloomThreshold: this.renderQuality.bloomThreshold,
-      exposure: this.renderQuality.exposure,
+      bloomStrength: this.visualProfile.bloomStrength ?? this.renderQuality.bloomStrength,
+      bloomRadius: this.visualProfile.bloomRadius ?? this.renderQuality.bloomRadius,
+      bloomThreshold: this.visualProfile.bloomThreshold ?? this.renderQuality.bloomThreshold,
+      exposure: this.renderQuality.exposure * this.visualProfile.exposureScale,
     });
     const p = this.canvas.parentElement;
     const w = p?.clientWidth || innerWidth;
@@ -2013,16 +2111,26 @@ export abstract class BaseLevelScene {
    * The corridor version cannot do this job: it walks a z range planting down
    * two sides, and an arena has no sides.
    */
-  protected async encloseArena(loader: GLTFLoader, rows = 4) {
+  protected async encloseArena(loader: GLTFLoader, rows?: number) {
     if (!this.playArena || this.disposed) return;
+    const winter = this.environmentBiome === 'winter';
+    const rowCount = rows ?? (winter ? 2 : 4);
     const kit = this.assetKit(loader);
-    const near = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
-    const mid = ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default'];
-    const far = ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_tall'];
+    const near = winter
+      ? ['tree-snow-c']
+      : ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
+    const mid = winter
+      ? ['tree-snow-c']
+      : ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default'];
+    const far = winter
+      ? ['tree-snow-c']
+      : ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_tall'];
     const arena = this.playArena;
     const placements: Array<{ names: string[]; x: number; z: number; height: number }> = [];
-    for (let row = 0; row < rows; row++) {
-      const radius = arena.r + this.corridorSlack + 1.4 + row * 2.6;
+    for (let row = 0; row < rowCount; row++) {
+      const radius = arena.r + this.corridorSlack
+        + (winter ? 3.6 : 1.4)
+        + row * (winter ? 3.2 : 2.6);
       // Constant arc spacing, so the outer rings are not sparse.
       const count = Math.max(8, Math.round((2 * Math.PI * radius) / 3.2));
       for (let i = 0; i < count; i++) {
@@ -2034,9 +2142,11 @@ export abstract class BaseLevelScene {
         placements.push({
           names: row === 0 ? near : row === 1 ? mid : far,
           x, z,
-          height: row === 0 ? 2.6 + Math.random() * 1.0
-            : row === 1 ? 5.4 + Math.random() * 1.6
-              : 8.5 + Math.random() * 3.0,
+          height: winter
+            ? row === 0 ? 2.2 + Math.random() * 0.8 : 4.2 + Math.random() * 1.1
+            : row === 0 ? 2.6 + Math.random() * 1.0
+              : row === 1 ? 5.4 + Math.random() * 1.6
+                : 8.5 + Math.random() * 3.0,
         });
       }
     }
@@ -2078,11 +2188,22 @@ export abstract class BaseLevelScene {
     opts: { zFrom: number; zTo: number; rows?: number; step?: number },
   ) {
     if (!this.pathCorridor || this.disposed) return;
-    const { zFrom, zTo, rows = 4, step = 3.2 } = opts;
+    const winter = this.environmentBiome === 'winter';
+    const { zFrom, zTo, rows = winter ? 2 : 4, step = 3.2 } = opts;
     const kit = this.assetKit(loader);
-    const near = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
-    const mid = ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default'];
-    const far = ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_tall'];
+    // Winter levels already use snow-laden holiday firs in their midground.
+    // A green Nature Kit wall behind them made the biome look unfinished and
+    // doubled the number of visual tree languages in one frame. The compact C
+    // variant is 234 triangles and one material, ideal for the instanced cap.
+    const near = winter
+      ? ['tree-snow-c']
+      : ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
+    const mid = winter
+      ? ['tree-snow-c']
+      : ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default'];
+    const far = winter
+      ? ['tree-snow-c']
+      : ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_tall'];
 
     /** How far the walkable area reaches sideways at this z, either way. */
     const reachAt = (z: number, sign: number) => {
@@ -2107,7 +2228,10 @@ export abstract class BaseLevelScene {
       for (const sign of [-1, 1]) {
         const edge = reachAt(z, sign);
         for (let row = 0; row < rows; row++) {
-          const out = 1.4 + row * 2.6 + Math.random() * 1.1;
+          // Snow firs are broad pyramids. At the forest spacing their crown
+          // sat inside the follow-camera lens even though the trunk was beyond
+          // the movement clamp. Give the winter wall a wider visual shoulder.
+          const out = (winter ? 3.6 : 1.4) + row * (winter ? 3.2 : 2.6) + Math.random() * 1.1;
           const x = edge + sign * out;
           const jz = z + (Math.random() - 0.5) * step;
           if (this.isReserved(x, jz, 0.8) || this.isInsidePlayArea(x, jz)) continue;
@@ -2116,11 +2240,15 @@ export abstract class BaseLevelScene {
           // wall instead.
           if (this.isUnderwater(x, jz)) continue;
           const names = row === 0 ? near : row === 1 ? mid : far;
-          const height = row === 0
-            ? 2.6 + Math.random() * 1.0
-            : row === 1
-              ? 5.4 + Math.random() * 1.6
-              : 8.5 + Math.random() * 3.0;
+          const height = winter
+            ? row === 0
+              ? 2.2 + Math.random() * 0.8
+              : 4.2 + Math.random() * 1.1
+            : row === 0
+              ? 2.6 + Math.random() * 1.0
+              : row === 1
+                ? 5.4 + Math.random() * 1.6
+                : 8.5 + Math.random() * 3.0;
           placements.push({ names, x, z: jz, height });
         }
       }
@@ -2134,14 +2262,17 @@ export abstract class BaseLevelScene {
       const left = reachAt(endZ, -1);
       const right = reachAt(endZ, 1);
       for (let x = left - 4; x <= right + 4; x += 2.8) {
-        for (let row = 0; row < 3; row++) {
-          const z = endZ + dir * (1.2 + row * 2.6 + Math.random());
+        const capRows = winter ? 2 : 3;
+        for (let row = 0; row < capRows; row++) {
+          const z = endZ + dir * ((winter ? 3.2 : 1.2) + row * (winter ? 3.2 : 2.6) + Math.random());
           if (this.isReserved(x, z, 0.8) || this.isInsidePlayArea(x, z)) continue;
           placements.push({
             names: row === 0 ? mid : far,
             x: x + (Math.random() - 0.5) * 1.6,
             z,
-            height: row === 0 ? 5.4 + Math.random() * 1.6 : 8.5 + Math.random() * 3,
+            height: winter
+              ? row === 0 ? 2.8 + Math.random() * 0.8 : 4.3 + Math.random()
+              : row === 0 ? 5.4 + Math.random() * 1.6 : 8.5 + Math.random() * 3,
           });
         }
       }
@@ -2175,7 +2306,11 @@ export abstract class BaseLevelScene {
     }
 
     for (const [name, list] of byName) {
-      const template = await kit.spawn('nature', name, { maxSize: 1 });
+      const template = await kit.spawn(
+        this.environmentBiome === 'winter' ? 'holiday' : 'nature',
+        name,
+        { maxSize: 1 },
+      );
       if (!template) continue;
       // A kit tree is a couple of meshes (trunk, canopy); each becomes one
       // InstancedMesh carrying every copy of that tree in the wall.

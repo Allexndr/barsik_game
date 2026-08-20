@@ -16,6 +16,8 @@ export type WindGrassOptions = {
   fogColor?: number;
   fogNear?: number;
   fogFar?: number;
+  /** Composer render targets are linear; direct custom-shader output is display encoded. */
+  outputColorSpace?: 'linear' | 'display';
 };
 
 export type WindGrass = {
@@ -48,6 +50,7 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
     fogColor = 0xc8e4f2,
     fogNear = 24,
     fogFar = 155,
+    outputColorSpace = 'display',
   } = opts;
 
   // Single tapered triangle per blade — cheapest silhouette that still sways.
@@ -91,32 +94,22 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
   geometry.setAttribute('tint', new THREE.InstancedBufferAttribute(tints, 1));
 
   /**
-   * Цвет травы без двойного преобразования.
-   *
-   * Было `new THREE.Color(hex).convertSRGBToLinear()`. С включённым в three
-   * управлением цветом (по умолчанию с r152) конструктор `Color(hex)` УЖЕ
-   * переводит sRGB в рабочее линейное пространство, и второй вызов переводил
-   * ещё раз. Замерено на живой сцене: в буфер уходило (3, 22, 1) вместо
-   * (29, 82, 17) — трава была темнее вчетверо по зелёному и читалась в кадре
-   * как тёмные иглы, а не как трава.
-   *
-   * Второе: этот шейдер пишет `gl_FragColor` сам и не проходит через
-   * `<colorspace_fragment>`, которым штатные материалы переводят линейное
-   * обратно в sRGB на выходе. Значит, в буфер надо класть сразу sRGB-значение
-   * — освещения здесь всё равно нет, смешивать в линейном пространстве нечего.
-   *
-   * `LinearSRGBColorSpace` в `setHex` означает «эти числа уже в рабочем
-   * пространстве, не трогай»: компоненты остаются равны hex/255.
+   * ShaderMaterial does not append the normal material output chunks for us.
+   * A direct mobile frame therefore needs display values, while a desktop
+   * composer render target must stay linear until OutputPass. Treating both
+   * paths as display colour was the reason desktop grass clipped almost white.
    */
-  const raw = (hex: number) => new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace);
+  const managed = (hex: number) => outputColorSpace === 'linear'
+    ? new THREE.Color(hex)
+    : new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace);
 
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
-      uRoot: { value: raw(rootColor) },
-      uTip: { value: raw(tipColor) },
-      uTipWarm: { value: raw(tipWarmColor) },
-      fogColor: { value: raw(fogColor) },
+      uRoot: { value: managed(rootColor) },
+      uTip: { value: managed(tipColor) },
+      uTipWarm: { value: managed(tipWarmColor) },
+      fogColor: { value: managed(fogColor) },
       fogNear: { value: fogNear },
       fogFar: { value: fogFar },
     },

@@ -36,6 +36,53 @@ export interface L12Hud extends BaseHud {
 }
 
 /**
+ * One tiny repeating map gives the ice a direction of travel and hairline
+ * cracks. It replaces a flat grey ribbon without adding geometry or a pass.
+ */
+function makeIceRibbonTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+  const base = ctx.createLinearGradient(0, 0, canvas.width, 0);
+  base.addColorStop(0, '#b8e3ef');
+  base.addColorStop(0.5, '#f0fbff');
+  base.addColorStop(1, '#a8d9ea');
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  let seed = 0x1ce12;
+  const random = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 28; i++) {
+    const x = random() * canvas.width;
+    const y = random() * canvas.height;
+    ctx.strokeStyle = i % 3 === 0 ? 'rgba(52,145,184,0.22)' : 'rgba(255,255,255,0.42)';
+    ctx.lineWidth = 0.6 + random() * 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.bezierCurveTo(
+      x + (random() - 0.5) * 20,
+      y + 20 + random() * 24,
+      x + (random() - 0.5) * 28,
+      y + 46 + random() * 24,
+      x + (random() - 0.5) * 18,
+      y + 72 + random() * 36,
+    );
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
+/**
  * Route down the valley: straight, then bends of increasing bite, then the
  * drop.
  *
@@ -157,6 +204,7 @@ export class Level12Scene extends BaseLevelScene {
     // A snow valley with an ice ribbon running through it reads far better
     // than a level-wide sheet of ice, and keeps the trail edges legible.
     await this.setupWinterEnvironment(loader, {
+      profile: 'iceTrail',
       ground: 'snow',
       decorCount: 26,
       decorCenterZ: -18,
@@ -183,12 +231,17 @@ export class Level12Scene extends BaseLevelScene {
     this.gatePos = this.trail.pointAt(1);
 
     // ── Trail surface ────────────────────────────────────────────
-    const iceMat = new THREE.MeshStandardMaterial({
-      color: 0xdff2fb,
-      roughness: 0.06,
-      metalness: 0.42,
+    const iceMat = new THREE.MeshPhysicalMaterial({
+      color: 0xe8f8fc,
+      map: makeIceRibbonTexture(),
+      roughness: 0.16,
+      metalness: 0.08,
+      clearcoat: 0.58,
+      clearcoatRoughness: 0.2,
+      emissive: 0x176b91,
+      emissiveIntensity: 0.055,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.94,
     });
     const trailMesh = this.trail.buildSurface(iceMat, { segments: 180, yOffset: 0.07 });
     this.scene.add(trailMesh);
