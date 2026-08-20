@@ -1120,6 +1120,13 @@ export abstract class BaseLevelScene {
       tipColor?: number;
       tipWarmColor?: number;
       bladeHeight?: [number, number];
+      /**
+       * Extra keep-out on top of reserved rooms and water. Levels that draw
+       * their own road as flat decals need it: reserved rooms cover the quest
+       * clearings, not the route between them, so blades came up through the
+       * dirt tiles.
+       */
+      exclude?: (x: number, z: number) => boolean;
     } = {},
   ) {
     const {
@@ -1138,7 +1145,8 @@ export abstract class BaseLevelScene {
       tipWarmColor: opts.tipWarmColor,
       bladeHeight: opts.bladeHeight,
       heightAt: this.groundHeightAt,
-      exclude: (x, z) => this.isReserved(x, z, 0.4) || this.isUnderwater(x, z),
+      exclude: (x, z) =>
+        this.isReserved(x, z, 0.4) || this.isUnderwater(x, z) || opts.exclude?.(x, z) === true,
     });
     this.windGrass.push(grass);
     this.scene.add(grass.mesh);

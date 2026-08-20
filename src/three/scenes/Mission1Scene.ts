@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { AudioManager } from '@/audio/AudioManager';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeAmbientCritters } from '../s1Place';
+import { placeMany, placeAmbientCritters, setPlacementGround } from '../s1Place';
 import { createRiverWater, type RiverWater } from '../RiverWater';
+import { terrainSurfaceColor } from '../LevelTerrain';
 import {
   BaseLevelScene,
   CC0,
@@ -18,9 +19,7 @@ import {
   butterfly,
   bush,
   tulip,
-  hill,
   skyDome,
-  makeGrassTexture,
   bridge,
 } from './BaseLevelScene';
 
@@ -56,6 +55,18 @@ export interface L2Hud {
   showActionHint: boolean;
   outro: boolean;
 }
+
+/**
+ * Половина ширины авторской полосы: внутри неё рельеф равен нулю, снаружи
+ * начинает подниматься. Русло ручья кончается ровно на этой границе, чтобы
+ * плоская вода не уходила в склон.
+ */
+const STRIP_HALF_X = 13;
+
+/** Ручей: единственная вода уровня. */
+const CREEK_Z = -14;
+const CREEK_HALF_WIDTH = 3.2;
+const CREEK_DEPTH = 0.55;
 
 const sharedFruitGeometry = new THREE.SphereGeometry(0.38, 16, 16);
 const sharedRingGeometry = new THREE.RingGeometry(0.5, 0.78, 28);
@@ -205,6 +216,20 @@ export class Mission1Scene extends BaseLevelScene {
     return this.phase;
   }
 
+  /**
+   * Вода здесь — только ручей.
+   *
+   * Базовая проверка сравнивает высоту земли с уровнем воды по всему миру.
+   * Пока земля была плоской плитой, ниже уровня воды лежало ровно русло. С
+   * появлением рельефа под воду попала каждая ложбина холмов — а «под водой»
+   * значит «без травы, цветов и зверья», и склоны облысели бы пятнами без
+   * всякой причины. Ограничиваем проверку прямоугольником самого русла.
+   */
+  protected isUnderwater(x: number, z: number) {
+    if (Math.abs(x) > STRIP_HALF_X || Math.abs(z - CREEK_Z) > CREEK_HALF_WIDTH) return false;
+    return super.isUnderwater(x, z);
+  }
+
   protected onMovementHintDismiss() {
     this.pushHud();
   }
@@ -298,7 +323,32 @@ export class Mission1Scene extends BaseLevelScene {
     this.camera.position.set(-12, 8, 20);
     this.setupLighting(0x8fd8f5, 0xfff8e7);
     this.scene.fog = new THREE.Fog(0x8fd8f5, 70, 220);
-    this.setupGround(makeGrassTexture());
+
+    // Земля этого уровня была единственной в сезоне плоской плитой: одна
+    // PlaneGeometry с тайлящейся травой. Отсюда и «стол» — у кадра нет ни
+    // горизонта, ни глубины, и все объекты читаются стоящими на столешнице.
+    //
+    // Скульптурный рельеф здесь ставится с прямоугольным нулём под всей
+    // авторской полосой. Уровень собран в расчёте на y = 0: дорожка, плитки,
+    // стрелки, диски зон, русло, мост, Айя — всё расставлено руками именно
+    // там. `flatRect` даёт внутри полосы ровно ноль, поэтому ни одну из этих
+    // позиций трогать не нужно, а холмы и подъём кромки появляются ровно там,
+    // где взгляд упирался в плоскость, — за деревьями и на горизонте.
+    //
+    // Вызов стоит ДО присвоения `pathCorridor` намеренно: коридорная врезка
+    // копает вдоль маршрута канаву в 28 см, а дорога этого уровня — плоские
+    // накладки на нулевой высоте, и они повисли бы над ней.
+    this.setupSculptedGround({
+      biome: 'forest',
+      relief: 1.0,
+      rimHeight: 3.2,
+      // Уровень тянется до z = -46, а кромка начинает подниматься за 14 м до
+      // границы: при значении по умолчанию холм встал бы поперёк поляны Айи.
+      playHalfExtent: 66,
+      corridorTint: false,
+      seed: 1.4,
+      features: [{ kind: 'flatRect', x: 0, z: -19, halfW: STRIP_HALF_X, halfD: 29, falloff: 9 }],
+    });
     this.scene.add(skyDome());
     this.setupClouds(7, 26, 80);
 
@@ -308,15 +358,6 @@ export class Mission1Scene extends BaseLevelScene {
     this.reserve(0, -14, 5);
     this.reserve(-3, -29, 3);
     this.reserve(-7, -40.5, 3.5);
-
-    for (const [hx, hz, hr, hh] of [
-      [-26, -10, 15, 1.7],
-      [28, -32, 17, 2],
-      [-20, -50, 18, 1.4],
-      [32, -8, 12, 1.2],
-    ] as const) {
-      this.scene.add(hill(hx, hz, hr, hh));
-    }
 
     this.scene.add(zoneDisc(0, 4, 8, 0x66bb6a, 0.025));
     this.scene.add(zoneDisc(0, -14, 7, 0x4fc3f7, 0.03));
@@ -369,9 +410,6 @@ export class Mission1Scene extends BaseLevelScene {
     // there is no seam), with the bridge deck fixed at the height that used
     // to be its whole world position and everything else in the level
     // (spawn at z = 4, thicket at z = -29) far outside the band it touches.
-    const CREEK_Z = -14;
-    const CREEK_HALF_WIDTH = 3.2;
-    const CREEK_DEPTH = 0.55;
     const creekDepthAt = (z: number) => {
       const d = Math.abs(z - CREEK_Z);
       if (d >= CREEK_HALF_WIDTH) return 0;
@@ -389,9 +427,21 @@ export class Mission1Scene extends BaseLevelScene {
     // band below), sloped in Z. Vertex colour fades from bank grass to wet
     // creek soil with depth, so the rim blends into the lawn instead of
     // reading as a dropped-in brown patch.
-    const bedGeo = new THREE.PlaneGeometry(40, CREEK_HALF_WIDTH * 2, 1, 20);
+    // Русло было 40 м в ширину и вода 36 — при мосте в 3.2 м это линейка
+    // поперёк всего мира. Теперь оно кончается ровно на границе плоской
+    // полосы, а дальше берега поднимаются рельефом: ручей течёт между
+    // холмами, а не пересекает поляну по линейке.
+    //
+    // Юбка в 0.8 м с каждой стороны и подъём на 12 мм убирают шов: кромка
+    // русла и земля лежали в одной плоскости, и это давало мерцание по всей
+    // линии их стыка.
+    const BED_SKIRT = 0.8;
+    const BED_LIFT = 0.012;
+    const bedGeo = new THREE.PlaneGeometry(STRIP_HALF_X * 2, (CREEK_HALF_WIDTH + BED_SKIRT) * 2, 1, 26);
     const posAttr = bedGeo.attributes.position;
-    const grassColor = new THREE.Color(0x6fbf6a);
+    // Ровно тот зелёный, которым рельеф красит землю на нулевой высоте:
+    // юбка русла должна втекать в лужайку, а не лежать на ней полосой.
+    const grassColor = terrainSurfaceColor('forest');
     const soilColor = new THREE.Color(0x6b5637);
     const colors: number[] = [];
     for (let i = 0; i < posAttr.count; i++) {
@@ -409,12 +459,12 @@ export class Mission1Scene extends BaseLevelScene {
       new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96 }),
     );
     bedMesh.rotation.x = -Math.PI / 2;
-    bedMesh.position.set(0, 0, CREEK_Z);
+    bedMesh.position.set(0, BED_LIFT, CREEK_Z);
     bedMesh.receiveShadow = true;
     this.scene.add(bedMesh);
 
     this.river = createRiverWater({
-      width: 36,
+      width: STRIP_HALF_X * 2 - 2,
       length: CREEK_HALF_WIDTH * 2,
       centre: { x: 0, z: CREEK_Z },
       y: waterY,
@@ -426,10 +476,23 @@ export class Mission1Scene extends BaseLevelScene {
 
     // Hero feet and prop placement follow the bed everywhere, and the deck
     // height on the narrow gap the colliders leave open for the bridge.
+    //
+    // Раньше это присваивание *заменяло* высоту земли, и весь мир снаружи
+    // становился плоским. Теперь оно складывается с рельефом: внутри полосы
+    // рельеф равен нулю, поэтому в игровой зоне высоты не изменились ни на
+    // миллиметр, а деревья и камни за её краем встают на склоны, а не висят
+    // над ними. Ров считается только там, где лежит само русло, иначе он
+    // тянулся бы призраком через холмы.
+    const terrainHeightAt = this.groundHeightAt;
+    const creekAt = (x: number, z: number) => (Math.abs(x) <= STRIP_HALF_X ? creekDepthAt(z) : 0);
     this.groundHeightAt = (x, z) =>
       Math.abs(x) <= BRIDGE_HALF_X && Math.abs(z - CREEK_Z) <= CREEK_HALF_WIDTH + 0.6
         ? BRIDGE_DECK_Y
-        : creekDepthAt(z);
+        : terrainHeightAt(x, z) + creekAt(x, z);
+    // `setupSculptedGround` направил размещение объектов на чистый рельеф;
+    // после подмены о ней нужно сказать заново, иначе всё, что ставится
+    // помощниками ниже, сядет мимо русла.
+    setPlacementGround(this.groundHeightAt);
     this.waterLineY = waterY;
 
     // Blocks a straight wade through the water on either side of the
@@ -569,6 +632,21 @@ export class Mission1Scene extends BaseLevelScene {
       { key: 'deer', x: -10, z: -32, rotY: 0.9, h: 1.05 },
       { key: 'chick', x: -3, z: -25, rotY: 1.2, h: 0.4 },
     ]);
+
+    // Трава ставится здесь, а не в `setupForestEnvironment`: этот уровень
+    // строит окружение вручную. Дорога исключается явно — забронированы
+    // только поляны заданий, а не маршрут между ними, и без этого стебли
+    // прорастали сквозь земляные плитки.
+    this.setupWindGrass({
+      area: { xMin: -30, xMax: 30, zMin: -50, zMax: 12 },
+      exclude: (x, z) =>
+        // Дорога: забронированы только поляны заданий, не маршрут между ними.
+        Math.abs(x - (this.pathCorridor?.(z) ?? 0)) < 1.7 ||
+        // Мост стоит на x = 0, а тропа в этом месте уходит к x = -1.6, так что
+        // одной коридорной полосой настил не накрывается — и трава росла бы
+        // прямо из досок.
+        (Math.abs(x) <= 2.4 && Math.abs(z - CREEK_Z) <= CREEK_HALF_WIDTH + 1.0),
+    });
 
     this.hero.position.set(0, this.groundHeightAt(0, 4), 4);
     // The wall. Planted last, so it can read the corridor and every room the
