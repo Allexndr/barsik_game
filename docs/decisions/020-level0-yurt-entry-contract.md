@@ -62,6 +62,10 @@ five implementation details contradicted it:
 7. The rear felt panel remains intentional: mending is one readable lap around
    a physical building. The child may walk around the yurt wherever visible
    architecture permits; there is no quest wall behind it.
+8. Six structural ropes end in visible wooden stakes inside the existing yurt
+   stand-off. They explain why the player cannot hug the felt wall, while the
+   quest pegs remain distinct through their loose felt, gold ring and state
+   change. Ropes are one merged mesh and stakes are one merged mesh.
 
 ## Consequences
 
@@ -77,6 +81,8 @@ five implementation details contradicted it:
 - The curved shell is approximated with small static collision points. Their
   full side/rear tangent must remain part of hands-on QA if the yurt radius,
   doorway angle or player radius changes.
+- The yurt gains two draw calls for its complete anchor set; no collider,
+  interaction radius or route width is added.
 
 ## Verification
 
@@ -97,6 +103,11 @@ five implementation details contradicted it:
 - A separate source-frozen mobile crossing run passed `12/12` on attempt 1
   with `0` resets. The full-route retry above is retained as positive evidence
   that the no-fail recovery works, not hidden to make the run look perfect.
+- After integration with the visual profile, a fresh mobile `390×844` route
+  passed all three lanterns, the walking-only negative, `12/12` hops on attempt
+  1 with `0` resets, all three panels around the visible anchors, explicit paw
+  entry, all kui rounds and outro in `179.89 s`; browser and contract errors
+  remained `0`.
 - All successful routes used normal browser input and read scene state only for
   steering/assertions; neither called `devTeleport`, scene input methods or a
   state/store setter.
