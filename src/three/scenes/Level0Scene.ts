@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   BaseLevelScene,
   type BaseHud,
+  type Collider,
   spawnPad,
   butterfly,
   bush,
@@ -80,6 +81,11 @@ import {
 // following. Roughly 150 m of path with the beats spaced along it.
 const SPAWN_Z = 20;
 const YURT = { x: 2, z: -46 };
+/** Radius shared by the visible felt shell and its collision arc. */
+const YURT_WALL_R = 3.0;
+/** A 1.45 m opening on the +Z/front side of the circular wall. */
+const YURT_DOOR_HALF_ANGLE = 0.245;
+const YURT_DOOR_FRONT_Z = YURT.z + 3.62;
 /**
  * How far back toward the mountains the player may walk. The story has
  * Barsik coming down from the peaks, so the corridor does not just fade out
@@ -100,7 +106,11 @@ function routeX(z: number) {
 const LANTERNS: Array<{ x: number; z: number; rotZ: number }> = [
   { x: routeX(8) + 2.2, z: 8, rotZ: 1.35 },
   { x: routeX(-2) - 3.4, z: -2, rotZ: -1.5 },
-  { x: routeX(-13) + 4.1, z: -13, rotZ: 1.2 },
+  // The old z=-13 point sat on the trench feather: the holder was grounded,
+  // but its knocked-over model leaned toward the water and read as submerged.
+  // This authored shelf is still off the path, yet has 1.76 m of measured
+  // ground-to-water clearance and two metres of dry approach before the bank.
+  { x: routeX(-10.5) + 3.2, z: -10.5, rotZ: 1.2 },
 ];
 
 /**
@@ -133,6 +143,12 @@ const CROSSING_TO = -40;
 
 /** Pad radius. Wide on purpose: a five-year-old aims for the stone, not for a point. */
 const STONE_R = 1.35;
+/** Before all lanterns are lit, the route is visibly below the water line. */
+const STONE_LOCK_DEPTH = 0.62;
+/** Readable pause before a marked stone reacts to Barsik's weight. */
+const STONE_SETTLE_GRACE = 1.2;
+/** Feedback only: the top remains dry and jumpable. */
+const STONE_SETTLE_DEPTH = 0.14;
 
 /**
  * Laid out by marching an S-curve at a fixed *chord* — every hop is 3.30 m
@@ -300,7 +316,23 @@ function makeYurt(): THREE.Group {
   const CREAM = new THREE.Color(0xf1ece0);
   const TAN = new THREE.Color(0xd9c9a3);
 
-  const wallGeo = paintFelt(new THREE.CylinderGeometry(2.9, 3.0, 1.9, 22, 3), CREAM, TAN, 0.55);
+  // The front is a real opening. A full cylinder plus a glowing rectangle
+  // looked like a painted door and could never agree with collision.
+  const wallGeo = paintFelt(
+    new THREE.CylinderGeometry(
+      2.9,
+      YURT_WALL_R,
+      1.9,
+      24,
+      3,
+      false,
+      YURT_DOOR_HALF_ANGLE,
+      Math.PI * 2 - YURT_DOOR_HALF_ANGLE * 2,
+    ),
+    CREAM,
+    TAN,
+    0.55,
+  );
   const wall = new THREE.Mesh(wallGeo, feltMat);
   wall.position.y = 0.95;
   wall.castShadow = true;
@@ -380,31 +412,104 @@ function makeYurt(): THREE.Group {
     g.add(d);
   }
 
-  const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.25, 1.65, 0.16), trim);
-  doorFrame.position.set(0, 0.82, 2.94);
+  // Six permanent tie-downs make the yurt read as a structure held to the
+  // ground, and visually introduce the same peg language used by the repair
+  // quest. They avoid the doorway and the three loose quest panels.
+  const ropeMat = new THREE.MeshStandardMaterial({ color: 0xb98f52, roughness: 0.95 });
+  const stakeMat = new THREE.MeshStandardMaterial({ color: 0x805028, roughness: 0.9 });
+  const tieAngles = [-0.58, 0.58, -1.72, 1.72, -2.42, 2.42];
+  // Eighteen separate meshes were visually cheap but cost eighteen calls on
+  // every phone frame. Three instance batches keep the exact transforms and
+  // materials for three calls total.
+  const stakes = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.1, 0.045, 0.54, 7),
+    stakeMat,
+    tieAngles.length,
+  );
+  const heads = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.14, 0.12, 0.11, 7),
+    stakeMat,
+    tieAngles.length,
+  );
+  const ropes = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.025, 0.025, 1, 6),
+    ropeMat,
+    tieAngles.length,
+  );
+  stakes.name = 'yurt-tie-down-pegs';
+  heads.name = 'yurt-tie-down-heads';
+  ropes.name = 'yurt-tie-down-ropes';
+  stakes.castShadow = heads.castShadow = ropes.castShadow = true;
+  const transform = new THREE.Object3D();
+  const up = new THREE.Vector3(0, 1, 0);
+  for (const [i, a] of tieAngles.entries()) {
+    const stakeBase = new THREE.Vector3(Math.sin(a) * 3.78, 0.04, Math.cos(a) * 3.78);
+    transform.position.copy(stakeBase).add(new THREE.Vector3(0, 0.25, 0));
+    transform.rotation.set(0, 0, Math.sin(a) * 0.12);
+    transform.scale.set(1, 1, 1);
+    transform.updateMatrix();
+    stakes.setMatrixAt(i, transform.matrix);
 
-  // Wood corner posts, so the frame reads as built rather than painted onto
-  // the wall. Real ones carry the door's weight; these just need to look
-  // like they could.
+    transform.position.copy(stakeBase).add(new THREE.Vector3(0, 0.54, 0));
+    transform.rotation.set(0, 0, 0);
+    transform.scale.set(1, 1, 1);
+    transform.updateMatrix();
+    heads.setMatrixAt(i, transform.matrix);
+
+    const wallAnchor = new THREE.Vector3(Math.sin(a) * 2.92, 1.64, Math.cos(a) * 2.92);
+    const groundAnchor = stakeBase.clone().add(new THREE.Vector3(0, 0.48, 0));
+    const direction = groundAnchor.clone().sub(wallAnchor);
+    transform.position.copy(wallAnchor).add(groundAnchor).multiplyScalar(0.5);
+    transform.quaternion.setFromUnitVectors(up, direction.clone().normalize());
+    transform.scale.set(1, direction.length(), 1);
+    transform.updateMatrix();
+    ropes.setMatrixAt(i, transform.matrix);
+  }
+  stakes.instanceMatrix.needsUpdate = true;
+  heads.instanceMatrix.needsUpdate = true;
+  ropes.instanceMatrix.needsUpdate = true;
+  g.add(stakes, heads, ropes);
+
+  // Posts and lintel frame the authored opening without filling it.
   const postGeo = new THREE.CylinderGeometry(0.075, 0.09, 1.72, 6);
   for (const side of [-1, 1]) {
     const post = new THREE.Mesh(postGeo, wood);
     post.position.set(side * 0.64, 0.86, 2.98);
     g.add(post);
   }
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(1.38, 0.16, 0.18), trim);
+  lintel.position.set(0, 1.68, 2.98);
+  g.add(lintel);
 
-  // The one thing that was actively wrong, not just plain: a black hole
-  // read as broken, not as an unlit room. Warm and emissive, the same
-  // "lit from within" trick the lanterns use once struck.
-  const doorway = new THREE.Mesh(
-    new THREE.BoxGeometry(0.95, 1.35, 0.1),
+  const portal = new THREE.Mesh(
+    new THREE.BoxGeometry(1.02, 1.38, 0.06),
     new THREE.MeshStandardMaterial({
-      color: 0xffcf8a, emissive: 0xffb347, emissiveIntensity: 0.8, roughness: 0.6,
+      color: 0xffcf8a, emissive: 0xffb347, emissiveIntensity: 0.22, roughness: 0.6,
     }),
   );
-  doorway.position.set(0, 0.72, 3.02);
+  portal.position.set(0, 0.72, 2.94);
 
-  g.add(wall, roof, baseBand, patch, shanyrak, doorFrame, doorway);
+  // A visible hinged leaf occupies the same threshold as the door collider.
+  const doorPivot = new THREE.Group();
+  doorPivot.position.set(-0.5, 0, 3.04);
+  const doorLeaf = new THREE.Mesh(
+    new THREE.BoxGeometry(1.0, 1.4, 0.1),
+    new THREE.MeshStandardMaterial({ color: 0x9f3325, roughness: 0.86 }),
+  );
+  doorLeaf.position.set(0.5, 0.72, 0);
+  doorLeaf.castShadow = true;
+  doorPivot.add(doorLeaf);
+  const handle = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), wood);
+  handle.position.set(0.82, 0.72, 0.07);
+  doorPivot.add(handle);
+  const doorMotif = new THREE.Mesh(new THREE.OctahedronGeometry(0.14), trim);
+  doorMotif.scale.set(1, 1.5, 0.28);
+  doorMotif.position.set(0.5, 1.05, 0.07);
+  doorPivot.add(doorMotif);
+
+  g.add(wall, roof, baseBand, patch, shanyrak, portal, doorPivot);
+  g.userData.doorPivot = doorPivot;
+  g.userData.doorPortal = portal;
   return g;
 }
 
@@ -583,6 +688,12 @@ export class Level0Scene extends BaseLevelScene {
   private dombra: THREE.Group | null = null;
   /** Ground ring at the door, lit only once there is somewhere to walk in. */
   private doorMarker: THREE.Mesh | null = null;
+  private doorPivot: THREE.Group | null = null;
+  private doorPortal: THREE.Mesh | null = null;
+  /** The only blocker across the authored doorway; removed when entry begins. */
+  private doorCollider: Collider | null = null;
+  private doorOpening = 0;
+  private doorFeedbackUntil = 0;
   private butterflies: THREE.Group[] = [];
 
   /** 0…1 by distance to the yurt. The dombra is the level's compass. */
@@ -595,6 +706,45 @@ export class Level0Scene extends BaseLevelScene {
     // First step taken: that is the whole of beat one's teaching, so the
     // level moves on the moment it happens rather than after a timer.
     if (this.phase === 'follow') this.pushHud();
+  }
+
+  /** Match the curved felt shell with collision points and keep the door gap. */
+  private installYurtColliders() {
+    const count = 28;
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2;
+      const frontDistance = Math.abs(Math.atan2(Math.sin(a), Math.cos(a)));
+      if (frontDistance < YURT_DOOR_HALF_ANGLE + 0.035) continue;
+      this.colliders.push({
+        kind: 'circle',
+        x: YURT.x + Math.sin(a) * YURT_WALL_R,
+        z: YURT.z + Math.cos(a) * YURT_WALL_R,
+        r: 0.08,
+      });
+    }
+
+    this.doorCollider = {
+      kind: 'aabb',
+      x: YURT.x,
+      z: YURT.z + 3.04,
+      halfW: 0.5,
+      halfD: 0.08,
+    };
+    this.colliders.push(this.doorCollider);
+  }
+
+  /** Explicit GTA-like action: open the leaf, black out, then change room. */
+  private beginYurtEntry() {
+    if (this.phase !== 'enter' || this.pendingTeleport || this.fadeTo > 0) return;
+    this.doorOpening = 1;
+    if (this.doorCollider) {
+      const i = this.colliders.indexOf(this.doorCollider);
+      if (i >= 0) this.colliders.splice(i, 1);
+      this.doorCollider = null;
+    }
+    this.fadeTo = 1;
+    AudioManager.sfx('whoosh');
+    this.pendingTeleport = () => this.enterYurt();
   }
 
   /**
@@ -724,6 +874,19 @@ export class Level0Scene extends BaseLevelScene {
     const now = performance.now();
     const t = this.interactTarget;
     if (!t) return;
+
+    if (t.userData.isYurtDoor) {
+      if (this.phase === 'enter') {
+        this.beginYurtEntry();
+      } else {
+        // Early curiosity gets an answer, not a dead prop. The response does
+        // not skip a beat and a nearby loose panel keeps interaction priority.
+        this.doorFeedbackUntil = now + 2600;
+        AudioManager.sfx('tick');
+        this.pushHud();
+      }
+      return;
+    }
 
     if (this.phase === 'lanterns' && t.userData.isLantern && !t.userData.done) {
       t.userData.done = true;
@@ -881,6 +1044,10 @@ export class Level0Scene extends BaseLevelScene {
         ],
       },
     });
+    // React StrictMode disposes its first probe instance while this async init
+    // is suspended. Do not let that stale scene continue loading props or run
+    // placement diagnostics against the disposal fallback height sampler.
+    if (this.disposed) return;
 
     // ── The mountains behind spawn ──────────────────────────────────
     // `setupForestEnvironment`'s own backdrop ridge sits entirely past the
@@ -935,6 +1102,17 @@ export class Level0Scene extends BaseLevelScene {
     this.waterY = waterY;
     // Set before the scatter runs, so nothing is planted on the river bed.
     this.waterLineY = waterY;
+    if (import.meta.env.DEV) {
+      for (const [i, spec] of LANTERNS.entries()) {
+        const groundY = this.groundHeightAt(spec.x, spec.z);
+        const clearance = groundY - waterY;
+        if (clearance < 0.45) {
+          console.warn(
+            `[level0] lantern ${i + 1} is too close to water (${clearance.toFixed(2)} m; ground=${groundY.toFixed(2)}, water=${waterY.toFixed(2)}, x=${spec.x.toFixed(2)}, z=${spec.z.toFixed(2)})`,
+          );
+        }
+      }
+    }
 
     const pad = spawnPad(0, SPAWN_Z);
     this.scene.add(pad);
@@ -983,9 +1161,10 @@ export class Level0Scene extends BaseLevelScene {
       );
       stone.position.set(x, topY - h / 2, s.z);
       stone.castShadow = true;
-      stone.userData.restY = stone.position.y;
+      stone.userData.restY = topY - h / 2;
       stone.userData.sink = !!s.sink;
       stone.userData.sunk = 0;
+      stone.userData.loadedFor = 0;
       this.stones.push(stone);
       this.scene.add(stone);
       // The bit that was missing entirely. Without this the stones are
@@ -997,6 +1176,9 @@ export class Level0Scene extends BaseLevelScene {
       this.addPlatform(stone, STONE_R + 0.25, h / 2);
     }
     this.assertCrossingIsJumpable(waterY);
+    for (const stone of this.stones) {
+      stone.position.y = (stone.userData.restY as number) - STONE_LOCK_DEPTH;
+    }
 
     // ── Lanterns, lying where the wind put them ───────────────────
     for (const spec of LANTERNS) {
@@ -1042,7 +1224,9 @@ export class Level0Scene extends BaseLevelScene {
     this.yurt = makeYurt();
     this.yurt.position.set(YURT.x, this.groundHeightAt(YURT.x, YURT.z), YURT.z);
     this.scene.add(this.yurt);
-    this.colliders.push({ kind: 'circle', x: YURT.x, z: YURT.z, r: 3.2 });
+    this.doorPivot = this.yurt.userData.doorPivot as THREE.Group;
+    this.doorPortal = this.yurt.userData.doorPortal as THREE.Mesh;
+    this.installYurtColliders();
 
     for (const p of PEGS) {
       const panel = makeFeltPanel();
@@ -1062,7 +1246,7 @@ export class Level0Scene extends BaseLevelScene {
     // wall instead, either side of the doorway the teleport already uses
     // (YURT.z + 3.6), on a mat that declares the spot as a place rather
     // than a patch of grass something happened to be dropped on.
-    const doorFront = YURT.z + 3.6;
+    const doorFront = YURT_DOOR_FRONT_Z;
     const porchZ = YURT.z + 3.1;
     const gx = YURT.x - 1.6;
     const dx = YURT.x - 0.9;
@@ -1111,6 +1295,7 @@ export class Level0Scene extends BaseLevelScene {
     );
     marker.rotation.x = -Math.PI / 2;
     marker.position.set(YURT.x, this.groundHeightAt(YURT.x, doorFront) + 0.04, doorFront);
+    marker.userData.isYurtDoor = true;
     this.scene.add(marker);
     this.doorMarker = marker;
 
@@ -1306,6 +1491,7 @@ export class Level0Scene extends BaseLevelScene {
     let objective = '';
     const p = this.phase;
     const wet = performance.now() < this.wetUntil;
+    const doorBlocked = performance.now() < this.doorFeedbackUntil;
 
     if (p === 'intro') {
       const lines = [
@@ -1330,12 +1516,22 @@ export class Level0Scene extends BaseLevelScene {
         : this.copy('Двигайся — по звуку слышно, теплее или холоднее.', 'Қозғал — дыбыс бойынша жақын ба, алыс па білінеді.');
       objective = this.copy('🎵 Иди на звук домбры', '🎵 Домбыра үніне қарай жүр');
     } else if (p === 'lanterns') {
-      line = performance.now() < this.praiseUntil
-        ? this.copy('Горит! Дорогу видно дальше.', 'Жанды! Жол әрі көрінеді.')
-        : this.copy(
-            'Ветер повалил фонари на тропе. Подними — они сами загорятся.',
-            'Жел соқпақтағы шамдарды құлатқан. Тұрғыз — олар өздері жанады.',
-          );
+      line = wet
+        ? this.copy(
+            'Камни ещё под водой. Сначала зажгу все фонари — их свет откроет переправу.',
+            'Тастар әлі су астында. Алдымен барлық шамды жағайын — олардың жарығы өткелді ашады.',
+          )
+        : doorBlocked
+          ? this.copy(
+              `Дверь закрыта. Сперва зажгу все фонари: ${this.lanternsUp}/${this.lanternsTotal}.`,
+              `Есік жабық. Алдымен барлық шамды жағамын: ${this.lanternsUp}/${this.lanternsTotal}.`,
+            )
+          : performance.now() < this.praiseUntil
+            ? this.copy('Горит! Дорогу видно дальше.', 'Жанды! Жол әрі көрінеді.')
+            : this.copy(
+                'Ветер повалил фонари на тропе. Подними — они сами загорятся.',
+                'Жел соқпақтағы шамдарды құлатқан. Тұрғыз — олар өздері жанады.',
+              );
       objective = this.copy(
         `🏮 Фонари: ${this.lanternsUp}/${this.lanternsTotal}`,
         `🏮 Шамдар: ${this.lanternsUp}/${this.lanternsTotal}`,
@@ -1351,23 +1547,33 @@ export class Level0Scene extends BaseLevelScene {
         ? this.copy('⬆️ Нажми «Прыжок», чтобы перескочить', '⬆️ Секіру үшін «Секіру» түймесін бас')
         : this.copy('⬆️ Пробел — прыжок', '⬆️ Бос орын — секіру');
     } else if (p === 'mend') {
-      line = performance.now() < this.praiseUntil
-        ? this.copy('Держится!', 'Ұсталды!')
-        : this.copy(
-            'Юрта! Ветер сорвал войлок — он хлопает. Прижми колышками.',
-            'Киіз үй! Жел киізді жұлып кетіпті — сартылдап тұр. Қазықпен бекіт.',
-          );
+      line = doorBlocked
+        ? this.copy(
+            `Дверь пока закрыта. Сначала закреплю весь войлок: ${this.pegsDone}/${this.pegsTotal}.`,
+            `Есік әзірге жабық. Алдымен барлық киізді бекітемін: ${this.pegsDone}/${this.pegsTotal}.`,
+          )
+        : performance.now() < this.praiseUntil
+          ? this.copy('Держится!', 'Ұсталды!')
+          : this.copy(
+              'Юрта! Ветер сорвал войлок — он хлопает. Прижми колышками.',
+              'Киіз үй! Жел киізді жұлып кетіпті — сартылдап тұр. Қазықпен бекіт.',
+            );
       objective = this.copy(
         `⛺ Колышки: ${this.pegsDone}/${this.pegsTotal}`,
         `⛺ Қазықтар: ${this.pegsDone}/${this.pegsTotal}`,
       );
     } else if (p === 'enter') {
       speaker = this.copy('Садовник', 'Бағбан');
+      const atDoor = this.interactTarget?.userData.isYurtDoor === true;
       line = this.copy(
-        'Спасибо. Заходи в юрту — там тепло, и там я тебе кое-что покажу.',
-        'Рақмет. Киіз үйге кір — онда жылы, саған бірдеңе көрсетемін.',
+        'Спасибо. Подойди к светящемуся кругу у двери — внутри тепло.',
+        'Рақмет. Есіктің жанындағы жарқыраған шеңберге кел — іші жылы.',
       );
-      objective = this.copy('🚪 Войди в юрту', '🚪 Киіз үйге кір');
+      objective = atDoor
+        ? this.isMobile
+          ? this.copy('🚪 Нажми лапку, чтобы войти', '🚪 Кіру үшін табан түймесін бас')
+          : this.copy('🚪 E или Space — войти', '🚪 E немесе Space — кіру')
+        : this.copy('🚪 Подойди к двери юрты', '🚪 Киіз үйдің есігіне кел');
     } else if (p === 'inside') {
       speaker = this.copy('Садовник', 'Бағбан');
       if (this.kuiListening) {
@@ -1461,6 +1667,17 @@ export class Level0Scene extends BaseLevelScene {
         if (d < bestD) { bestD = d; best = p; }
       }
     }
+    if (
+      !best
+      && !this.insideYurt
+      && this.doorMarker
+      && ['follow', 'lanterns', 'crossing', 'mend', 'enter'].includes(this.phase)
+      && flat(this.doorMarker) < bestD
+    ) {
+      // A loose quest panel wins if both are in reach; otherwise the door
+      // answers early curiosity and becomes the explicit final interaction.
+      best = this.doorMarker;
+    }
     return best;
   }
 
@@ -1486,7 +1703,7 @@ export class Level0Scene extends BaseLevelScene {
       return next?.position.clone() ?? null;
     }
     if (this.phase === 'enter') {
-      return new THREE.Vector3(YURT.x, 0, YURT.z + 3.6);
+      return new THREE.Vector3(YURT.x, 0, YURT_DOOR_FRONT_Z);
     }
     return null;
   }
@@ -1506,6 +1723,10 @@ export class Level0Scene extends BaseLevelScene {
       } else {
         this.nextAt = now + 3000;
       }
+      this.pushHud();
+    }
+    if (this.doorFeedbackUntil > 0 && now >= this.doorFeedbackUntil) {
+      this.doorFeedbackUntil = 0;
       this.pushHud();
     }
 
@@ -1529,17 +1750,17 @@ export class Level0Scene extends BaseLevelScene {
       const dm = this.doorMarker.material as THREE.MeshBasicMaterial;
       const target = this.phase === 'enter' ? 0.55 + Math.sin(now * 0.005) * 0.25 : 0;
       dm.opacity += (target - dm.opacity) * Math.min(1, dt * 5);
+      const pulse = this.phase === 'enter' ? 1 + Math.sin(now * 0.005) * 0.05 : 1;
+      this.doorMarker.scale.setScalar(pulse);
     }
-
-    if (this.phase === 'enter' && !this.pendingTeleport && this.fade < 0.02) {
-      const door = new THREE.Vector3(YURT.x, 0, YURT.z + 3.6);
-      if (Math.hypot(this.hero.position.x - door.x, this.hero.position.z - door.z) < 1.9) {
-        this.fadeTo = 1;
-        AudioManager.sfx('whoosh');
-        this.pendingTeleport = () => {
-          this.enterYurt();
-        };
-      }
+    if (this.doorPivot) {
+      const target = -Math.PI * 0.72 * this.doorOpening;
+      this.doorPivot.rotation.y += (target - this.doorPivot.rotation.y) * Math.min(1, dt * 8);
+    }
+    if (this.doorPortal) {
+      const material = this.doorPortal.material as THREE.MeshStandardMaterial;
+      const target = 0.22 + this.doorOpening * 1.1;
+      material.emissiveIntensity += (target - material.emissiveIntensity) * Math.min(1, dt * 8);
     }
 
     // ── The kui ──────────────────────────────────────────────────
@@ -1627,58 +1848,61 @@ export class Level0Scene extends BaseLevelScene {
     // on every frame to make a single sine ripple.
     this.river?.update(now * 0.001);
     // ── The crossing ─────────────────────────────────────────────
-    if (this.phase === 'crossing') {
-      const h = this.hero.position;
-      // Standing *on* it, not merely near it. The old radius check called a
-      // hero treading water beside a stone "standing", which is how a fall
-      // could go unnoticed.
-      const standing = this.stones.find((s) => this.isStandingOn(s));
+    // Water is physical throughout the outdoor level. Otherwise the child can
+    // walk through the river during `lanterns`, reach the yurt out of order
+    // and meet quest state that no longer makes sense.
+    const outdoors = !this.insideYurt;
+    const crossingOpen = outdoors && ['crossing', 'mend', 'enter'].includes(this.phase);
+    const h = this.hero.position;
+    const standing = crossingOpen ? this.stones.find((s) => this.isStandingOn(s)) : undefined;
 
-      // Sinking stones. The only pressure in the level, and deliberately
-      // gentle: about a second and a half of standing before it goes under,
-      // and it floats back the moment you are off it. A child who freezes
-      // loses a hop, not the section.
-      for (const s of this.stones) {
-        if (!s.userData.sink) continue;
-        const loaded = s === standing && !this.airborne;
-        const target = loaded ? Math.min(1, (s.userData.sunk as number) + dt / 1.5) : 0;
-        s.userData.sunk = loaded ? target : Math.max(0, (s.userData.sunk as number) - dt * 1.6);
-        s.position.y = (s.userData.restY as number) - (s.userData.sunk as number) * 0.75;
-      }
-      const sunkUnder = standing && (standing.userData.sunk as number) > 0.92;
+    // Locked stones sit below the surface. Once opened they rise; marked ones
+    // yield only after a readable pause and never sink far enough to fail a
+    // child who stopped to line up the next jump.
+    for (const s of this.stones) {
+      const loaded = this.phase === 'crossing' && s.userData.sink && s === standing && !this.airborne;
+      const loadedFor = loaded ? (s.userData.loadedFor as number) + dt : 0;
+      s.userData.loadedFor = loadedFor;
+      const targetSunk = loadedFor >= STONE_SETTLE_GRACE ? 1 : 0;
+      const settleRate = targetSunk ? 2.4 : 4.0;
+      s.userData.sunk += (targetSunk - (s.userData.sunk as number)) * Math.min(1, dt * settleRate);
+      const targetY = (s.userData.restY as number)
+        - (crossingOpen ? 0 : STONE_LOCK_DEPTH)
+        - (s.userData.sunk as number) * STONE_SETTLE_DEPTH;
+      s.position.y += (targetY - s.position.y) * Math.min(1, dt * 5);
+    }
 
+    if (outdoors) {
       const inChannel = h.z < CROSSING_FROM + 1.5 && h.z > CROSSING_TO - 1.5;
-      // Judged at the water line, not at the river bed. Waiting for the hero
-      // to touch bottom meant a metre of swimming underwater before the
-      // splash — the fall has to answer the moment it is a fall.
-      const wet = inChannel && (!standing || sunkUnder) && h.y < this.waterY + 0.05;
+      const wet = inChannel && !standing && h.y < this.waterY + 0.05;
       if (wet && now > this.wetUntil) {
         this.wetUntil = now + 1500;
         AudioManager.sfx('stumble');
         this.spawnSparks(h.clone(), 18, [0x2aa8d8, 0xffffff]);
-        // Back to the near bank of this section, not to the level start. The
-        // cost of a miss is the stones you had already crossed, which is what
-        // makes them worth crossing carefully — and nothing else is taken.
-        h.z = CROSSING_FROM + 2.6;
+        // Before the crossing: near bank. After it: far bank. A splash never
+        // erases progress or strands the player on the wrong side.
+        const returnToFarBank = this.crossed || this.phase === 'mend' || this.phase === 'enter';
+        h.z = returnToFarBank ? CROSSING_TO - 2.6 : CROSSING_FROM + 2.6;
         h.x = routeX(h.z);
         h.y = this.groundHeightAt(h.x, h.z);
         this.jumpVelocity = 0;
         this.airborne = false;
         for (const s of this.stones) {
           s.userData.sunk = 0;
-          s.position.y = s.userData.restY as number;
+          s.userData.loadedFor = 0;
+          s.position.y = (s.userData.restY as number) - (crossingOpen ? 0 : STONE_LOCK_DEPTH);
         }
         this.pushHud();
       }
+    }
 
-      if (!this.crossed && h.z < CROSSING_TO - 1.0) {
-        this.crossed = true;
-        this.phase = 'mend';
-        this.stars += 8;
-        AudioManager.sfx('success');
-        this.spawnSparks(h.clone(), 24, [0xf0d24a, 0x5fbf7a]);
-        this.pushHud();
-      }
+    if (this.phase === 'crossing' && !this.crossed && h.z < CROSSING_TO - 1.0) {
+      this.crossed = true;
+      this.phase = 'mend';
+      this.stars += 8;
+      AudioManager.sfx('success');
+      this.spawnSparks(h.clone(), 24, [0xf0d24a, 0x5fbf7a]);
+      this.pushHud();
     }
 
     // Отошедший войлок хлопает; прижатый ложится, и колышек встаёт в него.
