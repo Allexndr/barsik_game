@@ -1164,7 +1164,14 @@ export class Level0Scene extends BaseLevelScene {
       centre: { x: routeX(midZ), z: midZ },
       y: waterY,
       bedAt: (x, z) => this.groundHeightAt(x, z),
-      obstacles: STONES.map((s) => ({ x: routeX(s.z) + s.x, z: s.z, r: s.radius ?? STONE_R })),
+      obstacles: STONES.map((s) => ({
+        x: routeX(s.z) + s.x,
+        z: s.z,
+        r: s.radius ?? STONE_R,
+        // The route is intentionally submerged until the third lantern. Its
+        // foam must not draw twelve bright circles around invisible stones.
+        strength: 0,
+      })),
     });
     this.scene.add(this.river.mesh);
 
@@ -1924,7 +1931,8 @@ export class Level0Scene extends BaseLevelScene {
     // dry route. Three marked stones also settle a little under Barsik's
     // weight, but never become a timed failure: the pause lets the child line
     // up a hop and the capped dip always leaves a dry, jumpable top.
-    for (const s of this.stones) {
+    for (let stoneIndex = 0; stoneIndex < this.stones.length; stoneIndex++) {
+      const s = this.stones[stoneIndex];
       const loaded = this.phase === 'crossing' && s.userData.sink && s === standing && !this.airborne;
       const loadedFor = loaded ? (s.userData.loadedFor as number) + dt : 0;
       s.userData.loadedFor = loadedFor;
@@ -1935,6 +1943,12 @@ export class Level0Scene extends BaseLevelScene {
         - (crossingOpen ? 0 : STONE_LOCK_DEPTH)
         - (s.userData.sunk as number) * STONE_SETTLE_DEPTH;
       s.position.y += (targetY - s.position.y) * Math.min(1, dt * 5);
+      const cylinder = s as THREE.Mesh<THREE.CylinderGeometry>;
+      const topAboveWater = s.position.y + cylinder.geometry.parameters.height / 2 - this.waterY;
+      this.river?.setObstacleStrength(
+        stoneIndex,
+        THREE.MathUtils.smoothstep(topAboveWater, 0.025, 0.22),
+      );
     }
 
     if (outdoors) {
