@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 
 /**
- * Stylised river water: summed directional waves, depth tinting, shore foam,
- * and foam collars round anything standing in it.
+ * Stylised river water: one analytic wave field drives displacement, normals,
+ * depth tinting, shore foam, and foam collars round anything standing in it.
  *
  * ── Where the technique comes from ───────────────────────────────────────
  *
@@ -14,10 +14,10 @@ import * as THREE from 'three';
  *
  * This is a deliberately smaller thing. Three waves, no breaking, no
  * steepness solve, and the depth is baked into a vertex attribute at build
- * time because a river bed does not move. That is not laziness — it is the
- * difference between an ocean simulation and a stream in a children's game
- * that has to hold sixty frames on a cheap phone, and the flat pastel art
- * would be actively hurt by photoreal water.
+ * time because a river bed does not move. The same analytic function returns
+ * height and slope, so the highlight cannot drift away from the visible wave.
+ * That consistency is the useful Tidewright method; its ocean render targets,
+ * refraction and simulation grid are intentionally not part of this river.
  *
  * ── What it replaces ─────────────────────────────────────────────────────
  *
@@ -29,6 +29,7 @@ import * as THREE from 'three';
 
 export type RiverWater = {
   mesh: THREE.Mesh;
+  setObstacleStrength(index: number, strength: number): void;
   update(seconds: number): void;
   dispose(): void;
 };
@@ -46,7 +47,7 @@ export function createRiverWater(opts: {
   /** Bed height at a world point — the terrain sampler. */
   bedAt: (x: number, z: number) => number;
   /** Things standing in the water that should have foam round them. */
-  obstacles?: Array<{ x: number; z: number; r: number }>;
+  obstacles?: Array<{ x: number; z: number; r: number; strength?: number }>;
   segments?: number;
   colour?: { deep: number; shallow: number; foam: number };
 }): RiverWater {
@@ -70,11 +71,12 @@ export function createRiverWater(opts: {
   geo.setAttribute('aDepth', new THREE.BufferAttribute(depth, 1));
 
   const obstacles = (opts.obstacles ?? []).slice(0, MAX_OBSTACLES);
-  const obstacleData = new Float32Array(MAX_OBSTACLES * 3);
+  const obstacleData = new Float32Array(MAX_OBSTACLES * 4);
   for (let i = 0; i < obstacles.length; i++) {
-    obstacleData[i * 3] = obstacles[i].x - opts.centre.x;
-    obstacleData[i * 3 + 1] = obstacles[i].z - opts.centre.z;
-    obstacleData[i * 3 + 2] = obstacles[i].r;
+    obstacleData[i * 4] = obstacles[i].x - opts.centre.x;
+    obstacleData[i * 4 + 1] = obstacles[i].z - opts.centre.z;
+    obstacleData[i * 4 + 2] = obstacles[i].r;
+    obstacleData[i * 4 + 3] = obstacles[i].strength ?? 1;
   }
 
   // Pastel, not photoreal. The first pass used a proper ocean blue and the
@@ -83,11 +85,20 @@ export function createRiverWater(opts: {
   const c = opts.colour ?? { deep: 0x2f9fd0, shallow: 0x86e0f2, foam: 0xf2fcff };
 
   const mat = new THREE.ShaderMaterial({
+    // WebGL 1 devices need OES_standard_derivatives for `fwidth`; WebGL 2
+    // treats the same request as a no-op. Declaring it keeps foam edges valid
+    // on older Android browsers instead of silently failing shader compile.
+    // Runtime Three r161 understands this flag. The newer @types package has
+    // already removed it after moving its baseline to WebGL 2, hence the
+    // narrow compatibility cast for our intentionally older runtime.
+    extensions: { derivatives: true } as unknown as THREE.ShaderMaterialParameters['extensions'],
     uniforms: {
       uTime: { value: 0 },
       uDeep: { value: new THREE.Color(c.deep).convertSRGBToLinear() },
       uShallow: { value: new THREE.Color(c.shallow).convertSRGBToLinear() },
       uFoam: { value: new THREE.Color(c.foam).convertSRGBToLinear() },
+      uSky: { value: new THREE.Color(0xbdeaf4).convertSRGBToLinear() },
+      uSun: { value: new THREE.Color(0xfff1bd).convertSRGBToLinear() },
       uObstacles: { value: obstacleData },
       uObstacleCount: { value: obstacles.length },
     },
@@ -97,43 +108,70 @@ export function createRiverWater(opts: {
       varying float vDepth;
       varying float vCrest;
       varying vec2 vLocal;
+      varying vec3 vWorldPosition;
+      varying vec3 vWorldNormal;
 
-      // Three directional waves, summed. Amplitude is scaled by depth so the
-      // water lies down as it reaches the bank instead of sawing through it —
-      // the same shoaling idea a beach shader uses, run the other way for a
-      // shallow stream.
-      void wave(vec2 dir, float len, float amp, float speed, vec2 p, inout float h, inout float crest) {
+      // A single evaluation supplies both displacement and its two slopes.
+      // Keeping them together is what makes a cheap surface feel solid: the
+      // reflection bends where the mesh bends instead of sliding over it.
+      void wave(
+        vec2 dir,
+        float len,
+        float amp,
+        float speed,
+        float detail,
+        vec2 p,
+        inout vec3 surface,
+        inout float crest
+      ) {
+        vec2 d = normalize(dir);
         float k = 6.28318 / len;
-        float ph = dot(normalize(dir) * k, p) - uTime * speed;
-        h += amp * sin(ph);
-        crest += amp * max(0.0, sin(ph));
+        float ph = dot(d * k, p) - uTime * speed;
+        float height = amp * detail * sin(ph);
+        float slope = amp * detail * k * cos(ph);
+        surface += vec3(height, slope * d.x, slope * d.y);
+        crest += max(0.0, height);
       }
 
       void main() {
         vLocal = position.xy;
         vDepth = aDepth;
-        float shallow = smoothstep(0.0, 0.9, aDepth);
-        float h = 0.0;
+        float wet = smoothstep(0.035, 0.9, aDepth);
+        float cameraDistance = length((modelViewMatrix * vec4(position, 1.0)).xyz);
+        // Fine waves vanish before they become sub-pixel shimmer. The two broad
+        // waves remain, preserving motion and silhouette in the distance.
+        float mediumDetail = mix(1.0, 0.72, smoothstep(28.0, 75.0, cameraDistance));
+        float fineDetail = 1.0 - smoothstep(18.0, 42.0, cameraDistance);
+        vec3 surface = vec3(0.0); // height, dH/dx, dH/dy
         float crest = 0.0;
-        wave(vec2( 1.0,  0.35), 5.5,  0.075, 1.15, position.xy, h, crest);
-        wave(vec2(-0.6,  1.0),  3.1,  0.045, 1.70, position.xy, h, crest);
-        wave(vec2( 0.3, -1.0),  1.7,  0.022, 2.40, position.xy, h, crest);
+        wave(vec2( 1.0,  0.35), 5.8, 0.066, 1.10, 1.0,          position.xy, surface, crest);
+        wave(vec2(-0.6,  1.0),  3.2, 0.037, 1.55, mediumDetail, position.xy, surface, crest);
+        wave(vec2( 0.3, -1.0),  1.8, 0.015, 2.20, fineDetail,   position.xy, surface, crest);
+        surface *= wet;
         vec3 p = position;
-        p.z += h * shallow;
-        vCrest = crest * shallow;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+        p.z += surface.x;
+        vec3 localNormal = normalize(vec3(-surface.y, -surface.z, 1.0));
+        vec4 world = modelMatrix * vec4(p, 1.0);
+        vWorldPosition = world.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * localNormal);
+        vCrest = crest * wet;
+        gl_Position = projectionMatrix * viewMatrix * world;
       }
     `,
     fragmentShader: /* glsl */ `
       uniform vec3 uDeep;
       uniform vec3 uShallow;
       uniform vec3 uFoam;
+      uniform vec3 uSky;
+      uniform vec3 uSun;
       uniform float uTime;
-      uniform vec3 uObstacles[${MAX_OBSTACLES}];
+      uniform vec4 uObstacles[${MAX_OBSTACLES}];
       uniform int uObstacleCount;
       varying float vDepth;
       varying float vCrest;
       varying vec2 vLocal;
+      varying vec3 vWorldPosition;
+      varying vec3 vWorldNormal;
 
       void main() {
         // Colour by depth. A river that is one flat blue reads as a painted
@@ -141,26 +179,47 @@ export function createRiverWater(opts: {
         float deep = smoothstep(0.15, 1.6, vDepth) * 0.8;
         vec3 col = mix(uShallow, uDeep, deep);
 
-        // Shore lace: foam gathers where the water runs out.
-        float shore = smoothstep(0.42, 0.06, vDepth);
-        float ripple = 0.5 + 0.5 * sin(vLocal.x * 3.1 + vLocal.y * 2.3 + uTime * 1.9);
-        float foam = shore * (0.55 + 0.45 * ripple);
+        vec3 normal = normalize(vWorldNormal);
+        if (!gl_FrontFacing) normal = -normal;
+        vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+        float facing = clamp(dot(normal, viewDir), 0.0, 1.0);
+        float fresnel = pow(1.0 - facing, 3.0);
+        // An environment read without an environment render: sky at grazing
+        // angles and one broad warm glint. It adds volume for one material pass
+        // and stays in the Barsik pastel palette.
+        col = mix(col, uSky, fresnel * 0.34);
+        vec3 sunDir = normalize(vec3(-0.38, 0.84, 0.39));
+        vec3 halfDir = normalize(sunDir + viewDir);
+        float sunGlint = pow(max(dot(normal, halfDir), 0.0), 34.0);
+        col += uSun * sunGlint * (0.10 + 0.12 * fresnel);
+
+        // Shore lace is a band, not a white fill. fwidth keeps its edge soft
+        // when the baked depth field becomes smaller than a pixel.
+        float depthAA = max(fwidth(vDepth), 0.012);
+        float shoreInner = smoothstep(0.035 - depthAA, 0.10 + depthAA, vDepth);
+        float shoreOuter = 1.0 - smoothstep(0.24 - depthAA, 0.46 + depthAA, vDepth);
+        float lace = 0.62 + 0.38 * sin(vLocal.x * 2.15 + vLocal.y * 1.72 + uTime * 1.45);
+        float foam = shoreInner * shoreOuter * lace;
 
         // A collar round anything standing in the water. Twelve stepping
-        // stones with no disturbance round them look painted on.
+        // stones with no disturbance round them look painted on. The old
+        // 0.85 m rings dominated the route; these stay tight to the geometry.
         for (int i = 0; i < ${MAX_OBSTACLES}; i++) {
           if (i >= uObstacleCount) break;
-          vec3 o = uObstacles[i];
+          vec4 o = uObstacles[i];
           float d = length(vLocal - vec2(o.x, -o.y)) - o.z;
-          float ring = smoothstep(0.85, 0.0, d) * smoothstep(-0.15, 0.12, d);
-          foam = max(foam, ring * (0.6 + 0.4 * sin(uTime * 2.6 + d * 6.0)));
+          float ringAA = max(fwidth(d), 0.012);
+          float ring = smoothstep(-0.18 - ringAA, 0.01 + ringAA, d)
+                     * (1.0 - smoothstep(0.15 - ringAA, 0.43 + ringAA, d));
+          float wake = 0.68 + 0.32 * sin(uTime * 2.25 + d * 8.0 + o.x * 0.31);
+          foam = max(foam, ring * wake * o.w);
         }
 
         // And on the wave crests themselves.
-        foam = max(foam, smoothstep(0.055, 0.12, vCrest) * 0.5);
+        foam = max(foam, smoothstep(0.076, 0.108, vCrest) * 0.22);
 
-        col = mix(col, uFoam, clamp(foam, 0.0, 1.0) * 0.85);
-        float alpha = mix(0.68, 0.84, deep);
+        col = mix(col, uFoam, clamp(foam, 0.0, 1.0) * 0.76);
+        float alpha = mix(0.62, 0.84, deep);
         gl_FragColor = vec4(col, alpha);
       }
     `,
@@ -176,6 +235,10 @@ export function createRiverWater(opts: {
 
   return {
     mesh,
+    setObstacleStrength(index: number, strength: number) {
+      if (index < 0 || index >= obstacles.length) return;
+      obstacleData[index * 4 + 3] = THREE.MathUtils.clamp(strength, 0, 1);
+    },
     update(seconds: number) {
       mat.uniforms.uTime.value = seconds;
     },
