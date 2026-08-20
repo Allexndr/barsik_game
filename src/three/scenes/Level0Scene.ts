@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   BaseLevelScene,
   type BaseHud,
@@ -305,6 +306,70 @@ function paintFelt(geo: THREE.BufferGeometry, base: THREE.Color, vary: THREE.Col
 }
 
 /**
+ * Six visible guy ropes and wooden ground stakes around the yurt.
+ *
+ * They sit inside the yurt's existing physical stand-off, so they explain the
+ * collision instead of creating another invisible boundary. All ropes share
+ * one mesh and all stakes share one mesh: two draws total, including every
+ * head, rather than eighteen tiny scene objects.
+ */
+function makeYurtAnchors() {
+  const group = new THREE.Group();
+  const ropeParts: THREE.BufferGeometry[] = [];
+  const stakeParts: THREE.BufferGeometry[] = [];
+  const up = new THREE.Vector3(0, 1, 0);
+  const wallRadius = 2.92;
+  const anchorRadius = 3.48;
+  // The door faces +Z (angle 0); the two nearest anchors frame it without
+  // putting a rope through the interaction marker.
+  const angles = [0.72, 1.7, 2.55, 3.7, 4.55, 5.56];
+
+  for (const angle of angles) {
+    const radial = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle));
+    const from = radial.clone().multiplyScalar(wallRadius);
+    from.y = 1.28;
+    const to = radial.clone().multiplyScalar(anchorRadius);
+    to.y = 0.15;
+    const direction = to.clone().sub(from);
+    const rope = new THREE.CylinderGeometry(0.022, 0.022, direction.length(), 5);
+    const midpoint = from.clone().add(to).multiplyScalar(0.5);
+    rope.applyMatrix4(new THREE.Matrix4().compose(
+      midpoint,
+      new THREE.Quaternion().setFromUnitVectors(up, direction.normalize()),
+      new THREE.Vector3(1, 1, 1),
+    ));
+    ropeParts.push(rope);
+
+    const shaft = new THREE.CylinderGeometry(0.075, 0.045, 0.58, 6);
+    shaft.translate(to.x, 0.29, to.z);
+    stakeParts.push(shaft);
+    const head = new THREE.CylinderGeometry(0.12, 0.1, 0.11, 6);
+    head.translate(to.x, 0.61, to.z);
+    stakeParts.push(head);
+  }
+
+  const ropeGeometry = mergeGeometries(ropeParts, false);
+  const stakeGeometry = mergeGeometries(stakeParts, false);
+  for (const geometry of [...ropeParts, ...stakeParts]) geometry.dispose();
+  if (ropeGeometry) {
+    group.add(new THREE.Mesh(
+      ropeGeometry,
+      new THREE.MeshStandardMaterial({ color: 0xb28a57, roughness: 1 }),
+    ));
+  }
+  if (stakeGeometry) {
+    const stakes = new THREE.Mesh(
+      stakeGeometry,
+      new THREE.MeshStandardMaterial({ color: 0x71461f, roughness: 0.88 }),
+    );
+    stakes.castShadow = true;
+    group.add(stakes);
+  }
+  group.userData.decorativeYurtAnchors = true;
+  return group;
+}
+
+/**
  * A yurt, in the game's plush idiom: a felt drum with a domed roof, a red
  * door frame and a shanyrak — the wheel at the crown, which is the shape on
  * the flag and the one detail that must not be got wrong.
@@ -466,7 +531,7 @@ function makeYurt(): THREE.Group {
   doorMotif.position.set(0.5, 1.05, 0.07);
   doorPivot.add(doorMotif);
 
-  g.add(wall, roof, baseBand, patch, shanyrak, portal, doorPivot);
+  g.add(wall, roof, baseBand, patch, shanyrak, portal, doorPivot, makeYurtAnchors());
   g.userData.doorPivot = doorPivot;
   g.userData.doorPortal = portal;
   return g;
