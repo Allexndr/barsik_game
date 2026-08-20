@@ -3,14 +3,12 @@ import {
   BaseLevelScene,
   type BaseHud,
   groundY,
-  mountain,
   zoneDisc,
   spawnPad,
   questMarker,
   butterfly,
   tulip,
   hill,
-  skyDome,
   pathArrow,
   placeWoodSign,
   loadCharModel,
@@ -81,6 +79,62 @@ const BASKET_COLORS: Record<string, number> = {
 };
 
 const sharedAppleGeo = new THREE.SphereGeometry(0.22, 12, 12);
+const pickupAppleGeometries = new Map<string, THREE.BufferGeometry>();
+
+function paintApplePart(geometry: THREE.BufferGeometry, color: number) {
+  const position = geometry.getAttribute('position');
+  const value = new THREE.Color(color);
+  const colors = new Float32Array(position.count * 3);
+  for (let i = 0; i < position.count; i++) {
+    colors[i * 3] = value.r;
+    colors[i * 3 + 1] = value.g;
+    colors[i * 3 + 2] = value.b;
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return geometry;
+}
+
+/** One coloured mesh: apple, stem, leaf and colour-blind pattern bands. */
+function pickupAppleGeometry(
+  displayColor: number,
+  color: 'red' | 'yellow' | 'green',
+  bonus: boolean,
+) {
+  const key = `${displayColor}:${color}:${bonus}`;
+  const cached = pickupAppleGeometries.get(key);
+  if (cached) return cached;
+
+  const parts: THREE.BufferGeometry[] = [];
+  const body = new THREE.SphereGeometry(0.22, 12, 10);
+  body.scale(1.05, 0.94, 1.05);
+  parts.push(paintApplePart(body, displayColor));
+
+  const stem = new THREE.CylinderGeometry(0.018, 0.026, 0.15, 6);
+  stem.rotateZ(-0.16);
+  stem.translate(0.018, 0.24, 0);
+  parts.push(paintApplePart(stem, 0x70452f));
+
+  const leaf = new THREE.SphereGeometry(0.065, 7, 5);
+  leaf.scale(1.6, 0.22, 0.72);
+  leaf.rotateZ(0.52);
+  leaf.translate(0.09, 0.25, 0);
+  parts.push(paintApplePart(leaf, 0x3f914b));
+
+  if (!bonus) {
+    for (let i = 0; i < patternCount(color); i++) {
+      const band = new THREE.TorusGeometry(0.225, 0.018, 5, 18);
+      band.rotateX(Math.PI / 2);
+      band.translate(0, -0.1 + i * 0.11, 0);
+      parts.push(paintApplePart(band, 0xfff8dc));
+    }
+  }
+
+  const merged = mergeGeometries(parts, false);
+  for (const part of parts) part.dispose();
+  const geometry = merged ?? sharedAppleGeo;
+  pickupAppleGeometries.set(key, geometry);
+  return geometry;
+}
 
 function patternCount(color: 'red' | 'yellow' | 'green') {
   return color === 'red' ? 1 : color === 'yellow' ? 2 : 3;
@@ -94,26 +148,6 @@ function addPatternBands(parent: THREE.Object3D, color: 'red' | 'yellow' | 'gree
     band.position.y = y + i * 0.11;
     parent.add(band);
   }
-}
-
-/** Tint a Kenney food-kit apple without mutating the shared template materials. */
-function tintAppleRoot(root: THREE.Object3D, hex: number, emissiveIntensity: number) {
-  root.traverse((object) => {
-    const mesh = object as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    const cloneMat = (mat: THREE.Material) => {
-      const next = mat.clone() as THREE.MeshStandardMaterial;
-      if (next.color) next.color.setHex(hex);
-      if (next.emissive) {
-        next.emissive.setHex(hex);
-        next.emissiveIntensity = emissiveIntensity;
-      }
-      return next;
-    };
-    mesh.material = Array.isArray(mesh.material)
-      ? mesh.material.map(cloneMat)
-      : cloneMat(mesh.material);
-  });
 }
 
 /**
@@ -194,26 +228,26 @@ function makeApple(
 ): ApplePickup {
   const displayColor = bonus ? 0xffd700 : APPLE_COLORS[color];
   const mat = new THREE.MeshStandardMaterial({
-    color: displayColor,
-    emissive: displayColor,
-    emissiveIntensity: bonus ? 0.75 : 0.3,
-    roughness: 0.3,
+    color: 0xffffff,
+    vertexColors: true,
+    roughness: 0.34,
   });
-  const mesh = new THREE.Mesh(sharedAppleGeo, mat);
+  const mesh = new THREE.Mesh(pickupAppleGeometry(displayColor, color, bonus), mat);
   mesh.position.set(x, y, z);
-  mesh.castShadow = true;
+  mesh.scale.setScalar(bonus ? 1.7 : 1.55);
+  // At pickup scale the contact shadow is invisible under the marker, but it
+  // re-renders every apple in the shadow pass. Keep the apple lit and let the
+  // authored orchard trees provide the readable ground shadows.
+  mesh.castShadow = false;
   mesh.userData.kind = bonus ? 'bonusApple' : 'apple';
   mesh.userData.color = color;
   if (bonus) {
-    mesh.scale.setScalar(1.15);
     const halo = new THREE.Mesh(
       new THREE.TorusGeometry(0.34, 0.025, 6, 24),
       new THREE.MeshBasicMaterial({ color: 0xfff1a8, toneMapped: false }),
     );
     halo.rotation.x = Math.PI / 2;
     mesh.add(halo);
-  } else {
-    addPatternBands(mesh, color, -0.1, 0.225);
   }
 
   const { ring, beam } = appleIndicators(x, z, displayColor, groundAt);
@@ -221,8 +255,8 @@ function makeApple(
 }
 
 async function makeKitApple(
-  kit: AssetKit,
-  loader: GLTFLoader,
+  _kit: AssetKit,
+  _loader: GLTFLoader,
   x: number,
   z: number,
   y: number,
@@ -231,61 +265,11 @@ async function makeKitApple(
   bonus = false,
   groundAt = 0,
 ): Promise<ApplePickup> {
-  const displayColor = bonus ? 0xffd700 : APPLE_COLORS[color];
-  const meshyFile = bonus
-    ? CAST_PROP_GLB.apple_gold
-    : color === 'red'
-      ? CAST_PROP_GLB.apple
-      : CAST_PROP_GLB.apple_discover;
-  // Крупнее: было 0.48 у обычного яблока при траве ростом до 0.68 м —
-  // яблоко было НИЖЕ травы, в которой лежало. Замерено: верх наземных яблок
-  // стоял на 35–46 см, то есть внутри травяного полога.
-  const meshyApple = await loadPropModel(loader, meshyFile, { maxSize: bonus ? 0.85 : 0.78 });
-  if (meshyApple) {
-    if (!bonus && color !== 'red') tintAppleRoot(meshyApple, displayColor, 0.22);
-    else if (bonus) tintAppleRoot(meshyApple, displayColor, 0.45);
-    meshyApple.position.set(x, y, z);
-    meshyApple.castShadow = true;
-    meshyApple.userData.kind = bonus ? 'bonusApple' : 'apple';
-    meshyApple.userData.color = color;
-    if (bonus) {
-      const halo = new THREE.Mesh(
-        new THREE.TorusGeometry(0.34, 0.025, 6, 24),
-        new THREE.MeshBasicMaterial({ color: 0xfff1a8, toneMapped: false }),
-      );
-      halo.rotation.x = Math.PI / 2;
-      meshyApple.add(halo);
-    } else {
-      addPatternBands(meshyApple, color, 0.05, 0.22);
-    }
-    const { ring, beam } = appleIndicators(x, z, displayColor, groundAt);
-    return { mesh: meshyApple, ring, beam, color, alive: true, onGround, bonus };
-  }
-
-  const kitApple = await kit.spawn('food', 'apple', {
-    maxSize: bonus ? 0.85 : 0.78,
-    position: [x, y, z],
-    ground: false,
-  });
-  if (!kitApple) return makeApple(x, z, y, color, onGround, bonus, groundAt);
-
-  tintAppleRoot(kitApple, displayColor, bonus ? 0.55 : 0.22);
-  kitApple.castShadow = true;
-  kitApple.userData.kind = bonus ? 'bonusApple' : 'apple';
-  kitApple.userData.color = color;
-  if (bonus) {
-    const halo = new THREE.Mesh(
-      new THREE.TorusGeometry(0.34, 0.025, 6, 24),
-      new THREE.MeshBasicMaterial({ color: 0xfff1a8, toneMapped: false }),
-    );
-    halo.rotation.x = Math.PI / 2;
-    kitApple.add(halo);
-  } else {
-    addPatternBands(kitApple, color, 0.05, 0.22);
-  }
-
-  const { ring, beam } = appleIndicators(x, z, displayColor, groundAt);
-  return { mesh: kitApple, ring, beam, color, alive: true, onGround, bonus };
+  // The Meshy apple candidates were 5.7k–14.8k triangles EACH. Eleven of
+  // them consumed over 100k scene triangles before shadows, while a pickup is
+  // under a metre tall on screen. The authored low-poly apple keeps the same
+  // colour/pattern/halo gameplay language at 288 body triangles.
+  return makeApple(x, z, y, color, onGround, bonus, groundAt);
 }
 
 async function makeBasketAsync(
@@ -305,6 +289,13 @@ async function makeBasketAsync(
     const g = new THREE.Group();
     glb.position.set(0, 0, 0);
     groundY(glb);
+    // These small focal props sit directly under translucent objective beams.
+    // Their imported meshes are surprisingly dense (3.5k–6.6k triangles), so
+    // duplicating them in the shadow pass costs more than the whole grass field.
+    glb.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (mesh.isMesh) mesh.castShadow = false;
+    });
     g.add(glb);
     addPatternBands(g, color, 0.95, 0.42);
     const beam = new THREE.Mesh(
@@ -330,13 +321,13 @@ function makeBasket(x: number, z: number, color: 'red' | 'yellow' | 'green'): Ba
   const rim = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.06, 8, 20), mat);
   rim.rotation.x = Math.PI / 2;
   rim.position.y = 0.6;
-  rim.castShadow = true;
+  rim.castShadow = false;
   const body = new THREE.Mesh(
     new THREE.CylinderGeometry(0.5, 0.4, 0.6, 16, 1, true),
     new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 1, side: THREE.DoubleSide }),
   );
   body.position.y = 0.3;
-  body.castShadow = true;
+  body.castShadow = false;
   g.add(rim, body);
   addPatternBands(g, color, 0.82, 0.42);
 
@@ -1272,6 +1263,14 @@ export class Level2Scene extends BaseLevelScene {
     trees.forEach((tree, i) => {
       this.snapToGround(tree);
       this.markSwaying(tree, 0.8);
+      // Four representative trees cast the orchard's dappled shadows. Letting
+      // every repeated row cast redrew every trunk/canopy in the shadow pass
+      // for no visible gain and made this the season's heaviest mobile frame.
+      const castsShadow = i % 3 === 0;
+      tree.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (mesh.isMesh) mesh.castShadow = castsShadow;
+      });
       this.scene.add(tree);
       this.colliders.push({ kind: 'circle', x: tree.position.x, z: tree.position.z, r: 1.05 });
       const height = placements[i].height;
@@ -1471,9 +1470,15 @@ export class Level2Scene extends BaseLevelScene {
 
     // Setup
     this.camera.position.set(-10, 7, 16);
-    await this.setupForestEnvironment(loader, { fogColor: 0x8fd8f5, flatRadius: 21, flatCenterZ: -14 });
-    this.scene.add(skyDome());
-    this.setupClouds(6, 26, 60);
+    await this.setupForestEnvironment(loader, {
+      profile: 'orchard',
+      flatRadius: 21,
+      flatCenterZ: -14,
+      grass: {
+        count: this.isMobile ? 3200 : 12000,
+        bladeHeight: [0.2, 0.48],
+      },
+    });
 
     // Hills
     for (const [hx, hz, hr, hh] of [
@@ -1484,15 +1489,6 @@ export class Level2Scene extends BaseLevelScene {
       this.scene.add(hill(hx, hz, hr, hh));
     }
 
-    // Mountains
-    for (const [x, z, h, w] of [
-      [-48, -70, 22, 16],
-      [0, -82, 30, 20],
-      [44, -64, 24, 17],
-    ] as const) {
-      this.scene.add(mountain(x, z, h, w));
-    }
-
     // Zone discs
     this.scene.add(zoneDisc(0, 4, 7, 0x66bb6a, 0.025)); // start
     this.scene.add(zoneDisc(0, -12, 12, 0xffeaa7, 0.02)); // orchard center
@@ -1500,14 +1496,22 @@ export class Level2Scene extends BaseLevelScene {
     // Spawn pad
     this.scene.add(spawnPad(0, 4));
 
-    // Dirt path
+    // Dirt path — one static mesh, not twenty identical draw calls.
+    const pathTiles: THREE.BufferGeometry[] = [];
     for (let i = 0; i < 20; i++) {
+      const tile = new THREE.PlaneGeometry(2.2, 1.0);
+      tile.rotateX(-Math.PI / 2);
+      tile.translate(0, 0.035, 4 - i * 0.9);
+      pathTiles.push(tile);
+    }
+    const pathGeometry = mergeGeometries(pathTiles, false);
+    for (const tile of pathTiles) tile.dispose();
+    if (pathGeometry) {
       const dirt = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.2, 1.0),
+        pathGeometry,
         new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 1 }),
       );
-      dirt.rotation.x = -Math.PI / 2;
-      dirt.position.set(0, 0.035, 4 - i * 0.9);
+      dirt.receiveShadow = true;
       this.scene.add(dirt);
     }
 
@@ -1562,14 +1566,14 @@ export class Level2Scene extends BaseLevelScene {
       for (const gx of [3.2, 5.2] as const) {
         const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.1, 6), fenceMat);
         post.position.set(side * gx, 0.55, -9);
-        post.castShadow = true;
+        post.castShadow = false;
         gateGroup.add(post);
         this.colliders.push({ kind: 'circle', x: side * gx, z: -9, r: 0.22 });
       }
       for (const railY of [0.35, 0.75]) {
         const rail = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.07, 0.07), fenceMat);
         rail.position.set(side * 4.2, railY, -9);
-        rail.castShadow = true;
+        rail.castShadow = false;
         gateGroup.add(rail);
       }
     }
@@ -1577,7 +1581,7 @@ export class Level2Scene extends BaseLevelScene {
     for (const gx of [-3.2, 3.2] as const) {
       const gatePost = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.6, 6), fenceMat);
       gatePost.position.set(gx, 0.8, -9);
-      gatePost.castShadow = true;
+      gatePost.castShadow = false;
       gateGroup.add(gatePost);
     }
     this.scene.add(gateGroup);
@@ -1590,9 +1594,23 @@ export class Level2Scene extends BaseLevelScene {
     for (const [cx, cz] of DRY_TREES) this.reserve(cx, cz, 2.0);
     this.reserve(BIG_TREE[0], BIG_TREE[1], 3.2);
 
-    // Trees (orchard)
-    await this.loadTrees(loader, 30, 22, -14, 4.5);
-    await this.loadProps(loader, 8, 6, 30, -16);
+    // Orchard rows below, the arena treeline and the ten authored apple trees
+    // already define the place. Thirty more individually drawn trees filled
+    // every gap, hid objectives and paid their mesh count again in the shadow
+    // pass. Twelve give parallax without turning the garden into visual noise.
+    const ambientStart = this.scene.children.length;
+    await this.loadTrees(loader, 12, 22, -14, 4.5);
+    await this.loadProps(loader, 4, 6, 30, -16);
+    // These are background fillers behind the ten authored orchard trees.
+    // They still receive the shared light and fog, but do not pay a second
+    // render in the shadow map. Four focal orchard trees above remain the
+    // deliberate moving shadow sources near the play route.
+    for (const root of this.scene.children.slice(ambientStart)) {
+      root.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (mesh.isMesh) mesh.castShadow = false;
+      });
+    }
 
     // Baskets — Meshy colored baskets when present, else procedural
     this.baskets = [
@@ -1718,7 +1736,7 @@ export class Level2Scene extends BaseLevelScene {
     // ring is a wall you can see rather than a second bound that cuts corners
     // off the level. A guessed r = 15 fenced off 29 of its 32 objects.
     this.playArena = { x: 0, z: -8.5, r: 26 };
-    await this.encloseArena(loader);
+    await this.encloseArena(loader, 3);
 
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;

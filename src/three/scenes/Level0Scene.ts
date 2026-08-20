@@ -847,6 +847,12 @@ export class Level0Scene extends BaseLevelScene {
     this.pathCorridorHalf = 3.2;
 
     await this.setupForestEnvironment(loader, {
+      profile: 'dombraGolden',
+      fireflies: true,
+      grass: {
+        count: this.isMobile ? 7000 : 16000,
+        bladeHeight: [0.24, 0.58],
+      },
       flatRadius: 9,
       flatCenterZ: YURT.z,
       terrain: {
