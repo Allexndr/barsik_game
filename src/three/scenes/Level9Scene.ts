@@ -120,7 +120,18 @@ function makeSigil(kind: Sigil, size = 1): THREE.Mesh {
 
 /** Centre line of the walk from the forest edge to the chest clearing. */
 function routeX(z: number) {
-  return Math.sin((z - SPAWN_Z) * 0.07) * 3.6;
+  const centre = Math.sin((z - SPAWN_Z) * 0.07) * 3.6;
+  // The third guardian lives beyond the chest, so the authored trail must
+  // visibly continue around that solid landmark. Previously its centre line
+  // ran through the chest collider: walking the stones literally stopped at
+  // the reward prop and looked like another invisible wall. A smooth eastern
+  // bow preserves the rest of the forest layout while making the passage
+  // readable before Barsik reaches it.
+  const bypassStartZ = CHEST_Z + 2.5;
+  const bypassEndZ = CHEST_Z - 3.5;
+  if (z >= bypassStartZ || z <= bypassEndZ) return centre;
+  const progress = (bypassStartZ - z) / (bypassStartZ - bypassEndZ);
+  return centre + Math.sin(progress * Math.PI) * 4.2;
 }
 
 /**
@@ -248,7 +259,20 @@ export class Level9Scene extends BaseLevelScene {
 
       if (t.userData.isBerry) {
         t.userData.done = true;
-        t.visible = false;
+        // The berry goes into Barsik's carried count; the bush does not vanish
+        // with it. Keeping the searched bush and changing its ring gives the
+        // child a persistent "already checked" state instead of rewriting the
+        // forest behind their back.
+        const fruit = t.userData.fruit as THREE.Object3D | undefined;
+        if (fruit) fruit.visible = false;
+        const ring = t.userData.ring as THREE.Mesh | undefined;
+        const inactiveRingMaterial = t.userData.inactiveRingMaterial as THREE.Material | undefined;
+        if (ring && inactiveRingMaterial) {
+          ring.material = inactiveRingMaterial;
+          ring.scale.setScalar(0.82);
+        }
+        const completionBadge = t.userData.completionBadge as THREE.Object3D | undefined;
+        if (completionBadge) completionBadge.visible = true;
         this.berryCount += 1;
         this.stars += 1;
         this.spawnSparks(t.position, 8, [0xe84393, 0xff7675]);
@@ -368,7 +392,27 @@ export class Level9Scene extends BaseLevelScene {
     // Reserve the gameplay before anything is scattered over it.
     this.reserve(0, CHEST_Z, 9);
     this.reserve(0, SPAWN_Z, 5);
-    for (const sh of SHRINES) this.reserve(sh.x, sh.z, 4);
+    const reserveSideBranch = (x: number, z: number, endRadius: number) => {
+      const fromX = routeX(z);
+      const steps = Math.max(1, Math.ceil(Math.abs(x - fromX) / 3));
+      for (let i = 1; i <= steps; i++) {
+        this.reserve(
+          THREE.MathUtils.lerp(fromX, x, i / steps),
+          z,
+          i === steps ? endRadius : 1.35,
+        );
+      }
+    };
+    // The three shrine rooms and nine of twelve berries used to sit outside
+    // the connected walkable union. Their markers were visible but
+    // clampToPlayArea pushed Barsik back — an invisible wall and a hard
+    // soft-lock. Connect every objective to the centre route with overlapping
+    // clearings. The same reservations keep grass, trees and enclosure trunks
+    // out of each branch, so its walkable shape is visible.
+    for (const shrine of SHRINES) reserveSideBranch(shrine.x, shrine.z, 4);
+    for (const spot of BERRY_SPOTS) {
+      reserveSideBranch(spot.x, spot.z, 2.1);
+    }
 
     const pad = spawnPad(0, SPAWN_Z);
     pad.position.y = this.groundHeightAt(0, SPAWN_Z) + 0.01;
@@ -380,7 +424,7 @@ export class Level9Scene extends BaseLevelScene {
         const z = SPAWN_Z - (i / 23) * (SPAWN_Z - CHEST_Z + 2);
         return { x: routeX(z), z };
       }),
-      { size: 1.3 },
+      { size: 1.3, batchStatic: true },
     );
 
     // Chest — Meshy Discover treasure_chest → Kenney kit → procedural.
@@ -478,6 +522,69 @@ export class Level9Scene extends BaseLevelScene {
       }
     }
 
+    // Load and fit the authored berry once. Twelve independent GLTF parses
+    // produced twelve copies of every generated PBR texture (61 live renderer
+    // textures at the mobile start). Static clones share geometry/materials;
+    // the scene disposer deduplicates both by identity.
+    const berryTemplate =
+      (await loadPropModel(loader, CAST_PROP_GLB.berry, { maxSize: 0.46 })) ??
+      new THREE.Mesh(
+        new THREE.SphereGeometry(0.22, 12, 10),
+        new THREE.MeshStandardMaterial({
+          color: 0xe84393,
+          roughness: 0.45,
+          emissive: 0x8e2f5f,
+          emissiveIntensity: 0.3,
+        }),
+      );
+    berryTemplate.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      // A berry's shadow is a few pixels and was another full shadow draw for
+      // every clone; the bush still anchors it to the ground.
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+    });
+    const berryRingGeometry = new THREE.RingGeometry(1.02, 1.34, 22);
+    const activeBerryRingMaterial = new THREE.MeshBasicMaterial({
+      color: 0xe84393,
+      transparent: true,
+      opacity: 0.4,
+      side: THREE.DoubleSide,
+    });
+    const inactiveBerryRingMaterial = new THREE.MeshBasicMaterial({
+      color: 0x55c9a5,
+      transparent: true,
+      opacity: 0.2,
+      side: THREE.DoubleSide,
+    });
+    // A textureless, billboarded completion badge. The muted ground ring can
+    // disappear behind the foliage from a child's low camera; the cream disc
+    // and mint check stay readable without allocating another texture.
+    const badgeDiscGeometry = new THREE.CircleGeometry(0.42, 20);
+    const badgeDiscMaterial = new THREE.MeshBasicMaterial({
+      color: 0xfff8e7,
+      transparent: true,
+      opacity: 0.94,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const checkShape = new THREE.Shape();
+    checkShape.moveTo(-0.34, 0.02);
+    checkShape.lineTo(-0.22, 0.14);
+    checkShape.lineTo(-0.04, -0.05);
+    checkShape.lineTo(0.3, 0.32);
+    checkShape.lineTo(0.42, 0.2);
+    checkShape.lineTo(-0.04, -0.28);
+    checkShape.closePath();
+    const badgeCheckGeometry = new THREE.ShapeGeometry(checkShape);
+    const badgeCheckMaterial = new THREE.MeshBasicMaterial({
+      color: 0x2fb892,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const berryShrubs: THREE.Object3D[] = [];
+
     // Twelve berries, in bushes, spread over the whole play area — this is
     // where the level's walking comes from.
     for (const spot of BERRY_SPOTS) {
@@ -485,12 +592,9 @@ export class Level9Scene extends BaseLevelScene {
       // bush(x, z, scale) — the third argument is the scale, not a y. Passing
       // 0 built twelve bushes scaled to nothing, which is why the first pass
       // rendered a berry hovering over bare grass.
-      const shrub = bush(0, 0, 1.1);
-      // bush() now grounds itself, but this one is a child of a group that is
-      // already at the berry's ground height — leaving it would add the
-      // terrain height at world (0, 0) on top.
-      shrub.position.set(0, 0, 0);
-      g.add(shrub);
+      // Bushes never change state, so bake them into one scene-owned mesh.
+      // The interactive group below owns only the ring and berry.
+      berryShrubs.push(bush(spot.x, spot.z, 1.1));
       // A ring on the ground under the bush. `bush()` is the same helper the
       // environment scatters by the hundred, so without this a bush holding a
       // berry looks exactly like the ninety that do not, and the guide arrow
@@ -498,18 +602,21 @@ export class Level9Scene extends BaseLevelScene {
       // Wider than the foliage: at 0.5–0.78 the ring was drawn underneath the
       // bush and invisible from every angle a player stands at.
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(1.02, 1.34, 22),
-        new THREE.MeshBasicMaterial({ color: 0xe84393, transparent: true, opacity: 0.4, side: THREE.DoubleSide }),
+        berryRingGeometry,
+        activeBerryRingMaterial,
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.03;
       g.add(ring);
-      const fruit =
-        (await loadPropModel(loader, CAST_PROP_GLB.berry, { maxSize: 0.46 })) ??
-        new THREE.Mesh(
-          new THREE.SphereGeometry(0.22, 12, 10),
-          new THREE.MeshStandardMaterial({ color: 0xe84393, roughness: 0.45, emissive: 0x8e2f5f, emissiveIntensity: 0.3 }),
-        );
+      const completionBadge = new THREE.Group();
+      const badgeDisc = new THREE.Mesh(badgeDiscGeometry, badgeDiscMaterial);
+      const badgeCheck = new THREE.Mesh(badgeCheckGeometry, badgeCheckMaterial);
+      badgeCheck.position.z = 0.01;
+      completionBadge.add(badgeDisc, badgeCheck);
+      completionBadge.position.y = 1.65;
+      completionBadge.visible = false;
+      g.add(completionBadge);
+      const fruit = berryTemplate.clone(true);
       // `loadPropModel` writes its own grounding offset into position.y, so
       // only x and z may be assigned here — setting y outright is what buried
       // L2's apples.
@@ -524,8 +631,17 @@ export class Level9Scene extends BaseLevelScene {
       g.userData.done = false;
       g.userData.fruit = fruit;
       g.userData.ring = ring;
+      g.userData.inactiveRingMaterial = inactiveBerryRingMaterial;
+      g.userData.completionBadge = completionBadge;
       this.berries.push(g);
       this.scene.add(g);
+    }
+    const mergedBerryShrubs = this.mergeStatic(berryShrubs);
+    if (mergedBerryShrubs) {
+      mergedBerryShrubs.name = 'berry-shrubs';
+      this.scene.add(mergedBerryShrubs);
+    } else {
+      for (const shrub of berryShrubs) this.scene.add(shrub);
     }
 
     // The lock: three pillars in front of the chest.
@@ -631,17 +747,27 @@ export class Level9Scene extends BaseLevelScene {
       this.scene.add(a);
     }
 
-    // Decorations
+    // Decorations. Static pieces share material and never change, so keep the
+    // visual rhythm but submit each family as one mesh.
+    const routeBushes: THREE.Object3D[] = [];
     for (let i = 0; i < 10; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = 2 - (i / 10) * 10;
-      this.scene.add(bush(side * (5 + Math.random() * 3), z));
+      routeBushes.push(bush(side * (5 + Math.random() * 3), z));
     }
+    const mergedRouteBushes = this.mergeStatic(routeBushes);
+    if (mergedRouteBushes) this.scene.add(mergedRouteBushes);
+    else for (const routeBush of routeBushes) this.scene.add(routeBush);
+
+    const routeFlowers: THREE.Object3D[] = [];
     for (let i = 0; i < 8; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = 2 - (i / 8) * 10;
-      this.scene.add(tulip(side * 4, z, [0xe74c3c, 0xf1c40f, 0xfd79a8, 0xa29bfe][i % 4]));
+      routeFlowers.push(tulip(side * 4, z, [0xe74c3c, 0xf1c40f, 0xfd79a8, 0xa29bfe][i % 4]));
     }
+    const mergedRouteFlowers = this.mergeStatic(routeFlowers);
+    if (mergedRouteFlowers) this.scene.add(mergedRouteFlowers);
+    else for (const flower of routeFlowers) this.scene.add(flower);
 
     // Butterflies
     for (let i = 0; i < 4; i++) {
@@ -974,7 +1100,12 @@ export class Level9Scene extends BaseLevelScene {
     // Berries turn slowly so a bush with one in it catches the eye from a
     // distance; a still berry inside a still bush is invisible in grass.
     for (const b of this.berries) {
-      if (b.userData.done) continue;
+      if (b.userData.done) {
+        const badge = b.userData.completionBadge as THREE.Object3D;
+        badge.quaternion.copy(this.camera.quaternion);
+        badge.position.y = 1.65 + Math.sin(now * 0.003 + b.position.x) * 0.06;
+        continue;
+      }
       const fruit = b.userData.fruit as THREE.Object3D;
       fruit.rotation.y += dt * 1.1;
       fruit.position.y = (fruit.userData.restY ??= fruit.position.y) + Math.sin(now * 0.002 + b.position.x) * 0.05;
