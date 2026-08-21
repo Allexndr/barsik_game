@@ -546,8 +546,18 @@ export class Mission1Scene extends BaseLevelScene {
       { kind: 'circle', x: -7, z: -40.5, r: 1.6 },
     );
 
+    // These two scatters form the distant forest frame and ground patches;
+    // none is interactive or close enough to need a private shadow-map draw.
+    // Keep them receiving the sun/hero shadows so they remain grounded, while
+    // preserving cast shadows on the bridge, Aya, quest rock, animals and hero.
+    const distantDecorStart = this.scene.children.length;
     await this.loadTrees(loader, 48, 32, -18, 5.0);
     await this.loadProps(loader, 10, 8, 36, -20);
+    for (const root of this.scene.children.slice(distantDecorStart)) {
+      root.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = false;
+      });
+    }
 
     const trailPts: Array<{ x: number; z: number }> = [];
     for (let i = 0; i < 24; i++) {
