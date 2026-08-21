@@ -2169,7 +2169,11 @@ export abstract class BaseLevelScene {
    * The corridor version cannot do this job: it walks a z range planting down
    * two sides, and an arena has no sides.
    */
-  protected async encloseArena(loader: GLTFLoader, rows?: number) {
+  protected async encloseArena(
+    loader: GLTFLoader,
+    rows?: number,
+    visualClearZones: ReadonlyArray<{ x: number; z: number; r: number }> = [],
+  ) {
     if (!this.playArena || this.disposed) return;
     const winter = this.environmentBiome === 'winter';
     const rowCount = rows ?? (winter ? 2 : 4);
@@ -2196,6 +2200,13 @@ export abstract class BaseLevelScene {
         const rr = radius + Math.random() * 1.1;
         const x = arena.x + Math.sin(a) * rr;
         const z = arena.z + Math.cos(a) * rr;
+        // A follow camera may sit outside the walkable clearing at spawn. Keep
+        // tall canopy out of its lens volume, but retain the first low row so
+        // the player still sees a physical edge instead of an invisible gap.
+        const insideVisualClearZone = visualClearZones.some(
+          zone => Math.hypot(x - zone.x, z - zone.z) < zone.r,
+        );
+        if (insideVisualClearZone && row > 0) continue;
         if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z) || this.isInsidePlayArea(x, z)) continue;
         placements.push({
           names: row === 0 ? near : row === 1 ? mid : far,

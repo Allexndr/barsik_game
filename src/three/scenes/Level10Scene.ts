@@ -10,7 +10,6 @@ import {
   bush,
   tulip,
   hill,
-  skyDome,
   loadCharModel,
   loadPropModel,
   placeWoodSign,
@@ -241,8 +240,6 @@ export class Level10Scene extends BaseLevelScene {
 
     this.camera.position.set(0, 8, 18);
     await this.setupForestEnvironment(loader, { fogColor: 0x90a4ae, sky: ['#8fb8d8', '#bcd6e6', '#eef4f2'], flatRadius: 20, flatCenterZ: -14 });
-    this.scene.add(skyDome('#5c8a9e', '#8ab8c8', '#d0e8f0'));
-    this.setupClouds(5, 26, 50);
 
     this.scene.add(hill(-22, -15, 10, 1.2));
     this.scene.add(hill(24, -25, 12, 1.4));
@@ -429,8 +426,16 @@ export class Level10Scene extends BaseLevelScene {
     this.scene.add(oak);
     this.colliders.push({ kind: 'circle', x: -15.5, z: -23, r: 1.2 });
 
-    for (const [x, z] of [[-16, 4], [15, -9], [19, -19], [-13, -21], [12, -30], [0, -35]] as const) {
-      this.reserve(x, z, 4.5);
+    // The quest is hub-and-spoke: every friend sends Barsik back to the berry
+    // basket. Its walkable space must match that mental model and the direct
+    // guide arrow, rather than silently constraining him to a serpentine lane.
+    this.playArena = { x: 0, z: -14, r: 27 };
+    for (const [x, z, r] of [
+      [0, -4, 3.5],
+      [-16, 4, 4.5], [15, -9, 4.5], [19, -19, 4.5],
+      [-13, -21, 4.5], [12, -30, 4.5], [0, -35, 4.5],
+    ] as const) {
+      this.reserve(x, z, r);
     }
     await this.loadTrees(loader, 26, 26, -16, 4.0);
     await this.loadProps(loader, 9, 6, 30, -18);
@@ -475,11 +480,9 @@ export class Level10Scene extends BaseLevelScene {
     ]);
 
     this.hero.position.set(0, this.groundHeightAt(0, 6), 6);
-    // This level is a serpentine, not a field: its beats sit alternately left
-    // and right going down. Drawing that as an actual route, then walling it,
-    // is what stops it reading as a clearing with things scattered in it.
-    this.derivePathFromRooms({ x: 0, z: 6 });
-    await this.enclosePath(loader);
+    // A visible tree ring defines the farewell clearing. The one visual-only
+    // gap protects the start camera; movement still uses the full arena ring.
+    await this.encloseArena(loader, 4, [{ x: 0.8, z: 16.5, r: 9.5 }]);
 
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
