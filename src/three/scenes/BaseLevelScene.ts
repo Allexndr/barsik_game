@@ -1796,10 +1796,14 @@ export abstract class BaseLevelScene {
   protected async layTrail(
     loader: GLTFLoader,
     points: Array<{ x: number; z: number }>,
-    opts: { size?: number; models?: string[] } = {},
+    opts: { size?: number; models?: string[]; batchStatic?: boolean } = {},
   ) {
     const kit = this.assetKit(loader);
-    const { size = 1.5, models = ['path_stone', 'path_stoneCircle', 'path_stoneCorner'] } = opts;
+    const {
+      size = 1.5,
+      models = ['path_stone', 'path_stoneCircle', 'path_stoneCorner'],
+      batchStatic = false,
+    } = opts;
     const placed = await kit.scatter(
       'nature',
       models,
@@ -1817,7 +1821,61 @@ export abstract class BaseLevelScene {
         const mesh = object as THREE.Mesh;
         if (mesh.isMesh) mesh.castShadow = false;
       });
-      this.scene.add(stone);
+    }
+
+    if (!batchStatic || placed.length < 2) {
+      for (const stone of placed) this.scene.add(stone);
+      return;
+    }
+
+    // A kit path model is usually two or three meshes. A long trail therefore
+    // costs hundreds of draw calls despite containing only tiny static stones.
+    // Group equal geometry/material pairs and bake every root/child transform
+    // into an instance matrix. Visual variants and exact placement stay the
+    // same; only submission changes.
+    type Batch = {
+      geometry: THREE.BufferGeometry;
+      material: THREE.Material | THREE.Material[];
+      matrices: THREE.Matrix4[];
+      receiveShadow: boolean;
+    };
+    const batches = new Map<string, Batch>();
+    for (const stone of placed) {
+      stone.updateMatrixWorld(true);
+      stone.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (!mesh.isMesh || !mesh.geometry || !mesh.visible) return;
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        const key = `${mesh.geometry.uuid}|${materials.map((material) => material.uuid).join(',')}`;
+        const batch = batches.get(key) ?? {
+          geometry: mesh.geometry,
+          material: mesh.material,
+          matrices: [],
+          receiveShadow: false,
+        };
+        batch.matrices.push(mesh.matrixWorld.clone());
+        batch.receiveShadow = batch.receiveShadow || mesh.receiveShadow;
+        batches.set(key, batch);
+      });
+    }
+
+    if (!batches.size) {
+      for (const stone of placed) this.scene.add(stone);
+      return;
+    }
+
+    let batchIndex = 0;
+    for (const batch of batches.values()) {
+      const instanced = new THREE.InstancedMesh(batch.geometry, batch.material, batch.matrices.length);
+      instanced.name = `batched-trail-${batchIndex++}`;
+      instanced.castShadow = false;
+      instanced.receiveShadow = batch.receiveShadow;
+      instanced.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+      for (let i = 0; i < batch.matrices.length; i++) instanced.setMatrixAt(i, batch.matrices[i]);
+      instanced.instanceMatrix.needsUpdate = true;
+      instanced.computeBoundingBox();
+      instanced.computeBoundingSphere();
+      this.scene.add(instanced);
     }
   }
 
