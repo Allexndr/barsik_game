@@ -574,17 +574,39 @@ export class Level6Scene extends BaseLevelScene {
       this.scene.add(g);
     }
 
-    // Decorative bushes and tulips
+    // Decorative bushes and tulips never move. Each factory already returns
+    // one mesh with a shared material, so bake the individual world matrices
+    // into one geometry per family. Dispose only the short-lived source
+    // geometries: BUSH_MAT/FLOWER_MAT are shared by the whole game.
+    const addStaticDecorationBatch = (objects: THREE.Object3D[]) => {
+      const merged = this.mergeStatic(objects);
+      if (!merged) {
+        for (const object of objects) this.scene.add(object);
+        return;
+      }
+      for (const object of objects) {
+        object.traverse((child) => {
+          if (child instanceof THREE.Mesh) child.geometry.dispose();
+        });
+      }
+      this.scene.add(merged);
+    };
+
+    const bushes: THREE.Object3D[] = [];
     for (let i = 0; i < 26; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = SPAWN_Z - (i / 26) * 44;
-      this.scene.add(bush(routeX(z) + side * (5 + Math.random() * 5), z));
+      bushes.push(bush(routeX(z) + side * (5 + Math.random() * 5), z));
     }
+    addStaticDecorationBatch(bushes);
+
+    const tulips: THREE.Object3D[] = [];
     for (let i = 0; i < 14; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = SPAWN_Z - (i / 14) * 32;
-      this.scene.add(tulip(routeX(z) + side * 4, z, [0xe74c3c, 0xf1c40f, 0xfd79a8, 0xa29bfe][i % 4]));
+      tulips.push(tulip(routeX(z) + side * 4, z, [0xe74c3c, 0xf1c40f, 0xfd79a8, 0xa29bfe][i % 4]));
     }
+    addStaticDecorationBatch(tulips);
 
     // Butterflies
     for (let i = 0; i < 8; i++) {
@@ -593,9 +615,17 @@ export class Level6Scene extends BaseLevelScene {
       this.scene.add(bf);
     }
 
-    // Trees around
+    // The random forest frame and ground scatter are far, noninteractive
+    // decoration. They should receive the authored shadows, but 99 private
+    // shadow-map draws add no riddle or route information.
+    const distantDecorStart = this.scene.children.length;
     await this.loadTrees(loader, 30, 30, -14, 4.6);
     await this.loadProps(loader, 12, 7, 30, -12);
+    for (const root of this.scene.children.slice(distantDecorStart)) {
+      root.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = false;
+      });
+    }
 
     await this.placeProps(loader, [
       { key: 'mushroom', opts: { x: -3.2, z: STUMP.z - 1, maxSize: 0.5 } },
