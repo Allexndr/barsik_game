@@ -529,22 +529,25 @@ export class CityScene {
     this.world.add(avatar.root);
 
     const loader = createGameGltfLoader();
-    void placeMany(this.world as unknown as THREE.Scene, loader, [
+    const FESTIVAL_PROPS: Parameters<typeof placeMany>[2] = [
+      { key: 'party_table', opts: { x: 0, z: -4.6, maxSize: 1.8 } },
+      { key: 'present', opts: { x: 1.5, z: -3.8, maxSize: 0.45 } },
+      { key: 'present', opts: { x: -1.6, z: -4.1, maxSize: 0.4 } },
+      { key: 'flag', opts: { x: -3.4, z: -2.4, maxSize: 1.0 } },
+      { key: 'flag', opts: { x: 3.4, z: -2.4, maxSize: 1.0 } },
+    ];
+    // Тип задан явно: массив собирается со спредами условных веток, и без
+    // контекста TypeScript выводит у ключей просто `string` — ровно та щель,
+    // через которую в финал сезона проехал несуществующий ключ персонажа.
+    const cityProps: Parameters<typeof placeMany>[2] = [
       // Nothing sits between the camera and Barsik. The signpost started at
       // (0, 6.4) — dead centre of the foreground — and put a plank across the
       // face of the character the screen is named after.
       { key: 'wood_sign', opts: { x: -6.2, z: 5.8, maxSize: 1.2, rotY: Math.PI - 0.5 } },
       { key: 'mushroom', opts: { x: -5.6, z: -1.2, maxSize: 0.4 } },
-      ...(hasFeature(count, 'festival')
-        ? [
-            { key: 'party_table', opts: { x: 0, z: -4.6, maxSize: 1.8 } },
-            { key: 'present', opts: { x: 1.5, z: -3.8, maxSize: 0.45 } },
-            { key: 'present', opts: { x: -1.6, z: -4.1, maxSize: 0.4 } },
-            { key: 'flag', opts: { x: -3.4, z: -2.4, maxSize: 1.0 } },
-            { key: 'flag', opts: { x: 3.4, z: -2.4, maxSize: 1.0 } },
-          ]
-        : []),
-    ]).then((objs) => {
+      ...(hasFeature(count, 'festival') ? FESTIVAL_PROPS : []),
+    ];
+    void placeMany(this.world as unknown as THREE.Scene, loader, cityProps).then((objs) => {
       if (this.disposed || gen !== this.cityGen) {
         for (const o of objs) this.world.remove(o);
       }
@@ -568,7 +571,7 @@ export class CityScene {
       this.world.add(marker);
       this.residents.push(marker);
 
-      const file = CAST_CHAR_GLB[f.id];
+      const file = (CAST_CHAR_GLB as Record<string, string | undefined>)[f.id];
       if (!file) return;
       // loadCharModel, not a raw loadAsync: it is the one place that sinks the
       // Meshy presentation plinth. Loading these directly put half the cast on
