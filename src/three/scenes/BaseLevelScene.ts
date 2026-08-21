@@ -2082,7 +2082,12 @@ export abstract class BaseLevelScene {
    * that runs sideways or doubles back is still walled along its actual
    * direction rather than along z.
    */
-  protected async enclosePath(loader: GLTFLoader, rows = 4, step = 3.0) {
+  protected async enclosePath(
+    loader: GLTFLoader,
+    rows = 4,
+    step = 3.0,
+    visualClearZones: ReadonlyArray<{ x: number; z: number; r: number }> = [],
+  ) {
     if (!this.playPath || this.playPath.length < 2 || this.disposed) return;
     const kit = this.assetKit(loader);
     const near = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
@@ -2114,6 +2119,13 @@ export abstract class BaseLevelScene {
         const out = start + row * 2.6 + Math.random() * 1.1;
         const x = px + nx * out * sign;
         const z = pz + nz * out * sign;
+        const insideVisualClearZone = visualClearZones.some(
+          zone => Math.hypot(x - zone.x, z - zone.z) < zone.r,
+        );
+        // Keep the low first row as the readable physical boundary, but do not
+        // put mid/far canopy inside an explicitly authored follow-camera lens
+        // volume. This is opt-in so existing level compositions do not drift.
+        if (insideVisualClearZone && row > 0) continue;
         if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z) || this.isInsidePlayArea(x, z)) continue;
         placements.push({
           names: row === 0 ? near : row === 1 ? mid : far,
@@ -2151,11 +2163,17 @@ export abstract class BaseLevelScene {
           const out = 1.6 + row * 2.6 + Math.random();
           const x = end.x + dx * out + -dz * off;
           const z = end.z + dz * out + dx * off;
+          const insideVisualClearZone = visualClearZones.some(
+            zone => Math.hypot(x - zone.x, z - zone.z) < zone.r,
+          );
+          if (insideVisualClearZone && row > 0) continue;
           if (this.isReserved(x, z, 0.8) || this.isUnderwater(x, z) || this.isInsidePlayArea(x, z)) continue;
           placements.push({
-            names: row === 0 ? mid : far,
+            names: insideVisualClearZone ? near : row === 0 ? mid : far,
             x, z,
-            height: row === 0 ? 5.4 + Math.random() * 1.6 : 8.5 + Math.random() * 3,
+            height: insideVisualClearZone
+              ? 2.6 + Math.random() * 1.0
+              : row === 0 ? 5.4 + Math.random() * 1.6 : 8.5 + Math.random() * 3,
           });
         }
       }

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   BaseLevelScene,
   type BaseHud,
@@ -15,7 +16,6 @@ import {
   bush,
   tulip,
   hill,
-  skyDome,
   pathArrow,
   placeWoodSign,
 } from './BaseLevelScene';
@@ -58,11 +58,24 @@ interface SearchSector {
   checked: boolean;
   hasHedgehog: boolean;
   bubble: THREE.Group | null;
-  tracks: THREE.Group[];
+  tracks: THREE.Object3D[];
   bonus: THREE.Mesh | null;
   hedgehog: THREE.Object3D | null;
   label: 'bushes' | 'rocks' | 'log';
 }
+
+const SEARCH_SECTORS: ReadonlyArray<{
+  x: number;
+  z: number;
+  hasHedgehog: boolean;
+  label: SearchSector['label'];
+}> = [
+  { x: -17, z: -6, hasHedgehog: false, label: 'bushes' },
+  { x: 18, z: -14, hasHedgehog: false, label: 'rocks' },
+  { x: -14, z: -22, hasHedgehog: false, label: 'bushes' },
+  { x: 12, z: -29, hasHedgehog: false, label: 'rocks' },
+  { x: -3, z: -33, hasHedgehog: true, label: 'log' },
+];
 
 function makeQuestionBubble(x: number, z: number): THREE.Group {
   const g = new THREE.Group();
@@ -96,7 +109,7 @@ function makeQuestionBubble(x: number, z: number): THREE.Group {
 }
 
 /**
- * One footprint: a pad and three toes, turned to face the way it is going.
+ * Shared footprint geometry: a pad and three toes.
  *
  * It used to be a flat 0.12m circle at y = 0.03 — a 24cm brown disc lying in
  * grass whose blades are taller than it is. Rendered from straight overhead at
@@ -108,32 +121,21 @@ function makeQuestionBubble(x: number, z: number): THREE.Group {
  * "an animal went through here", and pointing it along the route makes the
  * print itself the direction clue.
  */
-function makeTrack(x: number, z: number, heading = 0): THREE.Group {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshBasicMaterial({
-    color: 0x4e342e,
-    transparent: true,
-    opacity: 0.72,
-    depthWrite: false,
-  });
-
-  const pad = new THREE.Mesh(new THREE.CircleGeometry(0.19, 14), mat);
-  pad.scale.set(1, 1.15, 1);
-  g.add(pad);
-
-  for (const [tx, ty, r] of [[-0.15, 0.24, 0.075], [0, 0.29, 0.085], [0.15, 0.24, 0.075]]) {
-    const toe = new THREE.Mesh(new THREE.CircleGeometry(r, 10), mat);
-    toe.position.set(tx, ty, 0.001);
-    g.add(toe);
+function makeTrackGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const pad = new THREE.CircleGeometry(0.19, 14);
+  pad.scale(1, 1.15, 1);
+  parts.push(pad);
+  for (const [tx, ty, radius] of [[-0.15, 0.24, 0.075], [0, 0.29, 0.085], [0.15, 0.24, 0.075]]) {
+    const toe = new THREE.CircleGeometry(radius, 10);
+    toe.translate(tx, ty, 0.001);
+    parts.push(toe);
   }
-
-  for (const child of g.children) child.renderOrder = 2;
-  g.rotation.x = -Math.PI / 2;
-  // Rotating the group after the -90° X tilt turns the print in the ground
-  // plane; z is the in-plane axis once the group is laid flat.
-  g.rotation.z = -heading;
-  g.position.set(x, 0.06, z);
-  return g;
+  const merged = mergeGeometries(parts, false);
+  for (const part of parts) part.dispose();
+  if (!merged) throw new Error('Failed to build the shared hedgehog footprint');
+  merged.name = 'hedgehog-paw-print';
+  return merged;
 }
 
 /**
@@ -342,11 +344,40 @@ export class Level3Scene extends BaseLevelScene {
     this.onHud = onHud;
     const loader = createGameGltfLoader();
 
+    // The guide, walkable clamp and decoration clear lane all describe the
+    // same five-leg trail. Declare it before any random forest scatter so a
+    // new seed cannot plant a collider on the spawn, paw prints or question
+    // marks. Small overlapping rooms preserve a narrow grassy trail rather
+    // than carving a wide empty road through the forest.
+    this.playPath = [
+      { x: 0, z: 4 },
+      { x: 0, z: -8 },
+      ...SEARCH_SECTORS.map(({ x, z }) => ({ x, z })),
+    ];
+    this.playPathHalf = 3.0;
+    const cameraClearZones: Array<{ x: number; z: number; r: number }> = [];
+    this.reserve(0, 4, 5.5);
+    this.reserve(0, -11.5, 3.8);
+    // The cottage is a side landmark, not a gate. Its old (-11, -8)
+    // placement and 1.6m collider sat directly on the first paw-print leg.
+    this.reserve(-11, -13, 2.8);
+    for (const sector of SEARCH_SECTORS) this.reserve(sector.x, sector.z, 4.5);
+    for (let routeIndex = 1; routeIndex < this.playPath.length; routeIndex++) {
+      const from = this.playPath[routeIndex - 1];
+      const to = this.playPath[routeIndex];
+      const length = Math.hypot(to.x - from.x, to.z - from.z);
+      const steps = Math.max(1, Math.ceil(length / 3));
+      for (let step = 0; step <= steps; step++) {
+        const t = step / steps;
+        const x = THREE.MathUtils.lerp(from.x, to.x, t);
+        const z = THREE.MathUtils.lerp(from.z, to.z, t);
+        this.reserve(x, z, 1.8);
+        cameraClearZones.push({ x, z, r: 11.2 });
+      }
+    }
+
     this.camera.position.set(-8, 6, 14);
     await this.setupForestEnvironment(loader, { flatRadius: 24, flatCenterZ: -16, fireflies: true });
-    this.scene.add(skyDome());
-    this.setupClouds(7, 26, 60);
-    this.setupFireflies();
 
     // Hills + overlook for search (GDD: verticality)
     for (const [hx, hz, hr, hh] of [
@@ -385,16 +416,30 @@ export class Level3Scene extends BaseLevelScene {
     // Sign
     this.scene.add(await placeWoodSign(loader, -2.5, 0, 0.3, 0xa5d6a7));
 
-    // Dirt path
+    // Dirt path — one instanced family instead of 16 private materials and
+    // geometries. Each tile follows the sculpted ground height.
+    const dirtPath = new THREE.InstancedMesh(
+      new THREE.PlaneGeometry(2.2, 1.0),
+      new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 1 }),
+      16,
+    );
+    dirtPath.name = 'tracking-dirt-path';
+    dirtPath.receiveShadow = true;
+    const dirtMatrix = new THREE.Matrix4();
+    const dirtQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
     for (let i = 0; i < 16; i++) {
-      const dirt = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.2, 1.0),
-        new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 1 }),
+      const z = 4 - i * 0.9;
+      dirtMatrix.compose(
+        new THREE.Vector3(0, this.groundHeightAt(0, z) + 0.035, z),
+        dirtQuaternion,
+        new THREE.Vector3(1, 1, 1),
       );
-      dirt.rotation.x = -Math.PI / 2;
-      dirt.position.set(0, 0.035, 4 - i * 0.9);
-      this.scene.add(dirt);
+      dirtPath.setMatrixAt(i, dirtMatrix);
     }
+    dirtPath.instanceMatrix.needsUpdate = true;
+    dirtPath.computeBoundingBox();
+    dirtPath.computeBoundingSphere();
+    this.scene.add(dirtPath);
 
     // Path arrows
     for (let i = 0; i < 5; i++) {
@@ -410,7 +455,7 @@ export class Level3Scene extends BaseLevelScene {
 
     // S1 landmarks — mushroom cottage, stump, critters (laconic)
     await this.placeProps(loader, [
-      { key: 'mushroom_cottage', opts: { x: -11, z: -8, maxSize: 2.4, rotY: 0.6 } },
+      { key: 'mushroom_cottage', opts: { x: -11, z: -13, maxSize: 2.4, rotY: 0.6 } },
       { key: 'mushroom', opts: { x: -6, z: -14, maxSize: 0.55 } },
       { key: 'mushroom', opts: { x: 7, z: -16, maxSize: 0.45, rotY: 1.2 } },
       { key: 'pinecone', opts: { x: 2.5, z: -6, maxSize: 0.35 } },
@@ -430,29 +475,35 @@ export class Level3Scene extends BaseLevelScene {
       { key: 'bee', x: 6.5, z: -9, rotY: -0.5, h: 0.35 },
       { key: 'chick', x: 3, z: -8, rotY: 1.0, h: 0.4 },
     ]);
-    this.colliders.push({ kind: 'circle', x: -11, z: -8, r: 1.6 });
+    this.colliders.push({ kind: 'circle', x: -11, z: -13, r: 1.6 });
 
-    // 3 search sectors
+    // Five search sectors
     // Spread to the corners of the map the level already has. They used to sit
     // inside a 16×32 slice of a 50×43 clamp — fifty-one metres of trail on a
     // board with room for eighty — so the "search" barely left the path.
     // Five stops, not three. Three legs is 80m of walking on a level budgeted
     // at 300s; five zigzag across the clamp for about 130m and give the trail
     // somewhere to build.
-    const sectorData = [
-      { x: -17, z: -6, hasHedgehog: false, label: 'bushes' },
-      { x: 18, z: -14, hasHedgehog: false, label: 'rocks' },
-      { x: -14, z: -22, hasHedgehog: false, label: 'bushes' },
-      { x: 12, z: -29, hasHedgehog: false, label: 'rocks' },
-      { x: -3, z: -33, hasHedgehog: true, label: 'log' },
-    ];
-    // Reserved so the scatter cannot bury a sector the player is sent to find.
-    for (const sd of sectorData) this.reserve(sd.x, sd.z, 4.5);
-
-    for (const [index, sd] of sectorData.entries()) {
+    const trackGeometry = makeTrackGeometry();
+    const trackMaterial = new THREE.MeshBasicMaterial({
+      color: 0x4e342e,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+    });
+    for (const [index, sd] of SEARCH_SECTORS.entries()) {
       const group = new THREE.Group();
       group.position.set(sd.x, 0, sd.z);
       this.scene.add(group);
+
+      const previous = index === 0 ? { x: 0, z: -8 } : SEARCH_SECTORS[index - 1];
+      const incomingX = sd.x - previous.x;
+      const incomingZ = sd.z - previous.z;
+      const incomingLength = Math.hypot(incomingX, incomingZ) || 1;
+      const incomingUnitX = incomingX / incomingLength;
+      const incomingUnitZ = incomingZ / incomingLength;
+      const sideX = -incomingUnitZ;
+      const sideZ = incomingUnitX;
 
       // Bushes/rocks/log around sector
       if (sd.label === 'bushes') {
@@ -462,26 +513,42 @@ export class Level3Scene extends BaseLevelScene {
         this.scene.add(bush(sd.x - 0.8, sd.z + 0.8, 1.1));
       } else if (sd.label === 'rocks') {
         const rockLoader = createGameGltfLoader();
+        // Frame the question marker across the incoming trail. The old fixed
+        // `x - 1.5` rock sat directly between the previous sector and this
+        // marker, stopping Barsik 2.79m away while interaction required <2m.
+        const largeRockPos = {
+          x: sd.x + sideX * 1.9 + incomingUnitX * 0.45,
+          z: sd.z + sideZ * 1.9 + incomingUnitZ * 0.45,
+        };
+        const smallRockPos = {
+          x: sd.x - sideX * 1.65 + incomingUnitX * 0.55,
+          z: sd.z - sideZ * 1.65 + incomingUnitZ * 0.55,
+        };
         const rock = await loadGlb(rockLoader, CC0 + 'rock_largeA.glb');
         if (rock) {
           fitHeight(rock.scene, 1.2);
-          rock.scene.position.set(sd.x - 1.5, 0, sd.z - 0.5);
+          rock.scene.position.set(largeRockPos.x, 0, largeRockPos.z);
           groundY(rock.scene);
           this.scene.add(rock.scene);
-          this.colliders.push({ kind: 'circle', x: sd.x - 1.5, z: sd.z - 0.5, r: 1.0 });
+          this.colliders.push({ kind: 'circle', x: largeRockPos.x, z: largeRockPos.z, r: 1.0 });
         }
         const rock2 = await loadGlb(rockLoader, CC0 + 'rock_smallA.glb');
         if (rock2) {
           fitHeight(rock2.scene, 0.7);
-          rock2.scene.position.set(sd.x + 1.2, 0, sd.z + 0.8);
+          rock2.scene.position.set(smallRockPos.x, 0, smallRockPos.z);
           groundY(rock2.scene);
           this.scene.add(rock2.scene);
-          this.colliders.push({ kind: 'circle', x: sd.x + 1.2, z: sd.z + 0.8, r: 0.6 });
+          this.colliders.push({ kind: 'circle', x: smallRockPos.x, z: smallRockPos.z, r: 0.6 });
         }
       } else if (sd.label === 'log') {
-        const log = makeFallenLog(sd.x, sd.z, 0.3);
+        // The prints and question marker finish in front of the log. Keeping
+        // the log centred on the marker made its honest collider stop Barsik
+        // at 2.45m while interaction requires <2m.
+        const logX = sd.x + incomingUnitX * 2.7;
+        const logZ = sd.z + incomingUnitZ * 2.7;
+        const log = makeFallenLog(logX, logZ, 0.3);
         this.scene.add(log);
-        this.colliders.push({ kind: 'aabb', x: sd.x, z: sd.z, halfW: 2.0, halfD: 0.6 });
+        this.colliders.push({ kind: 'aabb', x: logX, z: logZ, halfW: 2.0, halfD: 0.6 });
       }
 
       // Question bubble
@@ -494,11 +561,17 @@ export class Level3Scene extends BaseLevelScene {
       // three fans of prints radiating from one point with nothing to choose
       // between them — a trail that cannot be followed, under a clue line
       // that says «свежие следы уходят вправо». Chained, they are the trail.
-      const tracks: THREE.Group[] = [];
       const from = index === 0
         ? { x: 0, z: -8 }
-        : { x: sectorData[index - 1].x, z: sectorData[index - 1].z };
+        : { x: SEARCH_SECTORS[index - 1].x, z: SEARCH_SECTORS[index - 1].z };
       const steps = Math.max(6, Math.round(Math.hypot(sd.x - from.x, sd.z - from.z) / 2.6));
+      const tracks: THREE.Object3D[] = [];
+      const trackLeg = new THREE.InstancedMesh(trackGeometry, trackMaterial, steps);
+      trackLeg.name = `hedgehog-track-leg-${index + 1}`;
+      trackLeg.renderOrder = 2;
+      trackLeg.visible = index === 0;
+      const trackMatrix = new THREE.Matrix4();
+      const trackScale = new THREE.Vector3(1, 1, 1);
       for (let i = 1; i <= steps; i++) {
         const t = i / steps;
         // A gentle S rather than a ruled line: an animal does not walk a
@@ -513,20 +586,28 @@ export class Level3Scene extends BaseLevelScene {
         const ahead = Math.min(t + 1 / steps, 1);
         const ax = from.x + (sd.x - from.x) * ahead + (nx / len) * Math.sin(ahead * Math.PI) * 1.8;
         const az = from.z + (sd.z - from.z) * ahead + (nz / len) * Math.sin(ahead * Math.PI) * 1.8;
-        const track = makeTrack(tx, tz, Math.atan2(ax - tx, az - tz));
-        // Ride the sculpted ground: at a flat y = 0.03 a print sinks into
-        // every rise the terrain has.
-        track.position.y = this.groundHeightAt(tx, tz) + 0.03;
-        // Only the leg being walked is visible; revealLeg turns each on.
-        track.visible = index === 0;
-        tracks.push(track);
-        this.scene.add(track);
+        const heading = Math.atan2(ax - tx, az - tz);
+        const trackQuaternion = new THREE.Quaternion().setFromEuler(
+          new THREE.Euler(-Math.PI / 2, 0, -heading),
+        );
+        trackMatrix.compose(
+          new THREE.Vector3(tx, this.groundHeightAt(tx, tz) + 0.03, tz),
+          trackQuaternion,
+          trackScale,
+        );
+        trackLeg.setMatrixAt(i - 1, trackMatrix);
       }
+      trackLeg.instanceMatrix.needsUpdate = true;
+      trackLeg.computeBoundingBox();
+      trackLeg.computeBoundingSphere();
+      tracks.push(trackLeg);
+      this.scene.add(trackLeg);
 
       // Bonus in empty sectors
       let bonus: THREE.Mesh | null = null;
       if (!sd.hasHedgehog) {
         bonus = makeStarBonus(sd.x, sd.z + 0.5);
+        bonus.position.y = this.groundHeightAt(bonus.position.x, bonus.position.z) + 0.75;
         bonus.visible = false;
         this.bonusCollectibles.push(bonus);
         this.scene.add(bonus);
@@ -536,7 +617,7 @@ export class Level3Scene extends BaseLevelScene {
       let hedgehog: THREE.Group | null = null;
       if (sd.hasHedgehog) {
         hedgehog = await loadHedgehog(loader);
-        hedgehog.position.set(sd.x, 0, sd.z);
+        hedgehog.position.set(sd.x, this.groundHeightAt(sd.x, sd.z), sd.z);
         hedgehog.visible = false;
         this.scene.add(hedgehog);
         this.hedgehogMesh = hedgehog;
@@ -585,11 +666,9 @@ export class Level3Scene extends BaseLevelScene {
 
     // Hero
     this.hero.position.set(0, this.groundHeightAt(0, 4), 4);
-    // This level is a serpentine, not a field: its beats sit alternately left
-    // and right going down. Drawing that as an actual route, then walling it,
-    // is what stops it reading as a clearing with things scattered in it.
-    this.derivePathFromRooms({ x: 0, z: 4 });
-    await this.enclosePath(loader);
+    // The authored route was declared before scatter; enclose exactly that
+    // route rather than deriving a second, potentially different ordering.
+    await this.enclosePath(loader, 4, 3.0, cameraClearZones);
 
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
@@ -691,7 +770,7 @@ export class Level3Scene extends BaseLevelScene {
       line,
       objective,
       sectorsChecked: this.sectors.filter((s) => s.checked).length,
-      totalSectors: 3,
+      totalSectors: this.sectors.length,
       foundHedgehog: this.hedgehogFound,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
@@ -720,11 +799,16 @@ export class Level3Scene extends BaseLevelScene {
       // Also check bonuses
       for (const b of this.bonusCollectibles) {
         if (!b.userData.alive || !b.visible) continue;
-        const d = hp.distanceTo(b.position);
+        // Bonuses are ground interactions. Their absolute Y varies with the
+        // sculpted terrain and must not silently consume the interaction radius.
+        const d = Math.hypot(hp.x - b.position.x, hp.z - b.position.z);
         if (d < bestD) { bestD = d; best = b; }
       }
     } else if (this.phase === 'found' && this.hedgehogMesh) {
-      const d = hp.distanceTo(this.hedgehogMesh.position);
+      const d = Math.hypot(
+        hp.x - this.hedgehogMesh.position.x,
+        hp.z - this.hedgehogMesh.position.z,
+      );
       if (d < bestD) best = this.hedgehogMesh;
     }
 
