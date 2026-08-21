@@ -8,13 +8,18 @@ import { ConfettiBurst } from '@/components/ui/ConfettiBurst';
 import { IconChevronLeft, IconFriends, IconPaw, IconStar } from '@/components/ui/icons';
 import './EpisodeScreen.css';
 
-const INTERACTIVITY_LABEL: Record<string, { ru: string }> = {
-  explore: { ru: 'Исследуй мир' },
-  find: { ru: 'Найди предметы' },
-  help: { ru: 'Помоги персонажу' },
-  choice: { ru: 'Выбери решение' },
-  timing: { ru: 'Рассчитай время' },
-  decor: { ru: 'Играй' },
+/**
+ * Экран эпизода — хаб, куда ребёнок возвращается после каждого уровня, — был
+ * двуязычным ровно в одной строке: `narrative`. Всё остальное, включая тип
+ * задания и кнопки, показывалось по-русски и казахоязычному игроку тоже.
+ */
+const INTERACTIVITY_LABEL: Record<string, { ru: string; kk: string }> = {
+  explore: { ru: 'Исследуй мир', kk: 'Әлемді зертте' },
+  find: { ru: 'Найди предметы', kk: 'Заттарды тап' },
+  help: { ru: 'Помоги персонажу', kk: 'Кейіпкерге көмектес' },
+  choice: { ru: 'Выбери решение', kk: 'Шешім таңда' },
+  timing: { ru: 'Рассчитай время', kk: 'Уақытты дәл есепте' },
+  decor: { ru: 'Играй', kk: 'Ойна' },
 };
 
 export function EpisodeScreen() {
@@ -22,6 +27,7 @@ export function EpisodeScreen() {
   const endEpisode = useUIStore((s) => s.endEpisode);
   const completeLevel = useGameStore((s) => s.completeLevel);
   const player = useGameStore((s) => s.player);
+  const pick = (ru: string, kk: string) => (player?.lang === 'kk' ? kk : ru);
 
   const [isPlaying, setIsPlaying] = useState(true);
   const [progress, setProgress] = useState(0);
@@ -50,7 +56,7 @@ export function EpisodeScreen() {
   if (!levelConfig || episodeId === null) {
     return (
       <div className="screen screen-episode">
-        <p>Ошибка загрузки эпизода</p>
+        <p>{pick('Ошибка загрузки эпизода', 'Эпизодты жүктеу қатесі')}</p>
       </div>
     );
   }
@@ -73,11 +79,11 @@ export function EpisodeScreen() {
       <div className="episode-header">
         <button className="btn-close-episode" onClick={endEpisode}>
           <IconChevronLeft size={16} />
-          Вернуться на карту
+          {pick('Вернуться на карту', 'Картаға оралу')}
         </button>
         <div className="episode-title">
-          <h2>Эпизод #{episodeId + 1}: {levelConfig.title}</h2>
-          <p className="episode-subtitle">{levelConfig.description}</p>
+          <h2>{pick(`Эпизод #${episodeId + 1}`, `${episodeId + 1}-эпизод`)}: {pick(levelConfig.title, levelConfig.titleKk)}</h2>
+          <p className="episode-subtitle">{pick(levelConfig.description, levelConfig.descriptionKk)}</p>
         </div>
       </div>
 
@@ -97,7 +103,10 @@ export function EpisodeScreen() {
 
             <div className="episode-interactivity">
               <div className={`interactivity-type interactivity-${levelConfig.interactivity}`}>
-                {INTERACTIVITY_LABEL[levelConfig.interactivity]?.ru ?? 'Играй'}
+                {pick(
+                  INTERACTIVITY_LABEL[levelConfig.interactivity]?.ru ?? 'Играй',
+                  INTERACTIVITY_LABEL[levelConfig.interactivity]?.kk ?? 'Ойна',
+                )}
               </div>
             </div>
           </div>
@@ -122,30 +131,30 @@ export function EpisodeScreen() {
           <>
             <div className="reward-announcement reward-pop">
               <ConfettiBurst active />
-              <h3>Уровень завершён!</h3>
+              <h3>{pick('Уровень завершён!', 'Деңгей аяқталды!')}</h3>
               <div className="reward-items">
                 <Chip icon={<IconStar size={16} />} tone="star" className="reward-item">
-                  {levelConfig.reward.stars} звёзд
+                  {levelConfig.reward.stars} {pick('звёзд', 'жұлдыз')}
                 </Chip>
                 {levelConfig.reward.friend && (
                   <Chip icon={<IconFriends size={16} />} tone="success" className="reward-item">
-                    Новый друг!
+                    {pick('Новый друг!', 'Жаңа дос!')}
                   </Chip>
                 )}
               </div>
             </div>
 
             <PlushButton variant="primary" size="lg" className="btn-continue" onClick={handleCompleteLevel}>
-              Продолжить
+              {pick('Продолжить', 'Жалғастыру')}
             </PlushButton>
           </>
         ) : (
           <div className="episode-controls">
             <PlushButton variant="primary" size="lg" className="btn-continue" onClick={handleFinishNow}>
-              Готово!
+              {pick('Готово!', 'Дайын!')}
             </PlushButton>
             <PlushButton variant="ghost" onClick={endEpisode}>
-              <IconChevronLeft size={16} /> На карту
+              <IconChevronLeft size={16} /> {pick('На карту', 'Картаға')}
             </PlushButton>
           </div>
         )}
