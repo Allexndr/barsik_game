@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   BaseLevelScene,
   type BaseHud,
@@ -128,6 +129,42 @@ interface LoosePlank {
   target: THREE.Vector3;
 }
 
+/**
+ * Bake a procedural family into one local-space mesh.
+ *
+ * These pieces never move independently. Keeping every rope hanger and fence
+ * post as a Mesh made a low-poly bridge expensive through object submission
+ * and the shadow pass, not through triangle count. Inputs are created solely
+ * for this bake, so their private geometries can be disposed after merging;
+ * the shared family material remains scene-owned by the baked mesh.
+ */
+function bakeStaticFamily(
+  parts: THREE.Mesh[],
+  material: THREE.Material,
+  name: string,
+  castShadow: boolean,
+): THREE.Object3D {
+  const transformed = parts.map((part) => {
+    part.updateMatrix();
+    const geometry = part.geometry.clone();
+    geometry.applyMatrix4(part.matrix);
+    return geometry;
+  });
+  const merged = mergeGeometries(transformed, false);
+  for (const geometry of transformed) geometry.dispose();
+  if (!merged) {
+    const fallback = new THREE.Group();
+    fallback.name = `${name}-unmerged`;
+    fallback.add(...parts);
+    return fallback;
+  }
+  for (const part of parts) part.geometry.dispose();
+  const baked = new THREE.Mesh(merged, material);
+  baked.name = name;
+  baked.castShadow = castShadow;
+  return baked;
+}
+
 /** A loose deck plank: a board with two nail heads, readable at any distance. */
 function makeLoosePlank(): THREE.Group {
   const g = new THREE.Group();
@@ -148,18 +185,20 @@ function makeLoosePlank(): THREE.Group {
 function makeRailing(width: number): THREE.Group {
   const g = new THREE.Group();
   const wood = new THREE.MeshStandardMaterial({ color: 0x8a6a4f, roughness: 0.9 });
+  const parts: THREE.Mesh[] = [];
   const posts = Math.max(2, Math.round(width / 1.2));
   for (let i = 0; i <= posts; i++) {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.0, 6), wood);
     post.position.set(-width / 2 + (width / posts) * i, 0.5, 0);
     post.castShadow = true;
-    g.add(post);
+    parts.push(post);
   }
   for (const y of [0.92, 0.55]) {
     const rail = new THREE.Mesh(new THREE.BoxGeometry(width + 0.2, 0.08, 0.08), wood);
     rail.position.set(0, y, 0);
-    g.add(rail);
+    parts.push(rail);
   }
+  g.add(bakeStaticFamily(parts, wood, 'lookout-railing', true));
   return g;
 }
 
@@ -175,6 +214,8 @@ function makeBridgeRigging(spans: Array<[number, number]>, tile: number): THREE.
   const g = new THREE.Group();
   const wood = new THREE.MeshStandardMaterial({ color: 0x8a6a4f, roughness: 0.9 });
   const ropeMat = new THREE.MeshStandardMaterial({ color: 0xd9b382, roughness: 1 });
+  const woodParts: THREE.Mesh[] = [];
+  const ropeParts: THREE.Mesh[] = [];
   const half = tile / 2;
   const towerTop = 2.5;
   const sagLow = 1.15;
@@ -198,7 +239,7 @@ function makeBridgeRigging(spans: Array<[number, number]>, tile: number): THREE.
         ropeMat,
       );
       rope.castShadow = false;
-      g.add(rope);
+      ropeParts.push(rope);
 
       // Hangers tying the hand rope down to the deck.
       for (let i = 1; i < 12; i++) {
@@ -207,7 +248,7 @@ function makeBridgeRigging(spans: Array<[number, number]>, tile: number): THREE.
         const hanger = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, top, 4), ropeMat);
         hanger.position.set(side * half, top / 2, from - length * t);
         hanger.castShadow = false;
-        g.add(hanger);
+        ropeParts.push(hanger);
       }
     }
   }
@@ -219,16 +260,21 @@ function makeBridgeRigging(spans: Array<[number, number]>, tile: number): THREE.
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, towerTop + 0.4, 7), wood);
       post.position.set(side * half, (towerTop + 0.4) / 2, z);
       post.castShadow = true;
-      g.add(post);
+      woodParts.push(post);
       const cap = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.28, 7), wood);
       cap.position.set(side * half, towerTop + 0.54, z);
-      g.add(cap);
+      woodParts.push(cap);
     }
     const beam = new THREE.Mesh(new THREE.BoxGeometry(tile + 0.3, 0.12, 0.12), wood);
     beam.position.set(0, towerTop + 0.2, z);
     beam.castShadow = true;
-    g.add(beam);
+    woodParts.push(beam);
   }
+
+  g.add(
+    bakeStaticFamily(ropeParts, ropeMat, 'bridge-rigging-ropes', false),
+    bakeStaticFamily(woodParts, wood, 'bridge-rigging-towers', true),
+  );
 
   return g;
 }
@@ -832,12 +878,14 @@ export class Level4Scene extends BaseLevelScene {
     // invisible wall.
     this.barrier = new THREE.Group();
     const ropeMat = new THREE.MeshStandardMaterial({ color: 0xe17055, roughness: 1 });
+    const barrierRopes: THREE.Mesh[] = [];
     for (const y of [0.55, 0.95]) {
       const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, TILE + 0.3, 6), ropeMat);
       rope.rotation.z = Math.PI / 2;
       rope.position.set(0, y, NEAR_EDGE - 0.2);
-      this.barrier.add(rope);
+      barrierRopes.push(rope);
     }
+    this.barrier.add(bakeStaticFamily(barrierRopes, ropeMat, 'bridge-entry-barrier', false));
     this.scene.add(this.barrier);
     this.barrierCollider = { kind: 'circle', x: 0, z: NEAR_EDGE - 0.2, r: 1.5 };
     this.colliders.push(this.barrierCollider);
