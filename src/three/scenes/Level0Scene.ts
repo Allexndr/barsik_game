@@ -589,6 +589,23 @@ export class Level0Scene extends BaseLevelScene {
   private nearness = 0;
   private lastChime = 0;
 
+  /**
+   * Вода этого уровня — только река на переправе.
+   *
+   * Базовая проверка сравнивает высоту земли с уровнем воды по всему миру, а
+   * уровень стоит на скульптурном рельефе, где ложбины уходят ниже реки. Замер:
+   * 26.5% площади разброса числилось «под водой», из них 4.4% — вне меша реки,
+   * полосой по западному краю. «Под водой» значит «без травы, цветов и зверья»,
+   * то есть эта полоса лысела без всякой причины. Игрок туда не заходит — она
+   * за оградой, — но тот же промах в первом уровне выедал шестую часть луга,
+   * по которому ребёнок ходит. Ограничиваем проверку прямоугольником реки.
+   */
+  protected isUnderwater(x: number, z: number) {
+    if (Math.abs(x - routeX(z)) > 20) return false;
+    if (z > CROSSING_FROM + 6 || z < CROSSING_TO - 6) return false;
+    return super.isUnderwater(x, z);
+  }
+
   protected currentPhase() { return this.phase; }
 
   protected onMovementHintDismiss() {
