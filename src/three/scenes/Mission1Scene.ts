@@ -32,13 +32,17 @@ import {
  */
 export type L2Phase =
   | 'intro'
-  | 'trail1'
-  | 'trail2'
+  /** Первый акт: обещанная в брифе фруктовая тропа. Собрать шесть плодов. */
+  | 'trail'
   | 'creek'
   | 'thicket'
   | 'find_aya'
   | 'give_gift'
+  /** Третий акт: липкие нити Путало растащили корзинку Айи. */
+  | 'berries'
   | 'invite_aya'
+  /** Четвёртый акт: выйти из леса вместе — ради этого уровень и назван. */
+  | 'leaving'
   | 'outro';
 
 export interface L2Hud {
@@ -62,6 +66,46 @@ export interface L2Hud {
  * плоская вода не уходила в склон.
  */
 const STRIP_HALF_X = 13;
+
+/** Центр тропы для заданного z — та же кривая, что у коридора движения. */
+const trailBend = (z: number) => Math.sin((z - 8) * -0.24) * 1.9;
+
+/**
+ * Фруктовая тропа первого акта.
+ *
+ * В описании уровня она значилась с самого начала («apple trail → creek
+ * crossing»), но в сцене не было ни одного плода до самых зарослей: счётчик
+ * сумки показывал ноль всю дорогу, а первые два бита сводились к «пройди
+ * восемнадцать метров по прямой». Плоды лежат попеременно по разные стороны
+ * тропы, поэтому ребёнок сходит с дорожки и возвращается — это и есть акт,
+ * а не растянутый коридор.
+ */
+const TRAIL_FRUITS: Array<{ z: number; side: number; color: number }> = [
+  { z: 3.0, side: 1, color: 0xff6b6b },
+  { z: 0.0, side: -1, color: 0xffa502 },
+  { z: -3.0, side: 1, color: 0xff6b6b },
+  { z: -6.0, side: -1, color: 0xffa502 },
+  { z: -9.0, side: 1, color: 0xff6b6b },
+  { z: -11.5, side: -1, color: 0xffa502 },
+];
+const TRAIL_OFFSET = 3.2;
+/** Пока плоды не собраны, за эту черту не пускаем: мост начинается за ней. */
+const TRAIL_GATE_Z = -12;
+
+/**
+ * Рассыпанная корзинка Айи. Три плода в липких нитях вокруг её поляны —
+ * тот же глагол, которому уровень научил в зарослях, но теперь на трёх целях
+ * и по два рывка. Ради этого её поляна перестаёт быть одной точкой.
+ */
+const AYA_BERRIES: Array<{ x: number; z: number; color: number }> = [
+  { x: -9.5, z: -38.5, color: 0xe84393 },
+  { x: -5.0, z: -34.0, color: 0xd63384 },
+  { x: 2.0, z: -44.0, color: 0xe84393 },
+];
+const BERRY_PULLS = 2;
+
+/** Выход из леса — там же, где вошли. */
+const EXIT_Z = 7;
 
 /** Ручей: единственная вода уровня. */
 const CREEK_Z = -14;
@@ -211,6 +255,13 @@ export class Mission1Scene extends BaseLevelScene {
   private pullCount = 0;
   private pullNeed = 3;
   private fruits: THREE.Object3D[] = [];
+  private trailFruits: THREE.Object3D[] = [];
+  private berries: THREE.Object3D[] = [];
+  private berryStrands: THREE.Group[] = [];
+  private exitMarker: THREE.Group | null = null;
+  private ayaFollow = false;
+  private ayaSeatOffset = 0;
+  private leaveLineI = 0;
   private stuckFruit: THREE.Object3D | null = null;
   private aya: THREE.Object3D | null = null;
   private ayaMarker: THREE.Group | null = null;
@@ -218,10 +269,6 @@ export class Mission1Scene extends BaseLevelScene {
   private butterflies: THREE.Group[] = [];
   private river: RiverWater | null = null;
   private pullPulseUntil = 0;
-  private checkpoints = [
-    new THREE.Vector3(0, 0, 2),
-    new THREE.Vector3(-0.4, 0, -14),
-  ];
 
   protected currentPhase() {
     return this.phase;
@@ -273,6 +320,28 @@ export class Mission1Scene extends BaseLevelScene {
       return;
     }
 
+    if (this.phase === 'berries' && kind === 'berry') {
+      const pulls = ((t.userData.pulls as number) ?? 0) + 1;
+      t.userData.pulls = pulls;
+      this.pullPulseUntil = performance.now() + 320;
+      this.spawnSparks(t.position, 6 + pulls * 5);
+      t.scale.set(1.15 + pulls * 0.09, 1 - pulls * 0.09, 1.15 + pulls * 0.09);
+      t.rotation.z = (pulls % 2 ? 1 : -1) * (0.14 + pulls * 0.06);
+      const strand = t.userData.strand as THREE.Object3D | undefined;
+      if (strand && pulls >= BERRY_PULLS) strand.visible = false;
+      AudioManager.sfx(pulls >= BERRY_PULLS ? 'success' : 'interact');
+      if (pulls >= BERRY_PULLS) {
+        this.takeStuckFruit(t);
+        this.stars += 1;
+        if (this.berries.every((b) => !b.userData.alive)) {
+          this.phase = 'invite_aya';
+          AudioManager.sfx('found');
+        }
+      }
+      this.pushHud();
+      return;
+    }
+
     if (this.phase === 'find_aya' && t === this.aya) {
       AudioManager.sfx('found');
       if (this.ayaMarker) this.ayaMarker.visible = false;
@@ -288,7 +357,18 @@ export class Mission1Scene extends BaseLevelScene {
       this.stars += 1;
       this.spawnSparks(this.aya.position, 14);
       AudioManager.sfx('success');
-      this.phase = 'invite_aya';
+      // Айя не уходит с первым же подарком: сначала выясняется, что её
+      // корзинку растащили те самые липкие нити, которые висят у зарослей с
+      // первой минуты уровня. Намёк на Путало наконец получает последствие.
+      this.phase = 'berries';
+      for (const b of this.berries) {
+        b.visible = true;
+        const ring = b.userData.ring as THREE.Object3D | undefined;
+        const beam = b.userData.beam as THREE.Object3D | undefined;
+        if (ring) ring.visible = true;
+        if (beam) beam.visible = true;
+      }
+      for (const st of this.berryStrands) st.visible = true;
       this.pushHud();
       return;
     }
@@ -296,8 +376,14 @@ export class Mission1Scene extends BaseLevelScene {
     if (this.phase === 'invite_aya' && t === this.aya) {
       this.stars += 2;
       this.spawnSparks(this.aya.position, 20);
-      AudioManager.sfx('levelComplete');
-      this.phase = 'outro';
+      AudioManager.sfx('success');
+      // Раньше здесь уровень обрывался карточкой «пройдено». Первый друг
+      // просил взять его с собой — и не делал ни шагу. Теперь идёт.
+      this.phase = 'leaving';
+      this.ayaFollow = true;
+      this.leaveLineI = 0;
+      this.nextAt = performance.now() + 2400;
+      if (this.exitMarker) this.exitMarker.visible = true;
       this.pushHud();
     }
   }
@@ -315,12 +401,31 @@ export class Mission1Scene extends BaseLevelScene {
     this.praiseUntil = performance.now() + 900;
   }
 
+  /** Ближайшая живая цель из списка, чтобы стрелка не гоняла через всю поляну. */
+  private nearestAlive(list: THREE.Object3D[]): THREE.Object3D | null {
+    let best: THREE.Object3D | null = null;
+    let bestD = Infinity;
+    for (const o of list) {
+      if (!o.userData.alive) continue;
+      const d = this.hero.position.distanceTo(o.position);
+      if (d < bestD) {
+        bestD = d;
+        best = o;
+      }
+    }
+    return best;
+  }
+
   private objectiveWorldPos(): THREE.Vector3 | null {
     const p = this.phase;
-    if (p === 'trail1') return this.checkpoints[0].clone();
-    if (p === 'trail2') return this.checkpoints[1].clone();
+    if (p === 'trail') return this.nearestAlive(this.trailFruits)?.position.clone() ?? null;
     if (p === 'creek') return new THREE.Vector3(0, 0, -18);
     if (p === 'thicket' && this.stuckFruit) return this.stuckFruit.position.clone();
+    if (p === 'berries') {
+      const next = this.nearestAlive(this.berries);
+      return next ? next.position.clone() : (this.aya?.position.clone() ?? null);
+    }
+    if (p === 'leaving') return new THREE.Vector3(0, 0, EXIT_Z);
     if ((p === 'find_aya' || p === 'give_gift' || p === 'invite_aya') && this.aya) return this.aya.position.clone();
     return null;
   }
@@ -591,6 +696,36 @@ export class Mission1Scene extends BaseLevelScene {
     this.fruits = [this.stuckFruit];
     this.scene.add(this.stuckFruit, this.stuckFruit.userData.ring, this.stuckFruit.userData.beam);
 
+    // Фруктовая тропа первого акта.
+    for (const t of TRAIL_FRUITS) {
+      const x = trailBend(t.z) + t.side * TRAIL_OFFSET;
+      const f = makeFruit(new THREE.Vector3(x, 0.5, t.z), 'trail', t.color);
+      this.trailFruits.push(f);
+      this.fruits.push(f);
+      this.scene.add(f, f.userData.ring, f.userData.beam);
+    }
+
+    // Корзинка Айи: спрятана до третьего акта, иначе она бы светила маячками
+    // через весь уровень и увела ребёнка с маршрута ещё до знакомства.
+    for (const b of AYA_BERRIES) {
+      const berry = makeFruit(new THREE.Vector3(b.x, 0.5, b.z), 'berry', b.color);
+      const strand = new THREE.Group();
+      strand.add(
+        stickyStrand(b.x - 0.35, b.z + 0.2, 1.0, 0.9, 0.42),
+        stickyStrand(b.x + 0.3, b.z - 0.25, 1.15, 0.75, -0.38),
+      );
+      berry.userData.strand = strand;
+      berry.visible = false;
+      strand.visible = false;
+      (berry.userData.ring as THREE.Object3D).visible = false;
+      (berry.userData.beam as THREE.Object3D).visible = false;
+      this.berries.push(berry);
+      this.berryStrands.push(strand);
+      this.fruits.push(berry);
+      this.scene.add(berry, berry.userData.ring, berry.userData.beam, strand);
+      this.reserve(b.x, b.z, 1.4);
+    }
+
     const ayaMeshy = await loadCharModel(loader, 'aya.glb', 1.2);
     if (ayaMeshy) {
       ayaMeshy.position.set(-7, 0, -40.5);
@@ -623,6 +758,16 @@ export class Mission1Scene extends BaseLevelScene {
     this.ayaMarker.position.copy(this.aya!.position);
     this.ayaMarker.visible = false;
     this.scene.add(this.ayaMarker);
+
+    // Модели садятся на землю по своим габаритам, а не по нулю. Запоминаем
+    // поправку, иначе на ходу за Барсиком Айя уйдёт в землю по колено.
+    this.ayaSeatOffset =
+      this.aya!.position.y - this.groundHeightAt(this.aya!.position.x, this.aya!.position.z);
+
+    this.exitMarker = questMarker(0xd9f5c8, 0x66bb6a);
+    this.exitMarker.position.set(0, this.groundHeightAt(0, EXIT_Z), EXIT_Z);
+    this.exitMarker.visible = false;
+    this.scene.add(this.exitMarker);
 
     const rock = await loadGlb(loader, CC0 + 'rock_largeA.glb');
     if (rock) {
@@ -720,13 +865,18 @@ export class Mission1Scene extends BaseLevelScene {
       const lines = [
         this.copy('Слышишь? В лесу кто-то тихонько вздохнул.', 'Естіп тұрсың ба? Орманда біреу ақырын күрсінді.'),
         this.copy(`Пойдём посмотрим, ${n}. Вдруг кому-то нужна помощь?`, `Барып көрейік, ${n}. Біреуге көмек керек шығар?`),
-        this.copy('Тропа ведёт через ручей — держись жёлтых знаков!', 'Жол бұлақ арқылы өтеді — сары белгілермен жүр!'),
+        this.copy('Смотри, кто-то рассыпал фрукты вдоль тропы. Соберём — вдруг пригодятся!', 'Қара, біреу жол бойына жеміс шашып кетіпті. Жинайық — керек болар!'),
       ];
       line = lines[Math.min(this.introI, lines.length - 1)];
       objective = this.copy('📜 История', '📜 Тарих');
-    } else if (p === 'trail1' || p === 'trail2') {
-      line = this.copy('Иди по жёлтым стрелкам вдоль тропы!', 'Сары көрсеткілермен жол бойымен жүр!');
-      objective = this.copy('🎯 Следуй по тропе', '🎯 Жолмен жүр');
+    } else if (p === 'trail') {
+      const got = this.trailFruits.filter((f) => !f.userData.alive).length;
+      const need = this.trailFruits.length;
+      line = this.copy(
+        'Вдоль тропы рассыпаны фрукты — собери их, они пригодятся!',
+        'Жол бойында жемістер шашылған — жинап ал, керек болады!',
+      );
+      objective = this.copy(`🍎 Собрано: ${got}/${need}`, `🍎 Жиналды: ${got}/${need}`);
       if (performance.now() < this.praiseUntil) line = this.copy('Так держать!', 'Жарайсың!');
     } else if (p === 'creek') {
       line = this.copy('Ручей! Перейдём по мостику.', 'Бұлақ! Көпірмен өтейік.');
@@ -761,6 +911,29 @@ export class Mission1Scene extends BaseLevelScene {
           ? this.copy('Отдай фрукт Айе — нажми лапку', 'Жемісті Айяға беру үшін табанды бас')
           : this.copy('Отдай фрукт Айе — нажми E', 'Жемісті Айяға беру үшін E пернесін бас')
         : this.copy('… ', '… ');
+    } else if (p === 'berries') {
+      const freed = this.berries.filter((b) => !b.userData.alive).length;
+      const need = this.berries.length;
+      if (freed === 0) {
+        speaker = this.copy('Айя', 'Айя');
+        line = this.copy(
+          'Спасибо… Только моя корзинка рассыпалась. Липкие нити растащили ягоды по всей поляне.',
+          'Рахмет… Тек себетім төгіліп қалды. Жабысқақ жіптер жидектерді бүкіл алаңға шашып жіберді.',
+        );
+      } else {
+        line = this.copy('Ещё одну! Ты уже знаешь, как — тяни!', 'Тағы біреуін! Сен білесің ғой — тарт!');
+      }
+      objective = this.copy(`🧺 Верни ягоды: ${freed}/${need}`, `🧺 Жидектерді қайтар: ${freed}/${need}`);
+    } else if (p === 'leaving') {
+      const lines = [
+        { s: this.copy('Айя', 'Айя'), l: this.copy('Держи мою руку. Я давно не выходила из чащи.', 'Қолымнан ұста. Мен тоғайдан шықпағалы көп болды.') },
+        { s: 'Барсик', l: this.copy('Не бойся, я рядом. Смотри, вон и тропа!', 'Қорықпа, мен қасыңдамын. Қара, әне жол!') },
+        { s: this.copy('Айя', 'Айя'), l: this.copy('Как здесь светло… Спасибо, что позвал.', 'Мұнда қандай жарық… Шақырғаныңа рахмет.') },
+      ];
+      const idx = Math.min(this.leaveLineI, lines.length - 1);
+      speaker = lines[idx].s;
+      line = lines[idx].l;
+      objective = this.copy('🌲 Выведи Айю из леса', '🌲 Айяны орманнан шығар');
     } else if (p === 'invite_aya') {
       speaker = this.copy('Айя', 'Айя');
       line = this.copy(
@@ -772,8 +945,8 @@ export class Mission1Scene extends BaseLevelScene {
         : this.copy('Позови Айю — нажми E', 'Айяны шақыру үшін E пернесін бас');
     } else if (p === 'outro') {
       line = this.copy(
-        'Теперь мы с Айей друзья! Сначала заглянем в яблоневый сад — садовник знает дорогу к старому дубу.',
-        'Енді Айя екеуміз доспыз! Алдымен алма бағына барайық — бағбан ескі еменге апарар жолды біледі.',
+        'Мы вывели Айю из чащи! Теперь в яблоневый сад — садовник знает дорогу к старому дубу.',
+        'Айяны тоғайдан алып шықтық! Енді алма бағына — бағбан ескі еменге апарар жолды біледі.',
       );
       objective = this.copy('🎉 Уровень 2 пройден', '🎉 2-деңгей өтті');
     }
@@ -788,7 +961,7 @@ export class Mission1Scene extends BaseLevelScene {
       pullNeed: this.pullNeed,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: !this.hasTakenFirstStep && (p === 'trail1' || p === 'trail2'),
+      showMoveHint: !this.hasTakenFirstStep && p === 'trail',
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
@@ -808,6 +981,7 @@ export class Mission1Scene extends BaseLevelScene {
     };
 
     if (this.phase === 'thicket' && this.stuckFruit?.userData.alive) consider(this.stuckFruit, true);
+    else if (this.phase === 'berries') for (const b of this.berries) consider(b, Boolean(b.userData.alive));
     else if (this.phase === 'find_aya' || this.phase === 'give_gift' || this.phase === 'invite_aya') consider(this.aya, true);
     return best;
   }
@@ -823,7 +997,7 @@ export class Mission1Scene extends BaseLevelScene {
     if (this.phase === 'intro' && now > this.nextAt) {
       this.introI += 1;
       if (this.introI >= 3) {
-        this.phase = 'trail1';
+        this.phase = 'trail';
         this.pushHud();
       } else {
         this.nextAt = now + 2600;
@@ -838,18 +1012,39 @@ export class Mission1Scene extends BaseLevelScene {
     }
 
     const canMove = !['intro', 'outro', 'give_gift'].includes(this.phase);
-    const speed = this.phase.startsWith('trail') ? this.baseSpeed : this.runSpeed;
-    this.updateMovement(dt, canMove, speed, -40, 40, -46, 10);
+    const speed = this.phase === 'trail' ? this.baseSpeed : this.runSpeed;
+    // Пока тропа не собрана, за мост не пускаем. Плоды видно по маячкам, а
+    // убежавший вперёд ребёнок иначе потерял бы весь первый акт целиком.
+    const zMin = this.phase === 'trail' ? TRAIL_GATE_Z : -46;
+    this.updateMovement(dt, canMove, speed, -40, 40, zMin, 10);
 
-    if (this.phase === 'trail1' && this.hero.position.distanceTo(this.checkpoints[0]) < 1.7) {
-      this.praiseUntil = now + 1000;
-      this.spawnSparks(this.hero.position, 8);
-      this.phase = 'trail2';
-      this.pushHud();
-    } else if (this.phase === 'trail2' && this.hero.position.z < -13) {
-      this.phase = 'creek';
-      AudioManager.sfx('whoosh');
-      this.pushHud();
+    if (this.phase === 'trail') {
+      for (const f of this.trailFruits) {
+        if (!f.userData.alive) continue;
+        if (this.hero.position.distanceTo(f.position) > 1.6) continue;
+        this.takeStuckFruit(f);
+        AudioManager.sfx('collect');
+        if (this.trailFruits.every((x) => !x.userData.alive)) {
+          this.phase = 'creek';
+          AudioManager.sfx('whoosh');
+        }
+        this.pushHud();
+      }
+    } else if (this.phase === 'leaving') {
+      if (now > this.nextAt && this.leaveLineI < 2) {
+        this.leaveLineI += 1;
+        this.nextAt = now + 3000;
+        this.pushHud();
+      }
+      if (this.hero.position.z > EXIT_Z - 2) {
+        this.stars += 1;
+        this.spawnSparks(this.hero.position, 22);
+        AudioManager.sfx('levelComplete');
+        this.ayaFollow = false;
+        if (this.exitMarker) this.exitMarker.visible = false;
+        this.phase = 'outro';
+        this.pushHud();
+      }
     } else if (this.phase === 'creek' && this.hero.position.z < -20) {
       this.praiseUntil = now + 1000;
       this.spawnSparks(this.hero.position, 8);
@@ -879,6 +1074,32 @@ export class Mission1Scene extends BaseLevelScene {
       b.position.y = this.groundHeightAt(b.position.x, b.position.z) + 1.1 + Math.sin(ph * 1.5) * 0.4;
       b.rotation.y = ph;
     }
+    if (this.ayaFollow && this.aya) {
+      // Держится сзади-сбоку, чтобы не загораживать Барсика и не толкаться с
+      // ним в кадре. Высота берётся от земли плюс её собственная посадка.
+      // Барсика ограда держит, Айю — нет: без зажима она на поворотах тропы
+      // выходила бы за стену и шла сквозь неё на глазах у ребёнка.
+      const tz = this.hero.position.z + 1.7;
+      const centre = trailBend(tz);
+      const tx = THREE.MathUtils.clamp(this.hero.position.x + 1.5, centre - 3.0, centre + 3.0);
+      const k = 1 - Math.pow(0.05, dt);
+      this.aya.position.x += (tx - this.aya.position.x) * k;
+      this.aya.position.z += (tz - this.aya.position.z) * k;
+      this.aya.position.y =
+        this.groundHeightAt(this.aya.position.x, this.aya.position.z) + this.ayaSeatOffset;
+      this.aya.rotation.y = Math.atan2(
+        this.hero.position.x - this.aya.position.x,
+        this.hero.position.z - this.aya.position.z,
+      );
+    }
+
+    for (const st of this.berryStrands) {
+      if (!st.visible) continue;
+      st.children.forEach((c, i) => {
+        c.rotation.y = Math.sin(now * 0.001 + i) * 0.1;
+      });
+    }
+
     if (this.stickyGroup?.visible) {
       this.stickyGroup.children.forEach((c, i) => {
         c.rotation.y = Math.sin(now * 0.001 + i) * 0.08;
