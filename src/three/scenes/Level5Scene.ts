@@ -422,7 +422,7 @@ export class Level5Scene extends BaseLevelScene {
     for (let z = ROUTE_START_Z; z >= ROUTE_END_Z; z -= 1.25) {
       trail.push({ x: routeX(z), z });
     }
-    await this.layTrail(loader, trail, { size: 1.7 });
+    await this.layTrail(loader, trail, { size: 1.7, batchStatic: true });
 
     for (let z = ROUTE_START_Z - 1; z >= ROUTE_END_Z; z -= 2.6) {
       // Aimed along the path rather than straight down it, so a bend reads
@@ -433,14 +433,31 @@ export class Level5Scene extends BaseLevelScene {
       this.scene.add(a);
     }
 
+    const breadcrumbSpots: Array<{ x: number; z: number }> = [];
     for (let z = ROUTE_START_Z - 2; z >= ROUTE_END_Z; z -= 1.4) {
-      const nut = new THREE.Mesh(
-        new THREE.SphereGeometry(0.06, 6, 6),
-        new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 1 }),
-      );
-      nut.position.set(routeX(z) + (Math.random() - 0.5) * 0.7, 0.04, z);
-      this.scene.add(nut);
+      breadcrumbSpots.push({ x: routeX(z) + (Math.random() - 0.5) * 0.7, z });
     }
+    const breadcrumbGeometry = new THREE.SphereGeometry(0.06, 6, 6);
+    const breadcrumbMaterial = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 1 });
+    const breadcrumbs = new THREE.InstancedMesh(
+      breadcrumbGeometry,
+      breadcrumbMaterial,
+      breadcrumbSpots.length,
+    );
+    breadcrumbs.name = 'nut-breadcrumbs';
+    breadcrumbs.castShadow = false;
+    breadcrumbs.receiveShadow = false;
+    breadcrumbs.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    const breadcrumbMatrix = new THREE.Matrix4();
+    for (let i = 0; i < breadcrumbSpots.length; i++) {
+      const spot = breadcrumbSpots[i];
+      breadcrumbMatrix.makeTranslation(spot.x, this.groundHeightAt(spot.x, spot.z) + 0.04, spot.z);
+      breadcrumbs.setMatrixAt(i, breadcrumbMatrix);
+    }
+    breadcrumbs.instanceMatrix.needsUpdate = true;
+    breadcrumbs.computeBoundingBox();
+    breadcrumbs.computeBoundingSphere();
+    this.scene.add(breadcrumbs);
 
     for (let z = ROUTE_START_Z - 2; z >= ROUTE_END_Z; z -= 2.5) {
       this.waypoints.push(new THREE.Vector3(routeX(z), 0, z));
@@ -647,11 +664,24 @@ export class Level5Scene extends BaseLevelScene {
       this.scene.add(bf);
     }
 
+    const routeFlowers: THREE.Object3D[] = [];
     for (let i = 0; i < 26; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = ROUTE_START_Z - (i / 26) * (ROUTE_START_Z - ROUTE_END_Z);
-      this.scene.add(tulip(routeX(z) + side * (2.4 + Math.random() * 1.4), z, [0xe74c3c, 0xf1c40f, 0xfd79a8, 0xa29bfe][i % 4]));
+      routeFlowers.push(
+        tulip(
+          routeX(z) + side * (2.4 + Math.random() * 1.4),
+          z,
+          [0xe74c3c, 0xf1c40f, 0xfd79a8, 0xa29bfe][i % 4],
+        ),
+      );
     }
+    const mergedFlowers = this.mergeStatic(routeFlowers);
+    if (mergedFlowers) {
+      mergedFlowers.name = 'route-flowers';
+      this.scene.add(mergedFlowers);
+    }
+    else for (const flower of routeFlowers) this.scene.add(flower);
 
     this.hero.position.set(routeX(4), this.groundHeightAt(routeX(4), 4), 4);
     // The wall. Planted last, so it can read the corridor and every room the
