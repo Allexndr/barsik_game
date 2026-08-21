@@ -165,6 +165,77 @@ function bakeStaticFamily(
   return baked;
 }
 
+/**
+ * Bake cached AssetKit clones without taking ownership of their resources.
+ *
+ * GLB clones share geometry, materials and textures with the kit cache, so
+ * disposing an input would corrupt every later clone. We instead clone only
+ * the geometry, apply each mesh's world transform and merge compatible parts.
+ * Materials remain shared and scene-owned by the AssetKit cache.
+ */
+function bakeSharedStaticRoots(
+  roots: THREE.Object3D[],
+  name: string,
+  castShadow: boolean,
+): THREE.Group {
+  const baked = new THREE.Group();
+  baked.name = name;
+  const families = new Map<string, {
+    material: THREE.Material;
+    receiveShadow: boolean;
+    geometries: THREE.BufferGeometry[];
+  }>();
+
+  for (const root of roots) {
+    root.updateMatrixWorld(true);
+    root.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.geometry || Array.isArray(mesh.material)) return;
+      const attributes = Object.entries(mesh.geometry.attributes)
+        .map(([key, attribute]) => `${key}:${attribute.itemSize}:${attribute.normalized}:${attribute.array.constructor.name}`)
+        .sort()
+        .join('|');
+      const signature = `${mesh.material.uuid}:${mesh.geometry.index ? 'indexed' : 'plain'}:${attributes}`;
+      const family = families.get(signature) ?? {
+        material: mesh.material,
+        receiveShadow: false,
+        geometries: [],
+      };
+      const geometry = mesh.geometry.clone();
+      geometry.applyMatrix4(mesh.matrixWorld);
+      family.receiveShadow ||= mesh.receiveShadow;
+      family.geometries.push(geometry);
+      families.set(signature, family);
+    });
+  }
+
+  let familyIndex = 0;
+  for (const family of families.values()) {
+    const merged = mergeGeometries(family.geometries, false);
+    if (merged) {
+      for (const geometry of family.geometries) geometry.dispose();
+      merged.computeBoundingBox();
+      merged.computeBoundingSphere();
+      const mesh = new THREE.Mesh(merged, family.material);
+      mesh.name = `${name}-${familyIndex++}`;
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = family.receiveShadow;
+      baked.add(mesh);
+      continue;
+    }
+    // Attribute signatures normally make this unreachable, but keeping the
+    // transformed clones is safer than dropping art if a future GLB differs.
+    for (const geometry of family.geometries) {
+      const mesh = new THREE.Mesh(geometry, family.material);
+      mesh.name = `${name}-fallback-${familyIndex++}`;
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = family.receiveShadow;
+      baked.add(mesh);
+    }
+  }
+  return baked;
+}
+
 /** A loose deck plank: a board with two nail heads, readable at any distance. */
 function makeLoosePlank(): THREE.Group {
   const g = new THREE.Group();
@@ -546,10 +617,11 @@ export class Level4Scene extends BaseLevelScene {
         maxSize: 0.9 + Math.random() * 1.5,
       });
     }
-    for (const rock of await kit.scatter('nature', ['rock_largeA', 'stone_largeC', 'rock_smallD'], bedRocks)) {
+    const bedRockRoots = await kit.scatter('nature', ['rock_largeA', 'stone_largeC', 'rock_smallD'], bedRocks);
+    for (const rock of bedRockRoots) {
       rock.position.y -= GORGE_DEPTH;
-      this.scene.add(rock);
     }
+    this.scene.add(bakeSharedStaticRoots(bedRockRoots, 'gorge-bed-rocks', false));
 
     // Rock faces down both sides of the gorge, tiled from the CC0 cliff kit.
     // One block spans the full drop: the cliff models carry a grass top, so any
@@ -562,6 +634,7 @@ export class Level4Scene extends BaseLevelScene {
       cliffWall.push({ x, z: NEAR_EDGE + CLIFF / 2 - Math.random() * 1.1 });
       cliffWall.push({ x, z: FAR_EDGE - CLIFF / 2 + Math.random() * 1.1 });
     }
+    const cliffWallRoots: THREE.Object3D[] = [];
     for (const spot of cliffWall) {
       const block = await kit.spawn('nature', 'cliff_block_rock', {
         scale: CLIFF,
@@ -569,8 +642,11 @@ export class Level4Scene extends BaseLevelScene {
         rotationY: Math.random() < 0.5 ? 0 : Math.PI,
         ground: false,
       });
-      if (block) this.scene.add(block);
+      if (block) cliffWallRoots.push(block);
     }
+    // The wall still casts as one coherent landmark, but two material batches
+    // replace dozens of identical grass/dirt mesh submissions.
+    this.scene.add(bakeSharedStaticRoots(cliffWallRoots, 'gorge-cliff-wall', true));
 
     // Boulders lodged part-way down both faces. Without them a 60-metre run of
     // identical blocks reads as one flat brown slab, which is the single
@@ -584,11 +660,14 @@ export class Level4Scene extends BaseLevelScene {
         maxSize: 1.6 + Math.random() * 1.6,
       });
     }
-    for (const [i, rock] of (await kit.scatter('nature', ['rock_largeD', 'stone_largeB', 'rock_tallC'], faceRocks)).entries()) {
+    const faceRockRoots = await kit.scatter('nature', ['rock_largeD', 'stone_largeB', 'rock_tallC'], faceRocks);
+    const visibleFaceRocks: THREE.Object3D[] = [];
+    for (const [i, rock] of faceRockRoots.entries()) {
       if (Math.abs(rock.position.x) < 3) continue; // never over the bridge line
       rock.position.y = -1.4 - (i % 3) * 1.3;
-      this.scene.add(rock);
+      visibleFaceRocks.push(rock);
     }
+    this.scene.add(bakeSharedStaticRoots(visibleFaceRocks, 'gorge-face-rocks', false));
 
     // ── Rock pillar mid-gorge ─────────────────────────────────
     // The rest point that turns one long corridor into two spans. One block,
@@ -641,12 +720,11 @@ export class Level4Scene extends BaseLevelScene {
       this.scene.add(islandFlag);
       this.colliders.push({ kind: 'circle', x: 1.9, z: ISLAND_Z + 1.4, r: 0.4 });
     }
-    for (const rock of await kit.scatter('nature', ['rock_smallA', 'stone_smallC'], [
+    const islandRocks = await kit.scatter('nature', ['rock_smallA', 'stone_smallC'], [
       { x: 1.8, z: ISLAND_Z + 1.7, maxSize: 0.5 },
       { x: -1.9, z: ISLAND_Z + 2.0, maxSize: 0.4 },
-    ])) {
-      this.scene.add(rock);
-    }
+    ]);
+    this.scene.add(bakeSharedStaticRoots(islandRocks, 'island-detail-rocks', false));
 
     // Broken silhouette on the lips so the canyon is not two straight walls.
     const lipRocks: Array<{ x: number; z: number; maxSize: number }> = [];
@@ -658,12 +736,15 @@ export class Level4Scene extends BaseLevelScene {
         maxSize: 1.1 + Math.random() * 1.3,
       });
     }
-    for (const rock of await kit.scatter('nature', ['rock_tallC', 'stone_largeB', 'rock_largeD', 'stone_tallF'], lipRocks)) {
+    const lipRockRoots = await kit.scatter('nature', ['rock_tallC', 'stone_largeB', 'rock_largeD', 'stone_tallF'], lipRocks);
+    const visibleLipRocks: THREE.Object3D[] = [];
+    for (const rock of lipRockRoots) {
       // Keep the bridge mouth and both lookouts clear.
       if (Math.abs(rock.position.x) < 2.4) continue;
       if (PLANK_SPOTS.some((s) => Math.hypot(s.x - rock.position.x, s.z - rock.position.z) < 3)) continue;
-      this.scene.add(rock);
+      visibleLipRocks.push(rock);
     }
+    this.scene.add(bakeSharedStaticRoots(visibleLipRocks, 'gorge-lip-rocks', false));
 
     // ── Gameplay zones reserved before any scatter ────────────
     this.reserve(0, 6, 4.5);
@@ -965,13 +1046,12 @@ export class Level4Scene extends BaseLevelScene {
       flowerSpots.push({ x: side * (2.4 + Math.random() * 6), z: NEAR_EDGE + 1 + Math.random() * 9, height: 0.45 });
       flowerSpots.push({ x: side * (2.4 + Math.random() * 6), z: FAR_EDGE - 1.5 - Math.random() * 7, height: 0.45 });
     }
-    for (const flower of await kit.scatter(
+    const flowerRoots = await kit.scatter(
       'nature',
       ['flower_redB', 'flower_purpleA', 'flower_yellowB', 'flower_redC', 'flower_purpleC'],
       flowerSpots.filter((s) => !this.isReserved(s.x, s.z, 0.6)),
-    )) {
-      this.scene.add(flower);
-    }
+    );
+    this.scene.add(bakeSharedStaticRoots(flowerRoots, 'approach-flowers', false));
 
     // Wind grass on both banks, matched to the level's fog. The gorge is left
     // out: setupWindGrass samples a flat ground, and blades over the chasm
