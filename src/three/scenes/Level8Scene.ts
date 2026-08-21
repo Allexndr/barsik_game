@@ -239,6 +239,39 @@ function fruitBall(color: number): THREE.Group {
   return g;
 }
 
+/**
+ * Reuse the base-colour atlas for props exported from the same Kenney kit.
+ *
+ * The GLBs stay separate objects with separate materials, so transforms and
+ * shadows remain independent. Only their byte-identical colour texture is
+ * shared. Call this before the first rendered frame; retired duplicate maps
+ * were created by private GLB parses and have no owners outside these roots.
+ */
+function shareBaseColorAtlas(roots: THREE.Object3D[]) {
+  let shared: THREE.Texture | null = null;
+  const retired = new Set<THREE.Texture>();
+
+  for (const root of roots) {
+    root.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) {
+        if (!(material instanceof THREE.MeshStandardMaterial) || !material.map) continue;
+        if (!shared) {
+          shared = material.map;
+          continue;
+        }
+        if (material.map === shared) continue;
+        retired.add(material.map);
+        material.map = shared;
+        material.needsUpdate = true;
+      }
+    });
+  }
+
+  for (const texture of retired) texture.dispose();
+}
+
 interface LanternSpot {
   group: THREE.Group;
   core: THREE.Mesh;
@@ -423,6 +456,13 @@ export class Level8Scene extends BaseLevelScene {
     this.camera.position.set(11, 9, 15);
     this.pathCorridor = routeX;
     this.pathCorridorHalf = 2.2;
+    // The trail teaches the route to the glade, but the festival itself is an
+    // open foraging level: three garland trees and four fruit patches sit on
+    // both sides of it. Treating the trail as the walkable boundary made those
+    // authored objectives islands behind an invisible wall. One arena keeps
+    // the whole festival footprint connected; its tree ring is the boundary
+    // the player actually sees.
+    this.playArena = { x: 0, z: -12.5, r: 21.5 };
 
     await this.setupForestEnvironment(loader, {
       fireflies: true,
@@ -532,11 +572,15 @@ export class Level8Scene extends BaseLevelScene {
       }
       anchors.push(new THREE.Vector3(x, anchorY, z));
     }
+    // One parsed GLB, three static clones. `clone(true)` shares the immutable
+    // geometry/material/texture resources; loading the same four-map asset at
+    // each tree created eight redundant GPU textures and three parser jobs.
+    const garlandTemplate = await loadPropModel(loader, CAST_PROP_GLB.garland, { maxSize: 0.9 });
     for (let i = 0; i < GARLAND_TREES.length; i++) {
       const [x, z] = GARLAND_TREES[i];
       const bundle = new THREE.Group();
       const coil =
-        (await loadPropModel(loader, CAST_PROP_GLB.garland, { maxSize: 0.9 })) ??
+        garlandTemplate?.clone(true) ??
         (() => {
           const g = new THREE.Group();
           const torus = new THREE.Mesh(
@@ -565,9 +609,14 @@ export class Level8Scene extends BaseLevelScene {
     }
 
     // Act 3 — fruit growing out in the forest.
+    // The bush is scenery and never mutates independently. Reusing its parsed
+    // template keeps all four fruit spots visually identical while sharing its
+    // four PBR maps instead of uploading four private copies.
+    const fruitBushTemplate = await loadPropModel(loader, CAST_PROP_GLB.mushroom, { maxSize: 0.8 });
+    const foodPaletteRoots: THREE.Object3D[] = [];
     for (const spec of FRUIT_SPOTS) {
       const group = new THREE.Group();
-      const bushBase = await loadPropModel(loader, CAST_PROP_GLB.mushroom, { maxSize: 0.8 });
+      const bushBase = fruitBushTemplate?.clone(true) ?? null;
       if (bushBase) {
         // x and z only. fitMaxSize buries the grounding offset in position.y,
         // and a position.set(_, 0, _) throws it away — the same mistake the
@@ -580,7 +629,10 @@ export class Level8Scene extends BaseLevelScene {
       // position.y, and setting that y directly is what sinks a prop into the
       // ground. The wrapper keeps the offset somewhere nothing overwrites.
       const fruit = new THREE.Group();
-      fruit.add((await loadPropModel(loader, CAST_PROP_GLB[spec.key], { maxSize: 0.45 })) ?? fruitBall(spec.color));
+      const fruitModel =
+        (await loadPropModel(loader, CAST_PROP_GLB[spec.key], { maxSize: 0.45 })) ?? fruitBall(spec.color);
+      fruit.add(fruitModel);
+      if (spec.key === 'strawberry') foodPaletteRoots.push(fruitModel);
       fruit.position.y = 0.62;
       group.add(fruit);
       const ring = hintRing(spec.color, 0.85);
@@ -626,19 +678,35 @@ export class Level8Scene extends BaseLevelScene {
     // anything standing on the table needs the table top measured from the
     // ground under it.
     const tableTopLocal = this.tableTopY - this.groundHeightAt(0, TABLE_Z);
-    await this.placeProps(loader, [
+    const foodDecor = await this.placeProps(loader, [
       { key: 'cake', opts: { x: 0, z: TABLE_Z, maxSize: 0.6, y: tableTopLocal } },
       { key: 'honey', opts: { x: 0.72, z: TABLE_Z + 0.58, maxSize: 0.4, y: tableTopLocal } },
+    ]);
+    const holidayDecor = await this.placeProps(loader, [
       { key: 'present', opts: { x: -2.2, z: GLADE_Z + 3.4, maxSize: 0.6 } },
       { key: 'present_b', opts: { x: 2.4, z: GLADE_Z + 3.8, maxSize: 0.55 } },
-      { key: 'bench', opts: { x: -5.2, z: FIRE_Z + 0.6, maxSize: 1.6, rotY: 1.4 } },
-      { key: 'bench', opts: { x: 5.2, z: FIRE_Z + 0.6, maxSize: 1.6, rotY: -1.4 } },
       { key: 'lantern_hang', opts: { x: -7.4, z: GLADE_Z + 5, maxSize: 0.6, y: 1.7 } },
       { key: 'lantern_wood', opts: { x: 7.2, z: GLADE_Z + 5.2, maxSize: 0.6 } },
+    ]);
+    const townDecor = await this.placeProps(loader, [
+      { key: 'bench', opts: { x: -5.2, z: FIRE_Z + 0.6, maxSize: 1.6, rotY: 1.4 } },
+      { key: 'bench', opts: { x: 5.2, z: FIRE_Z + 0.6, maxSize: 1.6, rotY: -1.4 } },
+    ]);
+    const platformerDecor = await this.placeProps(loader, [
       { key: 'star', opts: { x: 0, z: GLADE_Z - 7.5, maxSize: 0.5, y: 2.4 } },
       { key: 'flowers', opts: { x: -3.4, z: SPAWN_Z - 2, maxSize: 0.7 } },
+    ]);
+    await this.placeProps(loader, [
       { key: 'map_scroll', opts: { x: 2.6, z: SPAWN_Z - 2.4, maxSize: 0.55 } },
     ]);
+
+    // These groups come from four known Kenney palette families. Their colour
+    // atlases are byte-identical within a family; normal/roughness/emissive
+    // data, materials, geometry and every visible prop remain untouched.
+    shareBaseColorAtlas([...foodPaletteRoots, ...foodDecor]);
+    shareBaseColorAtlas(holidayDecor);
+    shareBaseColorAtlas(townDecor);
+    shareBaseColorAtlas(platformerDecor);
     await placeAmbientCritters(this.scene, loader, [
       { key: 'fox', x: -9, z: 1, rotY: 0.8, h: 0.8 },
       { key: 'bird', x: 7.5, z: -20, rotY: -0.5, h: 0.55 },
@@ -649,9 +717,10 @@ export class Level8Scene extends BaseLevelScene {
 
     const start = this.devStart() ?? { x: 0, z: SPAWN_Z };
     this.hero.position.set(start.x, this.groundHeightAt(start.x, start.z), start.z);
-    // The wall. Planted last, so it can read the corridor and every room the
-    // level reserved and hug the outside of both.
-    await this.encloseLevel(loader);
+    // The visible wall. It follows the open festival arena, not the decorative
+    // trail, so the player can reach every oak and fruit patch without ever
+    // meeting an unexplained movement clamp.
+    await this.encloseArena(loader, 3);
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
 
