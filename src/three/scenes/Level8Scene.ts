@@ -415,7 +415,7 @@ export class Level8Scene extends BaseLevelScene {
 
   // ── Build ─────────────────────────────────────────────────────
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: FestivalHud) => void) {
-    this.nick = nick || 'друг';
+    this.nick = nick || this.defaultNick(lang);
     this.lang = lang;
     this.onHud = onHud;
     const loader = createGameGltfLoader();

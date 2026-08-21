@@ -328,7 +328,7 @@ export class Level9Scene extends BaseLevelScene {
   }
 
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: L10Hud) => void) {
-    this.nick = nick || 'друг';
+    this.nick = nick || this.defaultNick(lang);
     this.lang = lang;
     this.onHud = onHud;
 

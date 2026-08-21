@@ -837,7 +837,7 @@ export class Level0Scene extends BaseLevelScene {
   }
 
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: L0Hud) => void) {
-    this.nick = nick || 'друг';
+    this.nick = nick || this.defaultNick(lang);
     this.lang = lang;
     this.onHud = onHud;
     const loader = createGameGltfLoader();

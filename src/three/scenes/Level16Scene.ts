@@ -172,7 +172,7 @@ export class Level16Scene extends BaseLevelScene {
   }
 
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: L16Hud) => void) {
-    this.nick = nick || 'друг';
+    this.nick = nick || this.defaultNick(lang);
     this.lang = lang;
     this.onHud = onHud;
 

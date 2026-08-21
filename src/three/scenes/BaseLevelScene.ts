@@ -1260,6 +1260,18 @@ export abstract class BaseLevelScene {
     return this.waterLineY !== null && this.groundHeightAt(x, z) < this.waterLineY;
   }
 
+  /**
+   * Имя игрока для реплик, когда ник не введён.
+   *
+   * Ник необязателен, и без него герой обращался к казахоязычному ребёнку
+   * русским словом «друг» посреди казахской фразы — одинаково во всех
+   * семнадцати уровнях. Слово попадает и в озвучку: TTS читал его русским
+   * голосом внутри казахской реплики.
+   */
+  protected defaultNick(lang: 'ru' | 'kk') {
+    return lang === 'kk' ? 'дос' : 'друг';
+  }
+
   /** Sit an object on the sculpted ground rather than on y=0. */
   protected snapToGround(obj: THREE.Object3D) {
     const box = new THREE.Box3().setFromObject(obj);
