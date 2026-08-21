@@ -348,11 +348,19 @@ export class Level16Scene extends BaseLevelScene {
     for (let i = 0; i < friendPositions.length; i++) {
       const [x, z] = friendPositions[i];
       const id = friendIds[i];
-      const file = CAST_CHAR_GLB[id];
+      // Снеговик — единственный из девяти, чья модель лежит среди предметов,
+      // а не среди персонажей: он и есть предмет из L15. Пока каталог был
+      // объявлен как `Record<string, string>`, `CAST_CHAR_GLB['snowman']`
+      // молча отдавал undefined, и в финальном снимке сезона снеговик выходил
+      // безымянным цветным силуэтом.
+      const isSnowman = id === 'snowman';
+      const file = isSnowman ? CAST_PROP_GLB.snowman : CAST_CHAR_GLB[id];
       const isUnlocked = unlocked.has(id) || id === 'ice_friend_rare';
       let f: THREE.Object3D | null = null;
       if (isUnlocked && file) {
-        f = await loadCharModel(loader, file, id === 'hedgehog' || id === 'squirrel' ? 0.9 : 1.15);
+        f = isSnowman
+          ? await loadPropModel(loader, file, { height: 1.15 })
+          : await loadCharModel(loader, file, id === 'hedgehog' || id === 'squirrel' ? 0.9 : 1.15);
       }
       if (!f) {
         if (isUnlocked && id === 'aya') f = createPlushCharacter(AYA_LOOK);

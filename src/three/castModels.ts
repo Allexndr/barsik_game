@@ -2,7 +2,11 @@
  * Season 1 cast → Meshy / public GLB filenames under /assets/models/chars|props.
  * Used by levels, city, and finale group photo so NPCs share one mapping.
  */
-export const CAST_CHAR_GLB: Record<string, string> = {
+// Без аннотации `Record<string, string>` намеренно: с ней `keyof typeof`
+// вырождается в `string`, и опечатка в ключе расстановки проходит
+// тайпчек, а объект молча не появляется в сцене. Выведенный тип
+// превращает ту же опечатку в ошибку компиляции.
+export const CAST_CHAR_GLB = {
   gardener: 'zhuldyz.glb',
   gardener_l1: 'zhuldyz.glb',
   aya: 'aya.glb',
@@ -30,7 +34,11 @@ export const CAST_CHAR_GLB: Record<string, string> = {
   kit_cat: 'pets/s1_kit_cat.glb',
 };
 
-export const CAST_PROP_GLB: Record<string, string> = {
+// Без аннотации `Record<string, string>` намеренно: с ней `keyof typeof`
+// вырождается в `string`, и опечатка в ключе расстановки проходит
+// тайпчек, а объект молча не появляется в сцене. Выведенный тип
+// превращает ту же опечатку в ошибку компиляции.
+export const CAST_PROP_GLB = {
   snowman: 'snowman.glb',
   ice_rabbit: 'ice_rabbit.glb',
   /** Prefer Discover cartoon sign; fall back to original Meshy sign in placeWoodSign. */
