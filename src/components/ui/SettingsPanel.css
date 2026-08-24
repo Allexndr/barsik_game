@@ -199,3 +199,28 @@
   gap: 10px;
   margin-top: 8px;
 }
+
+/*
+ * Родительская настройка.
+ *
+ * Шире и с пояснением: это единственный переключатель, который меняет не
+ * удобство, а то, что ребёнок может получить от постороннего человека.
+ */
+.settings-row-parent {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.settings-parent-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-hint {
+  font-size: 12px;
+  line-height: 1.35;
+  opacity: 0.72;
+}
