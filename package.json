@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "voice:check": "node scripts/extract-voice-lines.mjs --check"
   },
   "dependencies": {
     "@supabase/realtime-js": "^2.112.3",
