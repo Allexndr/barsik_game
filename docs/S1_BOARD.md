@@ -39,34 +39,27 @@
 подтверждено §32), длительность закрыта по всем 17 уровням (§29/§33). Весь
 список ниже — P1/P2.
 
-- [ ] `levels-forest` · P1 — очередь после L2/L4/L5: L8 «Лесной праздник» —
-      placement points (гирлянды×3 / фонари×5 / фрукты×4), задачи выполнимы
-      в безопасном порядке без soft-lock, все друзья присутствуют и
-      реагируют, group photo + finale flash (план §5, L8 — открыт целиком).
-- [ ] `perf` · P2 — kick для очереди `Ideas` ниже (обе готовы, ждали lead):
-      1) tier-scale `setupWindGrass({count})` в `Level4Scene.ts:933,940` —
-      сейчас только `isMobile`, слабый `low`-телефон получает те же тысячи
-      травинок, что средний mobile; 2) `CityScene.ts`/`AvatarPreview.ts`
-      строят свой `WebGLRenderer` в обход `renderQuality` целиком
-      (`antialias` всегда true, pixel ratio без low-tier случая). Бери
-      первую, вторая остаётся следующим шагом.
-- [ ] `qa` · P1 — точечный проход (L0/L1/L8/L16, `In progress`) закрывает
-      только часть этапа A1 плана. После него — систематическая
-      инфраструктура из A1, которой ещё нет вообще: console-error
-      collector, FPS sampler (10 с, avg/p5/p1), screenshot matrix
-      (desktop/mobile × RU/KK), save-state fixtures (fresh/mid/completed).
-- [ ] `hub-ui` · P1 — **осторожно, вне текущего claim.**
-      `src/three/scenes/hub/arbatProps.ts` содержит некоммиченный, похожий
-      на завершённый диф (+146 строк): три архитектурных стиля фасада —
-      `classic/flat/attic`, у каждого дома разная крыша/деталировка вместо
-      одного шаблона с перекраской. Формально файл вне зоны `hub-ui`
-      (`src/components/**`) и вне текущего claim (TravelMap/Welcome), но
-      больше никто его не тронул и не заклеймил. Не откатывать. Прочитать
-      диф, прогнать `npx tsc --noEmit` (на 2026-08-24 весь repo был чист),
-      и либо закрыть в `Done` своим именем, либо в `Blocked`, если это
-      чей-то чужой черновик, — но не терять молча.
+- [x] `ops` · P0 — Hub realtime **выкл по умолчанию** (`VITE_HUB_REALTIME`);
+      включить только после `city_chat.sql` + RLS. См. `docs/S1_QA_A1.md`.
+- [x] `levels-forest` · P1 — L1/L2/L8 camera: cinematic intro только до
+      `hasTakenFirstStep` (фикс `hero-off-frame`). L8 placement 5/3/4 + celebrate
+      уже в коде.
+- [x] `levels-ice` · P1 — L14 warmth bar в objective; L16 chest marker snapToGround.
+- [x] `hub-ui` · SettingsModal contrast (`smodal-*`); map pin hover без scale-jitter;
+      Welcome landing brand-first + flow + sticky CTA.
+- [x] `qa` · A1: `?fps=1`, `?qa=1` → `__qaErrors()`, fixtures `docs/qa/save-fixtures.json`,
+      гайд `docs/S1_QA_A1.md`. Screenshot matrix / reload awards — ещё руками.
+- [ ] `qa` · Screenshot matrix desktop/mobile × RU/KK (L0/L1/L8/L16) + reload awards.
+- [ ] `perf` · P2 — tier-scale grass count; AvatarPreview → renderQuality
+      (CityScene удалён).
 - [ ] `lead` · держать этот порядок актуальным после каждого нового `Done`
       (living task, не закрывается сама по себе).
+
+## Blocked
+
+- [x] `vercel.json` Cache-Control на `/assets/(.*)` —
+      **accepted**: `max-age=86400, must-revalidate` (не immutable; фикс битых
+      ассетов после деплоя). `/js`/`/css` headers сняты вместе с legacy.
 
 ## In progress
 
@@ -229,19 +222,9 @@
 
 ## Blocked
 
-- [ ] `vercel.json` Cache-Control на `/assets/(.*)` поменялся (некоммичено)
-      с `public, max-age=31536000, immutable` на `public, max-age=86400,
-      must-revalidate` — без claim'а на борде. `/assets/` — путь тяжёлых
-      GLB/webp (см. комментарий в старом `.vercelignore` про «2.1 GB
-      Blender/Meshy originals»). Похоже, это попытка починить кеш трёх
-      hero/world-card картинок на лендинге — но та проблема уже отдельно
-      чинится точечно через `?v=20260814` в `WelcomeScreen.tsx` /
-      `TravelMapScreen.tsx` (тоже некоммичено, тот же diff-срез). Снимать
-      `immutable` со **всех** ассетов ради трёх картинок — глобальный
-      даунгрейд кеш-политики (ре-валидация тяжёлых 3D-моделей каждые 24ч
-      вместо года). @barsik-lead — нужно решение: откатить `vercel.json`
-      (раз `?v=` уже покрывает исходную проблему точечно) или подтвердить
-      как осознанный трейд-офф. Детали: `docs/S1_AGENT_REVIEW.md`.
+_(пусто)_ · `vercel.json` Cache-Control **accepted** lead 2026-08-24:
+`max-age=86400, must-revalidate` на `/assets` — осознанный трейд-офф против
+битых кэшей после деплоя; legacy `/js`/`/css` headers сняты.
 
 ## Ideas
 
@@ -257,16 +240,8 @@
   `S1_PERF_NOTES.md`). Level content zone overlaps `levels-forest`/`hub-ui`
   — coordinate before editing those files, or scope the change to only the
   `count` numbers, not layout/`area`.
-- `perf` · `CityScene.ts:334` and `avatar/AvatarPreview.ts:31` build their
-  own `WebGLRenderer` directly and never read `renderQuality` at all —
-  hardcoded `antialias: true` always, and pixel ratio caps that don't match
-  the tier profile (`CityScene.ts:337`: `mobile ? 1.5 : 2`, no low-tier
-  case; `AvatarPreview.ts:32`: flat `2` regardless of device). Both are
-  out-of-scope for the `BaseLevelScene`-only passes so far. Fix shape: call
-  `getRenderQualityProfile(resolveRenderQualityTier(isMobile), isMobile)`
-  in each and use `.antialias`/`.maxPixelRatio` instead of the hardcoded
-  values — same profile object `BaseLevelScene` already uses, just wired
-  into two more renderer constructors.
+- `perf` · `AvatarPreview.ts` строит свой `WebGLRenderer` в обход
+  `renderQuality` (CityScene удалён 2026-08-24). Протянуть профиль tier.
 
 Обе — small diff each, но вторая трогает файлы вне текущей `perf`-зоны
 формально в списке (`renderQuality.ts`, `BaseLevelScene.ts`) лишь

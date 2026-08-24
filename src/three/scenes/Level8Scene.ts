@@ -959,7 +959,7 @@ export class Level8Scene extends BaseLevelScene {
     this.updateAmbient(dt, now);
 
     // ── Camera ──
-    if (this.phase === 'intro') {
+    if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       // Reveal: the glade first, so the walk has somewhere to be going, then
       // down to the path, then behind the hero.
       const idx = Math.min(this.introI, 2);

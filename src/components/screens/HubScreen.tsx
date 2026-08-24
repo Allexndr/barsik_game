@@ -10,6 +10,7 @@ import {
   CHAT_EMOJI, CHAT_GROUP_LABEL, CHAT_PHRASES, CHAT_COOLDOWN_MS, type ChatGroup,
 } from '@/utils/safeChat';
 import { checkText, moderationMessage } from '@/utils/moderation';
+import { SEASON1_FRIENDS } from '@/utils/season1Friends';
 import './HubScreen.css';
 
 /**
@@ -32,11 +33,13 @@ const EMOTES: Array<{ pose: HubPose; glyph: string; ru: string; kk: string }> = 
   { pose: 'point', glyph: '👉', ru: 'Туда', kk: 'Ана жаққа' },
 ];
 
-export function HubScreen() {
+export function HubScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const lang = useUIStore((s) => s.lang);
   const setScreen = useUIStore((s) => s.setScreen);
+  const setActiveTab = useUIStore((s) => s.setActiveTab);
   const freeChatEnabled = useUIStore((s) => s.freeChatEnabled);
   const player = useGameStore((s) => s.player);
+  const friends = useGameStore((s) => s.friends);
   const ru = lang !== 'kk';
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -62,20 +65,37 @@ export function HubScreen() {
     const scene = new HubScene(canvas);
     sceneRef.current = scene;
     const from = cameFromRef.current;
-    void scene.init(player?.nick ?? '', lang, setHud, place, from, (to) => {
-      // Переход — это пересборка сцены, а не телепорт внутри неё: у каждой
-      // локации своя геометрия и свой канал присутствия, и держать их все
-      // загруженными ради мгновенного перехода дороже, чем секунда загрузки.
-      cameFromRef.current = place;
-      setPlace(to);
-    });
+    void scene.init(
+      player?.nick ?? '',
+      lang,
+      setHud,
+      place,
+      from,
+      (to) => {
+        // Переход — это пересборка сцены, а не телепорт внутри неё: у каждой
+        // локации своя геометрия и свой канал присутствия, и держать их все
+        // загруженными ради мгновенного перехода дороже, чем секунда загрузки.
+        cameFromRef.current = place;
+        setPlace(to);
+      },
+      // Друзья собираются на Арбате — центральном хабе; на подлокациях их нет.
+      place === 'arbat'
+        ? friends.map((f) => {
+            const meta = SEASON1_FRIENDS.find((c) => c.id === f.id);
+            return {
+              id: f.id,
+              name: meta ? (lang === 'kk' ? meta.nameKk : meta.name) : f.name,
+            };
+          })
+        : [],
+    );
     return () => {
       sceneRef.current = null;
       scene.dispose();
     };
     // Пересоздаём сцену при смене языка: реплики соседей рисуются в текстуру
     // при получении, и на лету их не перерисовать.
-  }, [lang, player?.nick, place]);
+  }, [lang, player?.nick, place, friends]);
 
   const phrases = useMemo(() => CHAT_PHRASES.filter((p) => p.group === group), [group]);
 
@@ -108,22 +128,33 @@ export function HubScreen() {
   const online = hud?.online ?? 1;
   const status = hud?.status ?? 'connecting';
 
+  const exit = () => {
+    if (embedded) setActiveTab('travel');
+    else setScreen('game');
+  };
+
   return (
-    <div className="screen screen-hub">
+    <div className={`screen screen-hub${embedded ? ' is-embedded' : ''}`}>
       <canvas ref={canvasRef} className="hub-canvas" />
 
       <div className="hub-top">
-        <button className="hub-exit" onClick={() => setScreen('game')}>
-          ← {ru ? 'На карту' : 'Картаға'}
+        <button className="hub-exit" onClick={exit}>
+          ← {embedded
+            ? (ru ? 'К путешествию' : 'Саяхатқа')
+            : (ru ? 'На карту' : 'Картаға')}
         </button>
         <div className="hub-place">
           <b>{ru ? hud?.locationRu ?? 'Арбат' : hud?.locationKk ?? 'Арбат'}</b>
           <span className={`hub-online is-${status}`}>
-            {status === 'online'
-              ? `${online} ${ru ? 'здесь' : 'осында'}`
-              : status === 'connecting'
-                ? (ru ? 'подключаемся…' : 'қосылудамыз…')
-                : (ru ? 'играешь один' : 'жалғыз ойнап жатырсың')}
+            {place === 'arbat' && friends.length > 0
+              ? (ru
+                ? `${friends.length} друзей · ${status === 'online' ? `${online} рядом` : 'гуляй'}`
+                : `${friends.length} дос · ${status === 'online' ? `${online} жақын` : 'серуенде'}`)
+              : status === 'online'
+                ? `${online} ${ru ? 'здесь' : 'осында'}`
+                : status === 'connecting'
+                  ? (ru ? 'подключаемся…' : 'қосылудамыз…')
+                  : (ru ? 'играешь один' : 'жалғыз ойнап жатырсың')}
           </span>
         </div>
       </div>

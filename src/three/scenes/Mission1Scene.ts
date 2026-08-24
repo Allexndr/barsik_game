@@ -1118,7 +1118,10 @@ export class Mission1Scene extends BaseLevelScene {
 
     this.updateAmbient(dt, now);
 
-    if (this.phase === 'intro') {
+    // Cinematic intro only while the hero is still at spawn. As soon as the
+    // player walks (or QA teleports to a corner), follow — otherwise the hero
+    // leaves the locked intro frustum (`hero-off-frame` block at map edges).
+    if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [new THREE.Vector3(-12, 8, 20), new THREE.Vector3(-5, 6, 12), new THREE.Vector3(-1, 5.5, 8)];
       const introLook = [new THREE.Vector3(-3, 1.8, 6), new THREE.Vector3(-1, 1.5, 4), new THREE.Vector3(0, 1.2, 3)];
@@ -1127,20 +1130,18 @@ export class Mission1Scene extends BaseLevelScene {
     } else {
       const back = this.phase === 'give_gift' || this.phase === 'invite_aya' || this.phase === 'outro' ? 8.5 : 9.5;
       const height = 6.0;
-      // Was portraitCameraOffset, which only nudged sideways and left the
-      // pitch alone — the sideways shift was never the expensive part.
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
         this.cameraLateral(this.hero.position.x) + f.lateral,
         height * f.heightMul,
         this.hero.position.z + back + f.backAdd,
       );
-      this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
-      this.camera.lookAt(
+      const look = new THREE.Vector3(
         this.hero.position.x - f.lateral * 0.28,
         1.35 + f.lookUp,
         this.hero.position.z - 0.8 - f.lookAhead,
       );
+      this.updateCamera(target, look, 0.0015, dt);
     }
 
     this.renderFrame();

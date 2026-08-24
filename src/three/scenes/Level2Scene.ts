@@ -2023,8 +2023,9 @@ export class Level2Scene extends BaseLevelScene {
     // Ambient updates
     this.updateAmbient(dt, now);
 
-    // Camera
-    if (this.phase === 'intro') {
+    // Cinematic only until the first step — locked intro frustum caused
+    // `hero-off-frame` when the hero (or QA teleport) left spawn.
+    if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [
         new THREE.Vector3(-10, 7, 16),
@@ -2039,21 +2040,18 @@ export class Level2Scene extends BaseLevelScene {
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
       this.camera.lookAt(introLook[idx]);
     } else {
-      // Same framing as the rest of the season: a tall or short frame needs a
-      // flatter, further-back camera, or the desktop pitch spends the lower
-      // third of the screen on ground directly in front of the hero.
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
         this.cameraLateral(this.hero.position.x) + f.lateral,
         5.5 * f.heightMul,
         this.hero.position.z + 9 + f.backAdd,
       );
-      this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
-      this.camera.lookAt(
+      const look = new THREE.Vector3(
         this.hero.position.x,
         1.3 + f.lookUp,
         this.hero.position.z - 0.5 - f.lookAhead,
       );
+      this.updateCamera(target, look, 0.0015, dt);
     }
 
     this.renderFrame();

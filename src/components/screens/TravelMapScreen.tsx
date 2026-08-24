@@ -64,7 +64,7 @@ const CHAPTERS: {
   },
   {
     name: { ru: 'Город Друзей', kk: 'Достар қаласы' },
-    color: '#6c5ce7',
+    color: '#5fbf7a',
     levels: 1,
     bg: '/assets/map/chapter6_friends_city.jpg?v=20260814',
     labelFill: '#3a2e7a',
@@ -619,9 +619,11 @@ export function TravelMapScreen() {
               const chapterColor = CHAPTERS[pin.chapterIdx].color;
               if (pin.status === 'fog') {
                 return (
-                  <circle key={pin.id} cx={pin.x} cy={pin.y} r="5" fill="#c9c2ff" opacity="0.35" />
+                  <circle key={pin.id} cx={pin.x} cy={pin.y} r="5" fill="#9bb8c9" opacity="0.4" />
                 );
               }
+
+              const r = pin.status === 'current' ? 20 : 15;
 
               return (
                 <g
@@ -630,46 +632,50 @@ export function TravelMapScreen() {
                   onClick={() => handlePinClick(pin.id)}
                   style={{ cursor: pin.status !== 'near' ? 'pointer' : 'default' }}
                 >
-                  {pin.status === 'current' && (
-                    <circle cx={pin.x} cy={pin.y} r="22" className="pin-pulse-ring" fill="none" />
-                  )}
-                  <circle
-                    cx={pin.x}
-                    cy={pin.y}
-                    r={pin.status === 'current' ? 20 : 15}
-                    fill={
-                      pin.status === 'current' ? '#fff' : pin.status === 'near' ? '#e4e1ff' : chapterColor
-                    }
-                  />
-                  <circle
-                    cx={pin.x}
-                    cy={pin.y}
-                    r={pin.status === 'current' ? 20 : 15}
-                    fill="none"
-                    stroke={pin.status === 'current' ? chapterColor : '#fff'}
-                    strokeWidth={pin.status === 'current' ? 4 : 2}
-                  />
-                  {pin.status === 'completed' && (
-                    <g transform={`translate(${pin.x - 7}, ${pin.y - 7}) scale(0.6)`}>
-                      <IconCheckPath />
-                    </g>
-                  )}
-                  {pin.status === 'near' && (
-                    <g transform={`translate(${pin.x - 6}, ${pin.y - 6}) scale(0.5)`}>
-                      <IconLockPath />
-                    </g>
-                  )}
-                  {pin.status === 'current' && (
-                    <text
-                      x={pin.x}
-                      y={pin.y + 5}
-                      textAnchor="middle"
-                      className="pin-number-current"
-                      fill={chapterColor}
-                    >
-                      {pin.id + 1}
-                    </text>
-                  )}
+                  {/* Stable hit area — larger than visual, never scaled */}
+                  <circle className="pin-hit" cx={pin.x} cy={pin.y} r={r + 10} />
+                  <g className="pin-visual">
+                    {pin.status === 'current' && (
+                      <circle cx={pin.x} cy={pin.y} r="22" className="pin-pulse-ring" fill="none" />
+                    )}
+                    <circle
+                      cx={pin.x}
+                      cy={pin.y}
+                      r={r}
+                      fill={
+                        pin.status === 'current' ? '#fff' : pin.status === 'near' ? '#e8f4f8' : chapterColor
+                      }
+                    />
+                    <circle
+                      cx={pin.x}
+                      cy={pin.y}
+                      r={r}
+                      fill="none"
+                      stroke={pin.status === 'current' ? chapterColor : '#fff'}
+                      strokeWidth={pin.status === 'current' ? 4 : 2}
+                    />
+                    {pin.status === 'completed' && (
+                      <g transform={`translate(${pin.x - 7}, ${pin.y - 7}) scale(0.6)`}>
+                        <IconCheckPath />
+                      </g>
+                    )}
+                    {pin.status === 'near' && (
+                      <g transform={`translate(${pin.x - 6}, ${pin.y - 6}) scale(0.5)`}>
+                        <IconLockPath />
+                      </g>
+                    )}
+                    {pin.status === 'current' && (
+                      <text
+                        x={pin.x}
+                        y={pin.y + 5}
+                        textAnchor="middle"
+                        className="pin-number-current"
+                        fill={chapterColor}
+                      >
+                        {pin.id + 1}
+                      </text>
+                    )}
+                  </g>
                 </g>
               );
             })}
@@ -686,7 +692,7 @@ export function TravelMapScreen() {
                 <g className="pin-here">
                   <path
                     d="M0 30 C-14 30 -18 16 -18 6 A18 18 0 1 1 18 6 C18 16 14 30 0 30 Z"
-                    fill="#6c5ce7"
+                    fill="#2aa8d8"
                     stroke="#fff"
                     strokeWidth="3"
                   />

@@ -15,8 +15,9 @@ import { SoftGateModal } from '@/components/SoftGateModal';
 import { SoftGateController } from '@/components/SoftGateController';
 import './GamePage.css';
 
-const CityScreen = lazy(() =>
-  import('@/components/screens/CityScreen').then((module) => ({ default: module.CityScreen })),
+/** «Город» = Арбат-хаб с подлокациями и друзьями (не пустая поляна CityScreen). */
+const HubScreen = lazy(() =>
+  import('@/components/screens/HubScreen').then((module) => ({ default: module.HubScreen })),
 );
 
 export function GamePage() {
@@ -46,7 +47,7 @@ export function GamePage() {
               {activeTab === 'friends' && <FriendsScreen />}
               {activeTab === 'city' && (
                 <Suspense fallback={<LoadingOverlay />}>
-                  <CityScreen />
+                  <HubScreen embedded />
                 </Suspense>
               )}
               {activeTab === 'shop' && <ShopScreen />}
