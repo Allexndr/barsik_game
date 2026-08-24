@@ -31,7 +31,7 @@ full golden-route evidence separate from touch smoke evidence.
 | 6 | Reachable clue/riddle route, wrong-answer recovery and distant shadow budget | Full, 71.02 s, 0 errors | Full 3/3 clues + 3/3 riddles + real wrong-answer recovery, 222.37 s, 0 errors | Certified in both tested browser profiles |
 | 7 | Connected stealth route, trust recovery, choice and photographs | Full, 144.31 s, 0 errors | Full, 173.76 s, 0 errors | Certified in both tested browser profiles |
 | 8 | Festival boundary, lanterns, garlands, fruit loop, gathering/photo and texture budget | Full, 75.52 s, 0 errors | Full, 265.91 s, 12 interactions, 0 errors; ambient shadow casters 152→58 | Certified in both tested browser profiles |
-| 9 | Twelve reachable berries, three guardian branches/trades, honest chest bypass and persistent pickups | Full, including wrong-symbol reset, 0 errors | First pickup plus reload/resource contract | Mobile guardians/chest/outro route still required |
+| 9 | Twelve reachable berries, three guardian branches/trades, honest chest bypass and persistent pickups | Full, including wrong-symbol reset, 0 errors | Full, 319.11 s, 16 interactions, 1 wrong-lock recovery, 0 errors; ambient shadow casters 132→41 | Certified in both tested browser profiles |
 | 10 | 21-step farewell clearing, five memories/gifts/farewells and exit map | Full, 0 errors | First gift plus touch movement/orbit | Mobile full farewell route still required |
 | 11 | Honest catch heights, build-state snowman, golden catch, visible boundary and shadow budget | Full, 87.70 s, 0 errors | Full, 58.17 s, 0 errors | Certified in both tested browser profiles |
 | 12 | Camera-relative ice physics, shared collision resolver, ordered crystals and physical finish gate | Full, 198.54 s, 0 errors | Full, 221.93 s, 0 errors | Certified in both tested browser profiles |
@@ -60,7 +60,7 @@ full golden-route evidence separate from touch smoke evidence.
 
 ### P0 — required before calling Season 1 bug-free
 
-1. Run the missing full mobile golden routes for Levels 9–10. Do not
+1. Run the missing full mobile golden route for Level 10. Do not
    promote touch smoke to completion evidence.
 2. Complete one continuous new-save run from onboarding through Level 16 on
    the production build. Verify progress persistence, both keys, friends,
@@ -122,5 +122,5 @@ full golden-route evidence separate from touch smoke evidence.
 The first-season scene work is substantial and test-backed, but the honest
 answer is **not yet "everything is closed and optimization is at the maximum"**.
 The code and authored-content foundation are ready for an integration release
-candidate. Gold-master status waits on the two incomplete mobile routes, one
+candidate. Gold-master status waits on the one incomplete mobile route, one
 continuous save run and real-device performance/audio QA.

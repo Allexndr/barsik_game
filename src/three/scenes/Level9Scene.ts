@@ -374,6 +374,13 @@ export class Level9Scene extends BaseLevelScene {
     this.camera.position.set(9, 8, 17);
     this.pathCorridor = routeX;
     this.pathCorridorHalf = 2.2;
+    // Level 9 is a search forest, not a single-file corridor. The old
+    // corridor clamp allowed the central trail but snapped Barsik back when a
+    // berry branch turned sideways, even though the branch had a marker and a
+    // reserved clearing. Use one visible arena ring for movement instead: all
+    // berries, shrines and the chest fit inside it, and the tree wall explains
+    // the boundary to a child instead of behaving like an invisible fence.
+    this.playArena = { x: 0, z: -20, r: 33.5 };
     await this.setupForestEnvironment(loader, {
       flatRadius: 11,
       flatCenterZ: CHEST_Z,
@@ -776,8 +783,21 @@ export class Level9Scene extends BaseLevelScene {
       this.scene.add(bf);
     }
 
+    // The search forest is readable from its focal shrines, guardians, lock
+    // pillars and chest. The generic 28-tree/12-prop dressing is depth-only;
+    // allowing every distant mesh to cast made the berry quest submit 132
+    // shadow casters on mobile. Keep the dressing lit, but make it
+    // receiving-only so the open arena retains volume without a full shadow
+    // draw for every background asset.
+    const ambientShadowStart = this.scene.children.length;
     await this.loadTrees(loader, 28, 20, -18, 4.6);
     await this.loadProps(loader, 12, 6, 34, -18);
+    for (const root of this.scene.children.slice(ambientShadowStart)) {
+      root.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (mesh.isMesh) mesh.castShadow = false;
+      });
+    }
 
     await this.placeProps(loader, [
       { key: 'map_scroll', opts: { x: -3.2, z: SPAWN_Z - 4, maxSize: 0.6, y: 0.15 } },
@@ -802,7 +822,7 @@ export class Level9Scene extends BaseLevelScene {
     this.hero.position.set(start.x, this.groundHeightAt(start.x, start.z), start.z);
     // The wall. Planted last, so it can read the corridor and every room the
     // level reserved and hug the outside of both.
-    await this.encloseLevel(loader);
+    await this.encloseArena(loader, 3);
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
     this.activate(() => {
