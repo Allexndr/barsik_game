@@ -27,8 +27,9 @@
 сканирует все файлы `src/three/scenes/*.ts`, находит каждый `copy(ru, kk)`,
 хэширует нормализованный текст в id (`voiceLines.ts: lineId`) и пишет
 `public/assets/voice/manifest.json`. `scripts/synth-voice.mjs` рендерит
-недостающие клипы через `say` (голоса Milena/ru и Aru/kk, оба стоят на этой
-машине) + ffmpeg → `public/assets/voice/{ru,kk}/<id>.mp3`.
+недостающие клипы через **Edge neural TTS** (`edge-tts`: `ru-RU-SvetlanaNeural`,
+`kk-KZ-AigulNeural`) + ffmpeg → `public/assets/voice/{ru,kk}/<id>.mp3`.
+Fallback для офлайн-сборки: `say` Milena/Aru (`--backend apple`).
 
 В браузере `AudioManager.tts(text, lang, nick)` сперва ищет готовый клип по
 `lineId(text, lang, nick)`; если файла нет или он не проигрался — откатывается

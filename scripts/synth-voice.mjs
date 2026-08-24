@@ -11,30 +11,32 @@
  *
  * Backends, in the order they are worth using:
  *
- *   apple  (default, macOS)  `say` with Milena (ru) and Aru (kk). Aru is a
- *          real Kazakh voice and it is already on the machine, which makes
- *          this the only backend that can be run and checked end to end
- *          without downloading a model. Good enough to ship; not the best
- *          available.
- *   piper  Offline neural TTS. Better Russian than Apple's. Note the licence
- *          moved to GPL-3.0 in the maintained fork, which matters if the
- *          pack is redistributed — check before shipping.
+ *   edge   (default)  Microsoft Edge neural voices via `edge-tts`.
+ *          Real RU + KK: ru-RU-SvetlanaNeural, kk-KZ-AigulNeural.
+ *          Free CLI, no API key. Best quality available without a paid
+ *          cloud account. Needs network while rendering; runtime stays
+ *          offline (clips ship in public/assets/voice/).
+ *   apple  macOS `say` with Milena (ru) and Aru (kk). Offline, quick
+ *          smoke builds. Robotic vs Edge neural — keep as fallback.
+ *   piper  Offline neural TTS. Better Russian than Apple's. GPL-3.0
+ *          on the maintained fork — check before redistributing.
  *          https://github.com/rhasspy/piper
  *   issai  KazakhTTS2 from Nazarbayev University: 270 hours, five voices,
- *          commercial use permitted, and Kazakhstani. The right answer for
- *          Kazakh; needs a Python environment and a model download.
+ *          commercial use permitted. Needs Python + model download.
  *          https://arxiv.org/pdf/2201.05771
  *
  * The manifest is the contract, so switching backends re-renders the same
  * ids and the game needs no change.
  *
  * Usage:
- *   node scripts/synth-voice.mjs                 # everything missing
+ *   node scripts/synth-voice.mjs                 # everything missing (edge)
  *   node scripts/synth-voice.mjs --force         # re-render all
  *   node scripts/synth-voice.mjs --lang kk       # one language
+ *   node scripts/synth-voice.mjs --backend apple
  *   node scripts/synth-voice.mjs --backend piper --piper-ru <model.onnx>
+ *   node scripts/synth-voice.mjs --concurrency 6
  */
-import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync, statSync, renameSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join, relative } from 'node:path';
@@ -61,6 +63,12 @@ const has = (name) => process.argv.includes(`--${name}`);
 const APPLE_VOICE = { ru: arg('apple-ru', 'Milena'), kk: arg('apple-kk', 'Aru') };
 const RATE = Number(arg('rate', '165'));
 
+/** Edge neural — kid-friendly female voices for both languages. */
+const EDGE_VOICE = {
+  ru: arg('edge-ru', 'ru-RU-SvetlanaNeural'),
+  kk: arg('edge-kk', 'kk-KZ-AigulNeural'),
+};
+
 async function synthApple(text, lang, aiff) {
   // No --data-format: `say` rejects it here with "Opening output file failed:
   // fmt?" and writes a zero-byte file. ffmpeg resamples on the next step
@@ -74,15 +82,69 @@ async function synthPiper(text, lang, wav) {
   await run('sh', ['-c', `printf %s ${JSON.stringify(text)} | piper --model ${JSON.stringify(model)} --output_file ${JSON.stringify(wav)}`]);
 }
 
+/**
+ * Edge neural TTS. Writes mp3 directly; we still pass through ffmpeg for
+ * silence trim + bitrate so the pack stays uniform with other backends.
+ * Retries with backoff — Microsoft throttles bursty free-tier traffic.
+ */
+async function synthEdge(text, lang, mp3) {
+  const attempts = Math.max(1, Number(arg('retries', '5')));
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await run('edge-tts', [
+        '--voice', EDGE_VOICE[lang],
+        '--text', text,
+        '--write-media', mp3,
+      ], { timeout: 90_000 });
+      return;
+    } catch (e) {
+      lastErr = e;
+      const wait = 1500 * (i + 1) * (i + 1); // 1.5s, 6s, 13.5s, …
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+  throw lastErr;
+}
+
+async function encodeClip(raw, out) {
+  // Sibling temp must keep a real audio extension — ffmpeg refuses
+  // `.mp3.partial` ("Unable to choose an output format").
+  const tmpOut = `${out}.part.mp3`;
+  // 48 kbps mono is plenty for a single voice and keeps the whole pack
+  // small enough to ship with the app rather than stream.
+  await run('ffmpeg', [
+    '-y', '-loglevel', 'error', '-i', raw,
+    '-ac', '1', '-ar', '22050', '-b:a', '48k',
+    // Trim leading/trailing silence so six hundred clips don't each start
+    // with a pause that makes the game feel sluggish.
+    '-af', 'silenceremove=start_periods=1:start_silence=0.05:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_silence=0.05:start_threshold=-45dB,areverse',
+    tmpOut,
+  ]);
+  renameSync(tmpOut, out);
+}
+
+async function mapPool(items, concurrency, fn) {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      await fn(items[idx], idx);
+    }
+  });
+  await Promise.all(workers);
+}
+
 async function main() {
   if (!existsSync(MANIFEST)) {
     console.error('No manifest. Run: node scripts/extract-voice-lines.mjs');
     process.exit(1);
   }
   const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
-  const backend = arg('backend', 'apple');
+  const backend = arg('backend', 'edge');
   const onlyLang = arg('lang', null);
   const force = has('force');
+  const concurrency = Math.max(1, Number(arg('concurrency', backend === 'edge' ? '2' : '1')));
 
   // Fail before rendering six hundred clips, not after the first one.
   try {
@@ -101,6 +163,15 @@ async function main() {
       }
     }
   }
+  if (backend === 'edge') {
+    try {
+      await run('edge-tts', ['--version']);
+    } catch {
+      console.error('edge-tts not found. Install: pipx install edge-tts  (or brew/pip)');
+      process.exit(1);
+    }
+    console.log(`Edge voices: ru=${EDGE_VOICE.ru}  kk=${EDGE_VOICE.kk}`);
+  }
 
   mkdirSync(join(VOICE, 'ru'), { recursive: true });
   mkdirSync(join(VOICE, 'kk'), { recursive: true });
@@ -108,53 +179,64 @@ async function main() {
   const entries = Object.entries(manifest.lines).filter(
     ([, l]) => !onlyLang || l.lang === onlyLang,
   );
-  let done = 0, skipped = 0, failed = 0, bytes = 0;
 
-  for (const [id, line] of entries) {
+  console.log(`Backend=${backend}  clips=${entries.length}  concurrency=${concurrency}  force=${force}`);
+
+  let done = 0, skipped = 0, failed = 0, bytes = 0;
+  const failures = [];
+
+  await mapPool(entries, concurrency, async ([id, line]) => {
     const out = join(VOICE, line.lang, `${id}.mp3`);
     if (!force && existsSync(out)) {
       skipped++;
       bytes += statSync(out).size;
-      continue;
+      return;
     }
-    const raw = join(tmpdir(), `barsik-${id}.${backend === 'apple' ? 'aiff' : 'wav'}`);
+    const ext = backend === 'apple' ? 'aiff' : backend === 'piper' ? 'wav' : 'mp3';
+    const raw = join(tmpdir(), `barsik-${process.pid}-${id}.${ext}`);
     try {
       if (backend === 'apple') await synthApple(line.text, line.lang, raw);
       else if (backend === 'piper') await synthPiper(line.text, line.lang, raw);
+      else if (backend === 'edge') await synthEdge(line.text, line.lang, raw);
       else throw new Error(`unknown backend: ${backend}`);
 
-      // 48 kbps mono is plenty for a single voice and keeps the whole pack
-      // small enough to ship with the app rather than stream.
-      await run('ffmpeg', [
-        '-y', '-loglevel', 'error', '-i', raw,
-        '-ac', '1', '-ar', '22050', '-b:a', '48k',
-        // Trim the silence Apple's renderer leaves at both ends; six hundred
-        // clips each starting with a pause makes the game feel sluggish.
-        '-af', 'silenceremove=start_periods=1:start_silence=0.05:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_silence=0.05:start_threshold=-45dB,areverse',
-        out,
-      ]);
+      await encodeClip(raw, out);
       bytes += statSync(out).size;
       done++;
     } catch (e) {
       failed++;
-      console.error(`\n  ${id} (${line.lang}) "${line.text.slice(0, 40)}…": ${e.message.split('\n')[0]}`);
+      const msg = (e.message || String(e)).split('\n')[0];
+      failures.push(`${id} (${line.lang}): ${msg}`);
+      if (failures.length <= 8) {
+        console.error(`\n  ${id} (${line.lang}) "${line.text.slice(0, 40)}…": ${msg}`);
+      }
     } finally {
       try { unlinkSync(raw); } catch { /* already gone */ }
     }
-    if ((done + skipped) % 25 === 0) {
-      process.stdout.write(`\r  ${done + skipped}/${entries.length}   `);
+    const n = done + skipped + failed;
+    if (n % 25 === 0 || n === entries.length) {
+      process.stdout.write(`\r  ${n}/${entries.length} (ok ${done}, skip ${skipped}, fail ${failed})   `);
     }
-  }
+  });
 
   console.log(`\nRendered ${done}, kept ${skipped}, failed ${failed}`);
   console.log(`Pack size: ${(bytes / 1024 / 1024).toFixed(1)} MB across ${entries.length} clips`);
-  if (failed) process.exit(1);
+  if (failed) {
+    for (const f of failures.slice(0, 20)) console.error(`  ${f}`);
+    if (failures.length > 20) console.error(`  …and ${failures.length - 20} more`);
+    process.exit(1);
+  }
 
   // A marker the runtime can fetch to know a pack was built, without probing
   // six hundred URLs.
   writeFileSync(
     join(VOICE, 'built.json'),
-    JSON.stringify({ at: new Date().toISOString(), backend, clips: entries.length }, null, 1),
+    JSON.stringify({
+      at: new Date().toISOString(),
+      backend,
+      voices: backend === 'edge' ? EDGE_VOICE : backend === 'apple' ? APPLE_VOICE : undefined,
+      clips: entries.length,
+    }, null, 1),
   );
   console.log(`Wrote ${relative(ROOT, join(VOICE, 'built.json'))}`);
 }
