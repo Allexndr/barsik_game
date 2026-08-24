@@ -91,6 +91,7 @@ registerLocation({
     const solid: THREE.BufferGeometry[] = [];
     const glow: THREE.BufferGeometry[] = [];
     const colliders: Collider[] = [];
+    const treeSpots: Array<{ x: number; z: number }> = [];
 
     solid.push(...buildPaving(ARBAT_HALF_W, ARBAT_FROM, ARBAT_TO));
     solid.push(...buildGate(ARBAT_FROM - 2, ARBAT_HALF_W + 1.2));
@@ -130,6 +131,7 @@ registerLocation({
         if (Math.abs(z - gap) < 4.4) continue;
         solid.push(...buildTree(side * 7.3, z, 0.92 + ((z * 7) % 5) * 0.04));
         colliders.push({ kind: 'circle', x: side * 7.3, z, r: 0.55 });
+        treeSpots.push({ x: side * 7.3, z });
       }
     }
     for (let z = ARBAT_FROM - 8, k = 0; z > ARBAT_TO + 6; z -= 12, k++) {
@@ -188,7 +190,7 @@ registerLocation({
         colliders.push({ kind: 'aabb', x: side * (ARBAT_HALF_W + 7.5), z: gz + s * 4.6, halfW: 7.5, halfD: 1.2 });
       }
     }
-    return { solid, glow, colliders };
+    return { solid, glow, colliders, treeSpots };
   },
 });
 
@@ -215,6 +217,7 @@ registerLocation({
     const solid: THREE.BufferGeometry[] = [];
     const glow: THREE.BufferGeometry[] = [];
     const colliders: Collider[] = [];
+    const treeSpots: Array<{ x: number; z: number }> = [];
 
     solid.push(...buildPaving(PAN_HALF_W, PAN_FROM, PAN_TO));
 
@@ -249,6 +252,7 @@ registerLocation({
         if (side > 0 && Math.abs(z - PAN_GAP_PARK) < 4.4) continue;
         solid.push(...buildTree(side * 6.2, z, 1.0));
         colliders.push({ kind: 'circle', x: side * 6.2, z, r: 0.55 });
+        treeSpots.push({ x: side * 6.2, z });
       }
     }
     for (let z = PAN_FROM - 7, k = 0; z > PAN_TO + 6; z -= 11, k++) {
@@ -279,7 +283,7 @@ registerLocation({
     for (const s of [-1, 1]) {
       colliders.push({ kind: 'aabb', x: PAN_HALF_W + 7, z: PAN_GAP_PARK + s * 4.6, halfW: 7, halfD: 1.2 });
     }
-    return { solid, glow, colliders };
+    return { solid, glow, colliders, treeSpots };
   },
 });
 
@@ -377,6 +381,24 @@ registerLocation({
     createCarousel('park-carousel', -42, -38),
     createSwing('park-swing', -26, -36),
   ],
+  grassArea: {
+    xMin: -56, xMax: 56, zMin: -58, zMax: 46,
+    // Та же логика, что уже держит деревья вне дорожек и построек — трава
+    // растёт ровно там же, где стоят деревья, и это не совпадение: и то,
+    // и другое обязано остаться на газоне, а не на аллее или в соборе.
+    grow: (x, z) => {
+      if (Math.abs(z) < 3.4 || Math.abs(x) < 3.4) return false;
+      if (Math.abs(Math.abs(x) - Math.abs(z)) < 3.6) return false;
+      if (Math.hypot(x - 20, z - 22) < 10) return false;
+      if (Math.hypot(x + 22, z - 22) < 17) return false;
+      if (Math.hypot(x - 30, z - 26) < 11) return false;
+      if (Math.hypot(x - 20, z - 11.5) < 4.6) return false;
+      if (Math.hypot(x + 42, z + 38) < 5.4) return false;
+      if (Math.hypot(x + 34, z + 30) < 4.4) return false;
+      if (Math.hypot(x + 26, z + 36) < 4.8) return false;
+      return true;
+    },
+  },
 });
 
 // ── 4. КБТУ ─────────────────────────────────────────────────────────────────
@@ -442,6 +464,19 @@ registerLocation({
     colliders.push({ kind: 'aabb', x: -42, z: 14, halfW: 2, halfD: 30 });
     colliders.push({ kind: 'aabb', x: 42, z: 14, halfW: 2, halfD: 30 });
     return { solid, glow, colliders };
+  },
+  grassArea: {
+    xMin: -42, xMax: 42, zMin: -14, zMax: 40,
+    grow: (x, z) => {
+      // Ровно два газона по бокам — та же геометрия, что и у buildLawn выше.
+      const onLawn = (z >= -6 && z <= 34) && ((x >= -42 && x <= -16) || (x >= 16 && x <= 42));
+      if (!onLawn) return false;
+      // Обе дорожки, оба фонтана со скамейками вокруг.
+      if (Math.abs(z - 20) < 3.0 && Math.abs(x) < 40) return false;
+      if (Math.hypot(x - 28, z - 12) < 8.4) return false;
+      if (Math.hypot(x + 28, z - 12) < 8.4) return false;
+      return true;
+    },
   },
 });
 
@@ -525,6 +560,22 @@ registerLocation({
     }
     void paint;
     return { solid, glow, colliders };
+  },
+  grassArea: {
+    xMin: -40, xMax: 40, zMin: -36, zMax: 36,
+    grow: (x, z) => {
+      const r = Math.hypot(x, z);
+      if (r < 10.2) return false;                                   // площадка и фонтан
+      const a = Math.atan2(z, x);
+      const nearRay = Math.abs(((a / (Math.PI * 2)) * 8) % 1 - 0.5) > 0.32;
+      if (nearRay && r < 34) return false;                           // лучевые дорожки
+      if (Math.hypot(x + 22, z + 20) < 15) return false;              // театр
+      if (Math.hypot(x + 22, z + 10) < 11) return false;              // фойе и афишные тумбы
+      if (Math.hypot(x - 18, z + 16) < 4.4) return false;             // балансир
+      if (Math.hypot(x - 24, z + 22) < 4.8) return false;             // качели
+      if (Math.hypot(x - 14, z + 24) < 5.4) return false;             // карусель
+      return true;
+    },
   },
   rides: () => [
     createSeesaw('tyuz-seesaw', 18, -16),
