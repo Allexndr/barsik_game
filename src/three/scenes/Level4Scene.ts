@@ -534,7 +534,12 @@ export class Level4Scene extends BaseLevelScene {
 
   private isSectionSafe(s: BridgeSection): boolean {
     if (s.locked) return true;
-    const cycle = s.swaySpeed * this.bridgeElapsedMs / 1000 + s.swayPhase;
+    // Durations are authored in seconds. Scaling elapsed time by swaySpeed
+    // silently shortened the last green window from 1.6 s to 0.8 s — too
+    // little for a child to read the signal, move a thumb and cross on touch.
+    // Sway speed still controls the visible motion in updateSections; it must
+    // not also change the gameplay clock.
+    const cycle = this.bridgeElapsedMs / 1000 + s.swayPhase;
     const t = cycle % (s.safeDuration + s.unsafeDuration);
     return t < s.safeDuration;
   }
@@ -1111,6 +1116,16 @@ export class Level4Scene extends BaseLevelScene {
             const at = this.colliders.indexOf(this.barrierCollider);
             if (at >= 0) this.colliders.splice(at, 1);
             this.barrierCollider = null;
+          }
+        }
+        if (this.phase === 'bridge') {
+          // A late bridge sample must not point back to section zero. Match
+          // the same exit edge updateCrossing uses, leaving the section under
+          // Barsik (if any) active for an honest timing check.
+          for (const s of this.sections) {
+            if (start.z >= s.z - TILE / 2) continue;
+            s.crossed = true;
+            this.sectionsCrossed += 1;
           }
         }
         if (this.phase === 'winch') {
