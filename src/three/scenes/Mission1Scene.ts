@@ -319,7 +319,12 @@ export class Mission1Scene extends BaseLevelScene {
     const p = this.phase;
     if (p === 'trail1') return this.checkpoints[0].clone();
     if (p === 'trail2') return this.checkpoints[1].clone();
-    if (p === 'creek') return new THREE.Vector3(0, 0, -18);
+    // The bridge centre is a staging point, not the end of the crossing. The
+    // phase advances only after Barsik reaches the far bank (`z < -20`), so a
+    // guide arrow that stopped at -18 could leave a child standing on the
+    // bridge with no visible reason to keep moving. Point beyond the bank and
+    // let the next objective (the stuck fruit) take over after the crossing.
+    if (p === 'creek') return new THREE.Vector3(0, 0, -22.5);
     if (p === 'thicket' && this.stuckFruit) return this.stuckFruit.position.clone();
     if ((p === 'find_aya' || p === 'give_gift' || p === 'invite_aya') && this.aya) return this.aya.position.clone();
     return null;
