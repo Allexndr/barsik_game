@@ -930,14 +930,14 @@ export class Level4Scene extends BaseLevelScene {
     // above, or most of the requested blades would be discarded on placement
     // and the count would quietly mean nothing.
     this.setupWindGrass({
-      count: this.isMobile ? 2600 : 7000,
+      count: this.grassCountForTier(this.isMobile ? 2600 : 7000),
       area: { xMin: -30, xMax: 30, zMin: 6, zMax: 32 },
     });
     // Shorter blades on the far bank. Act III's two objects — the windlass and
     // Aya — both stand there, and at the near bank's blade height the grass
     // came up past Aya's waist from the camera's angle and swallowed her.
     this.setupWindGrass({
-      count: this.isMobile ? 2000 : 5200,
+      count: this.grassCountForTier(this.isMobile ? 2000 : 5200),
       area: { xMin: -26, xMax: 26, zMin: -38, zMax: -20 },
       bladeHeight: [0.2, 0.42],
     });
