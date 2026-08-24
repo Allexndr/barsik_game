@@ -779,10 +779,10 @@ export class Level3Scene extends BaseLevelScene {
       }
     }
 
-    // Bob bonus collectibles
+    // Bob bonus collectibles, riding the sculpted ground rather than a flat y = 0
     for (const b of this.bonusCollectibles) {
       if (!b.userData.alive || !b.visible) continue;
-      b.position.y = 0.5 + Math.sin(now * 0.005 + b.position.x) * 0.1;
+      b.position.y = this.groundHeightAt(b.position.x, b.position.z) + 0.5 + Math.sin(now * 0.005 + b.position.x) * 0.1;
       b.rotation.y += dt * 1.5;
     }
 
@@ -797,7 +797,8 @@ export class Level3Scene extends BaseLevelScene {
           this.revealStartedAt = 0;
         }
       }
-      this.hedgehogMesh.position.y = Math.sin(now * 0.005) * 0.05;
+      this.hedgehogMesh.position.y = this.groundHeightAt(this.hedgehogMesh.position.x, this.hedgehogMesh.position.z)
+        + Math.sin(now * 0.005) * 0.05;
       this.hedgehogMesh.rotation.y = Math.sin(now * 0.001) * 0.2;
       const character = this.hedgehogMesh.userData.character as THREE.Object3D | undefined;
       if (character) updatePlushAnimal(character, false, now * 0.001);

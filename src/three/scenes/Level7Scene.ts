@@ -853,7 +853,6 @@ export class Level7Scene extends BaseLevelScene {
       const rate = this.phase === 'approach' && this.putaloState === 'peeking' ? 1.1 : 2.4;
       this.putalo.position.x += (this.putaloTargetX - this.putalo.position.x) * dt * rate;
       this.putalo.position.z += (this.putaloTargetZ - this.putalo.position.z) * dt * rate;
-      this.putalo.position.y = this.groundHeightAt(this.putalo.position.x, this.putalo.position.z);
 
       // Putalo faces hero when out
       if (this.putaloState === 'out' || this.putaloState === 'talking') {
@@ -864,8 +863,9 @@ export class Level7Scene extends BaseLevelScene {
         this.putalo.rotation.y = 0;
       }
 
-      // Putalo bobbing
-      this.putalo.position.y = Math.sin(now * 0.002) * 0.03;
+      // Putalo bobbing, riding the sculpted ground rather than a flat y = 0
+      this.putalo.position.y = this.groundHeightAt(this.putalo.position.x, this.putalo.position.z)
+        + Math.sin(now * 0.002) * 0.03;
 
       // Eyes visibility based on state (procedural Putalo only)
       const eyes = this.putalo.userData.eyes as THREE.Mesh[] | undefined;
