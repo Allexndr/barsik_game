@@ -15,6 +15,8 @@ export function SettingsPanel() {
   const setVolume = useUIStore((s) => s.setVolume);
   const ttsEnabled = useUIStore((s) => s.ttsEnabled);
   const toggleTts = useUIStore((s) => s.toggleTts);
+  const freeChatEnabled = useUIStore((s) => s.freeChatEnabled);
+  const setFreeChat = useUIStore((s) => s.setFreeChat);
   const paused = useUIStore((s) => s.paused);
   const setPaused = useUIStore((s) => s.setPaused);
   const setScreen = useUIStore((s) => s.setScreen);
@@ -116,6 +118,37 @@ export function SettingsPanel() {
           <button
             className={`settings-toggle ${ttsEnabled ? 'is-on' : 'is-off'}`}
             onClick={handleTts}
+          >
+            <span className="settings-toggle-knob" />
+          </button>
+        </div>
+
+        {/*
+          Свободный чат в хабе.
+
+          Стоит отдельным блоком с пояснением, а не ещё одним тумблером в ряд:
+          это единственная настройка игры, которая меняет не удобство, а то,
+          что ребёнок может получить от постороннего. Родитель должен понимать,
+          что включает, поэтому здесь есть текст, а не только переключатель.
+
+          По умолчанию выключено. Даже включённый режим не отменяет фильтр —
+          он стоит и на отправке, и на приёме.
+        */}
+        <div className="settings-row settings-row-parent">
+          <div className="settings-parent-text">
+            <span className="settings-label">
+              {ru ? 'Свободный чат в хабе' : 'Хабта еркін чат'}
+            </span>
+            <span className="settings-hint">
+              {ru
+                ? 'Настройка для родителей. Выключено — дети общаются готовыми фразами. Включено — можно писать своими словами; фильтр остаётся, но следить за перепиской придётся вам.'
+                : 'Ата-аналарға арналған баптау. Өшірулі — балалар дайын сөйлемдермен сөйлеседі. Қосулы — өз сөзімен жазуға болады; сүзгі қалады, бірақ хат алмасуды өзіңіз қадағалауыңыз керек.'}
+            </span>
+          </div>
+          <button
+            className={`settings-toggle ${freeChatEnabled ? 'is-on' : 'is-off'}`}
+            onClick={() => setFreeChat(!freeChatEnabled)}
+            aria-label={ru ? 'Свободный чат в хабе' : 'Хабта еркін чат'}
           >
             <span className="settings-toggle-knob" />
           </button>

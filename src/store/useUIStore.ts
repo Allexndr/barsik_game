@@ -9,6 +9,7 @@ import {
 const MUTED_KEY = 'barsik_muted';
 const VOL_KEY = 'barsik_volume';
 const TTS_KEY = 'barsik_tts';
+const FREE_CHAT_KEY = 'barsik_free_chat';
 
 function readStoredMuted(): boolean {
   try {
@@ -35,8 +36,27 @@ function readStoredTts(): boolean {
   }
 }
 
+/**
+ * Свободный ввод в чате хаба.
+ *
+ * По умолчанию выключен, и это не перестраховка: игроки — дети 5–12 лет, а
+ * открытый текст между детьми это канал для травли и выманивания личных
+ * данных. Включается только осознанно, в родительском разделе настроек.
+ *
+ * Даже включённый, он не отменяет проверок: `checkText` стоит и на отправке, и
+ * на приёме, а фильтр на приёме — единственный, который нельзя обойти чужим
+ * изменённым клиентом.
+ */
+function readStoredFreeChat(): boolean {
+  try {
+    return localStorage.getItem(FREE_CHAT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export interface UIState {
-  currentScreen: 'welcome' | 'quick' | 'mission0' | 'mission1' | 'mission2' | 'mission3' | 'mission4' | 'mission5' | 'mission6' | 'mission7' | 'mission8' | 'mission9' | 'mission10' | 'mission11' | 'mission12' | 'mission13' | 'mission14' | 'mission15' | 'mission16' | 'mission' | 'game';
+  currentScreen: 'welcome' | 'quick' | 'mission0' | 'mission1' | 'mission2' | 'mission3' | 'mission4' | 'mission5' | 'mission6' | 'mission7' | 'mission8' | 'mission9' | 'mission10' | 'mission11' | 'mission12' | 'mission13' | 'mission14' | 'mission15' | 'mission16' | 'mission' | 'game' | 'hub';
   activeTab: 'travel' | 'friends' | 'city' | 'shop' | 'leaderboard' | 'qr' | 'episode';
   showEpisode: boolean;
   episodeId: number | null;
@@ -46,6 +66,7 @@ export interface UIState {
   muted: boolean;
   volume: number;
   ttsEnabled: boolean;
+  freeChatEnabled: boolean;
   showSettings: boolean;
   paused: boolean;
 
@@ -60,6 +81,7 @@ export interface UIState {
   toggleMuted: () => void;
   setVolume: (v: number) => void;
   toggleTts: () => void;
+  setFreeChat: (v: boolean) => void;
   setShowSettings: (v: boolean) => void;
   setPaused: (v: boolean) => void;
 }
@@ -75,6 +97,7 @@ export const useUIStore = create<UIState>((set) => ({
   muted: typeof window !== 'undefined' ? readStoredMuted() : false,
   volume: typeof window !== 'undefined' ? readStoredVolume() : 0.6,
   ttsEnabled: typeof window !== 'undefined' ? readStoredTts() : true,
+  freeChatEnabled: typeof window !== 'undefined' ? readStoredFreeChat() : false,
   showSettings: false,
   paused: false,
 
@@ -249,6 +272,15 @@ export const useUIStore = create<UIState>((set) => ({
         /* ignore */
       }
       return { ttsEnabled };
+    }),
+  setFreeChat: (v) =>
+    set(() => {
+      try {
+        localStorage.setItem(FREE_CHAT_KEY, v ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return { freeChatEnabled: v };
     }),
   setShowSettings: (v) => set({ showSettings: v }),
   setPaused: (v) => set({ paused: v }),

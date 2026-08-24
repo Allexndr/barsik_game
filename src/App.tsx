@@ -30,6 +30,9 @@ const Mission13Screen = lazy(() => import('@/components/Mission13Screen').then(m
 const Mission14Screen = lazy(() => import('@/components/Mission14Screen').then(m => ({ default: m.Mission14Screen })));
 const Mission15Screen = lazy(() => import('@/components/Mission15Screen').then(m => ({ default: m.Mission15Screen })));
 const Mission16Screen = lazy(() => import('@/components/Mission16Screen').then(m => ({ default: m.Mission16Screen })));
+const HubScreen = lazy(() =>
+  import('@/components/screens/HubScreen').then((mod) => ({ default: mod.HubScreen })),
+);
 
 function ScreenLoader() {
   return <LoadingOverlay />;
@@ -199,6 +202,25 @@ export function App() {
         useUIStore.getState().startEpisode(missionId);
       }
 
+      // Прямой вход в хаб для проверки: ?hub=1 — иначе до него надо пройти
+      // половину сезона, а чинить его приходится каждый раз.
+      if (params.get('hub')) {
+        const requestedLang = params.get('lang') === 'kk' ? 'kk' : 'ru';
+        const existingPlayer = useGameStore.getState().player;
+        useGameStore.setState({
+          player:
+            existingPlayer ??
+            migratePlayer({
+              id: 'qa-player',
+              nick: requestedLang === 'kk' ? 'Сынақшы' : 'Тест',
+              gender: 'boy',
+              lang: requestedLang,
+            }),
+        });
+        applyLang(requestedLang);
+        useUIStore.getState().setScreen('hub');
+      }
+
       // Switch levels without a page reload, so a QA pass over all seventeen
       // is one script instead of seventeen navigations. Reloading each time
       // is how a sweep across every level ends up never actually being run.
@@ -287,6 +309,9 @@ export function App() {
         )}
         {currentScreen === 'mission16' && (
           <Suspense fallback={<ScreenLoader />}><Mission16Screen /></Suspense>
+        )}
+        {currentScreen === 'hub' && (
+          <Suspense fallback={<ScreenLoader />}><HubScreen /></Suspense>
         )}
         {currentScreen === 'game' && <GamePage />}
       </ScreenFade>

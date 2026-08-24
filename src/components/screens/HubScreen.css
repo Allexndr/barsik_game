@@ -1,0 +1,219 @@
+/*
+ * Хаб.
+ *
+ * Интерфейс прижат к краям и не лезет в середину: середина — это улица и
+ * другие дети, ради которых сюда и приходят. Кнопки крупные (не меньше 44 px),
+ * потому что играют с телефона и пальцем.
+ */
+
+.screen-hub {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #cfe3f2;
+}
+
+.hub-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+/* ── Верх ─────────────────────────────────────────────────────────────── */
+
+.hub-top {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.hub-exit,
+.hub-place {
+  pointer-events: auto;
+  background: rgba(24, 30, 38, 0.72);
+  color: #fff;
+  border: none;
+  border-radius: 16px;
+  padding: 10px 16px;
+  font: 600 15px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  backdrop-filter: blur(6px);
+}
+
+.hub-exit {
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.hub-place {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.hub-place b {
+  font-size: 16px;
+}
+
+.hub-online {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+/* Состояние сети видно ребёнку без слов — цветом. */
+.hub-online.is-online { color: #7ee08a; }
+.hub-online.is-connecting { color: #ffd98a; }
+.hub-online.is-offline { color: #ffb0a8; }
+
+/* ── Эмоции ───────────────────────────────────────────────────────────── */
+
+.hub-emotes {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hub-emote {
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+}
+
+.hub-emote:active { transform: scale(0.93); }
+
+/* ── Чат ──────────────────────────────────────────────────────────────── */
+
+.hub-chat {
+  position: absolute;
+  left: 12px;
+  right: 78px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hub-groups,
+.hub-phrases,
+.hub-emoji {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.hub-groups::-webkit-scrollbar,
+.hub-phrases::-webkit-scrollbar,
+.hub-emoji::-webkit-scrollbar { display: none; }
+
+.hub-group {
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 14px;
+  padding: 8px 14px;
+  min-height: 36px;
+  background: rgba(24, 30, 38, 0.6);
+  color: #fff;
+  font: 600 13px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.hub-group.is-on { background: #3dcc6e; color: #10240f; }
+
+.hub-phrase {
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 16px;
+  padding: 11px 16px;
+  min-height: 44px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #1c222a;
+  font: 600 14px/1 system-ui, sans-serif;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+}
+
+.hub-phrase:active { transform: scale(0.96); }
+
+.hub-emoji-btn {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+/* ── Свободный ввод (включается родителем) ────────────────────────────── */
+
+.hub-free {
+  display: flex;
+  gap: 6px;
+}
+
+.hub-free input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  border: none;
+  border-radius: 16px;
+  padding: 0 14px;
+  font: 500 15px/1 system-ui, sans-serif;
+  background: rgba(255, 255, 255, 0.96);
+  color: #1c222a;
+}
+
+.hub-free button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  border: none;
+  border-radius: 16px;
+  padding: 0 18px;
+  background: #3dcc6e;
+  color: #10240f;
+  font: 700 14px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.hub-warn {
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: rgba(255, 176, 168, 0.94);
+  color: #47140f;
+  font: 600 13px/1.3 system-ui, sans-serif;
+}
+
+/* Телефон в портрете: эмоции уходят вниз, чтобы не спорить с чатом. */
+@media (max-width: 520px) {
+  .hub-emotes {
+    top: auto;
+    bottom: 200px;
+    transform: none;
+    flex-direction: row;
+  }
+  .hub-chat { right: 12px; }
+}
