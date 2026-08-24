@@ -1244,6 +1244,18 @@ export abstract class BaseLevelScene {
    * Wind-reactive grass over the play area, keeping clear of the corridor and
    * any reserved gameplay zones. One instanced draw call.
    */
+  /**
+   * Scale instanced grass density by render tier. Call sites that pass an
+   * explicit `count` should wrap it with this so a `low` phone is not handed
+   * the same thousands of blades as a mid-tier mobile.
+   */
+  protected grassCountForTier(base: number): number {
+    const tier = this.renderQuality?.tier ?? 'high';
+    if (tier === 'low') return Math.max(400, Math.floor(base * 0.32));
+    if (tier === 'medium') return Math.max(800, Math.floor(base * (this.isMobile ? 0.62 : 0.85)));
+    return base;
+  }
+
   protected setupWindGrass(
     opts: {
       count?: number;
@@ -1265,7 +1277,7 @@ export abstract class BaseLevelScene {
       // Denser field. Each blade is one triangle inside a single instanced
       // draw call, so +60% density costs about 8 000 triangles against scene
       // totals of 131 000–428 000, and not one extra draw call.
-      count = this.isMobile ? 8000 : 22000,
+      count = this.grassCountForTier(this.isMobile ? 8000 : 22000),
       area = { xMin: -34, xMax: 34, zMin: -46, zMax: 16 },
     } = opts;
     if (!this.renderQuality.useComposer && count <= 0) return null;
