@@ -20,6 +20,7 @@ export interface ILevelScene {
   init(nick: string, lang: 'ru' | 'kk', onHud: (h: any) => void): Promise<void>;
   setJoystick(x: number, y: number): void;
   setPaused(value: boolean): void;
+  jump(): void;
   tryInteract(): void;
   dispose(): void;
 }
@@ -358,6 +359,28 @@ export function MissionScreen({
             {lang === 'kk' ? 'Басу' : 'Нажми'}
             <small className="m0-action-keys">E · Space</small>
           </span>
+        </button>
+      ) : null}
+
+      {/* Shared Season 1 levels used to advertise Space in their HUD while
+          touch players had no jump input at all. Level 11 makes the defect a
+          hard blocker because golden flakes now require a real airborne
+          catch; keep the same large right-thumb control as the prologue. */}
+      {showStick ? (
+        <button
+          type="button"
+          className="m0-jump"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            sceneRef.current?.jump();
+          }}
+          aria-label={lang === 'kk' ? 'Секіру' : 'Прыжок'}
+        >
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 19V6" />
+            <path d="M6 12l6-6 6 6" />
+          </svg>
+          <span className="m0-jump-label">{lang === 'kk' ? 'Секіру' : 'Прыжок'}</span>
         </button>
       ) : null}
 

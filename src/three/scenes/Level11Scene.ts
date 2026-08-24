@@ -57,6 +57,9 @@ export class Level11Scene extends BaseLevelScene {
   private snowman: THREE.Object3D | null = null;
   private snowmanPos = new THREE.Vector3(0, 0, -12);
   private snowmanIsGlb = false;
+  /** Physical only once the growing snowman has a visible body. */
+  private readonly snowmanCollider = { kind: 'circle' as const, x: 0, z: -12, r: 0.45 };
+  private snowmanColliderActive = false;
   private aya: THREE.Object3D | null = null;
   private beatMsg: { ru: string; kk: string } | null = null;
   private beatUntil = 0;
@@ -94,6 +97,7 @@ export class Level11Scene extends BaseLevelScene {
     this.camera.position.set(0, 8, 17);
     this.reserve(0, -12, 5);
 
+    const winterAmbientStart = this.scene.children.length;
     await this.setupWinterEnvironment(loader, {
       clouds: 7,
       decorCount: 38,
@@ -110,14 +114,26 @@ export class Level11Scene extends BaseLevelScene {
         ],
       },
     });
-
+    // The snow-laden enclosure and drift scatter hold the valley silhouette,
+    // but redrawing every background kit piece into the shadow map made 106
+    // of 191 renderables cast. Keep them visible, physical and receiving the
+    // authored light while the focal props below retain their contact shadows.
+    for (const root of this.scene.children.slice(winterAmbientStart)) {
+      root.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = false;
+      });
+    }
     this.snowmanPos.y = this.groundHeightAt(0, -12);
     this.scene.add(zoneDisc(0, 5, 3.6, 0xe1f5fe, this.groundHeightAt(0, 5) + 0.04));
     this.scene.add(zoneDisc(0, -12, 4, 0x81d4fa, this.snowmanPos.y + 0.05));
     const pad = spawnPad(0, 5);
     this.snapToGround(pad);
     this.scene.add(pad);
-    this.scene.add(await placeWoodSign(loader, -3, 3.5, 0.3, 0xe1f5fe));
+    const entranceSign = await placeWoodSign(loader, -3, 3.5, 0.3, 0xe1f5fe);
+    entranceSign.traverse((object) => {
+      if (object instanceof THREE.Mesh) object.castShadow = false;
+    });
+    this.scene.add(entranceSign);
 
     const snowGlb = await loadPropModel(loader, 'snowman.glb', { height: 2.6 });
     this.snowman = snowGlb ?? this.makeSnowman();
@@ -125,7 +141,6 @@ export class Level11Scene extends BaseLevelScene {
     this.snowman.position.copy(this.snowmanPos);
     this.snowman.visible = false;
     this.scene.add(this.snowman);
-    this.colliders.push({ kind: 'circle', x: 0, z: -12, r: 1.1 });
 
     const ayaGlb = await loadCharModel(loader, 'aya.glb', 1.28);
     if (ayaGlb) {
@@ -205,6 +220,14 @@ export class Level11Scene extends BaseLevelScene {
     this.snowman.visible = true;
     const t = Math.min(1, built / span);
     this.snowman.scale.setScalar((this.snowmanIsGlb ? 0.35 : 0.4) + t * 0.65);
+    // Match physics to what the child can actually see. The previous full
+    // collider existed from frame one, stopping Barsik 1.55 m from an empty
+    // patch of snow before the first snowball had appeared.
+    this.snowmanCollider.r = 0.45 + t * 0.65;
+    if (!this.snowmanColliderActive) {
+      this.colliders.push(this.snowmanCollider);
+      this.snowmanColliderActive = true;
+    }
   }
 
   private spawnSnowflake(gold: boolean) {
@@ -229,7 +252,9 @@ export class Level11Scene extends BaseLevelScene {
       }),
     );
     mesh.position.set(x, this.groundHeightAt(x, z) + 8.5 + Math.random() * 1.5, z);
-    mesh.castShadow = true;
+    // At this camera distance the eight-triangle flake's moving shadow is
+    // sub-pixel; its emissive silhouette is the gameplay signal.
+    mesh.castShadow = false;
     this.scene.add(mesh);
     this.snowflakes.push({
       mesh,
@@ -242,9 +267,18 @@ export class Level11Scene extends BaseLevelScene {
     });
   }
 
-  private catchFlake(sf: Snowflake, inAir: boolean) {
+  /** Remove both the scene object and its private GPU resources. */
+  private retireSnowflake(sf: Snowflake) {
+    if (sf.caught) return;
     sf.caught = true;
     this.scene.remove(sf.mesh);
+    sf.mesh.geometry.dispose();
+    const materials = Array.isArray(sf.mesh.material) ? sf.mesh.material : [sf.mesh.material];
+    for (const material of materials) material.dispose();
+  }
+
+  private catchFlake(sf: Snowflake, inAir: boolean) {
+    this.retireSnowflake(sf);
 
     if (sf.gold) {
       this.golden++;
@@ -254,6 +288,9 @@ export class Level11Scene extends BaseLevelScene {
       if (this.golden >= this.goldenTarget) {
         this.phase = 'finish';
         this.stars += 10;
+        // Completion is a hard edge: no second flake in the same frame may
+        // award a sixth bonus while the player is already leaving the act.
+        for (const other of this.snowflakes) this.retireSnowflake(other);
         this.setBeat('Все золотые пойманы! Иди к снеговику.', 'Барлық алтын ұсталды! Аққалаға бар.');
       }
       this.pushHud();
@@ -274,6 +311,10 @@ export class Level11Scene extends BaseLevelScene {
       );
     } else if (this.caught >= this.target && this.phase === 'build') {
       this.phase = 'golden';
+      // White flakes from the six-object build cap used to count against the
+      // four-object golden cap. The advertised new act could then sit empty
+      // until every old flake landed and dissolved.
+      for (const other of this.snowflakes) this.retireSnowflake(other);
       this.setBeat(
         'Смотри — золотые снежинки! Их надо ловить в воздухе: подпрыгни!',
         'Қара — алтын ұлпалар! Оларды ауада ұстау керек: секір!',
@@ -329,6 +370,7 @@ export class Level11Scene extends BaseLevelScene {
       objective = this.copy('🧊 К ледяной тропе!', '🧊 Мұзды жолға!');
     }
 
+    const canInteract = p === 'finish' && this.hero.position.distanceTo(this.snowmanPos) < 3;
     this.onHud?.({
       phase: p, speaker, line, objective,
       caught: this.caught,
@@ -336,9 +378,9 @@ export class Level11Scene extends BaseLevelScene {
       golden: this.golden,
       goldenTarget: this.goldenTarget,
       stars: this.stars,
-      canInteract: p === 'finish' && this.hero.position.distanceTo(this.snowmanPos) < 3,
+      canInteract,
       showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'first'),
-      showActionHint: p === 'finish',
+      showActionHint: canInteract,
       outro: p === 'outro',
     });
   }
@@ -403,7 +445,11 @@ export class Level11Scene extends BaseLevelScene {
           sf.mesh.position.z - this.hero.position.z,
         );
         const reachTop = this.hero.position.y + CATCH_REACH;
-        if (flat < 1.5 && sf.mesh.position.y <= reachTop && sf.mesh.position.y > this.hero.position.y) {
+        // A golden flake teaches jump timing. Previously `inAir` described
+        // only the flake, so standing underneath it completed the challenge
+        // while the HUD explicitly said to jump.
+        const heroMayCatch = !sf.gold || this.airborne;
+        if (heroMayCatch && flat < 1.5 && sf.mesh.position.y <= reachTop && sf.mesh.position.y > this.hero.position.y) {
           this.catchFlake(sf, true);
           continue;
         }
@@ -414,8 +460,7 @@ export class Level11Scene extends BaseLevelScene {
           sf.mesh.position.y = ground;
           // A golden flake that lands is spent — that is the timing pressure.
           if (sf.gold) {
-            sf.caught = true;
-            this.scene.remove(sf.mesh);
+            this.retireSnowflake(sf);
             AudioManager.sfx('stumble');
           }
         }
@@ -430,13 +475,19 @@ export class Level11Scene extends BaseLevelScene {
       // Dissolve if left too long, so the field never silts up.
       const life = this.phase === 'first' ? 9000 : 6000;
       if (now - sf.groundedAt > life) {
-        sf.caught = true;
-        this.scene.remove(sf.mesh);
+        this.retireSnowflake(sf);
       }
+    }
+    // Retired flakes used to remain strongly referenced for the whole level,
+    // so every miss in the golden act grew the array and GPU allocation count.
+    if (this.snowflakes.some((sf) => sf.caught)) {
+      this.snowflakes = this.snowflakes.filter((sf) => !sf.caught);
     }
 
     this.updateMovement(dt, this.phase !== 'intro' && this.phase !== 'outro',
-      this.baseSpeed * 0.95, -24, 24, -30, 8);
+      // Broad numeric guards sit outside the circular visible enclosure. The
+      // old rectangle stopped Barsik 4.83 m before the east treeline.
+      this.baseSpeed * 0.95, -44, 44, -48, 26);
 
     if (this.aya) {
       this.aya.position.y = this.groundHeightAt(this.aya.position.x, this.aya.position.z)
