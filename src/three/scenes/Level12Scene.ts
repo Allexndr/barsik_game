@@ -5,12 +5,12 @@ import {
   zoneDisc,
   spawnPad,
   placeWoodSign,
-  loadPropModel,
   loadCharModel,
+  resolveCollisions,
 } from './BaseLevelScene';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { TrailPath } from '../TrailPath';
-import { CAST_PROP_GLB, CAST_CHAR_GLB } from '../castModels';
+import { CAST_CHAR_GLB } from '../castModels';
 import { AudioManager } from '@/audio/AudioManager';
 
 /**
@@ -26,7 +26,7 @@ import { AudioManager } from '@/audio/AudioManager';
  * teach the mechanic the level is named after.
  */
 
-export type L12Phase = 'intro' | 'learn' | 'turn' | 'run' | 'drop' | 'outro';
+export type L12Phase = 'intro' | 'learn' | 'turn' | 'run' | 'drop' | 'finish' | 'outro';
 
 export interface L12Hud extends BaseHud {
   segmentsCrossed: number;
@@ -132,6 +132,18 @@ const CRYSTALS: Array<[t: number, lateral: number]> = [
 /** Где начинается спуск — по нормали вдоль тропы. */
 const DROP_T = 0.6;
 
+/** The final arch teaches the last bend; the centre of the landmark gate ends it. */
+const FINISH_T = 0.992;
+const FINISH_HALF_WIDTH = 1.05;
+
+interface CrystalPickup {
+  t: number;
+  position: THREE.Vector3;
+  baseY: number;
+  angle: number;
+  collected: boolean;
+}
+
 export class Level12Scene extends BaseLevelScene {
   private phase: L12Phase = 'intro';
   private onHud: ((h: L12Hud) => void) | null = null;
@@ -143,7 +155,9 @@ export class Level12Scene extends BaseLevelScene {
   private readonly crystalsTotal = CRYSTALS.length;
   private velocity = new THREE.Vector3();
   private trail!: TrailPath;
-  private crystalMeshes: THREE.Object3D[] = [];
+  private crystalPickups: CrystalPickup[] = [];
+  private crystalInstances: THREE.InstancedMesh | null = null;
+  private readonly instanceDummy = new THREE.Object3D();
   private checkpointArches: THREE.Group[] = [];
   private slipped = false;
   private slipMsgUntil = 0;
@@ -164,7 +178,7 @@ export class Level12Scene extends BaseLevelScene {
     if (this.phase === 'learn') return 0.78;
     if (this.phase === 'turn') return 0.82;
     // Спуск: лёд держит скорость дольше, поэтому поворот надо начинать раньше.
-    return this.phase === 'drop' ? 0.9 : 0.85;
+    return this.phase === 'drop' || this.phase === 'finish' ? 0.9 : 0.85;
   }
 
   private static halfWidthAt(t: number) {
@@ -203,6 +217,7 @@ export class Level12Scene extends BaseLevelScene {
 
     // A snow valley with an ice ribbon running through it reads far better
     // than a level-wide sheet of ice, and keeps the trail edges legible.
+    const winterAmbientStart = this.scene.children.length;
     await this.setupWinterEnvironment(loader, {
       profile: 'iceTrail',
       ground: 'snow',
@@ -225,6 +240,14 @@ export class Level12Scene extends BaseLevelScene {
         ],
       },
     });
+    // The enclosure defines the valley silhouette and remains fully visible,
+    // but its distant tree/drift shadows consumed most of the mobile shadow
+    // pass. Keep contact shadows for Barsik and focal route landmarks instead.
+    for (const root of this.scene.children.slice(winterAmbientStart)) {
+      root.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = false;
+      });
+    }
 
     // Terrain exists now — sit the ribbon and rails on it.
     this.trail.setHeightSampler(this.groundHeightAt);
@@ -262,53 +285,80 @@ export class Level12Scene extends BaseLevelScene {
       color: 0xa8dcf5, emissive: 0x4fb8e8, emissiveIntensity: 0.3,
       transparent: true, opacity: 0.72,
     });
-    for (const t of CHECKPOINTS) {
+    const archPosts = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.1, 0.14, 1.9, 8),
+      archMat,
+      CHECKPOINTS.length * 2,
+    );
+    const archBeams = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      archMat,
+      CHECKPOINTS.length,
+    );
+    archPosts.castShadow = false;
+    archBeams.castShadow = false;
+    for (const [index, t] of CHECKPOINTS.entries()) {
       const arch = new THREE.Group();
       const half = Level12Scene.halfWidthAt(t);
-      for (const side of [-1, 1] as const) {
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 1.9, 8), archMat);
-        post.position.set(side * half, 0.95, 0);
-        arch.add(post);
-      }
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(half * 2, 0.16, 0.16), archMat);
-      beam.position.y = 1.9;
-      arch.add(beam);
       const p = this.trail.pointAt(t);
       const tan = this.trail.tangentAt(t);
       arch.position.copy(p);
       arch.rotation.y = Math.atan2(tan.x, tan.z);
       arch.userData.passed = false;
       this.checkpointArches.push(arch);
-      this.scene.add(arch);
+      for (const [sideIndex, side] of ([-1, 1] as const).entries()) {
+        const post = this.trail.offsetAt(t, side * half);
+        this.instanceDummy.position.set(post.x, post.y + 0.95, post.z);
+        this.instanceDummy.rotation.set(0, arch.rotation.y, 0);
+        this.instanceDummy.scale.set(1, 1, 1);
+        this.instanceDummy.updateMatrix();
+        archPosts.setMatrixAt(index * 2 + sideIndex, this.instanceDummy.matrix);
+      }
+      this.instanceDummy.position.set(p.x, p.y + 1.9, p.z);
+      this.instanceDummy.rotation.set(0, arch.rotation.y, 0);
+      this.instanceDummy.scale.set(half * 2, 0.16, 0.16);
+      this.instanceDummy.updateMatrix();
+      archBeams.setMatrixAt(index, this.instanceDummy.matrix);
     }
+    archPosts.instanceMatrix.needsUpdate = true;
+    archBeams.instanceMatrix.needsUpdate = true;
+    archPosts.computeBoundingSphere();
+    archBeams.computeBoundingSphere();
+    this.scene.add(archPosts, archBeams);
 
     // ── Crystals on the golden path ──────────────────────────────
     // Крупнее: с игровой камеры в девяти метрах предмет меньше двух третей
     // метра ребёнок не опознаёт как «то, что надо взять». Тот же класс, что
     // яблоки на L2, только тонуть здесь не в чем — снег без высокой травы.
-    const crystalTpl = await loadPropModel(loader, CAST_PROP_GLB.ice_crystal, { maxSize: 0.75 });
-    for (const [t, lateral] of CRYSTALS) {
+    const crystalGeometry = new THREE.OctahedronGeometry(0.38, 0);
+    crystalGeometry.scale(0.72, 1.35, 0.72);
+    const crystalMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffd54f,
+      emissive: 0xffa000,
+      emissiveIntensity: 0.62,
+      roughness: 0.16,
+      metalness: 0.14,
+      clearcoat: 0.75,
+      clearcoatRoughness: 0.12,
+    });
+    this.crystalInstances = new THREE.InstancedMesh(
+      crystalGeometry,
+      crystalMaterial,
+      CRYSTALS.length,
+    );
+    this.crystalInstances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.crystalInstances.castShadow = false;
+    this.crystalInstances.receiveShadow = true;
+    for (const [index, [t, lateral]] of CRYSTALS.entries()) {
       const half = Level12Scene.halfWidthAt(t);
       const pos = this.trail.offsetAt(t, lateral * half);
-      let crystal: THREE.Object3D;
-      if (crystalTpl) {
-        crystal = crystalTpl.clone(true);
-      } else {
-        crystal = new THREE.Mesh(
-          new THREE.OctahedronGeometry(0.24),
-          new THREE.MeshStandardMaterial({
-            color: 0xffd700, emissive: 0xf1c40f, emissiveIntensity: 0.6,
-            transparent: true, opacity: 0.92,
-          }),
-        );
-        crystal.castShadow = true;
-      }
-      crystal.position.set(pos.x, pos.y + 0.62, pos.z);
-      crystal.userData.collected = false;
-      crystal.userData.baseY = pos.y + 0.62;
-      this.crystalMeshes.push(crystal);
-      this.scene.add(crystal);
+      const position = new THREE.Vector3(pos.x, pos.y + 0.62, pos.z);
+      this.crystalPickups.push({ t, position, baseY: position.y, angle: index * 0.73, collected: false });
+      this.updateCrystalInstance(index);
     }
+    this.crystalInstances.instanceMatrix.needsUpdate = true;
+    this.crystalInstances.computeBoundingSphere();
+    this.scene.add(this.crystalInstances);
 
     // ── Ice gate, landmark at the finish ─────────────────────────
     const gateMat = new THREE.MeshStandardMaterial({
@@ -367,7 +417,11 @@ export class Level12Scene extends BaseLevelScene {
     const pad = spawnPad(0, 6);
     this.snapToGround(pad);
     this.scene.add(pad);
-    this.scene.add(await placeWoodSign(loader, -2.8, 5, 0.35, 0xe1f5fe));
+    const entranceSign = await placeWoodSign(loader, -2.8, 5, 0.35, 0xe1f5fe);
+    entranceSign.traverse((object) => {
+      if (object instanceof THREE.Mesh) object.castShadow = false;
+    });
+    this.scene.add(entranceSign);
 
     await this.placeProps(loader, [
       { key: 'pine_tree', opts: { x: -11, z: -8, maxSize: 3.2 } },
@@ -450,6 +504,15 @@ export class Level12Scene extends BaseLevelScene {
         `🧊 ${this.segmentsCrossed}/${this.segmentsTotal}  💎 ${this.crystals}/${this.crystalsTotal}`,
         `🧊 ${this.segmentsCrossed}/${this.segmentsTotal}  💎 ${this.crystals}/${this.crystalsTotal}`,
       );
+    } else if (p === 'finish') {
+      line = this.copy(
+        'Последний рывок — проскользни между ледяными столбами!',
+        'Соңғы серпін — мұз бағандарының арасынан сырғана!',
+      );
+      objective = this.copy(
+        `🏁 В ледяные ворота  💎 ${this.crystals}/${this.crystalsTotal} бонусов`,
+        `🏁 Мұз қақпаға  💎 ${this.crystals}/${this.crystalsTotal} бонус`,
+      );
     } else if (p === 'outro') {
       speaker = this.copy('Мастер льда', 'Мұз шебері');
       line = this.copy('Ты прошёл! Я жду на поляне — помоги со скульптурой!', 'Өттің! Мен алаңда күтемін — мүсінге көмектес!');
@@ -470,6 +533,16 @@ export class Level12Scene extends BaseLevelScene {
     });
   }
 
+  private updateCrystalInstance(index: number) {
+    if (!this.crystalInstances) return;
+    const crystal = this.crystalPickups[index];
+    this.instanceDummy.position.copy(crystal.position);
+    this.instanceDummy.rotation.set(0, crystal.angle, 0);
+    this.instanceDummy.scale.setScalar(crystal.collected ? 0 : 1);
+    this.instanceDummy.updateMatrix();
+    this.crystalInstances.setMatrixAt(index, this.instanceDummy.matrix);
+  }
+
   /** Slipping off returns the player to the last arch, never to the start. */
   private softResetSegment() {
     const t = this.segmentsCrossed > 0 ? CHECKPOINTS[this.segmentsCrossed - 1] : 0;
@@ -483,14 +556,45 @@ export class Level12Scene extends BaseLevelScene {
     this.pushHud();
   }
 
-  private nextCrystalPos(): THREE.Vector3 | null {
-    for (const c of this.crystalMeshes) {
-      if (!c.userData.collected) return c.position.clone();
+  /** Never send the guide arrow backwards to a bonus the player has passed. */
+  private nextRouteTarget(currentT: number): THREE.Vector3 | null {
+    for (const crystal of this.crystalPickups) {
+      if (!crystal.collected && crystal.t >= currentT - 0.02) return crystal.position.clone();
     }
     if (this.segmentsCrossed < this.segmentsTotal) {
       return this.trail.pointAt(CHECKPOINTS[this.segmentsCrossed]);
     }
     return this.gatePos.clone();
+  }
+
+  /**
+   * The un-orbited chase camera looks along the trail tangent, not world -Z.
+   * Build the local stick/WASD basis from that same tangent, then apply the
+   * player's free orbit. W therefore follows the pixels in front of Barsik on
+   * every bend instead of quietly drifting back to the global north axis.
+   */
+  private cameraTrailDirection(local: THREE.Vector2, t: number) {
+    const forward = this.trail.tangentAt(Math.min(t + 0.03, 1));
+    const rightX = -forward.z;
+    const rightZ = forward.x;
+    const baseX = rightX * local.x - forward.x * local.y;
+    const baseZ = rightZ * local.x - forward.z * local.y;
+    const sin = Math.sin(this.camYaw);
+    const cos = Math.cos(this.camYaw);
+    return new THREE.Vector2(
+      baseX * cos + baseZ * sin,
+      baseZ * cos - baseX * sin,
+    );
+  }
+
+  private completeAtGate() {
+    this.phase = 'outro';
+    this.velocity.set(0, 0, 0);
+    this.resetCameraAim();
+    this.stars += 10;
+    this.spawnSparks(this.gatePos, 26, [0xffd700, 0x00cec9]);
+    AudioManager.sfx('levelComplete');
+    this.pushHud();
   }
 
   protected loop = () => {
@@ -511,30 +615,48 @@ export class Level12Scene extends BaseLevelScene {
     }
 
     const sliding = this.phase === 'learn' || this.phase === 'turn'
-      || this.phase === 'run' || this.phase === 'drop';
+      || this.phase === 'run' || this.phase === 'drop' || this.phase === 'finish';
     let projection = this.trail.project(this.hero.position);
 
     if (sliding) {
       // Ice owns acceleration/inertia instead of `updateMovement`, but input
       // must obey the same camera-space contract as every walking level.
-      const d = this.cameraRelativeDirection(this.dir());
+      const d = this.cameraTrailDirection(this.dir(), projection.t);
       const speed = this.baseSpeed * 0.8;
       const inertia = this.inertia;
-      this.velocity.x += d.x * speed * dt * 2.4;
-      this.velocity.z += d.y * speed * dt * 2.4;
-      this.velocity.x *= inertia;
-      this.velocity.z *= inertia;
+      // `inertia` is authored as retention per 60 Hz frame. Applying the raw
+      // value once per rendered frame made a 120 Hz phone lose momentum twice
+      // as often as a 60 Hz device. This is the exact exponential response
+      // whose 60 Hz recurrence is `(v + acceleration / 60) * inertia`, so it
+      // preserves the tuned feel and steady speed at every refresh rate.
+      const retention = Math.pow(inertia, dt * 60);
+      this.velocity.multiplyScalar(retention);
+      const steadySpeed = speed * 2.4 * inertia / (60 * (1 - inertia));
+      this.velocity.x += d.x * steadySpeed * (1 - retention);
+      this.velocity.z += d.y * steadySpeed * (1 - retention);
 
       const maxV = speed * 1.15;
       this.velocity.x = THREE.MathUtils.clamp(this.velocity.x, -maxV, maxV);
       this.velocity.z = THREE.MathUtils.clamp(this.velocity.z, -maxV, maxV);
 
-      this.hero.position.x += this.velocity.x * dt;
-      this.hero.position.z += this.velocity.z * dt;
+      const nextX = this.hero.position.x + this.velocity.x * dt;
+      const nextZ = this.hero.position.z + this.velocity.z * dt;
+      const fixed = resolveCollisions(nextX, nextZ, this.colliders);
+      this.hero.position.x = fixed.x;
+      this.hero.position.z = fixed.z;
+      if (Math.hypot(fixed.x - nextX, fixed.z - nextZ) > 0.001) {
+        // Sliding should glance off a visible body, not keep storing velocity
+        // through it and burst forward on the next free frame.
+        this.velocity.multiplyScalar(0.35);
+      }
 
       projection = this.trail.project(this.hero.position);
       const groundY = this.groundHeightAt(this.hero.position.x, this.hero.position.z);
-      this.hero.position.y += (groundY - this.hero.position.y) * Math.min(1, dt * 12);
+      // `updateAmbient()` owns the ballistic arc. Pulling toward the terrain
+      // here at the same time used to crush a touch/Space jump every frame.
+      if (!this.airborne) {
+        this.hero.position.y += (groundY - this.hero.position.y) * Math.min(1, dt * 12);
+      }
 
       if (!this.hasTakenFirstStep && this.velocity.lengthSq() > 0.4) {
         this.hasTakenFirstStep = true;
@@ -573,21 +695,29 @@ export class Level12Scene extends BaseLevelScene {
           this.phase = 'drop';
           this.turnHintUntil = now + 3600;
         } else if (this.segmentsCrossed >= this.segmentsTotal) {
-          this.phase = 'outro';
-          this.stars += 10;
-          this.spawnSparks(this.gatePos, 26, [0xffd700, 0x00cec9]);
-          AudioManager.sfx('levelComplete');
+          // The final arch announces the gate; it is not the gate. The old
+          // branch ended the level seven percent of the route too early.
+          this.phase = 'finish';
         }
         this.pushHud();
         break;
       }
 
+      if (
+        this.phase === 'finish'
+        && projection.t >= FINISH_T
+        && projection.lateral <= FINISH_HALF_WIDTH
+      ) {
+        this.completeAtGate();
+      }
+
       // Crystals
-      for (const crystal of this.crystalMeshes) {
-        if (crystal.userData.collected) continue;
+      for (const [index, crystal] of this.crystalPickups.entries()) {
+        if (crystal.collected) continue;
         if (this.hero.position.distanceTo(crystal.position) < 1.15) {
-          crystal.userData.collected = true;
-          crystal.visible = false;
+          crystal.collected = true;
+          this.updateCrystalInstance(index);
+          this.crystalInstances!.instanceMatrix.needsUpdate = true;
           this.crystals++;
           this.stars += 2;
           this.spawnSparks(crystal.position, 12, [0xffd700, 0xf1c40f]);
@@ -611,15 +741,19 @@ export class Level12Scene extends BaseLevelScene {
       }
     }
 
-    for (const crystal of this.crystalMeshes) {
-      if (crystal.userData.collected) continue;
-      crystal.rotation.y += dt * 2.5;
-      crystal.position.y = (crystal.userData.baseY as number) + Math.sin(now * 0.004 + crystal.position.z) * 0.12;
+    let crystalsChanged = false;
+    for (const [index, crystal] of this.crystalPickups.entries()) {
+      if (crystal.collected) continue;
+      crystal.angle += dt * 2.5;
+      crystal.position.y = crystal.baseY + Math.sin(now * 0.004 + crystal.position.z) * 0.12;
+      this.updateCrystalInstance(index);
+      crystalsChanged = true;
     }
+    if (crystalsChanged && this.crystalInstances) this.crystalInstances.instanceMatrix.needsUpdate = true;
 
     if (this.slipped && now > this.slipMsgUntil) this.slipped = false;
 
-    this.updateGuideArrow(now, sliding ? this.nextCrystalPos() : null, ['intro', 'outro']);
+    this.updateGuideArrow(now, sliding ? this.nextRouteTarget(projection.t) : null, ['intro', 'outro']);
     this.updateAmbient(dt, now);
 
     if (this.phase === 'intro') {
@@ -637,6 +771,20 @@ export class Level12Scene extends BaseLevelScene {
       ];
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
       this.camera.lookAt(introLook[idx]);
+    } else if (this.phase === 'outro') {
+      // Pull to a reverse establishing view instead of leaving the chase
+      // camera directly underneath the five-metre gate. The completed route,
+      // Barsik and the waiting master now read behind the result UI.
+      const f = this.cameraFraming();
+      // Look back up the ribbon from the clear centre of the gate. Looking
+      // forward put the dark boundary mountains directly behind the result
+      // card; this reverse angle keeps them behind the camera and uses the
+      // travelled ice as a clean leading line.
+      const tan = this.trail.tangentAt(1);
+      const target = this.gatePos.clone().addScaledVector(tan, 2.8 + f.backAdd * 0.2);
+      target.y += 4.8 * f.heightMul;
+      const look = this.trail.pointAt(0.94).add(new THREE.Vector3(0, 1.35 + f.lookUp, 0));
+      this.updateCamera(target, look, 0.0018, dt);
     } else {
       // Chase camera aligned to the trail, so bends read before they arrive
       // instead of swinging into view at the last moment.
