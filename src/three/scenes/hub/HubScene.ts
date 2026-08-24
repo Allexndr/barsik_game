@@ -9,6 +9,7 @@ import { createGameGltfLoader } from '../../createGameGltfLoader';
 import { assemble, assembleGlow, GLOW_MATERIAL } from './arbatProps';
 import { arrivalPoint, getLocation, type HubLocation, type LocationId } from './locations';
 import { pickSeat, type Ride } from './rides';
+import type { FountainFx } from './fountains';
 import type { DaySample } from '../../DayCycle';
 
 /**
@@ -98,6 +99,7 @@ export class HubScene extends BaseLevelScene {
   private onTravel: ((to: LocationId) => void) | null = null;
   private travelArmed = false;
   private rides: Ride[] = [];
+  private fountains: FountainFx[] = [];
   private nearRide: Ride | null = null;
   private ridingOn: Ride | null = null;
   private ridingSeat = -1;
@@ -208,6 +210,9 @@ export class HubScene extends BaseLevelScene {
 
     this.rides = place.rides?.() ?? [];
     for (const ride of this.rides) this.scene.add(ride.group);
+
+    this.fountains = place.fountains?.() ?? [];
+    for (const f of this.fountains) this.scene.add(f.group);
 
     // Трава — только там, где у локации есть газон; на мостовой Арбата и
     // Панфилова маски нет вовсе, и вызов просто пропускается.
@@ -440,6 +445,7 @@ export class HubScene extends BaseLevelScene {
     // Аттракционы крутятся всегда, а не только когда на них сидят: пустая
     // карусель, замершая намертво, читается сломанной.
     for (const ride of this.rides) ride.update(dt, t);
+    for (const f of this.fountains) f.update(dt, t);
 
     const before = this.hero.position.clone();
     const riding = this.ridingOn;
@@ -549,6 +555,8 @@ export class HubScene extends BaseLevelScene {
     this.butterflies = [];
     for (const ride of this.rides) ride.dispose();
     this.rides = [];
+    for (const f of this.fountains) f.dispose();
+    this.fountains = [];
     this.ridingOn = null;
     GLOW_MATERIAL.opacity = 0;
     this.hub?.leave();
