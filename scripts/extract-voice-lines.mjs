@@ -2,18 +2,20 @@
 /**
  * Collect every line the game speaks, in both languages.
  *
- * The scenes write dialogue as `this.copy('русский', 'қазақша')`, and the
- * screens hand whichever half matches the current language to
- * `AudioManager.tts`. That is 380-odd pairs across seventeen scenes, so the
- * list has to be derived from the source rather than maintained by hand — a
- * hand-kept list goes stale the first time somebody rewrites a line, and the
- * symptom is a clip that says the old words.
+ * The scenes write dialogue in three forms: direct localization calls such as
+ * `this.copy('русский', 'қазақша')`, short-lived event helpers such as
+ * `this.say(...)` / `this.setBeat(...)`, and authored `{ ru, kk }` data which
+ * is selected later. The screens hand whichever half matches the current
+ * language to `AudioManager.tts`, so the list has to be derived from every
+ * form rather than maintained by hand. A hand-kept list goes stale the first
+ * time somebody rewrites a line, and the symptom is a clip that says the old
+ * words.
  *
- * Not a TypeScript parse: a small scanner that walks the file looking for
- * `copy(` and then reads two string literals, respecting escapes and the
- * quote style. That handles every form used here — single, double and
- * backtick, including template literals with `${nick}` in them — and it fails
- * loudly rather than silently skipping anything it cannot read.
+ * Not a TypeScript parse: a small scanner reads two-literal localization
+ * calls, paired `ru:` / `kk:` properties and explicitly typed localized tuple
+ * arrays. It respects escapes and all three quote styles, including template
+ * literals with `${nick}` in them, and fails loudly rather than silently
+ * skipping a localized value it cannot read.
  *
  * Usage:
  *   node scripts/extract-voice-lines.mjs
@@ -80,31 +82,128 @@ function skipSpace(src, i) {
   return i;
 }
 
-function extractFile(path) {
-  const src = readFileSync(path, 'utf8');
+const LOCALIZED_CALLS = ['copy', 'say', 'setBeat'];
+
+function extractCallPairs(src) {
   const pairs = [];
   const unread = [];
-  let i = 0;
-  while (true) {
-    const at = src.indexOf('copy(', i);
-    if (at === -1) break;
-    i = at + 5;
-    // `this.copy(` and `s.copy(` are dialogue; `Object.copy(` etc. are not,
-    // but no such call exists here — the guard is the two-literal shape below.
-    let j = skipSpace(src, i);
-    const ru = readLiteral(src, j);
-    if (!ru) continue;
-    j = skipSpace(src, ru.end);
-    if (src[j] !== ',') continue;
-    j = skipSpace(src, j + 1);
-    const kk = readLiteral(src, j);
+  for (const call of LOCALIZED_CALLS) {
+    let i = 0;
+    while (true) {
+      const at = src.indexOf(`${call}(`, i);
+      if (at === -1) break;
+      i = at + call.length + 1;
+      // Method definitions and unrelated calls do not begin with two string
+      // literals, so the literal shape is the guard rather than a fragile
+      // `this.` prefix check.
+      let j = skipSpace(src, i);
+      const ru = readLiteral(src, j);
+      if (!ru) continue;
+      j = skipSpace(src, ru.end);
+      if (src[j] !== ',') continue;
+      j = skipSpace(src, j + 1);
+      const kk = readLiteral(src, j);
+      if (!kk) {
+        unread.push(`${call}(): ${ru.value.slice(0, 48)}`);
+        continue;
+      }
+      pairs.push({ ru: ru.value, kk: kk.value });
+    }
+  }
+  return { pairs, unread };
+}
+
+function extractPropertyPairs(src) {
+  const pairs = [];
+  const unread = [];
+  const ruProperty = /\bru\s*:/g;
+  let match;
+  while ((match = ruProperty.exec(src))) {
+    const ru = readLiteral(src, skipSpace(src, ruProperty.lastIndex));
+    if (!ru) continue; // Type declarations such as `ru: string`.
+
+    const tail = src.slice(ru.end);
+    const kkMatch = /\bkk\s*:/.exec(tail);
+    const nextRu = /\bru\s*:/.exec(tail);
+    // Never pair a value with the next object when the current object is
+    // malformed. A later literal `ru:` is a hard boundary.
+    if (!kkMatch || (nextRu && nextRu.index < kkMatch.index)) {
+      unread.push(`ru/kk object: ${ru.value.slice(0, 48)}`);
+      continue;
+    }
+    const kkAt = ru.end + kkMatch.index + kkMatch[0].length;
+    const kk = readLiteral(src, skipSpace(src, kkAt));
     if (!kk) {
-      unread.push(ru.value.slice(0, 48));
+      unread.push(`ru/kk object: ${ru.value.slice(0, 48)}`);
       continue;
     }
     pairs.push({ ru: ru.value, kk: kk.value });
+    ruProperty.lastIndex = kk.end;
   }
   return { pairs, unread };
+}
+
+function matchingBracket(src, open) {
+  let depth = 0;
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === "'" || src[i] === '"' || src[i] === '`') {
+      const literal = readLiteral(src, i);
+      if (!literal) return -1;
+      i = literal.end - 1;
+      continue;
+    }
+    if (src[i] === '[') depth++;
+    if (src[i] === ']' && --depth === 0) return i;
+  }
+  return -1;
+}
+
+function extractTypedTuplePairs(src) {
+  const pairs = [];
+  const unread = [];
+  const declaration = /Array<\[\s*string\s*,\s*string\s*\]>\s*=\s*\[/g;
+  let match;
+  while ((match = declaration.exec(src))) {
+    const open = declaration.lastIndex - 1;
+    const close = matchingBracket(src, open);
+    if (close < 0) {
+      unread.push('localized tuple array: missing closing bracket');
+      continue;
+    }
+    let i = open + 1;
+    while (i < close) {
+      const pairOpen = src.indexOf('[', i);
+      if (pairOpen < 0 || pairOpen >= close) break;
+      let j = skipSpace(src, pairOpen + 1);
+      const ru = readLiteral(src, j);
+      if (!ru) { i = pairOpen + 1; continue; }
+      j = skipSpace(src, ru.end);
+      if (src[j] !== ',') { i = ru.end; continue; }
+      const kk = readLiteral(src, skipSpace(src, j + 1));
+      if (!kk) {
+        unread.push(`localized tuple: ${ru.value.slice(0, 48)}`);
+        i = ru.end;
+        continue;
+      }
+      pairs.push({ ru: ru.value, kk: kk.value });
+      i = kk.end;
+    }
+    declaration.lastIndex = close + 1;
+  }
+  return { pairs, unread };
+}
+
+function extractFile(path) {
+  const src = readFileSync(path, 'utf8');
+  const extracts = [
+    extractCallPairs(src),
+    extractPropertyPairs(src),
+    extractTypedTuplePairs(src),
+  ];
+  return {
+    pairs: extracts.flatMap((result) => result.pairs),
+    unread: extracts.flatMap((result) => result.unread),
+  };
 }
 
 const files = readdirSync(SCENES)
@@ -123,10 +222,18 @@ for (const file of files) {
   for (const { ru, kk } of pairs) {
     for (const [lang, text] of [['ru', ru], ['kk', kk]]) {
       const clean = normalizeLine(text);
+      const authoredLetters = text
+        .replace(/\$\{[^}]*\}/g, '')
+        .replace(/[^\p{L}]/gu, '');
       // Objectives are short labels ("🥇 3 мөр жина"); the ones that survive
       // normalization as a couple of words are not worth a clip and would
       // make the pack noticeably bigger for nothing.
       if (clean.length < 6) continue;
+      // A dynamic-only event such as `${strain} (${done} ішінен
+      // ${total})` has no useful sentence to synthesize at build time. Keep
+      // nickname-bearing sentences and authored progress feedback, but do not
+      // render connector words and punctuation as a standalone clip.
+      if (text.includes('${') && authoredLetters.length < 8) continue;
       const id = lineId(text, lang);
       const existing = lines[id];
       if (existing && normalizeLine(existing.text) !== clean) {
@@ -166,7 +273,7 @@ writeFileSync(OUT, next);
 
 const ru = Object.values(lines).filter((l) => l.lang === 'ru').length;
 const kk = Object.values(lines).filter((l) => l.lang === 'kk').length;
-console.log(`${pairCount} copy() pairs in ${files.length} scenes`);
+console.log(`${pairCount} localized pairs in ${files.length} scene files`);
 console.log(`${Object.keys(lines).length} clips to render — ${ru} ru, ${kk} kk`);
 console.log(`Wrote ${relative(ROOT, OUT)}`);
 console.log('\nNext: node scripts/synth-voice.mjs');

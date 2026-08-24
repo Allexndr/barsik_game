@@ -32,9 +32,10 @@
  *   node scripts/synth-voice.mjs                 # everything missing
  *   node scripts/synth-voice.mjs --force         # re-render all
  *   node scripts/synth-voice.mjs --lang kk       # one language
+ *   node scripts/synth-voice.mjs --prune         # also remove clips absent from manifest
  *   node scripts/synth-voice.mjs --backend piper --piper-ru <model.onnx>
  */
-import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync, statSync, readdirSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join, relative } from 'node:path';
@@ -72,6 +73,27 @@ async function synthPiper(text, lang, wav) {
   const model = arg(`piper-${lang}`, null);
   if (!model) throw new Error(`--piper-${lang} <model.onnx> is required for the piper backend`);
   await run('sh', ['-c', `printf %s ${JSON.stringify(text)} | piper --model ${JSON.stringify(model)} --output_file ${JSON.stringify(wav)}`]);
+}
+
+function pruneObsoleteClips(manifest) {
+  let clips = 0;
+  let bytes = 0;
+  for (const lang of ['ru', 'kk']) {
+    const dir = join(VOICE, lang);
+    if (!existsSync(dir)) continue;
+    for (const file of readdirSync(dir)) {
+      // Never touch notes, source recordings or an unexpected file. Generated
+      // clips have one deliberately narrow, deterministic filename shape.
+      if (!/^[0-9a-f]{8}\.mp3$/.test(file)) continue;
+      const id = file.slice(0, -4);
+      if (manifest.lines[id]?.lang === lang) continue;
+      const path = join(dir, file);
+      bytes += statSync(path).size;
+      unlinkSync(path);
+      clips++;
+    }
+  }
+  return { clips, bytes };
 }
 
 async function main() {
@@ -149,6 +171,11 @@ async function main() {
   console.log(`\nRendered ${done}, kept ${skipped}, failed ${failed}`);
   console.log(`Pack size: ${(bytes / 1024 / 1024).toFixed(1)} MB across ${entries.length} clips`);
   if (failed) process.exit(1);
+
+  if (has('prune')) {
+    const pruned = pruneObsoleteClips(manifest);
+    console.log(`Pruned ${pruned.clips} obsolete clips (${(pruned.bytes / 1024).toFixed(1)} KB)`);
+  }
 
   // A marker the runtime can fetch to know a pack was built, without probing
   // six hundred URLs.
