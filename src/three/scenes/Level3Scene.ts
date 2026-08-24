@@ -493,7 +493,7 @@ export class Level3Scene extends BaseLevelScene {
     });
     for (const [index, sd] of SEARCH_SECTORS.entries()) {
       const group = new THREE.Group();
-      group.position.set(sd.x, 0, sd.z);
+      group.position.set(sd.x, this.groundHeightAt(sd.x, sd.z), sd.z);
       this.scene.add(group);
 
       const previous = index === 0 ? { x: 0, z: -8 } : SEARCH_SECTORS[index - 1];
@@ -507,10 +507,16 @@ export class Level3Scene extends BaseLevelScene {
 
       // Bushes/rocks/log around sector
       if (sd.label === 'bushes') {
-        this.scene.add(bush(sd.x - 1.5, sd.z - 1, 1.3));
-        this.scene.add(bush(sd.x + 1.5, sd.z - 0.5, 1.2));
-        this.scene.add(bush(sd.x, sd.z + 1.5, 1.4));
-        this.scene.add(bush(sd.x - 0.8, sd.z + 0.8, 1.1));
+        const sectorBushes = [
+          bush(sd.x - 1.5, sd.z - 1, 1.3),
+          bush(sd.x + 1.5, sd.z - 0.5, 1.2),
+          bush(sd.x, sd.z + 1.5, 1.4),
+          bush(sd.x - 0.8, sd.z + 0.8, 1.1),
+        ];
+        for (const sectorBush of sectorBushes) {
+          this.snapToGround(sectorBush);
+          this.scene.add(sectorBush);
+        }
       } else if (sd.label === 'rocks') {
         const rockLoader = createGameGltfLoader();
         // Frame the question marker across the incoming trail. The old fixed
@@ -529,6 +535,7 @@ export class Level3Scene extends BaseLevelScene {
           fitHeight(rock.scene, 1.2);
           rock.scene.position.set(largeRockPos.x, 0, largeRockPos.z);
           groundY(rock.scene);
+          this.snapToGround(rock.scene);
           this.scene.add(rock.scene);
           this.colliders.push({ kind: 'circle', x: largeRockPos.x, z: largeRockPos.z, r: 1.0 });
         }
@@ -537,6 +544,7 @@ export class Level3Scene extends BaseLevelScene {
           fitHeight(rock2.scene, 0.7);
           rock2.scene.position.set(smallRockPos.x, 0, smallRockPos.z);
           groundY(rock2.scene);
+          this.snapToGround(rock2.scene);
           this.scene.add(rock2.scene);
           this.colliders.push({ kind: 'circle', x: smallRockPos.x, z: smallRockPos.z, r: 0.6 });
         }
@@ -547,12 +555,14 @@ export class Level3Scene extends BaseLevelScene {
         const logX = sd.x + incomingUnitX * 2.7;
         const logZ = sd.z + incomingUnitZ * 2.7;
         const log = makeFallenLog(logX, logZ, 0.3);
+        this.snapToGround(log);
         this.scene.add(log);
         this.colliders.push({ kind: 'aabb', x: logX, z: logZ, halfW: 2.0, halfD: 0.6 });
       }
 
       // Question bubble
       const bubble = makeQuestionBubble(sd.x, sd.z);
+      bubble.position.y = this.groundHeightAt(sd.x, sd.z);
       this.scene.add(bubble);
 
       // Footprints leading to this sector *from the previous one*.
@@ -859,7 +869,8 @@ export class Level3Scene extends BaseLevelScene {
     // Bob question bubbles
     for (const s of this.sectors) {
       if (s.bubble && s.bubble.visible) {
-        s.bubble.position.y = Math.sin(now * 0.003 + (s.bubble.userData.bob as number)) * 0.15;
+        s.bubble.position.y = this.groundHeightAt(s.x, s.z)
+          + Math.sin(now * 0.003 + (s.bubble.userData.bob as number)) * 0.15;
         s.bubble.rotation.y += dt * 0.5;
       }
     }
@@ -867,7 +878,9 @@ export class Level3Scene extends BaseLevelScene {
     // Bob bonus collectibles
     for (const b of this.bonusCollectibles) {
       if (!b.userData.alive || !b.visible) continue;
-      b.position.y = 0.5 + Math.sin(now * 0.005 + b.position.x) * 0.1;
+      b.position.y = this.groundHeightAt(b.position.x, b.position.z)
+        + 0.75
+        + Math.sin(now * 0.005 + b.position.x) * 0.1;
       b.rotation.y += dt * 1.5;
     }
 
@@ -882,7 +895,10 @@ export class Level3Scene extends BaseLevelScene {
           this.revealStartedAt = 0;
         }
       }
-      this.hedgehogMesh.position.y = Math.sin(now * 0.005) * 0.05;
+      this.hedgehogMesh.position.y = this.groundHeightAt(
+        this.hedgehogMesh.position.x,
+        this.hedgehogMesh.position.z,
+      ) + Math.sin(now * 0.005) * 0.05;
       this.hedgehogMesh.rotation.y = Math.sin(now * 0.001) * 0.2;
       const character = this.hedgehogMesh.userData.character as THREE.Object3D | undefined;
       if (character) updatePlushAnimal(character, false, now * 0.001);
