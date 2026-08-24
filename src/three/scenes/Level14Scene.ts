@@ -193,10 +193,6 @@ export class Level14Scene extends BaseLevelScene {
         'Айя замёрзла. Её шарф унесло ветром — обыщи сугробы!',
         'Айя тоңып қалды. Орамалын жел ұшырып кеткен — қар үйінділерін тінт!',
       );
-      for (const d of this.drifts) {
-        const m = d.userData.marker as THREE.Object3D | undefined;
-        if (m) m.visible = true;
-      }
       this.pushHud();
     }
   }
@@ -577,9 +573,15 @@ export class Level14Scene extends BaseLevelScene {
     if (this.ayaFire?.visible) {
       this.ayaFire.rotation.y += dt * 0.4;
     }
+    // Only the drift the player is being sent to is beaconed — all eight
+    // lit at once turns the search into a field of lollipops that points
+    // nowhere (see BaseLevelScene.questMarker).
+    const searchObjective = this.phase === 'search' && !this.hasScarf ? this.objectiveWorldPos() : null;
     for (const d of this.drifts) {
       const m = d.userData.marker as THREE.Object3D | undefined;
-      if (m?.visible) m.position.y = this.groundHeightAt(d.position.x, d.position.z) + 1.35
+      if (!m) continue;
+      m.visible = Boolean(searchObjective) && d.position.distanceTo(searchObjective!) < 0.01;
+      if (m.visible) m.position.y = this.groundHeightAt(d.position.x, d.position.z) + 1.35
         + Math.sin(now * 0.004 + d.position.x) * 0.08;
     }
     if (this.carryingLog) {

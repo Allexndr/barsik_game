@@ -253,8 +253,10 @@ export class Level10Scene extends BaseLevelScene {
       this.scene.add(mountain(x, z, h, w));
     }
 
-    this.scene.add(zoneDisc(0, 6, 5, 0x81c784, 0.025));
-    this.scene.add(spawnPad(0, 6));
+    this.scene.add(zoneDisc(0, 6, 5, 0x81c784, this.groundHeightAt(0, 6) + 0.025));
+    const spawnPadObj = spawnPad(0, 6);
+    this.snapToGround(spawnPadObj);
+    this.scene.add(spawnPadObj);
     this.scene.add(await placeWoodSign(loader, -2.5, 4, 0.3, 0x81c784));
 
     // Berry gift basket in the center — pick one gift before each farewell
@@ -275,10 +277,10 @@ export class Level10Scene extends BaseLevelScene {
       berry.position.set(Math.cos(a) * 0.25, 0.5, Math.sin(a) * 0.25);
       this.giftPile.add(berry);
     }
-    this.giftPile.position.set(0, 0, -4);
+    this.giftPile.position.set(0, this.groundHeightAt(0, -4), -4);
     this.giftPile.userData.isGiftPile = true;
     this.scene.add(this.giftPile);
-    this.scene.add(zoneDisc(0, -4, 2.5, 0xe84393, 0.03));
+    this.scene.add(zoneDisc(0, -4, 2.5, 0xe84393, this.groundHeightAt(0, -4) + 0.03));
 
     // Four farewell spots, spread across the forest rather than huddled.
     //
@@ -318,7 +320,7 @@ export class Level10Scene extends BaseLevelScene {
     for (let i = 0; i < spotConfigs.length; i++) {
       const [x, z, nameRu, nameKk, memoryRu, memoryKk, farewellRu, farewellKk, glbFile] = spotConfigs[i];
       const marker = questMarker(0xf1c40f, 0xff9f43);
-      marker.position.set(x, 0, z);
+      marker.position.set(x, this.groundHeightAt(x, z), z);
       this.scene.add(marker);
 
       // Огонёк воспоминания: тёплая искра над местом, гаснет, когда вспомнили.
@@ -330,7 +332,7 @@ export class Level10Scene extends BaseLevelScene {
       this.scene.add(spark);
 
       this.spots.push({
-        pos: new THREE.Vector3(x, 0, z),
+        pos: new THREE.Vector3(x, this.groundHeightAt(x, z), z),
         npcName: nameRu,
         npcNameKk: nameKk,
         memoryRu,
@@ -370,7 +372,7 @@ export class Level10Scene extends BaseLevelScene {
       }
       npc.position.set(x + 0.9, 0, z);
       npc.rotation.y = Math.atan2(-x, -z);
-      groundY(npc);
+      groundY(npc, this.groundHeightAt(x + 0.9, z));
       this.scene.add(npc);
     }
 
@@ -386,7 +388,9 @@ export class Level10Scene extends BaseLevelScene {
           new THREE.MeshBasicMaterial({ color: 0x81c784, transparent: true, opacity: 0.35, side: THREE.DoubleSide }),
         );
         trail.rotation.x = -Math.PI / 2;
-        trail.position.set(a.x + (b.x - a.x) * t, 0.04, a.z + (b.z - a.z) * t);
+        const tx = a.x + (b.x - a.x) * t;
+        const tz = a.z + (b.z - a.z) * t;
+        trail.position.set(tx, this.groundHeightAt(tx, tz) + 0.04, tz);
         this.trailMeshes.push(trail);
         this.scene.add(trail);
       }
@@ -464,7 +468,7 @@ export class Level10Scene extends BaseLevelScene {
         return d < bd ? obj : best;
       }, null) ?? null;
     this.exitMarker = questMarker(0x8fd8f5, 0x0984e3);
-    this.exitMarker.position.set(0, 0, -35);
+    this.exitMarker.position.set(0, this.groundHeightAt(0, -35), -35);
     this.exitMarker.visible = false;
     this.scene.add(this.exitMarker);
     await placeAmbientCritters(this.scene, loader, [
@@ -677,7 +681,8 @@ export class Level10Scene extends BaseLevelScene {
 
     for (const spot of this.spots) {
       if (!spot.done) {
-        spot.marker.position.y = Math.sin(now * 0.004 + spot.pos.x) * 0.08;
+        spot.marker.position.y = this.groundHeightAt(spot.pos.x, spot.pos.z)
+          + Math.sin(now * 0.004 + spot.pos.x) * 0.08;
       }
       if (spot.spark?.visible) {
         spot.spark.position.y =

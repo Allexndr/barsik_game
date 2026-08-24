@@ -37,7 +37,9 @@
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
   text-align: center;
-  box-shadow: none;
+  /* Soft-3D lift, same recipe as Chip/travel-icon-btn — the grid used to be
+     the one flat surface next to a screen full of raised plush buttons. */
+  box-shadow: 0 3px 10px rgba(45, 27, 78, 0.08);
 }
 
 .friend-tilt-wrap {
@@ -63,7 +65,8 @@
 }
 
 .friend-face-front:hover {
-  box-shadow: 0 8px 20px rgba(108, 92, 231, 0.15);
+  box-shadow: 0 8px 20px rgba(108, 92, 231, 0.18);
+  transform: translateY(-2px);
 }
 
 .friend-card.rarity-rare,

@@ -59,12 +59,6 @@ export const PLAYER_RADIUS = 0.45;
 // ─── Shared utility functions ───────────────────────────────────
 export { fitHeight, groundY, disposeObject3DResources };
 
-/**
- * Below this world height a mesh receives shadow but does not cast one.
- * Applied after the level is built — see `demoteSmallShadowCasters`.
- */
-const SHADOW_CASTER_MIN_HEIGHT = 0.5;
-
 export async function loadGlb(loader: GLTFLoader, url: string) {
   try {
     const g = await Promise.race([
@@ -1566,7 +1560,7 @@ export abstract class BaseLevelScene {
   }
 
   protected setupFireflies(
-    count = this.isMobile ? 28 : 52,
+    count = this.renderQuality.tier === 'low' ? 16 : this.isMobile ? 28 : 52,
     bounds = { xMin: -18, xMax: 18, zMin: -42, zMax: 6, yMin: 0.4, yMax: 3.2 },
   ) {
     this.fireflies = createFireflies(count, bounds);
@@ -3193,7 +3187,7 @@ export abstract class BaseLevelScene {
       box.setFromObject(m);
       if (box.isEmpty()) return;
       box.getSize(size);
-      if (Math.max(size.x, size.y, size.z) < SHADOW_CASTER_MIN_HEIGHT) m.castShadow = false;
+      if (Math.max(size.x, size.y, size.z) < this.renderQuality.shadowCasterMinHeight) m.castShadow = false;
     });
   }
 

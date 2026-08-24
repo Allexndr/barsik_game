@@ -14,6 +14,10 @@ export interface RenderQualityProfile {
   bloomRadius: number;
   bloomThreshold: number;
   exposure: number;
+  /** Min bounding-box dimension (m) below which a shadow caster is demoted
+   *  to non-casting — see `demoteSmallShadowCasters` in BaseLevelScene. Higher
+   *  on `low` to cut more small casters out of the shadow pass on weak GPUs. */
+  shadowCasterMinHeight: number;
 }
 
 function normalizeTier(raw: string | null): RenderQualityTier | null {
@@ -61,6 +65,7 @@ export function getRenderQualityProfile(tier: RenderQualityTier, isMobile: boole
       bloomRadius: 0.28,
       bloomThreshold: 0.9,
       exposure: 0.96,
+      shadowCasterMinHeight: 1.0,
     };
   }
   if (tier === 'medium') {
@@ -75,6 +80,7 @@ export function getRenderQualityProfile(tier: RenderQualityTier, isMobile: boole
       bloomRadius: 0.34,
       bloomThreshold: 0.84,
       exposure: isMobile ? 1.0 : 1.08,
+      shadowCasterMinHeight: 0.5,
     };
   }
   return {
@@ -88,5 +94,6 @@ export function getRenderQualityProfile(tier: RenderQualityTier, isMobile: boole
     bloomRadius: 0.42,
     bloomThreshold: 0.78,
     exposure: isMobile ? 1.02 : 1.12,
+    shadowCasterMinHeight: 0.5,
   };
 }

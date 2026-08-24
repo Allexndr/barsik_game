@@ -55,6 +55,8 @@ export class Level11Scene extends BaseLevelScene {
   private readonly goldenTarget = 5;
   private nextSpawn = 0;
   private snowman: THREE.Object3D | null = null;
+  private snowmanParts: THREE.Object3D[] = [];
+  private snowmanStage = 0;
   private snowmanPos = new THREE.Vector3(0, 0, -12);
   private snowmanIsGlb = false;
   private aya: THREE.Object3D | null = null;
@@ -188,23 +190,44 @@ export class Level11Scene extends BaseLevelScene {
       const s = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 12), snowMat);
       s.position.y = y;
       s.castShadow = true;
+      s.visible = false;
       g.add(s);
+      this.snowmanParts.push(s);
     }
     return g;
   }
 
-  /** Snowman appears once the build act starts, then grows per flake. */
+  /**
+   * Snowman grows in three readable steps, not a continuous scale creep a
+   * five-year-old can't track (plan §6, D/L11 "grows in readable stages"):
+   * base ball → +torso → +head, one new part per third of the build act.
+   * A GLB snowman has no separable parts, so it pops through the same three
+   * steps as fixed scale jumps instead.
+   */
   private updateSnowman() {
     if (!this.snowman) return;
     const built = Math.max(0, this.caught - this.firstTarget);
     const span = this.target - this.firstTarget;
     if (built <= 0) {
       this.snowman.visible = false;
+      this.snowmanStage = 0;
       return;
     }
     this.snowman.visible = true;
-    const t = Math.min(1, built / span);
-    this.snowman.scale.setScalar((this.snowmanIsGlb ? 0.35 : 0.4) + t * 0.65);
+    const stage = Math.min(3, Math.ceil((built / span) * 3));
+    if (this.snowmanIsGlb) {
+      this.snowman.scale.setScalar([0.45, 0.7, 1.0][stage - 1]);
+    } else {
+      this.snowmanParts.forEach((part, i) => { part.visible = i < stage; });
+    }
+    if (stage > this.snowmanStage) {
+      this.spawnSparks(
+        this.snowmanPos.clone().add(new THREE.Vector3(0, 0.8 + stage * 0.6, 0)),
+        14, [0xffffff, 0xe1f5fe],
+      );
+      AudioManager.sfx('sparkle');
+    }
+    this.snowmanStage = stage;
   }
 
   private spawnSnowflake(gold: boolean) {

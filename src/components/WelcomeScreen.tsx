@@ -179,10 +179,10 @@ export function WelcomeScreen() {
             className="welcome-hero-image"
             alt=""
             sources={[
-              { media: '(min-width: 760px)', src: '/assets/landing/landing_hero_desktop.webp' },
-              { media: '(orientation: landscape)', src: '/assets/landing/landing_hero_desktop.webp' },
+              { media: '(min-width: 760px)', src: '/assets/landing/landing_hero_desktop.webp?v=20260814' },
+              { media: '(orientation: landscape)', src: '/assets/landing/landing_hero_desktop.webp?v=20260814' },
             ]}
-            fallbackSrc="/assets/landing/landing_hero_mobile.webp"
+            fallbackSrc="/assets/landing/landing_hero_mobile.webp?v=20260814"
           />
           <div className="welcome-hero-sky" aria-hidden />
           <div className="welcome-hero-content">
@@ -218,15 +218,15 @@ export function WelcomeScreen() {
 
           <div className="welcome-world-grid" id="worlds">
             <article className="welcome-world-card">
-              <img src="/assets/map/chapter1_fruit_forest_desktop.jpg" alt="" />
+              <img src="/assets/map/chapter1_fruit_forest_desktop.jpg?v=20260814" alt="" />
               <div><span>01</span><h3>{copy.forest}</h3><p>{copy.forestText}</p></div>
             </article>
             <article className="welcome-world-card">
-              <img src="/assets/map/chapter2_ice_valley.jpg" alt="" />
+              <img src="/assets/map/chapter2_ice_valley.jpg?v=20260814" alt="" />
               <div><span>02</span><h3>{copy.ice}</h3><p>{copy.iceText}</p></div>
             </article>
             <article className="welcome-world-card">
-              <img src="/assets/map/chapter6_friends_city.jpg" alt="" />
+              <img src="/assets/map/chapter6_friends_city.jpg?v=20260814" alt="" />
               <div><span>03</span><h3>{copy.city}</h3><p>{copy.cityText}</p></div>
             </article>
           </div>
