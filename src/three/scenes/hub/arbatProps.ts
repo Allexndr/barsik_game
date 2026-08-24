@@ -43,7 +43,7 @@ export const ARBAT = {
   gold: 0xd8b25e,
 } as const;
 
-function paint(geo: THREE.BufferGeometry, hex: number): THREE.BufferGeometry {
+export function paint(geo: THREE.BufferGeometry, hex: number): THREE.BufferGeometry {
   const c = new THREE.Color(hex);
   const n = geo.attributes.position.count;
   const colours = new Float32Array(n * 3);
@@ -57,19 +57,19 @@ function paint(geo: THREE.BufferGeometry, hex: number): THREE.BufferGeometry {
 }
 
 /** Кубик заданного цвета с уже запечённым положением. */
-function box(w: number, h: number, d: number, x: number, y: number, z: number, hex: number) {
+export function box(w: number, h: number, d: number, x: number, y: number, z: number, hex: number) {
   const g = new THREE.BoxGeometry(w, h, d);
   g.translate(x, y, z);
   return paint(g, hex);
 }
 
-function cyl(rt: number, rb: number, h: number, seg: number, x: number, y: number, z: number, hex: number) {
+export function cyl(rt: number, rb: number, h: number, seg: number, x: number, y: number, z: number, hex: number) {
   const g = new THREE.CylinderGeometry(rt, rb, h, seg);
   g.translate(x, y, z);
   return paint(g, hex);
 }
 
-function ball(r: number, x: number, y: number, z: number, hex: number, seg = 10) {
+export function ball(r: number, x: number, y: number, z: number, hex: number, seg = 10) {
   const g = new THREE.SphereGeometry(r, seg, Math.max(6, seg - 2));
   g.translate(x, y, z);
   return paint(g, hex);

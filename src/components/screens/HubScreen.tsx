@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUIStore } from '@/store/useUIStore';
 import { useGameStore } from '@/store/useGameStore';
-import { ArbatScene, type HubHud } from '@/three/scenes/hub/ArbatScene';
+import { HubScene, type HubHud } from '@/three/scenes/hub/HubScene';
+import type { LocationId } from '@/three/scenes/hub/locations';
+// Регистрация локаций — импорт ради побочного эффекта, иначе карта пуста.
+import '@/three/scenes/hub/places';
 import { FREE_TEXT_MAX, type HubPose } from '@/net/hub';
 import {
   CHAT_EMOJI, CHAT_GROUP_LABEL, CHAT_PHRASES, CHAT_COOLDOWN_MS, type ChatGroup,
@@ -37,8 +40,16 @@ export function HubScreen() {
   const ru = lang !== 'kk';
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const sceneRef = useRef<ArbatScene | null>(null);
+  const sceneRef = useRef<HubScene | null>(null);
   const lastSaidRef = useRef(0);
+  // Прямой вход в место: ?hub=1&place=park28. Нужен и для проверки, и для
+  // съёмки роликов — иначе до парка надо каждый раз идти через две улицы.
+  const [place, setPlace] = useState<LocationId>(() => {
+    const want = new URLSearchParams(window.location.search).get('place');
+    const known: LocationId[] = ['arbat', 'panfilova', 'park28', 'kbtu', 'tyuz'];
+    return (known as string[]).includes(want ?? '') ? (want as LocationId) : 'arbat';
+  });
+  const cameFromRef = useRef<LocationId | null>(null);
 
   const [hud, setHud] = useState<HubHud | null>(null);
   const [group, setGroup] = useState<ChatGroup>('hello');
@@ -48,16 +59,23 @@ export function HubScreen() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const scene = new ArbatScene(canvas);
+    const scene = new HubScene(canvas);
     sceneRef.current = scene;
-    void scene.init(player?.nick ?? '', lang, setHud);
+    const from = cameFromRef.current;
+    void scene.init(player?.nick ?? '', lang, setHud, place, from, (to) => {
+      // Переход — это пересборка сцены, а не телепорт внутри неё: у каждой
+      // локации своя геометрия и свой канал присутствия, и держать их все
+      // загруженными ради мгновенного перехода дороже, чем секунда загрузки.
+      cameFromRef.current = place;
+      setPlace(to);
+    });
     return () => {
       sceneRef.current = null;
       scene.dispose();
     };
     // Пересоздаём сцену при смене языка: реплики соседей рисуются в текстуру
     // при получении, и на лету их не перерисовать.
-  }, [lang, player?.nick]);
+  }, [lang, player?.nick, place]);
 
   const phrases = useMemo(() => CHAT_PHRASES.filter((p) => p.group === group), [group]);
 
@@ -109,6 +127,15 @@ export function HubScreen() {
           </span>
         </div>
       </div>
+
+      {hud?.atPortal && (
+        <button
+          className="hub-travel"
+          onClick={() => sceneRef.current?.tryInteract()}
+        >
+          {ru ? `Пойти: ${hud.atPortal.ru}` : `Бару: ${hud.atPortal.kk}`} →
+        </button>
+      )}
 
       <div className="hub-emotes">
         {EMOTES.map((e) => (
