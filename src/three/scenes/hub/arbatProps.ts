@@ -155,19 +155,87 @@ export function buildPaving(halfWidth: number, zFrom: number, zTo: number): THRE
  * как дорожка в парке, а не как улица в городе. Первый этаж всегда светлее и
  * с витринами: там магазины, и именно они дают улице «жилой» вид.
  */
+export type FacadeStyle = 'classic' | 'flat' | 'attic';
+
+/** Оттенок лепнины/наличников по зерну — иначе два дома одного цвета стен читаются клонами. */
+function trimTint(seed: number): number {
+  const t = new THREE.Color(ARBAT.frame);
+  const j = ((Math.sin(seed * 12.9898) * 43758.5453) % 1 + 1) % 1;
+  t.offsetHSL(0, 0, (j - 0.5) * 0.08);
+  return t.getHex();
+}
+
+/**
+ * Дом вдоль улицы, одним из трёх архитектурных языков.
+ *
+ * Прежде все дома сезона были одним шаблоном под разными цветами — улица из
+ * тридцати домов, различающихся только шириной и оттенком, читается как одна
+ * коробка, размноженная copy-paste. Три стиля меняют силуэт и деталировку, не
+ * только цвет:
+ *
+ * - `classic` — скатная кровля, тентовые козырьки над витринами (был здесь и
+ *   раньше).
+ * - `flat` — плоская крыша с парапетом и выступающим эркером по центру
+ *   фасада, лепной пояс между этажами вместо тентов.
+ * - `attic` — мансардная кровля с окнами-люкарнами, узкие кованые балкончики
+ *   на части окон верхнего яруса.
+ *
+ * Витрины первого этажа общие для всех стилей — там магазины, и разница
+ * между домами не в том, что продают, а в том, как выглядит дом над ними.
+ */
 export function buildFacade(
   x: number, z: number, width: number, depth: number, storeys: number, hex: number, facing: 1 | -1,
-  glow?: THREE.BufferGeometry[],
+  glow?: THREE.BufferGeometry[], style: FacadeStyle = 'classic', seed = 0,
 ): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
   const storeyH = 3.4;
   const h = storeyH * storeys + 1.2;
+  const trim = trimTint(seed);
   parts.push(box(depth, h, width, x, h / 2, z, hex));
-  // Карниз и крыша.
-  parts.push(box(depth + 0.5, 0.5, width + 0.5, x, h + 0.25, z, ARBAT.roof));
 
   const front = x - facing * (depth / 2 + 0.01);
-  // Витрины первого этажа.
+
+  // ── Крыша: единственное, что решает силуэт с полусотни метров ───────────
+  if (style === 'flat') {
+    parts.push(box(depth + 0.4, 0.45, width + 0.4, x, h + 0.22, z, trim));
+    parts.push(box(depth + 0.4, 0.5, 0.3, x, h + 0.7, z - width / 2 - 0.05, trim));
+    parts.push(box(depth + 0.4, 0.5, 0.3, x, h + 0.7, z + width / 2 + 0.05, trim));
+    parts.push(box(0.3, 0.5, width + 0.4, x - depth / 2 - 0.05, h + 0.7, z, trim));
+    // Эркер по центру фасада — выступающий трёхгранный объём во всю высоту.
+    const bayW = Math.min(3.6, width * 0.28);
+    parts.push(box(depth * 0.32, h - 1.0, bayW, front + facing * (depth * 0.16 + 0.01), (h - 1.0) / 2, z, hex));
+    parts.push(box(depth * 0.34, 0.3, bayW + 0.3, front + facing * (depth * 0.16), h - 0.8, z, trim));
+  } else if (style === 'attic') {
+    parts.push(box(depth + 0.5, 0.4, width + 0.5, x, h + 0.2, z, trim));
+    const roof = new THREE.BoxGeometry(depth + 0.6, 2.6, width + 0.6);
+    // Скошенная мансарда: сжимаем верх коробки к половине ширины.
+    const pos = roof.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) {
+      if (pos.getY(i) > 0) {
+        pos.setX(i, pos.getX(i) * 0.35);
+        pos.setZ(i, pos.getZ(i) * 0.55);
+      }
+    }
+    roof.computeVertexNormals();
+    roof.translate(x, h + 1.5, z);
+    parts.push(paint(roof, ARBAT.roof));
+    // Люкарны — окна в скате мансарды, по одному на пару окон нижнего этажа.
+    const dormers = Math.max(1, Math.floor(width / 5.2));
+    for (let i = 0; i < dormers; i++) {
+      const wz = z - width / 2 + (i + 0.5) * (width / dormers);
+      parts.push(box(depth * 0.5, 1.0, 1.1, front + facing * depth * 0.18, h + 1.6, wz, hex));
+      const dr = new THREE.ConeGeometry(0.85, 0.7, 4);
+      dr.rotateY(Math.PI / 4);
+      dr.rotateZ(Math.PI / 2 * facing);
+      dr.translate(front + facing * depth * 0.32, h + 2.35, wz);
+      parts.push(paint(dr, ARBAT.roof));
+      parts.push(box(0.1, 0.7, 0.7, front + facing * (depth * 0.18 + 0.26), h + 1.6, wz, ARBAT.window));
+    }
+  } else {
+    parts.push(box(depth + 0.5, 0.5, width + 0.5, x, h + 0.25, z, ARBAT.roof));
+  }
+
+  // ── Витрины первого этажа: общие для всех стилей ─────────────────────────
   const shops = Math.max(1, Math.floor(width / 4));
   for (let i = 0; i < shops; i++) {
     const wz = z - width / 2 + (i + 0.5) * (width / shops);
@@ -175,41 +243,67 @@ export function buildFacade(
     if (glow) {
       glow.push(box(0.07, 2.1, width / shops - 1.3, front - facing * 0.05, 1.5, wz, 0xffe6b4));
     }
-    parts.push(box(0.2, 0.24, width / shops - 0.7, front, 2.85, wz, ARBAT.frame));
-    // Козырёк над входом. Плоская плита читалась полкой: у тента должен быть
-    // наклон от стены и свисающая юбка по переднему краю — именно по ним глаз
-    // и отличает маркизу от карниза.
-    const hue = i % 2 ? ARBAT.awning : ARBAT.awningAlt;
-    const wSlot = width / shops - 1.2;
-    const slope = new THREE.BoxGeometry(1.25, 0.1, wSlot);
-    slope.rotateZ(facing * 0.26);
-    slope.translate(front - facing * 0.6, 3.3, wz);
-    parts.push(paint(slope, hue));
-    // Юбка: короткая вертикальная полоса под передним краем.
-    parts.push(box(0.08, 0.34, wSlot, front - facing * 1.16, 3.02, wz, hue));
-    // Кронштейны по краям, иначе тент висит в воздухе.
-    for (const e of [-1, 1]) {
-      const arm = new THREE.BoxGeometry(1.15, 0.06, 0.06);
-      arm.rotateZ(facing * 0.26);
-      arm.translate(front - facing * 0.58, 3.22, wz + e * (wSlot / 2 - 0.06));
-      parts.push(paint(arm, ARBAT.metal));
+    parts.push(box(0.2, 0.24, width / shops - 0.7, front, 2.85, wz, trim));
+
+    if (style === 'classic') {
+      // Тентовый козырёк с наклоном и юбкой — маркиза, а не полка.
+      const hue = i % 2 ? ARBAT.awning : ARBAT.awningAlt;
+      const wSlot = width / shops - 1.2;
+      const slope = new THREE.BoxGeometry(1.25, 0.1, wSlot);
+      slope.rotateZ(facing * 0.26);
+      slope.translate(front - facing * 0.6, 3.3, wz);
+      parts.push(paint(slope, hue));
+      parts.push(box(0.08, 0.34, wSlot, front - facing * 1.16, 3.02, wz, hue));
+      for (const e of [-1, 1]) {
+        const arm = new THREE.BoxGeometry(1.15, 0.06, 0.06);
+        arm.rotateZ(facing * 0.26);
+        arm.translate(front - facing * 0.58, 3.22, wz + e * (wSlot / 2 - 0.06));
+        parts.push(paint(arm, ARBAT.metal));
+      }
+    } else {
+      // Лепной пояс вместо тента — плоская полка не читается полкой, если
+      // она идёт вдоль всего фасада, а не висит одна над каждой дверью.
+      if (i === 0) parts.push(box(0.1, 0.16, width, front - facing * 0.03, 2.95, z, trim));
     }
   }
-  // Окна верхних этажей.
+
+  // ── Окна верхних этажей ───────────────────────────────────────────────────
   for (let s = 1; s < storeys; s++) {
     const y = 1.2 + s * storeyH + 1.4;
     const cols = Math.max(2, Math.floor(width / 2.6));
     for (let i = 0; i < cols; i++) {
       const wz = z - width / 2 + (i + 0.5) * (width / cols);
-      parts.push(box(0.12, 1.7, 1.1, front, y, wz, ARBAT.window));
+      const arched = style === 'flat' && s === storeys - 1;
+      if (arched) {
+        parts.push(box(0.12, 1.3, 1.0, front, y - 0.2, wz, ARBAT.window));
+        const arc = new THREE.CylinderGeometry(0.5, 0.5, 0.12, 10, 1, false, 0, Math.PI);
+        arc.rotateZ(Math.PI / 2);
+        arc.rotateY(Math.PI / 2);
+        arc.translate(front, y + 0.5, wz);
+        parts.push(paint(arc, ARBAT.window));
+      } else {
+        parts.push(box(0.12, 1.7, 1.1, front, y, wz, ARBAT.window));
+      }
       // Горит не каждое окно: дом, где ночью светятся все, читается как
       // офис, а не как жилой. Треть тёмных — и улица оживает.
       if (glow && (i * 7 + s * 3 + Math.round(Math.abs(z))) % 3 !== 0) {
         glow.push(box(0.06, 1.5, 0.95, front - facing * 0.05, y, wz,
           (i + s) % 4 === 0 ? 0xffe0a0 : 0xffd27a));
       }
-      parts.push(box(0.18, 0.16, 1.4, front, y - 0.95, wz, ARBAT.frame));
-      parts.push(box(0.18, 0.16, 1.4, front, y + 0.95, wz, ARBAT.frame));
+      parts.push(box(0.18, 0.16, 1.4, front, y - 0.95, wz, trim));
+      parts.push(box(0.18, 0.16, 1.4, front, y + 0.95, wz, trim));
+
+      // Балкон: только на мансардном стиле, только каждое второе окно,
+      // только не на верхнем этаже — иначе он держится на воздухе под кровлей.
+      if (style === 'attic' && s < storeys - 1 && i % 2 === 0) {
+        parts.push(box(0.7, 0.08, 1.3, front - facing * 0.35, y - 0.85, wz, trim));
+        for (const e of [-0.55, 0.55]) {
+          for (let bx = -0.3; bx <= 0.3; bx += 0.3) {
+            parts.push(box(0.04, 0.7, 0.04, front - facing * (0.35 + bx + 0.35), y - 0.5, wz + e, ARBAT.metal));
+          }
+        }
+        parts.push(box(0.7, 0.55, 0.04, front - facing * 0.7, y - 0.55, wz, ARBAT.metal));
+      }
     }
   }
   return parts;
@@ -307,20 +401,21 @@ export function buildPlanter(x: number, z: number): THREE.BufferGeometry[] {
  * читаются на низкополигональной улице лучше, чем прозрачный слой, который
  * при взгляде сверху всё равно превращается в блик.
  */
+/**
+ * Чаша и постамент фонтана — статичная часть, уходит в общий слитый меш.
+ *
+ * Вода раньше была плоской плашкой того же вершинного цвета, а восемь струй —
+ * восемь неподвижных шариков, застывших на полпути между чашей и центром.
+ * Фонтан, который не течёт, читается сломанным краном, а не достопримечатель-
+ * ностью. Живая вода и настоящие капли — `createFountainFx` в `fountains.ts`,
+ * отдельный анимируемый слой поверх этой чаши.
+ */
 export function buildFountain(x: number, z: number, r: number): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
   parts.push(cyl(r, r + 0.15, 0.55, 16, x, 0.27, z, ARBAT.stone));
-  parts.push(cyl(r - 0.28, r - 0.28, 0.12, 16, x, 0.5, z, ARBAT.water));
   parts.push(cyl(0.28, 0.42, 1.0, 10, x, 0.55, z, ARBAT.stone));
   parts.push(cyl(r * 0.42, r * 0.42, 0.12, 12, x, 1.08, z, ARBAT.stone));
   parts.push(cyl(0.16, 0.22, 0.7, 8, x, 1.45, z, ARBAT.stone));
-  parts.push(ball(0.3, x, 1.9, z, ARBAT.water, 10));
-  // Струи — восемь наклонных капель по кругу.
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    parts.push(ball(0.11, x + Math.cos(a) * (r * 0.55), 1.35, z + Math.sin(a) * (r * 0.55), ARBAT.water, 6));
-    parts.push(ball(0.08, x + Math.cos(a) * (r * 0.8), 0.85, z + Math.sin(a) * (r * 0.8), ARBAT.water, 6));
-  }
   return parts;
 }
 

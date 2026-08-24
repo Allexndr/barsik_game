@@ -66,6 +66,8 @@ export interface HubLocation {
    * части, а слитый меш по определению неподвижен.
    */
   rides?(): import('./rides').Ride[];
+  /** Фонтаны — вода и брызги, никогда не завязаны на присутствие игрока. */
+  fountains?(): import('./fountains').FountainFx[];
   /**
    * Где растёт трава.
    *

@@ -2,14 +2,20 @@ import * as THREE from 'three';
 import {
   ARBAT, box, buildAppleMonument, buildBench, buildEasel, buildFacade, buildFountain,
   buildGate, buildLamp, buildPaving, buildPigeon, buildPlanter, buildStall, buildTerrace,
-  buildTree, cyl, paint,
+  buildTree, cyl, paint, type FacadeStyle,
 } from './arbatProps';
+
+/** Стили чередуются, а не повторяются подряд — иначе три классических дома
+ * рядом снова читаются одним домом трижды. */
+const FACADE_STYLES: readonly FacadeStyle[] = ['classic', 'flat', 'attic'];
+const styleAt = (i: number): FacadeStyle => FACADE_STYLES[i % FACADE_STYLES.length];
 import {
   buildAlley, buildCarouselBase, buildCathedral, buildLawn, buildMemorial, buildMuseum,
   buildParkTree, buildSeesawBase, buildSwingFrame, buildTheatre, buildUniversity, CIVIC,
 } from './civicProps';
 import { registerLocation, type LocationBuild } from './locations';
 import { createCarousel, createSeesaw, createSwing } from './rides';
+import { createFountainFx } from './fountains';
 
 /**
  * Пять мест центра Алматы и переходы между ними.
@@ -109,14 +115,14 @@ registerLocation({
         if (Math.abs(centre - gap) > w / 2 + 3.4) {
           solid.push(...buildFacade(
             side * (ARBAT_HALF_W + 7.5), centre, w, 13,
-            3 + (i % 2), hues[i % hues.length], side, glow,
+            3 + (i % 2), hues[i % hues.length], side, glow, styleAt(i), i * 1.7 + side,
           ));
         }
         z -= w + 1.2;
         i++;
       }
     }
-    solid.push(...buildFacade(0, ARBAT_TO - 7, 34, 14, 4, ARBAT.facadeB, 1, glow));
+    solid.push(...buildFacade(0, ARBAT_TO - 7, 34, 14, 4, ARBAT.facadeB, 1, glow, 'flat', 99));
 
     // Переулки: мостовая в проходе и арка над ним.
     for (const [side, gz] of [[1, ARBAT_GAP_PANFILOVA], [-1, ARBAT_GAP_TYUZ]] as const) {
@@ -192,6 +198,10 @@ registerLocation({
     }
     return { solid, glow, colliders, treeSpots };
   },
+  fountains: () => [
+    createFountainFx(0, -4, 3.2),
+    createFountainFx(0, -66, 2.6),
+  ],
 });
 
 // ── 2. Панфилова ────────────────────────────────────────────────────────────
@@ -234,6 +244,7 @@ registerLocation({
         if (side < 0 || Math.abs(centre - PAN_GAP_PARK) > w / 2 + 3.4) {
           solid.push(...buildFacade(
             side * (PAN_HALF_W + 7), centre, w, 12, 3, hues[i % hues.length], side, glow,
+            styleAt(i + 1), i * 1.3 + side * 0.4,
           ));
         }
         z -= w + 1.0;
@@ -285,6 +296,7 @@ registerLocation({
     }
     return { solid, glow, colliders, treeSpots };
   },
+  fountains: () => [createFountainFx(0, -8, 2.8)],
 });
 
 // ── 3. Парк 28 панфиловцев ──────────────────────────────────────────────────
@@ -478,6 +490,10 @@ registerLocation({
       return true;
     },
   },
+  fountains: () => [
+    createFountainFx(-28, 12, 3.6),
+    createFountainFx(28, 12, 3.6),
+  ],
 });
 
 // ── 5. Сквер Иманова и ТЮЗ ──────────────────────────────────────────────────
@@ -582,4 +598,5 @@ registerLocation({
     createSwing('tyuz-swing', 24, -22),
     createCarousel('tyuz-carousel', 14, -24),
   ],
+  fountains: () => [createFountainFx(0, 0, 3.4)],
 });
