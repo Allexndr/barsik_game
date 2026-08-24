@@ -21,7 +21,7 @@ import { placeAmbientCritters } from '../s1Place';
 // ── Layout ──────────────────────────────────────────────────────
 // The stealth was one fourteen-metre walk with a binary run/walk check: get
 // within three metres without holding Shift and the level was over. Putalo now
-// photographs butterflies at three spots in turn, each deeper into the forest,
+// photographs butterflies at four spots in turn, each deeper into the forest,
 // and earning his trust at one is what makes him lead you to the next.
 const SPAWN_Z = 12;
 const HIDES: Array<{ x: number; z: number }> = [
@@ -57,10 +57,6 @@ const WATCHING_MS: [number, number] = [1500, 2400];
 /** Below this the hero counts as standing still while he watches. */
 const STILL_SPEED = 0.35;
 
-function routeX(z: number) {
-  return Math.sin((z - SPAWN_Z) * 0.06) * 3.2;
-}
-
 /**
  * Where the wind takes his photographs.
  *
@@ -75,6 +71,61 @@ const LOST_PHOTOS: Array<{ x: number; z: number }> = [
   { x: 18, z: -33 },
   { x: 4, z: -20 },
 ];
+
+/**
+ * One honest path through every place the story asks the child to visit.
+ *
+ * The old north/south corridor stayed near x=0 while the hiding rooms reach
+ * x=-11/+13. Their circles did not touch the corridor, so the second hide was
+ * behind an invisible movement clamp. The final lost photo at x=18 was also
+ * disconnected. This polyline is shared by movement, terrain flats, trail
+ * stones, grass clearance and the visible forest wall.
+ */
+const LEVEL_ROUTE: ReadonlyArray<{ x: number; z: number }> = [
+  { x: 0, z: SPAWN_Z },
+  HIDES[0],
+  HIDES[1],
+  LOST_PHOTOS[2],
+  HIDES[2],
+  LOST_PHOTOS[0],
+  HIDES[3],
+  LOST_PHOTOS[1],
+  // Gathering has no prescribed order. Closing the route back through the
+  // northern photo keeps photo 2 → photo 3 (and the reverse) connected.
+  LOST_PHOTOS[2],
+];
+
+function pointOnRoute(progress: number) {
+  const lengths: number[] = [];
+  let total = 0;
+  for (let i = 1; i < LEVEL_ROUTE.length; i++) {
+    const a = LEVEL_ROUTE[i - 1];
+    const b = LEVEL_ROUTE[i];
+    const length = Math.hypot(b.x - a.x, b.z - a.z);
+    lengths.push(length);
+    total += length;
+  }
+  let remaining = THREE.MathUtils.clamp(progress, 0, 1) * total;
+  for (let i = 0; i < lengths.length; i++) {
+    const length = lengths[i];
+    if (remaining <= length || i === lengths.length - 1) {
+      const a = LEVEL_ROUTE[i];
+      const b = LEVEL_ROUTE[i + 1];
+      const t = length > 1e-4 ? remaining / length : 0;
+      const dx = (b.x - a.x) / Math.max(length, 1e-4);
+      const dz = (b.z - a.z) / Math.max(length, 1e-4);
+      return {
+        x: THREE.MathUtils.lerp(a.x, b.x, t),
+        z: THREE.MathUtils.lerp(a.z, b.z, t),
+        nx: -dz,
+        nz: dx,
+      };
+    }
+    remaining -= length;
+  }
+  const end = LEVEL_ROUTE[LEVEL_ROUTE.length - 1];
+  return { x: end.x, z: end.z, nx: 1, nz: 0 };
+}
 
 export type L8Phase =
   | 'intro' | 'approach' | 'slow' | 'hiding' | 'dialogue' | 'photo' | 'gather' | 'outro';
@@ -293,6 +344,12 @@ export class Level7Scene extends BaseLevelScene {
     const up = (e: KeyboardEvent) => this.keys.delete(e.code);
     addEventListener('keydown', down);
     addEventListener('keyup', up);
+    // Level 7 owns a dialogue-aware keyboard binding, so it cannot delegate
+    // the whole method to BaseLevelScene. Keep the shared camera/orientation
+    // part of that contract: without these two bindings this was the only
+    // Season 1 level whose canvas accepted a drag but never orbited.
+    this.bindCameraOrbitDrag();
+    this.bindOrientationChange();
     (this as unknown as { _kd: typeof down; _ku: typeof up })._kd = down;
     (this as unknown as { _kd: typeof down; _ku: typeof up })._ku = up;
   }
@@ -304,8 +361,9 @@ export class Level7Scene extends BaseLevelScene {
     const loader = createGameGltfLoader();
 
     this.camera.position.set(8, 7, 20);
-    this.pathCorridor = routeX;
-    this.pathCorridorHalf = 2.2;
+    this.playPath = LEVEL_ROUTE.map(({ x, z }) => ({ x, z }));
+    this.playPathHalf = 3.0;
+    const routeSamples = Array.from({ length: 42 }, (_, i) => pointOnRoute(i / 41));
     await this.setupForestEnvironment(loader, {
       fogColor: 0x4a5d4a, sunColor: 0xfff3e0, sunIntensity: 1.75,
       hemiSky: 0x6b8e6b, hemiGround: 0x2d4a2d,
@@ -313,13 +371,22 @@ export class Level7Scene extends BaseLevelScene {
       flatRadius: 12, flatCenterZ: -16, fireflies: true,
       terrain: {
         playHalfExtent: 52, rimFalloff: 15, rimHeight: 3.2, seed: 7,
-        features: HIDES.map((h) => ({ kind: 'flat' as const, x: h.x, z: h.z, r: 6 }))
-          .concat([{ kind: 'flat' as const, x: 0, z: SPAWN_Z - 3, r: 7 }]),
+        features: routeSamples.map((point) => ({
+          kind: 'flat' as const,
+          x: point.x,
+          z: point.z,
+          r: 4.2,
+        })),
       },
     });
 
     this.reserve(0, SPAWN_Z, 5);
     for (const h of HIDES) this.reserve(h.x, h.z, 5);
+    for (const photo of LOST_PHOTOS) this.reserve(photo.x, photo.z, 3.2);
+    // `loadTrees` predates polyline play paths and protects `reserve()` zones.
+    // Match the actual walkable half-width so a random seed cannot put an
+    // uncollidable trunk inside the route the movement clamp just opened.
+    for (const point of routeSamples) this.reserve(point.x, point.z, 5.0);
 
     const pad = spawnPad(0, SPAWN_Z);
     pad.position.y = this.groundHeightAt(0, SPAWN_Z) + 0.01;
@@ -327,10 +394,7 @@ export class Level7Scene extends BaseLevelScene {
     this.scene.add(await placeWoodSign(loader, -2.8, SPAWN_Z - 1.8, 0.3, 0x8d6e63));
     await this.layTrail(
       loader,
-      Array.from({ length: 20 }, (_, i) => {
-        const z = SPAWN_Z - (i / 19) * 34;
-        return { x: routeX(z), z };
-      }),
+      routeSamples.map(({ x, z }) => ({ x, z })),
       { size: 1.2 },
     );
 
@@ -418,11 +482,27 @@ export class Level7Scene extends BaseLevelScene {
       this.scene.add(p);
     }
 
-    // Bushes, thinned along the route so cover reads as cover
+    // Bushes never move and already share the BaseLevel material. Bake their
+    // world matrices into one geometry so the cover silhouette remains the
+    // same without paying one renderable/draw per bush. Dispose only the
+    // short-lived source geometries: the material is shared game-wide.
+    const bushes: THREE.Object3D[] = [];
     for (let i = 0; i < 22; i++) {
       const side = i % 2 === 0 ? 1 : -1;
-      const z = SPAWN_Z - (i / 22) * 58;
-      this.scene.add(bush(routeX(z) + side * (5 + Math.random() * 4), z));
+      const point = pointOnRoute(i / 21);
+      const offset = side * (5 + Math.random() * 4);
+      bushes.push(bush(point.x + point.nx * offset, point.z + point.nz * offset));
+    }
+    const mergedBushes = this.mergeStatic(bushes);
+    if (mergedBushes) {
+      for (const object of bushes) {
+        object.traverse((child) => {
+          if (child instanceof THREE.Mesh) child.geometry.dispose();
+        });
+      }
+      this.scene.add(mergedBushes);
+    } else {
+      for (const object of bushes) this.scene.add(object);
     }
 
     // Butterflies (Putalo photographs them). Three per hide, and indexed off
@@ -439,9 +519,19 @@ export class Level7Scene extends BaseLevelScene {
       this.scene.add(bf);
     }
 
-    // Trees (denser, darker area)
+    // Trees (denser, darker area). These random, noninteractive roots frame
+    // the authored hiding rooms but do not communicate the stealth rules.
+    // Keep them visible and receiving light while removing their private
+    // shadow-map draws; rocks, Putalo, photo props and landmarks remain owned
+    // by the authored scene and keep their shadows.
+    const distantDecorStart = this.scene.children.length;
     await this.loadTrees(loader, 30, 18, -14, 4.4);
     await this.loadProps(loader, 12, 6, 32, -14);
+    for (const root of this.scene.children.slice(distantDecorStart)) {
+      root.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = false;
+      });
+    }
 
     // Putalo's photo kit + quiet forest extras
     await this.placeProps(loader, [
@@ -463,7 +553,16 @@ export class Level7Scene extends BaseLevelScene {
     this.hero.position.set(0, this.groundHeightAt(0, 6), 6);
     // The wall. Planted last, so it can read the corridor and every room the
     // level reserved and hug the outside of both.
-    await this.encloseLevel(loader);
+    // A follow camera travels this whole zig-zag. Keep the low first row as
+    // the visible boundary, but do not plant mid/far canopy inside its lens
+    // corridor (the default start cap otherwise fills a portrait phone with
+    // one tree). Random background scatter still supplies forest depth.
+    await this.enclosePath(
+      loader,
+      3,
+      3.0,
+      routeSamples.map(({ x, z }) => ({ x, z, r: 11.2 })),
+    );
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
     this.activate(() => {
@@ -555,22 +654,24 @@ export class Level7Scene extends BaseLevelScene {
       objective = this.copy('🤫 Подойди медленно — не беги', '🤫 Жай жақында — жүгірме');
     } else if (p === 'approach' || p === 'slow') {
       const dist = this.putalo ? this.hero.position.distanceTo(this.putalo.position) : 99;
-      if (dist < 3) {
+      // The watch state is the rule, even at arm's length. The old `dist < 3`
+      // branch hid this warning behind “press E/paw”, but approach has no
+      // action handler: it advertised a dead button exactly when the child
+      // most needed to know whether to move or freeze.
+      if (this.watch === 'watching') {
+        line = this.copy('Он смотрит! Не двигайся...', 'Ол қарап тұр! Қозғалма...');
+        objective = `${this.copy('🧍 Замри — он смотрит', '🧍 Қатып қал — ол қарап тұр')} ${this.trustBar()}  ·  ${this.hideIndex + 1}/${this.approachesTotal}`;
+      } else if (this.watch === 'lifting') {
+        line = this.copy('Он поднимает голову...', 'Ол басын көтеріп жатыр...');
+        objective = `${this.copy('👀 Сейчас посмотрит — стой', '👀 Қазір қарайды — тоқта')} ${this.trustBar()}  ·  ${this.hideIndex + 1}/${this.approachesTotal}`;
+      } else if (dist < 3) {
         speaker = this.copy('Путало', 'Путало');
         line = this.hideIndex === 0
           ? this.copy('Ты... ты не боишься меня?', 'Сен... менен қорықпайсың ба?')
           : this.hideIndex === 1
             ? this.copy('Пойдём, тут бабочки красивее...', 'Жүр, мұнда көбелектер әдемірек...')
             : this.copy('Здесь моё самое тихое место.', 'Мұнда менің ең тыныш жерім.');
-        objective = this.isMobile
-          ? this.copy('Поговори — нажми лапку', 'Сөйлесу үшін табанды бас')
-          : this.copy('Поговори — нажми E', 'Сөйлесу үшін E пернесін бас');
-      } else if (this.watch === 'watching') {
-        line = this.copy('Он смотрит! Не двигайся...', 'Ол қарап тұр! Қозғалма...');
-        objective = `${this.copy('🧍 Замри — он смотрит', '🧍 Қатып қал — ол қарап тұр')} ${this.trustBar()}  ·  ${this.hideIndex + 1}/${this.approachesTotal}`;
-      } else if (this.watch === 'lifting') {
-        line = this.copy('Он поднимает голову...', 'Ол басын көтеріп жатыр...');
-        objective = `${this.copy('👀 Сейчас посмотрит — стой', '👀 Қазір қарайды — тоқта')} ${this.trustBar()}  ·  ${this.hideIndex + 1}/${this.approachesTotal}`;
+        objective = `${this.copy('🤫 Побудь рядом тихо', '🤫 Жанында тыныш тұр')} ${this.trustBar()}  ·  ${this.hideIndex + 1}/${this.approachesTotal}`;
       } else {
         line = this.copy('Снимает бабочек — иди сейчас!', 'Көбелектерді түсіріп жатыр — қазір жүр!');
         objective = `${this.copy('📷 Он снимает — подходи', '📷 Ол түсіріп жатыр — жақында')} ${this.trustBar()}  ·  ${this.hideIndex + 1}/${this.approachesTotal}`;
@@ -663,10 +764,6 @@ export class Level7Scene extends BaseLevelScene {
 
   private nearestInteract(): THREE.Object3D | null {
     const hp = this.hero.position;
-    if (this.putalo && (this.phase === 'approach' || this.phase === 'slow')) {
-      const d = hp.distanceTo(this.putalo.position);
-      if (d < 2.5) return this.putalo;
-    }
     if (this.phase === 'gather') {
       let best: THREE.Object3D | null = null;
       let bestD = 2.4;
@@ -889,7 +986,7 @@ export class Level7Scene extends BaseLevelScene {
       const rate = this.phase === 'approach' && this.putaloState === 'peeking' ? 1.1 : 2.4;
       this.putalo.position.x += (this.putaloTargetX - this.putalo.position.x) * dt * rate;
       this.putalo.position.z += (this.putaloTargetZ - this.putalo.position.z) * dt * rate;
-      this.putalo.position.y = this.groundHeightAt(this.putalo.position.x, this.putalo.position.z);
+      const putaloGround = this.groundHeightAt(this.putalo.position.x, this.putalo.position.z);
 
       // Putalo faces hero when out
       if (this.putaloState === 'out' || this.putaloState === 'talking') {
@@ -901,7 +998,7 @@ export class Level7Scene extends BaseLevelScene {
       }
 
       // Putalo bobbing
-      this.putalo.position.y = Math.sin(now * 0.002) * 0.03;
+      this.putalo.position.y = putaloGround + Math.sin(now * 0.002) * 0.03;
 
       // Eyes visibility based on state (procedural Putalo only)
       const eyes = this.putalo.userData.eyes as THREE.Mesh[] | undefined;
