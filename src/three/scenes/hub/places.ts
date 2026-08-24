@@ -9,6 +9,7 @@ import {
   buildParkTree, buildSeesawBase, buildSwingFrame, buildTheatre, buildUniversity, CIVIC,
 } from './civicProps';
 import { registerLocation, type LocationBuild } from './locations';
+import { createCarousel, createSeesaw, createSwing } from './rides';
 
 /**
  * Пять мест центра Алматы и переходы между ними.
@@ -350,11 +351,12 @@ registerLocation({
       solid.push(...buildLamp(x, -4.8, glow));
     }
 
-    // Детская площадка: аттракционы, которые интереснее вдвоём.
+    // Детская площадка: аттракционы, которые интереснее вдвоём. Коллайдер
+    // ставим только каруселью — на балансир и качели нужно уметь подойти
+    // вплотную, иначе на них не сядешь.
     solid.push(...buildSeesawBase(-34, -30));
     solid.push(...buildCarouselBase(-42, -38));
     solid.push(...buildSwingFrame(-26, -36));
-    colliders.push({ kind: 'circle', x: -42, z: -38, r: 3.6 });
 
     for (let i = 0; i < 30; i++) {
       const a = i * 2.399;
@@ -370,6 +372,11 @@ registerLocation({
     }
     return { solid, glow, colliders };
   },
+  rides: () => [
+    createSeesaw('park-seesaw', -34, -30),
+    createCarousel('park-carousel', -42, -38),
+    createSwing('park-swing', -26, -36),
+  ],
 });
 
 // ── 4. КБТУ ─────────────────────────────────────────────────────────────────
@@ -504,7 +511,6 @@ registerLocation({
     solid.push(...buildSeesawBase(18, -16));
     solid.push(...buildSwingFrame(24, -22));
     solid.push(...buildCarouselBase(14, -24));
-    colliders.push({ kind: 'circle', x: 14, z: -24, r: 3.6 });
 
     for (let i = 0; i < 18; i++) {
       const a = i * 2.399;
@@ -520,4 +526,9 @@ registerLocation({
     void paint;
     return { solid, glow, colliders };
   },
+  rides: () => [
+    createSeesaw('tyuz-seesaw', 18, -16),
+    createSwing('tyuz-swing', 24, -22),
+    createCarousel('tyuz-carousel', 14, -24),
+  ],
 });

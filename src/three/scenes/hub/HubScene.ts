@@ -8,6 +8,7 @@ import { renderChat } from '@/utils/safeChat';
 import { createGameGltfLoader } from '../../createGameGltfLoader';
 import { assemble, assembleGlow, GLOW_MATERIAL } from './arbatProps';
 import { arrivalPoint, getLocation, type HubLocation, type LocationId } from './locations';
+import { pickSeat, type Ride } from './rides';
 import type { DaySample } from '../../DayCycle';
 
 /**
@@ -30,6 +31,8 @@ export interface HubHud extends BaseHud {
   locationKk: string;
   /** Выход, у которого стоит ребёнок, — по нему рисуется подсказка перехода. */
   atPortal: { to: LocationId; ru: string; kk: string } | null;
+  /** Аттракцион под рукой: подсказка «сесть» или «слезть». */
+  atRide: { ru: string; kk: string; riding: boolean } | null;
 }
 
 /** Табличка над головой. Рисуется на канве — шрифт один на всех. */
@@ -93,18 +96,64 @@ export class HubScene extends BaseLevelScene {
   private atPortal: HubHud['atPortal'] = null;
   private onTravel: ((to: LocationId) => void) | null = null;
   private travelArmed = false;
+  private rides: Ride[] = [];
+  private nearRide: Ride | null = null;
+  private ridingOn: Ride | null = null;
+  private ridingSeat = -1;
+  private seatPos = new THREE.Vector3();
 
   protected currentPhase() {
     return 'hub';
   }
 
-  /** В хабе «действие» — либо уйти в соседнее место, либо помахать. */
+  /**
+   * Действие в хабе.
+   *
+   * Порядок важен: сидящий ребёнок должен уметь слезть первым же нажатием, и
+   * никакая арка рядом не должна у него это отобрать.
+   */
   tryInteract() {
+    if (this.ridingOn) {
+      this.dismount();
+      return;
+    }
+    if (this.nearRide) {
+      this.mount(this.nearRide);
+      return;
+    }
     if (this.atPortal && this.onTravel) {
       this.onTravel(this.atPortal.to);
       return;
     }
     this.emote('wave');
+  }
+
+  private mount(ride: Ride) {
+    const seat = pickSeat(ride, this.hero.position);
+    if (seat < 0) return;
+    ride.occupied[seat] = 'me';
+    this.ridingOn = ride;
+    this.ridingSeat = seat;
+    this.myPose = 'sit';
+    this.poseUntil = Infinity;
+    this.pushHud();
+  }
+
+  private dismount() {
+    const ride = this.ridingOn;
+    if (!ride) return;
+    ride.occupied[this.ridingSeat] = null;
+    this.ridingOn = null;
+    this.ridingSeat = -1;
+    this.poseUntil = 0;
+    this.myPose = 'idle';
+    // Ставим рядом, а не на месте сиденья: иначе ребёнок оказывается внутри
+    // конструкции и первым же шагом упирается в её коллайдер.
+    const dx = this.hero.position.x - ride.x;
+    const dz = this.hero.position.z - ride.z;
+    const d = Math.hypot(dx, dz) || 1;
+    this.hero.position.set(ride.x + (dx / d) * (ride.r + 0.6), 0, ride.z + (dz / d) * (ride.r + 0.6));
+    this.pushHud();
   }
 
   emote(pose: HubPose) {
@@ -155,6 +204,9 @@ export class HubScene extends BaseLevelScene {
     this.nightLights = assembleGlow(built.glow, `hub-${place.id}-lights`);
     this.scene.add(this.nightLights);
     for (const c of built.colliders) this.colliders.push(c);
+
+    this.rides = place.rides?.() ?? [];
+    for (const ride of this.rides) this.scene.add(ride.group);
 
     const at = arrivalPoint(place, cameFrom);
     this.hero.position.set(at.x, 0, at.z);
@@ -303,6 +355,29 @@ export class HubScene extends BaseLevelScene {
     }
   }
 
+  private checkRides() {
+    if (this.ridingOn) {
+      if (this.nearRide) { this.nearRide = null; this.pushHud(); }
+      return;
+    }
+    const p = this.hero.position;
+    let best: Ride | null = null;
+    let bestD = Infinity;
+    for (const ride of this.rides) {
+      const d = Math.hypot(p.x - ride.x, p.z - ride.z);
+      // Аттракцион, где все места заняты, не предлагаем: подсказка, по
+      // которой ничего не происходит, хуже её отсутствия.
+      if (d < ride.r && d < bestD && ride.occupied.some((o) => !o)) {
+        bestD = d;
+        best = ride;
+      }
+    }
+    if (best !== this.nearRide) {
+      this.nearRide = best;
+      this.pushHud();
+    }
+  }
+
   // ── Кадр ─────────────────────────────────────────────────────────────────
 
   protected loop = () => {
@@ -314,9 +389,23 @@ export class HubScene extends BaseLevelScene {
     const t = now * 0.001;
     const b = this.place?.bounds ?? { xMin: -40, xMax: 40, zMin: -80, zMax: 20 };
 
+    // Аттракционы крутятся всегда, а не только когда на них сидят: пустая
+    // карусель, замершая намертво, читается сломанной.
+    for (const ride of this.rides) ride.update(dt, t);
+
     const before = this.hero.position.clone();
-    this.updateMovement(dt, true, this.runSpeed, b.xMin, b.xMax, b.zMin, b.zMax);
-    const moved = this.hero.position.distanceTo(before) > 0.004;
+    const riding = this.ridingOn;
+    if (riding) {
+      // Сидя ребёнок не ходит: его везёт аттракцион. Координаты при этом
+      // уходят в сеть как обычно, поэтому соседи видят, что он катается,
+      // и синхронизировать сам аттракцион не нужно.
+      const ry = riding.seatAt(this.ridingSeat, this.seatPos);
+      this.hero.position.copy(this.seatPos);
+      this.hero.rotation.y = ry;
+    } else {
+      this.updateMovement(dt, true, this.runSpeed, b.xMin, b.xMax, b.zMin, b.zMax);
+    }
+    const moved = !riding && this.hero.position.distanceTo(before) > 0.004;
 
     // Эмоция держится пару секунд и уступает ходьбе: ребёнок машет и идёт
     // дальше, а не залипает в позе до следующего нажатия.
@@ -331,17 +420,26 @@ export class HubScene extends BaseLevelScene {
     );
 
     this.checkPortals();
+    this.checkRides();
     this.syncRemotes(now);
     this.driveRemotes(dt, t);
 
     const f = this.cameraFraming();
+    // Сидя камера отходит и поднимается: иначе аттракцион, на котором едешь,
+    // не помещается в кадр и катание превращается в тряску экрана.
+    const back = riding ? 12.5 : 9.0;
+    const high = riding ? 7.6 : 6.4;
     const target = new THREE.Vector3(
-      this.cameraLateral(this.hero.position.x) + f.lateral,
-      6.4 * f.heightMul,
-      this.hero.position.z + 9.0 + f.backAdd,
+      this.cameraLateral(riding ? riding.x : this.hero.position.x) + f.lateral,
+      high * f.heightMul,
+      (riding ? riding.z : this.hero.position.z) + back + f.backAdd,
     );
     this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
-    this.camera.lookAt(this.hero.position.x - f.lateral * 0.28, 1.5 + f.lookUp, this.hero.position.z - 0.8);
+    this.camera.lookAt(
+      (riding ? riding.x : this.hero.position.x) - f.lateral * 0.28,
+      1.5 + f.lookUp,
+      (riding ? riding.z : this.hero.position.z) - 0.8,
+    );
 
     this.renderFrame();
   };
@@ -369,7 +467,7 @@ export class HubScene extends BaseLevelScene {
       line: '',
       objective: '',
       stars: 0,
-      canInteract: this.atPortal !== null,
+      canInteract: this.atPortal !== null || this.nearRide !== null || this.ridingOn !== null,
       showMoveHint: false,
       showActionHint: this.atPortal !== null,
       outro: false,
@@ -378,11 +476,19 @@ export class HubScene extends BaseLevelScene {
       location: place?.id ?? 'arbat',
       locationRu: place?.ru ?? '',
       locationKk: place?.kk ?? '',
-      atPortal: this.atPortal,
+      atPortal: this.ridingOn || this.nearRide ? null : this.atPortal,
+      atRide: this.ridingOn
+        ? { ru: this.ridingOn.ru, kk: this.ridingOn.kk, riding: true }
+        : this.nearRide
+          ? { ru: this.nearRide.ru, kk: this.nearRide.kk, riding: false }
+          : null,
     });
   }
 
   dispose() {
+    for (const ride of this.rides) ride.dispose();
+    this.rides = [];
+    this.ridingOn = null;
     GLOW_MATERIAL.opacity = 0;
     this.hub?.leave();
     this.hub = null;
