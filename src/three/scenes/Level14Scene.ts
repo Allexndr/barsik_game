@@ -73,6 +73,7 @@ export class Level14Scene extends BaseLevelScene {
   private sneezeUntil = 0;
   private ayaMarker: THREE.Object3D | null = null;
   private ayaGroup: THREE.Object3D | null = null;
+  private carriedScarf: THREE.Object3D | null = null;
   private drifts: THREE.Object3D[] = [];
   private searched = 0;
   private campfires: Array<{ pos: THREE.Vector3; flame: THREE.Mesh }> = [];
@@ -104,8 +105,35 @@ export class Level14Scene extends BaseLevelScene {
   private nearestFireDistance() {
     let best = Infinity;
     for (const f of this.campfires) best = Math.min(best, this.hero.position.distanceTo(f.pos));
-    if (this.ayaFire?.visible) best = Math.min(best, this.hero.position.distanceTo(AYA_POS));
+    if (this.ayaFire?.visible) best = Math.min(best, this.hero.position.distanceTo(this.ayaFire.position));
     return best;
+  }
+
+  private nearestFirePosition() {
+    let best: THREE.Vector3 | null = null;
+    let bestD = Infinity;
+    for (const fire of this.campfires) {
+      const distance = this.hero.position.distanceTo(fire.pos);
+      if (distance < bestD) { bestD = distance; best = fire.pos; }
+    }
+    if (this.ayaFire?.visible) {
+      const distance = this.hero.position.distanceTo(this.ayaFire.position);
+      if (distance < bestD) best = this.ayaFire.position;
+    }
+    return best?.clone() ?? null;
+  }
+
+  /** The wind trail is authored as a serpentine, not a nearest-neighbour list. */
+  private nextDrift() {
+    return this.drifts.find((drift) => !drift.userData.searched && drift.visible) ?? null;
+  }
+
+  private updateDriftMarkers() {
+    const next = this.phase === 'search' && !this.hasScarf ? this.nextDrift() : null;
+    for (const drift of this.drifts) {
+      const marker = drift.userData.marker as THREE.Object3D | undefined;
+      if (marker) marker.visible = drift === next;
+    }
   }
 
   tryInteract() {
@@ -156,14 +184,26 @@ export class Level14Scene extends BaseLevelScene {
         this.hasScarf = true;
         this.stars += 6;
         drift.visible = false;
+        if (this.carriedScarf) this.carriedScarf.visible = true;
         AudioManager.sfx('found');
         this.spawnSparks(drift.position, 16, [0xff6b6b, 0xffd700]);
         this.setBeat('Шарф! Скорее к Айе!', 'Орамал! Тезірек Айяға!');
       } else {
+        // A searched mound stays in the world as a shallow dug-out patch. The
+        // player can read progress from the scene instead of remembering
+        // which of eight identical piles already paid out.
+        drift.scale.y *= 0.5;
+        drift.position.y -= 0.12;
+        drift.userData.searchedVisual = true;
         this.stars += 1;
         AudioManager.sfx('interact');
         this.spawnSparks(drift.position, 8, [0xe1f5fe, 0xffffff]);
+        this.setBeat(
+          'Здесь нет. След ветра тянется к следующему сугробу.',
+          'Мұнда жоқ. Жел ізі келесі қар үйіндісіне апарады.',
+        );
       }
+      this.updateDriftMarkers();
       this.pushHud();
       return;
     }
@@ -175,6 +215,7 @@ export class Level14Scene extends BaseLevelScene {
       AudioManager.sfx('success');
       const scarf = this.ayaGroup?.userData.scarf as THREE.Mesh | undefined;
       if (scarf) scarf.visible = true;
+      if (this.carriedScarf) this.carriedScarf.visible = false;
       this.phase = 'firewood';
       this.setBeat(
         'Уже теплее! Но шарфа мало — принеси дрова, разожжём ей костёр.',
@@ -193,10 +234,7 @@ export class Level14Scene extends BaseLevelScene {
         'Айя замёрзла. Её шарф унесло ветром — обыщи сугробы!',
         'Айя тоңып қалды. Орамалын жел ұшырып кеткен — қар үйінділерін тінт!',
       );
-      for (const d of this.drifts) {
-        const m = d.userData.marker as THREE.Object3D | undefined;
-        if (m) m.visible = true;
-      }
+      this.updateDriftMarkers();
       this.pushHud();
     }
   }
@@ -219,6 +257,7 @@ export class Level14Scene extends BaseLevelScene {
     for (const [x, z] of DRIFTS) this.reserve(x, z, 2.6);
     for (const [x, z] of LOGS) this.reserve(x, z, 2.6);
 
+    const winterAmbientStart = this.scene.children.length;
     await this.setupWinterEnvironment(loader, {
       sky: ['#4a6a8a', '#8ab0c8', '#d0e8f0'],
       decorCount: 44,
@@ -235,6 +274,13 @@ export class Level14Scene extends BaseLevelScene {
         ],
       },
     });
+    // The valley scatter remains dense, but only the rescue set pieces need
+    // shadow-map redraws. Barsik, Aya, fires and carried objects stay focal.
+    for (const root of this.scene.children.slice(winterAmbientStart)) {
+      root.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = false;
+      });
+    }
 
     AYA_POS.y = this.groundHeightAt(AYA_POS.x, AYA_POS.z);
     this.scene.add(zoneDisc(0, 5, 3.6, 0xe1f5fe, this.groundHeightAt(0, 5) + 0.04));
@@ -242,7 +288,11 @@ export class Level14Scene extends BaseLevelScene {
     const pad = spawnPad(0, 5);
     this.snapToGround(pad);
     this.scene.add(pad);
-    this.scene.add(await placeWoodSign(loader, -3, 3.5, 0.3, 0xe1f5fe));
+    const entranceSign = await placeWoodSign(loader, -3, 3.5, 0.3, 0xe1f5fe);
+    entranceSign.traverse((object) => {
+      if (object instanceof THREE.Mesh) object.castShadow = false;
+    });
+    this.scene.add(entranceSign);
 
     // ── Aya ──────────────────────────────────────────────────────
     const ayaGlb = await loadCharModel(loader, 'aya.glb', 1.3);
@@ -262,6 +312,13 @@ export class Level14Scene extends BaseLevelScene {
     scarf.visible = false;
     this.ayaGroup.add(scarf);
     this.ayaGroup.userData.scarf = scarf;
+    // A second transform backed by the same geometry/material is the physical
+    // scarf in Barsik's hands between discovery and hand-off.
+    this.carriedScarf = scarf.clone(true);
+    this.carriedScarf.visible = false;
+    this.carriedScarf.position.set(0, 0, 0);
+    this.carriedScarf.rotation.set(0, 0, 0);
+    this.scene.add(this.carriedScarf);
     this.snapToGround(this.ayaGroup);
     this.scene.add(this.ayaGroup);
 
@@ -285,13 +342,15 @@ export class Level14Scene extends BaseLevelScene {
     this.scene.add(this.ayaFire);
 
     // ── Campfires as safe islands ────────────────────────────────
+    const campFlameGeometry = new THREE.ConeGeometry(0.34, 0.72, 6);
+    const campFlameMaterial = new THREE.MeshBasicMaterial({ color: 0xff6f00 });
     for (const [x, z] of CAMPFIRES) {
       const y = this.groundHeightAt(x, z);
       const camp = await placeS1Prop(loader, 'campfire', { x, z, maxSize: 1.3 });
       if (camp) this.scene.add(camp);
       const flame = new THREE.Mesh(
-        new THREE.ConeGeometry(0.34, 0.72, 6),
-        new THREE.MeshBasicMaterial({ color: 0xff6f00 }),
+        campFlameGeometry,
+        campFlameMaterial,
       );
       flame.position.set(x, y + 0.55, z);
       const light = new THREE.PointLight(0xff9f43, 1.3, 8, 2);
@@ -335,11 +394,12 @@ export class Level14Scene extends BaseLevelScene {
 
     // ── Firewood ─────────────────────────────────────────────────
     const logMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.95 });
+    const logGeometry = new THREE.CylinderGeometry(0.09, 0.11, 0.9, 7);
     for (const [x, z] of LOGS) {
       const y = this.groundHeightAt(x, z);
       const log = new THREE.Group();
       for (let i = 0; i < 3; i++) {
-        const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.9, 7), logMat);
+        const stick = new THREE.Mesh(logGeometry, logMat);
         stick.rotation.z = Math.PI / 2;
         stick.rotation.y = i * 0.5;
         stick.position.set(0, 0.1 + i * 0.16, (i - 1) * 0.12);
@@ -352,6 +412,7 @@ export class Level14Scene extends BaseLevelScene {
       this.scene.add(log);
     }
 
+    const authoredAmbientStart = this.scene.children.length;
     await this.placeProps(loader, [
       { key: 'pine_tree', opts: { x: -11, z: -5, maxSize: 3.0 } },
       { key: 'pine_tree', opts: { x: 15, z: -20, maxSize: 2.8 } },
@@ -369,6 +430,11 @@ export class Level14Scene extends BaseLevelScene {
       { key: 'polar', x: -12, z: -12, rotY: 0.8, h: 0.9 },
       { key: 'penguin', x: 16, z: -27, rotY: -0.9, h: 0.75 },
     ]);
+    for (const root of this.scene.children.slice(authoredAmbientStart)) {
+      root.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = false;
+      });
+    }
 
     this.hero.position.set(0, this.groundHeightAt(0, 5), 5);
     // This level is a serpentine, not a field: its beats sit alternately left
@@ -445,10 +511,10 @@ export class Level14Scene extends BaseLevelScene {
     } else if (p === 'outro') {
       speaker = this.copy('Айя', 'Айя');
       line = this.copy(
-        'Теперь так тепло! Спасибо, что не бросил меня. Смотри — снеговик тает!',
-        'Енді өте жылы! Тастамағаның үшін рахмет. Қара — аққала еріп жатыр!',
+        'Теперь так тепло! Шарф и наш новый костёр победили мороз.',
+        'Енді өте жылы! Орамал мен жаңа отымыз аязды жеңді.',
       );
-      objective = this.copy('⛄ К снеговику!', '⛄ Аққалаға!');
+      objective = this.copy('🔥 Айя согрелась!', '🔥 Айя жылынды!');
     }
 
     this.onHud?.({
@@ -481,16 +547,16 @@ export class Level14Scene extends BaseLevelScene {
     }
     if (this.phase !== 'search') return null;
     if (this.hasScarf) return hp.distanceTo(AYA_POS) < 2.8 ? this.ayaMarker : null;
-    for (const d of this.drifts) {
-      if (d.userData.searched || !d.visible) continue;
-      if (hp.distanceTo(d.position) < 2.3) return d;
-    }
-    return null;
+    const next = this.nextDrift();
+    return next && hp.distanceTo(next.position) < 2.3 ? next : null;
   }
 
   private objectiveWorldPos(): THREE.Vector3 | null {
     if (!this.isActive) return null;
     if (this.phase === 'warm') return AYA_POS.clone();
+    // At critical warmth, navigation and copy agree: the nearest lit fire is
+    // the objective until Barsik has recovered, then the quest resumes.
+    if (this.sneezing || this.warmth <= 25) return this.nearestFirePosition();
     if (this.phase === 'firewood') {
       if (this.carryingLog) return AYA_POS.clone();
       const hp = this.hero.position;
@@ -504,15 +570,7 @@ export class Level14Scene extends BaseLevelScene {
       return best;
     }
     if (this.hasScarf) return AYA_POS.clone();
-    const hp = this.hero.position;
-    let best: THREE.Vector3 | null = null;
-    let bestD = Infinity;
-    for (const d of this.drifts) {
-      if (d.userData.searched || !d.visible) continue;
-      const dist = hp.distanceTo(d.position);
-      if (dist < bestD) { bestD = dist; best = d.position.clone(); }
-    }
-    return best;
+    return this.nextDrift()?.position.clone() ?? null;
   }
 
   protected loop = () => {
@@ -589,6 +647,14 @@ export class Level14Scene extends BaseLevelScene {
         this.hero.position.z,
       );
     }
+    if (this.carriedScarf?.visible) {
+      this.carriedScarf.position.set(
+        this.hero.position.x,
+        this.hero.position.y + 1.52 + Math.sin(now * 0.005) * 0.04,
+        this.hero.position.z,
+      );
+      this.carriedScarf.rotation.y = now * 0.0007;
+    }
 
     if (this.ayaMarker) {
       this.ayaMarker.visible = this.phase === 'warm'
@@ -622,6 +688,18 @@ export class Level14Scene extends BaseLevelScene {
       ];
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
       this.camera.lookAt(introLook[idx]);
+    } else if (this.phase === 'outro') {
+      const target = new THREE.Vector3(
+        this.cameraLateral(this.hero.position.x) + 0.8,
+        this.hero.position.y + 4.8,
+        this.hero.position.z + 8.2,
+      );
+      this.updateCamera(
+        target,
+        new THREE.Vector3(AYA_POS.x + 0.8, AYA_POS.y + 1.05, AYA_POS.z + 0.2),
+        0.002,
+        dt,
+      );
     } else {
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
@@ -629,11 +707,15 @@ export class Level14Scene extends BaseLevelScene {
         this.hero.position.y + 6.2 * f.heightMul,
         this.hero.position.z + 10.5 + f.backAdd,
       );
-      this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
-      this.camera.lookAt(
-        this.cameraLateral(this.hero.position.x),
-        this.hero.position.y + 1.25 + f.lookUp,
-        this.hero.position.z - 2.5 - f.lookAhead,
+      this.updateCamera(
+        target,
+        new THREE.Vector3(
+          this.cameraLateral(this.hero.position.x),
+          this.hero.position.y + 1.25 + f.lookUp,
+          this.hero.position.z - 2.5 - f.lookAhead,
+        ),
+        0.0015,
+        dt,
       );
     }
 
