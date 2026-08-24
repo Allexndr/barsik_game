@@ -82,6 +82,33 @@ export const STREET_MATERIAL = new THREE.MeshStandardMaterial({
   metalness: 0,
 });
 
+/**
+ * Ночные огни.
+ *
+ * Отдельным мешем и без освещения: окно, которое «горит», не может зависеть
+ * от того, светит ли на него солнце. Патчить общий материал через
+ * `onBeforeCompile` в этом проекте уже пробовали — материал молча переставал
+ * рисовать вовсе. Второй меш стоит один вызов отрисовки и не ломается.
+ *
+ * Прозрачность гоняется временем суток: днём ноль, ночью единица.
+ */
+export const GLOW_MATERIAL = new THREE.MeshBasicMaterial({
+  vertexColors: true,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+  fog: true,
+});
+
+export function assembleGlow(parts: THREE.BufferGeometry[], name = 'glow'): THREE.Mesh {
+  const merged = mergeGeometries(parts, false);
+  for (const p of parts) p.dispose();
+  const mesh = new THREE.Mesh(merged ?? new THREE.BufferGeometry(), GLOW_MATERIAL);
+  mesh.name = name;
+  mesh.renderOrder = 5;
+  return mesh;
+}
+
 export function assemble(parts: THREE.BufferGeometry[], name = ''): THREE.Mesh {
   const merged = mergeGeometries(parts, false);
   for (const p of parts) p.dispose();
@@ -130,6 +157,7 @@ export function buildPaving(halfWidth: number, zFrom: number, zTo: number): THRE
  */
 export function buildFacade(
   x: number, z: number, width: number, depth: number, storeys: number, hex: number, facing: 1 | -1,
+  glow?: THREE.BufferGeometry[],
 ): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
   const storeyH = 3.4;
@@ -144,6 +172,9 @@ export function buildFacade(
   for (let i = 0; i < shops; i++) {
     const wz = z - width / 2 + (i + 0.5) * (width / shops);
     parts.push(box(0.14, 2.4, width / shops - 1.0, front, 1.5, wz, ARBAT.window));
+    if (glow) {
+      glow.push(box(0.07, 2.1, width / shops - 1.3, front - facing * 0.05, 1.5, wz, 0xffe6b4));
+    }
     parts.push(box(0.2, 0.24, width / shops - 0.7, front, 2.85, wz, ARBAT.frame));
     // Козырёк над входом. Плоская плита читалась полкой: у тента должен быть
     // наклон от стены и свисающая юбка по переднему краю — именно по ним глаз
@@ -171,6 +202,12 @@ export function buildFacade(
     for (let i = 0; i < cols; i++) {
       const wz = z - width / 2 + (i + 0.5) * (width / cols);
       parts.push(box(0.12, 1.7, 1.1, front, y, wz, ARBAT.window));
+      // Горит не каждое окно: дом, где ночью светятся все, читается как
+      // офис, а не как жилой. Треть тёмных — и улица оживает.
+      if (glow && (i * 7 + s * 3 + Math.round(Math.abs(z))) % 3 !== 0) {
+        glow.push(box(0.06, 1.5, 0.95, front - facing * 0.05, y, wz,
+          (i + s) % 4 === 0 ? 0xffe0a0 : 0xffd27a));
+      }
       parts.push(box(0.18, 0.16, 1.4, front, y - 0.95, wz, ARBAT.frame));
       parts.push(box(0.18, 0.16, 1.4, front, y + 0.95, wz, ARBAT.frame));
     }
@@ -181,7 +218,7 @@ export function buildFacade(
 // ── Уличная мебель ──────────────────────────────────────────────────────────
 
 /** Двурогий фонарь — тот самый силуэт, по которому улица узнаётся ночью. */
-export function buildLamp(x: number, z: number): THREE.BufferGeometry[] {
+export function buildLamp(x: number, z: number, glow?: THREE.BufferGeometry[]): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
   parts.push(cyl(0.16, 0.24, 0.5, 8, x, 0.25, z, ARBAT.stone));
   parts.push(cyl(0.075, 0.11, 3.6, 8, x, 2.05, z, ARBAT.metal));
@@ -192,6 +229,14 @@ export function buildLamp(x: number, z: number): THREE.BufferGeometry[] {
     g.translate(x, 3.85, z + s * 0.5);
     parts.push(paint(g, ARBAT.metal));
     parts.push(ball(0.22, x, 3.78, z + s * 0.98, ARBAT.lampGlass, 8));
+    if (glow) {
+      glow.push(ball(0.3, x, 3.78, z + s * 0.98, 0xfff0c0, 8));
+      // Пятно света на мостовой: без него фонарь горит, а под ним темно.
+      const pool = new THREE.CircleGeometry(2.4, 14);
+      pool.rotateX(-Math.PI / 2);
+      pool.translate(x, 0.04, z + s * 0.98);
+      glow.push(paint(pool, 0x6b5a34));
+    }
     parts.push(cyl(0.26, 0.1, 0.22, 8, x, 4.02, z + s * 0.98, ARBAT.metal));
   }
   parts.push(ball(0.11, x, 4.0, z, ARBAT.metal, 8));

@@ -7,8 +7,7 @@ import {
   spawnPad,
   questMarker,
   butterfly,
-  skyDome,
-  makeGrassTexture,
+    makeGrassTexture,
   placeWoodSign,
   loadCharModel,
 } from './BaseLevelScene';
@@ -436,7 +435,7 @@ export class Level4Scene extends BaseLevelScene {
     const kit = this.assetKit(loader);
     this.camera.position.set(-6, 6, 16);
     this.setupLighting(0x90caf9, 0xfff8e7);
-    this.scene.add(skyDome());
+    this.setupSky();
     this.setupClouds(8, 28, 60);
 
     // ── Gorge ─────────────────────────────────────────────────

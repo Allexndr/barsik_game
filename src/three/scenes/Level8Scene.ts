@@ -275,6 +275,16 @@ interface PartyGuest {
 }
 
 export class Level8Scene extends BaseLevelScene {
+  /**
+   * Общий суточный цикл здесь выключен намеренно.
+   *
+   * Праздник по сюжету идёт в сумерках: свет гаснет по ходу действия, и в
+   * этом вся сцена — ради этого зажигают фонари и гирлянды. Общий цикл
+   * заставил бы праздник случаться в полдень у ребёнка, который сел играть
+   * днём, и весь смысл акта пропал бы.
+   */
+  protected dayCycleEnabled = false;
+
   private phase: FestivalPhase = 'intro';
   private onHud: ((h: FestivalHud) => void) | null = null;
   private introI = 0;
