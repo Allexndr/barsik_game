@@ -32,7 +32,7 @@ full golden-route evidence separate from touch smoke evidence.
 | 7 | Connected stealth route, trust recovery, choice and photographs | Full, 144.31 s, 0 errors | Full, 173.76 s, 0 errors | Certified in both tested browser profiles |
 | 8 | Festival boundary, lanterns, garlands, fruit loop, gathering/photo and texture budget | Full, 75.52 s, 0 errors | Full, 265.91 s, 12 interactions, 0 errors; ambient shadow casters 152→58 | Certified in both tested browser profiles |
 | 9 | Twelve reachable berries, three guardian branches/trades, honest chest bypass and persistent pickups | Full, including wrong-symbol reset, 0 errors | Full, 319.11 s, 16 interactions, 1 wrong-lock recovery, 0 errors; ambient shadow casters 132→41 | Certified in both tested browser profiles |
-| 10 | 21-step farewell clearing, five memories/gifts/farewells and exit map | Full, 0 errors | First gift plus touch movement/orbit | Mobile full farewell route still required |
+| 10 | 21-step farewell clearing, five memories/gifts/farewells and exit map | Full, 0 errors | Full, 457.54 s, 21 interactions, 0 errors; ambient shadow casters 139→42 | Certified in both tested browser profiles |
 | 11 | Honest catch heights, build-state snowman, golden catch, visible boundary and shadow budget | Full, 87.70 s, 0 errors | Full, 58.17 s, 0 errors | Certified in both tested browser profiles |
 | 12 | Camera-relative ice physics, shared collision resolver, ordered crystals and physical finish gate | Full, 198.54 s, 0 errors | Full, 221.93 s, 0 errors | Certified in both tested browser profiles |
 | 13 | Persistent delivered shards, honest sculpture growth/polish and reduced shadow budget | Full, 81.69 s, 0 errors | Full, 79.03 s, 0 errors | Certified in both tested browser profiles |
@@ -60,8 +60,9 @@ full golden-route evidence separate from touch smoke evidence.
 
 ### P0 — required before calling Season 1 bug-free
 
-1. Run the missing full mobile golden route for Level 10. Do not
-   promote touch smoke to completion evidence.
+1. The mobile golden-route matrix is now complete, including the full Level 10
+   farewell route. Keep the evidence in the release candidate and do not
+   regress any certified route while integrating the stacked branch.
 2. Complete one continuous new-save run from onboarding through Level 16 on
    the production build. Verify progress persistence, both keys, friends,
    rewards, language, reload recovery and map transitions without direct state
@@ -122,5 +123,6 @@ full golden-route evidence separate from touch smoke evidence.
 The first-season scene work is substantial and test-backed, but the honest
 answer is **not yet "everything is closed and optimization is at the maximum"**.
 The code and authored-content foundation are ready for an integration release
-candidate. Gold-master status waits on the one incomplete mobile route, one
-continuous save run and real-device performance/audio QA.
+candidate. Gold-master status waits on one continuous save run and real-device
+performance/audio QA; no mobile golden route remains incomplete in the tested
+browser profiles.

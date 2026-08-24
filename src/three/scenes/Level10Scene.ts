@@ -437,8 +437,21 @@ export class Level10Scene extends BaseLevelScene {
     ] as const) {
       this.reserve(x, z, r);
     }
+    // The farewell clearing keeps authored shadows on the friends, landmarks,
+    // gift pile and exit props below. The generic forest dressing is depth
+    // only; making every distant tree/grass patch cast made the mobile route
+    // submit 139 shadow casters for a scene whose gameplay happens at five
+    // readable interaction points. Keep that dressing lit and receiving-only
+    // so it still has volume without paying a shadow draw per background mesh.
+    const ambientShadowStart = this.scene.children.length;
     await this.loadTrees(loader, 26, 26, -16, 4.0);
     await this.loadProps(loader, 9, 6, 30, -18);
+    for (const root of this.scene.children.slice(ambientShadowStart)) {
+      root.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (mesh.isMesh) mesh.castShadow = false;
+      });
+    }
 
     // A landmark at each farewell spot, so the place is recognisable as the
     // one from its own level rather than an NPC standing on blank grass.
