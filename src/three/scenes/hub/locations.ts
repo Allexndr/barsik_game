@@ -34,6 +34,15 @@ export interface LocationBuild {
   solid: THREE.BufferGeometry[];
   /** Ночные огни — второй меш без освещения. */
   glow: THREE.BufferGeometry[];
+  /**
+   * Стволы уличных деревьев — не для отрисовки, а как заведомо свободные
+   * точки для клумб. Угадывать координаты кашпо отдельно от деревьев уже
+   * подвело один раз: кольцо радиусом «на глаз» легло прямо на стену дома,
+   * и до цели дошли 3 клумбы из тридцати. Ствол дерева уже прошёл через все
+   * те же проверки, что и его коллайдер, — сажать рядом с ним дешевле и
+   * надёжнее, чем считать свободное место заново.
+   */
+  treeSpots?: Array<{ x: number; z: number }>;
   colliders: Array<
     | { kind: 'circle'; x: number; z: number; r: number }
     | { kind: 'aabb'; x: number; z: number; halfW: number; halfD: number }
@@ -57,6 +66,16 @@ export interface HubLocation {
    * части, а слитый меш по определению неподвижен.
    */
   rides?(): import('./rides').Ride[];
+  /**
+   * Где растёт трава.
+   *
+   * Хаб держит `groundHeightAt` на нуле — под мостовой и площадью рельефа
+   * нет, — поэтому трава сеется не по высоте земли, а по маске: `grow`
+   * возвращает true там, где под ногами газон, а не плитка или пол здания.
+   * Без своей маски `setupWindGrass` исключил бы только коллайдеры и воду —
+   * стебли проросли бы прямо сквозь мощёную улицу.
+   */
+  grassArea?: { xMin: number; xMax: number; zMin: number; zMax: number; grow: (x: number, z: number) => boolean };
 }
 
 const REGISTRY = new Map<LocationId, HubLocation>();

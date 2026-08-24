@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BaseLevelScene, type BaseHud } from '../BaseLevelScene';
+import { BaseLevelScene, type BaseHud, butterfly, tulip } from '../BaseLevelScene';
 import {
   createBarsikAvatar, DEFAULT_LOOK, type BarsikAvatar, type AvatarPose,
 } from '../../avatar/BarsikAvatar';
@@ -91,6 +91,7 @@ export class HubScene extends BaseLevelScene {
   private remotes = new Map<string, RemotePlayer>();
   private nightLights: THREE.Mesh | null = null;
   private place: HubLocation | null = null;
+  private butterflies: THREE.Group[] = [];
   private myPose: HubPose = 'idle';
   private poseUntil = 0;
   private atPortal: HubHud['atPortal'] = null;
@@ -207,6 +208,53 @@ export class HubScene extends BaseLevelScene {
 
     this.rides = place.rides?.() ?? [];
     for (const ride of this.rides) this.scene.add(ride.group);
+
+    // Трава — только там, где у локации есть газон; на мостовой Арбата и
+    // Панфилова маски нет вовсе, и вызов просто пропускается.
+    if (place.grassArea) {
+      const area = place.grassArea;
+      this.setupWindGrass({
+        area: { xMin: area.xMin, xMax: area.xMax, zMin: area.zMin, zMax: area.zMax },
+        exclude: (x, z) => !area.grow(x, z),
+      });
+    }
+
+    // Живность: бабочки над газоном парков, ни одной на голой мостовой.
+    if (place.surface === 'grass') {
+      const hues = [0xff7675, 0x74b9ff, 0xfdcb6e, 0xfd79a8];
+      let seed = 41;
+      const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+      const b = place.bounds;
+      for (let i = 0; i < 14; i++) {
+        const bf = butterfly(
+          b.xMin + rnd() * (b.xMax - b.xMin),
+          b.zMin + rnd() * (b.zMax - b.zMin),
+          hues[i % hues.length],
+        );
+        this.butterflies.push(bf);
+        this.scene.add(bf);
+      }
+    }
+
+    // Клумбы у подножия уличных деревьев.
+    //
+    // Первая попытка сажала их кольцом «на глаз» у стен домов — почти все
+    // точки легли на коллайдер стены, и до цели дошли 3 клумбы из тридцати.
+    // Ствол дерева уже прошёл ту же проверку на свободное место, что и его
+    // собственный коллайдер (r = 0.55 в обеих локациях), поэтому кольцо
+    // радиусом 0.8 вокруг него гарантированно свободно — оно шире дерева и
+    // не задевает соседей, которые стоят не ближе 5.5–7.5 м друг от друга.
+    for (const spot of built.treeSpots ?? []) {
+      const hues = [0xe74c3c, 0xf1c40f, 0xfd79a8, 0xa29bfe];
+      const n = 3;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + (spot.x + spot.z);
+        this.scene.add(tulip(
+          spot.x + Math.cos(a) * 0.8, spot.z + Math.sin(a) * 0.8,
+          hues[Math.abs(Math.round(spot.z)) % hues.length],
+        ));
+      }
+    }
 
     const at = arrivalPoint(place, cameFrom);
     this.hero.position.set(at.x, 0, at.z);
@@ -419,6 +467,17 @@ export class HubScene extends BaseLevelScene {
       this.myPose,
     );
 
+    for (const bf of this.butterflies) {
+      const ph = (bf.userData.phase as number) + t;
+      bf.position.x = (bf.userData.ox as number) + Math.sin(ph) * 1.4;
+      bf.position.z = (bf.userData.oz as number) + Math.cos(ph * 0.8) * 1.4;
+      bf.position.y = 1.1 + Math.sin(ph * 1.6) * 0.4;
+      bf.rotation.y = ph;
+    }
+    // Крылья, трава на ветру и облака — общая для всей игры анимация:
+    // `updateAmbient` собирает всё, что помечено `isButterfly`, само.
+    this.updateAmbient(dt, now);
+
     this.checkPortals();
     this.checkRides();
     this.syncRemotes(now);
@@ -486,6 +545,8 @@ export class HubScene extends BaseLevelScene {
   }
 
   dispose() {
+    for (const bf of this.butterflies) this.scene.remove(bf);
+    this.butterflies = [];
     for (const ride of this.rides) ride.dispose();
     this.rides = [];
     this.ridingOn = null;
