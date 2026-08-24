@@ -671,8 +671,22 @@ export class Level8Scene extends BaseLevelScene {
       this.scene.add(bf);
     }
 
+    // The authored festival ring (three garland oaks, lantern posts, table,
+    // fire and arriving friends) owns the readable shadows in this scene. The
+    // surrounding 26-tree/11-prop dressing is depth-only: letting every
+    // distant trunk, leaf clump and rock cast into the mobile shadow map made
+    // the celebration peak at 152 casters. Keep those meshes receiving light,
+    // but make them receiving-only so the forest still has volume without
+    // paying a second shadow draw for every background asset.
+    const ambientShadowStart = this.scene.children.length;
     await this.loadTrees(loader, 26, 20, -14, 4.6);
     await this.loadProps(loader, 11, 6, 30, -14);
+    for (const root of this.scene.children.slice(ambientShadowStart)) {
+      root.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (mesh.isMesh) mesh.castShadow = false;
+      });
+    }
 
     // placeS1Prop reads `y` as a height above the terrain, not a world y, so
     // anything standing on the table needs the table top measured from the
