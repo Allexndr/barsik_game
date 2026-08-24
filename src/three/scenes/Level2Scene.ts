@@ -55,6 +55,8 @@ interface ApplePickup {
   alive: boolean;
   onGround: boolean;
   bonus: boolean;
+  /** Authored/grounded y; bobbing is always evaluated relative to this. */
+  baseY: number;
 }
 
 interface Basket {
@@ -251,7 +253,7 @@ function makeApple(
   }
 
   const { ring, beam } = appleIndicators(x, z, displayColor, groundAt);
-  return { mesh, ring, beam, color, alive: true, onGround, bonus };
+  return { mesh, ring, beam, color, alive: true, onGround, bonus, baseY: mesh.position.y };
 }
 
 async function makeKitApple(
@@ -400,6 +402,8 @@ const DRY_TREES: ReadonlyArray<readonly [number, number]> = [
 
 /** Самая старая яблоня сада, в конце арыка. */
 const BIG_TREE: readonly [number, number] = [13.8, -22.2];
+/** The Level 3 landmark preview at the southern edge of this orchard. */
+const OLD_OAK: readonly [number, number] = [1.5, -31];
 
 /** Подсегмент канавы: короткий, чтобы плоская лента шла по рельефу. */
 const CHANNEL_STEP = 1.5;
@@ -434,6 +438,8 @@ interface Blockage {
   group: THREE.Object3D;
   x: number;
   z: number;
+  /** Physical while blocked; removed as soon as the obstacle is cleared. */
+  collider: { kind: 'circle'; x: number; z: number; r: number };
   /** Колена, которые открывает снятие этого завала. */
   legs: number[];
   tree: OrchardTree | null;
@@ -886,6 +892,8 @@ export class Level2Scene extends BaseLevelScene {
       // загорается там, где камня уже нет.
       blockage.x = blockage.group.position.x;
       blockage.z = blockage.group.position.z;
+      blockage.collider.x = blockage.x;
+      blockage.collider.z = blockage.z;
       blockage.group.rotation.z += 0.28;
       this.spawnSparks(blockage.group.position, 6, [0xd7ccc8, 0xa1887f]);
       AudioManager.sfx('stumble');
@@ -900,6 +908,8 @@ export class Level2Scene extends BaseLevelScene {
 
     blockage.cleared = true;
     this.cleared += 1;
+    const colliderAt = this.colliders.indexOf(blockage.collider);
+    if (colliderAt >= 0) this.colliders.splice(colliderAt, 1);
     this.clearing.push({
       group: blockage.group,
       from: blockage.group.position.clone(),
@@ -1377,10 +1387,22 @@ export class Level2Scene extends BaseLevelScene {
       group.position.set(x, groundAt(x, z) + 0.05, z);
       group.rotation.y = i * 1.9;
       this.scene.add(group);
+      // The branch, leaf plug and rock are the reason the water stops. They
+      // cannot be physically transparent while the trees and baskets beside
+      // them are solid. Each collider remains inside interaction range and is
+      // removed on the successful push so the opened channel is honest too.
+      const collider = {
+        kind: 'circle' as const,
+        x,
+        z,
+        r: [1.0, 0.65, 0.8][i],
+      };
+      this.colliders.push(collider);
       this.blockages.push({
         group,
         x,
         z,
+        collider,
         legs: opens[i],
         tree: dry[i] ?? null,
         away: away[i],
@@ -1427,6 +1449,11 @@ export class Level2Scene extends BaseLevelScene {
         if (!reed) continue;
         this.snapToGround(reed);
         this.markSwaying(reed, 0.5);
+        // Thin bank vegetation is below Barsik's knee and already moves in
+        // the wind. Its tiny flickering shadow costs more than it contributes.
+        reed.traverse((object) => {
+          if (object instanceof THREE.Mesh) object.castShadow = false;
+        });
         this.scene.add(reed);
       }
     }
@@ -1552,7 +1579,13 @@ export class Level2Scene extends BaseLevelScene {
     this.scene.add(this.archway);
 
     // Sign at entrance
-    this.scene.add(await placeWoodSign(loader, -2.5, 0, 0.3, 0xffeaa7));
+    const entranceSign = await placeWoodSign(loader, -2.5, 0, 0.3, 0xffeaa7);
+    // The imported sign is 15.6k triangles and stands under diffuse canopy;
+    // its tiny contact shadow is not worth drawing the full asset twice.
+    entranceSign.traverse((object) => {
+      if (object instanceof THREE.Mesh) object.castShadow = false;
+    });
+    this.scene.add(entranceSign);
 
     // Second threshold: the garden gate, between meeting the gardener and
     // the orchard proper. One archway alone made the whole level read as a
@@ -1593,6 +1626,7 @@ export class Level2Scene extends BaseLevelScene {
     for (const [cx, cz] of ORCHARD_ROWS) this.reserve(cx, cz, 1.8);
     for (const [cx, cz] of DRY_TREES) this.reserve(cx, cz, 2.0);
     this.reserve(BIG_TREE[0], BIG_TREE[1], 3.2);
+    this.reserve(OLD_OAK[0], OLD_OAK[1], 3.4);
 
     // Orchard rows below, the arena treeline and the ten authored apple trees
     // already define the place. Thirty more individually drawn trees filled
@@ -1662,6 +1696,7 @@ export class Level2Scene extends BaseLevelScene {
       // Низ яблока на 10 см над землёй у наземных и на метр у висящих —
       // считается от габаритов модели, а не от её начала координат.
       seatOnGround(apple.mesh, g, p.bonus ? 1.0 : 0.1);
+      apple.baseY = apple.mesh.position.y;
       // Трава сюда не растёт: 22 000 травинок ростом до 68 см иначе стоят
       // прямо сквозь пикап. Резерв ставится до `activate`, где трава и
       // раскладывается.
@@ -1676,6 +1711,7 @@ export class Level2Scene extends BaseLevelScene {
       kit, loader, -1.5, -6, demoGround + 0.22, 'red', true, false, demoGround,
     );
     seatOnGround(this.demoApple.mesh, demoGround, 0.1);
+    this.demoApple.baseY = this.demoApple.mesh.position.y;
     this.reserve(-1.5, -6, 1.1);
     this.apples.push(this.demoApple);
     this.scene.add(this.demoApple.mesh, this.demoApple.ring, this.demoApple.beam);
@@ -1703,12 +1739,15 @@ export class Level2Scene extends BaseLevelScene {
       this.scene.add(bf);
     }
 
-    // Tulips along path
+    // Tulips along the path and at the old oak are static and share the same
+    // vertex-colour material. Bake them once instead of submitting one mesh
+    // per flower; keep the source objects until the merge succeeds.
+    const orchardFlowers: THREE.Object3D[] = [];
     for (let i = 0; i < 20; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = 3 - (i / 20) * 14;
       const x = side * (2.5 + (i % 4) * 0.3);
-      this.scene.add(tulip(x, z, [0xe74c3c, 0xf1c40f, 0xe67e22, 0xfd79a8, 0xa29bfe][i % 5]));
+      orchardFlowers.push(tulip(x, z, [0xe74c3c, 0xf1c40f, 0xe67e22, 0xfd79a8, 0xa29bfe][i % 5]));
     }
 
     // The old oak from L3, seen from a distance here first. The orchard used
@@ -1723,18 +1762,32 @@ export class Level2Scene extends BaseLevelScene {
     // with the level-complete card the same tick outro starts, so that
     // beacon — promising an interaction the oak doesn't have — could never
     // actually be seen. The tree alone, always there, is the real payoff.
-    const oak = makeOldOak(1.5, -31);
+    const oak = makeOldOak(OLD_OAK[0], OLD_OAK[1]);
     oak.scale.setScalar(0.85);
     this.scene.add(oak);
-    this.scene.add(tulip(0.2, -28.5, 0xf1c40f), tulip(2.8, -29.5, 0xe74c3c));
+    this.colliders.push({ kind: 'circle', x: OLD_OAK[0], z: OLD_OAK[1], r: 1.2 });
+    orchardFlowers.push(tulip(0.2, -28.5, 0xf1c40f), tulip(2.8, -29.5, 0xe74c3c));
+    const mergedFlowers = this.mergeStatic(orchardFlowers);
+    if (mergedFlowers) {
+      for (const flower of orchardFlowers) {
+        flower.traverse((object) => {
+          if (object instanceof THREE.Mesh) object.geometry.dispose();
+        });
+      }
+      this.scene.add(mergedFlowers);
+    } else {
+      this.scene.add(...orchardFlowers);
+    }
 
     // Hero
     this.hero.position.set(0, this.groundHeightAt(0, 4), 4);
     // One room, not one road. A corridor here would put a wall through the
     // middle of the only space the level has.
-    // Taken from the movement bounds the level already declares: x ±20, z −25..8 — the radius is that rectangle's half-diagonal, so the
-    // ring is a wall you can see rather than a second bound that cuts corners
-    // off the level. A guessed r = 15 fenced off 29 of its 32 objects.
+    // The forest ring is the movement boundary. The old x/z rectangle stopped
+    // Barsik 4.82 m before it on the east side and in front of the flower-led
+    // old oak: a textbook invisible wall. A guessed r = 15 fenced off 29 of
+    // the level's 32 authored objects; r = 26 contains every objective and
+    // leaves the first low tree row visibly overlapping the clamp.
     this.playArena = { x: 0, z: -8.5, r: 26 };
     await this.encloseArena(loader, 3);
 
@@ -1987,18 +2040,18 @@ export class Level2Scene extends BaseLevelScene {
 
     const canMove = !['intro', 'outro'].includes(this.phase) && !(this.phase === 'demo' && this.demoDone);
     const speed = this.baseSpeed;
-    // Южная граница отодвинута с −25 до −27.5: арык и сухая половина сада
-    // получили свою полосу земли, а не щели между яблонями. Старый дуб на
-    // z = −31 остаётся за границей — он ландмарк для L3, а не цель здесь.
-    this.updateMovement(dt, canMove, speed, -20, 20, -27.5, 8);
+    // These broad guards sit outside the arena and only protect bad numeric
+    // input. `playArena` + its visible treeline is the one player-facing edge.
+    this.updateMovement(dt, canMove, speed, -40, 40, -40, 24);
     this.updateAryk(now);
 
     if (this.gardener) updatePlushCharacter(this.gardener, now * 0.001, false);
 
-    // Bob apples
+    // Bob apples relative to their grounded pose. Adding the sine every frame
+    // made height depend on FPS and slowly drifted pickups through the grass.
     for (const a of this.apples) {
       if (!a.alive) continue;
-      a.mesh.position.y += Math.sin(now * 0.003 + a.mesh.position.x) * 0.002;
+      a.mesh.position.y = a.baseY + Math.sin(now * 0.003 + a.mesh.position.x) * 0.035;
       a.ring.rotation.z += dt * 0.5;
     }
 
