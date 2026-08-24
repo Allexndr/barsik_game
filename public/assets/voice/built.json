@@ -1,5 +1,9 @@
 {
- "at": "2026-08-24T10:01:43.944Z",
- "backend": "apple",
+ "at": "2026-08-24T13:49:25.304Z",
+ "backend": "edge",
+ "voices": {
+  "ru": "ru-RU-SvetlanaNeural",
+  "kk": "kk-KZ-AigulNeural"
+ },
  "clips": 714
 }
