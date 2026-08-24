@@ -52,6 +52,11 @@ export interface HubLocation {
   /** Пол: 'stone' для мостовой, 'grass' для парка — от него зависит звук шагов. */
   surface: 'stone' | 'grass' | 'snow';
   build(): LocationBuild;
+  /**
+   * Аттракционы. Строятся отдельно от общей геометрии: у них есть движущиеся
+   * части, а слитый меш по определению неподвижен.
+   */
+  rides?(): import('./rides').Ride[];
 }
 
 const REGISTRY = new Map<LocationId, HubLocation>();
