@@ -166,7 +166,12 @@ export class Level13Scene extends BaseLevelScene {
     }
 
     if (t !== this.masterMarker) return;
+    const deliveredShard = this.carriedShard;
     this.carrying = false;
+    // The carried mesh represents the physical shard only until it becomes a
+    // sculpture part. Leaving it visible at Barsik's last hand position made
+    // every delivery exist twice around the podium.
+    if (deliveredShard) deliveredShard.mesh.visible = false;
     this.carriedShard = null;
     this.shardsDelivered++;
     this.stars += 3;
@@ -218,6 +223,7 @@ export class Level13Scene extends BaseLevelScene {
     this.reserve(0, -9, 6);
     for (const [x, z] of SHARDS) this.reserve(x, z, 3);
 
+    const winterAmbientStart = this.scene.children.length;
     await this.setupWinterEnvironment(loader, {
       decorCount: 42,
       decorCenterZ: -14,
@@ -233,12 +239,24 @@ export class Level13Scene extends BaseLevelScene {
         ],
       },
     });
+    // Keep the dense winter valley but do not redraw its distant scatter into
+    // the shadow map. The master, Barsik, podium and sculpture remain focal
+    // casters and keep the workspace grounded.
+    for (const root of this.scene.children.slice(winterAmbientStart)) {
+      root.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = false;
+      });
+    }
 
     this.scene.add(zoneDisc(0, 5, 3.6, 0xe1f5fe, this.groundHeightAt(0, 5) + 0.04));
     const pad = spawnPad(0, 5);
     this.snapToGround(pad);
     this.scene.add(pad);
-    this.scene.add(await placeWoodSign(loader, -3, 3.5, 0.3, 0xe1f5fe));
+    const entranceSign = await placeWoodSign(loader, -3, 3.5, 0.3, 0xe1f5fe);
+    entranceSign.traverse((object) => {
+      if (object instanceof THREE.Mesh) object.castShadow = false;
+    });
+    this.scene.add(entranceSign);
 
     // ── Master's workspace ───────────────────────────────────────
     this.masterPos.y = this.groundHeightAt(0, -9);
@@ -259,6 +277,7 @@ export class Level13Scene extends BaseLevelScene {
       masterGlb.position.set(-2.1, 0, -7.6);
       this.snapToGround(masterGlb);
       masterGlb.lookAt(0, masterGlb.position.y, -9);
+      masterGlb.userData.baseRotationY = masterGlb.rotation.y;
       this.master = masterGlb;
       this.scene.add(masterGlb);
       // The podium collider (0,-9, r1.4) doesn't reach him — he stands
@@ -278,9 +297,10 @@ export class Level13Scene extends BaseLevelScene {
     this.scene.add(this.masterMarker);
 
     // ── Polish stations, revealed in the last act ────────────────
+    const polishGeometry = new THREE.RingGeometry(0.55, 0.85, 28);
     for (const [x, z] of POLISH_STATIONS) {
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.55, 0.85, 28),
+        polishGeometry,
         new THREE.MeshBasicMaterial({
           color: 0xb3e5fc, transparent: true, opacity: 0.75,
           side: THREE.DoubleSide, depthWrite: false,
@@ -310,22 +330,25 @@ export class Level13Scene extends BaseLevelScene {
     // Крупнее: с игровой камеры в девяти метрах предмет меньше двух третей
     // метра ребёнок не опознаёт как «то, что надо взять». Тот же класс, что
     // яблоки на L2, только тонуть здесь не в чем — снег без высокой травы.
-    const crystalTpl = await loadPropModel(loader, CAST_PROP_GLB.ice_crystal, { maxSize: 0.82 });
+    // Five tiny imported crystals previously cost 16,530 triangles and four
+    // texture channels. A shared eight-face silhouette reads more clearly at
+    // pickup scale and matches the golden faceted language introduced on L12.
+    const shardGeometry = new THREE.OctahedronGeometry(0.38, 0);
+    shardGeometry.scale(0.78, 1.4, 0.78);
+    const shardMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x81d4fa,
+      emissive: 0x29b6f6,
+      emissiveIntensity: 0.52,
+      roughness: 0.14,
+      metalness: 0.1,
+      clearcoat: 0.78,
+      clearcoatRoughness: 0.12,
+    });
     for (const [x, z] of SHARDS) {
       const y = this.groundHeightAt(x, z);
-      let mesh: THREE.Object3D;
-      if (crystalTpl) {
-        mesh = crystalTpl.clone(true);
-      } else {
-        mesh = new THREE.Mesh(
-          new THREE.OctahedronGeometry(0.3),
-          new THREE.MeshStandardMaterial({
-            color: 0x4fc3f7, emissive: 0x4fc3f7, emissiveIntensity: 0.55,
-            transparent: true, opacity: 0.9,
-          }),
-        );
-        mesh.castShadow = true;
-      }
+      const mesh = new THREE.Mesh(shardGeometry, shardMaterial);
+      mesh.castShadow = false;
+      mesh.receiveShadow = true;
       mesh.position.set(x, y + 0.5, z);
       mesh.userData.baseY = y + 0.5;
       const marker = questMarker(0xe3f2fd, 0x90caf9);
@@ -502,7 +525,10 @@ export class Level13Scene extends BaseLevelScene {
 
     // Idle motion so the workspace feels inhabited.
     if (this.master) {
-      this.master.rotation.y += Math.sin(now * 0.0009) * 0.0015;
+      // Absolute motion is bounded and refresh-rate independent. Adding a sine
+      // delta every frame accumulated tens of radians and doubled on 120 Hz.
+      this.master.rotation.y = (this.master.userData.baseRotationY as number)
+        + Math.sin(now * 0.0009) * 0.06;
       this.master.position.y = this.groundHeightAt(this.master.position.x, this.master.position.z)
         + Math.sin(now * 0.0022) * 0.015;
     }
