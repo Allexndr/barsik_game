@@ -11,6 +11,7 @@ import { AudioManager } from '@/audio/AudioManager';
 import { useUIStore } from '@/store/useUIStore';
 import { createFireflies, type Fireflies } from '../Fireflies';
 import { createLevelTerrain, type LevelTerrain, type LevelTerrainOptions } from '../LevelTerrain';
+import { createSkyDome, currentDay, type DaySample, type SkyDome } from '../DayCycle';
 import { createWindGrass, type WindGrass } from '../WindGrass';
 import { AssetKit } from '../AssetKit';
 import { placePatch, ringAnchors, type PatchSpec } from '../sceneComposition';
@@ -943,6 +944,23 @@ export abstract class BaseLevelScene {
   protected renderQuality: RenderQualityProfile;
   protected kit: AssetKit | null = null;
   protected levelTerrain: LevelTerrain | null = null;
+  protected sky: SkyDome | null = null;
+  /**
+   * Уровень со своим временем суток выключает общий цикл.
+   *
+   * Праздник в L8 по сюжету идёт в сумерках, и свет там гаснет по ходу
+   * действия. Если поверх этого встанет общий цикл, праздник начнёт случаться
+   * в полдень — а он про то, как зажигают фонари.
+   */
+  protected dayCycleEnabled = true;
+  /** Что уровень попросил у света: цикл модулирует это, а не заменяет. */
+  private dayBase: {
+    fog: number; sun: number; sunI: number; hemiSky: number; hemiGround: number;
+    hemiI: number; ambientI: number; fogNear: number; fogFar: number;
+  } | null = null;
+  private dayAppliedAt = -1e9;
+  private dayScratch = new THREE.Color();
+  private dayScratchB = new THREE.Color();
   protected windGrass: WindGrass[] = [];
   /**
    * Key lights, kept so a level can move its own time of day.
@@ -1081,6 +1099,71 @@ export abstract class BaseLevelScene {
     const ambient = new THREE.AmbientLight(0xffffff, 0.05);
     this.ambientLight = ambient;
     this.scene.add(fill, rim, ambient);
+
+    // Запоминаем ровно то, что попросил уровень. Суточный цикл дальше эти
+    // числа модулирует, а не подменяет: лес должен оставаться зелёным и в
+    // сумерках, а снежная долина — синей и на рассвете.
+    this.dayBase = {
+      fog: fogColor, sun: sunColor, sunI: sunIntensity,
+      hemiSky, hemiGround, hemiI: hemi.intensity, ambientI: ambient.intensity,
+      fogNear: 26, fogFar: 150,
+    };
+  }
+
+  /**
+   * Небо, которое живёт.
+   *
+   * Заменяет статичный купол: цвета, солнце, луна и звёзды считаются от
+   * времени суток. Возвращает меш, чтобы уровень мог его прятать — в юрте
+   * L0 небо видно только через дымник.
+   */
+  protected setupSky(): THREE.Mesh {
+    this.sky?.dispose();
+    this.sky = createSkyDome();
+    this.sky.apply(currentDay());
+    this.scene.add(this.sky.mesh);
+    return this.sky.mesh;
+  }
+
+  /**
+   * Пересчёт освещения под время суток.
+   *
+   * Раз в две секунды, а не каждый кадр: солнце за две секунды проходит
+   * четыре угловые секунды, глазом это не различить, а перекраска тумана и
+   * света стоит заметно дороже нуля.
+   */
+  private tickDayCycle() {
+    if (!this.dayCycleEnabled || !this.dayBase) return;
+    const now = performance.now();
+    if (now - this.dayAppliedAt < 2000) return;
+    this.dayAppliedAt = now;
+    const s = currentDay();
+    this.sky?.apply(s);
+    this.applyDay(s);
+  }
+
+  /** Что делает время суток со светом уровня. Переопределяемо — хабу нужно больше. */
+  protected applyDay(s: DaySample) {
+    const base = this.dayBase;
+    if (!base) return;
+    const c = this.dayScratch;
+
+    if (this.scene.fog instanceof THREE.Fog) {
+      c.setHex(base.fog, THREE.SRGBColorSpace);
+      c.lerp(this.dayScratchB.setHex(s.tint, THREE.SRGBColorSpace), s.tintAmount);
+      this.scene.fog.color.copy(c);
+      if (this.scene.background instanceof THREE.Color) this.scene.background.copy(c);
+    }
+    if (this.sunLight) {
+      c.setHex(base.sun, THREE.SRGBColorSpace);
+      this.sunLight.color.copy(c.lerp(this.dayScratchB.setHex(s.sunColor, THREE.SRGBColorSpace), 0.75));
+      this.sunLight.intensity = base.sunI * s.sunScale;
+      // Светило ходит по дуге, поэтому и тени поворачиваются вместе с ним:
+      // неподвижная тень при движущемся солнце — первое, что выдаёт подделку.
+      this.sunLight.position.copy(s.sunDir).multiplyScalar(30);
+    }
+    if (this.hemiLight) this.hemiLight.intensity = base.hemiI * s.hemiScale;
+    if (this.ambientLight) this.ambientLight.intensity = base.ambientI * s.ambientScale;
   }
 
   protected setupGround(texture: THREE.Texture, size = 300, color = 0xffffff) {
@@ -1395,11 +1478,10 @@ export abstract class BaseLevelScene {
         ...opts.terrain,
       });
     }
-    const dome = skyDome(sky[0], sky[1], sky[2]);
     // Named so a level that moves the player somewhere else can hide the
     // outdoors and keep the sky. Level 0 sees it through a smoke hole.
-    dome.name = 'skyDome';
-    this.scene.add(dome);
+    void sky;
+    this.setupSky();
     this.setupClouds(opts.clouds ?? 5, 26, 50);
     await this.loadWinterDecor(loader, opts.decorCount ?? 22, opts.decorCenterZ ?? -20);
     this.setupSnowfall();
@@ -1470,11 +1552,8 @@ export abstract class BaseLevelScene {
       features: [{ kind: 'flat', x: 0, z: flatCenterZ, r: flatRadius }],
       ...opts.terrain,
     });
-    const dome = skyDome(sky[0], sky[1], sky[2]);
-    // Named so a level that moves the player somewhere else can hide the
-    // outdoors and keep the sky. Level 0 sees it through a smoke hole.
-    dome.name = 'skyDome';
-    this.scene.add(dome);
+    void sky;
+    this.setupSky();
     this.setupClouds(clouds, 26, 70);
     if (backdrop) {
       for (const [x, z, h, w] of [[-46, -66, 18, 15], [4, -78, 22, 19], [44, -62, 19, 16]] as const) {
@@ -1630,6 +1709,7 @@ export abstract class BaseLevelScene {
   }
 
   protected renderFrame() {
+    this.tickDayCycle();
     this.withCameraOrbit(() => {
       if (this.quality) this.quality.render();
       else this.renderer.render(this.scene, this.camera);
@@ -3070,6 +3150,8 @@ export abstract class BaseLevelScene {
     this.windGrass.length = 0;
     this.levelTerrain?.dispose();
     this.levelTerrain = null;
+    this.sky?.dispose();
+    this.sky = null;
     this.groundHeightAt = () => 0;
     setPlacementGround(null);
     this.kit?.dispose();

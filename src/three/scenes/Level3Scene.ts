@@ -15,8 +15,7 @@ import {
   bush,
   tulip,
   hill,
-  skyDome,
-  pathArrow,
+    pathArrow,
   placeWoodSign,
 } from './BaseLevelScene';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -344,7 +343,7 @@ export class Level3Scene extends BaseLevelScene {
 
     this.camera.position.set(-8, 6, 14);
     await this.setupForestEnvironment(loader, { flatRadius: 24, flatCenterZ: -16, fireflies: true });
-    this.scene.add(skyDome());
+    this.setupSky();
     this.setupClouds(7, 26, 60);
     this.setupFireflies();
 

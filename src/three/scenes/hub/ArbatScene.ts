@@ -1,14 +1,15 @@
 import * as THREE from 'three';
-import { BaseLevelScene, type BaseHud, skyDome } from '../BaseLevelScene';
+import { BaseLevelScene, type BaseHud } from '../BaseLevelScene';
 import { createBarsikAvatar, DEFAULT_LOOK, type BarsikAvatar, type AvatarPose } from '../../avatar/BarsikAvatar';
 import { connectHub, type HubConnection, type HubPeer, type HubPose } from '@/net/hub';
 import { renderChat } from '@/utils/safeChat';
 import { createGameGltfLoader } from '../../createGameGltfLoader';
 import {
-  ARBAT, assemble, buildAppleMonument, buildBench, buildEasel, buildFacade, buildFountain,
-  buildGate, buildLamp, buildPaving, buildPigeon, buildPlanter, buildStall, buildTerrace,
-  buildTree,
+  ARBAT, assemble, assembleGlow, buildAppleMonument, buildBench, buildEasel, buildFacade,
+  buildFountain, buildGate, buildLamp, buildPaving, buildPigeon, buildPlanter, buildStall,
+  buildTerrace, buildTree, GLOW_MATERIAL,
 } from './arbatProps';
+import type { DaySample } from '../../DayCycle';
 
 /**
  * Арбат — первая локация общего хаба.
@@ -94,6 +95,7 @@ export class ArbatScene extends BaseLevelScene {
   private hub: HubConnection | null = null;
   private remotes = new Map<string, RemotePlayer>();
   private street: THREE.Mesh[] = [];
+  private nightLights: THREE.Mesh | null = null;
   private pigeonPhase = 0;
   private myPose: HubPose = 'idle';
   private poseUntil = 0;
@@ -131,7 +133,7 @@ export class ArbatScene extends BaseLevelScene {
 
     this.setupLighting(0xdfe7ee, 0xfff4e2, 1.55, 0xfff2dc, 0x9c8d7a);
     this.scene.fog = new THREE.Fog(0xdfe7ee, 90, 260);
-    this.scene.add(skyDome('#8fc4e8', '#bcdcf0', '#f2f6f2'));
+    this.setupSky();
     this.setupClouds(6, 30, 90);
 
     // Земля улицы плоская намеренно: это мостовая, а не поляна. Рельеф под
@@ -188,6 +190,7 @@ export class ArbatScene extends BaseLevelScene {
 
   private buildStreet() {
     const parts: THREE.BufferGeometry[] = [];
+    const glow: THREE.BufferGeometry[] = [];
 
     parts.push(...buildPaving(STREET_HALF_W, STREET_FROM, STREET_TO));
     parts.push(...buildGate(STREET_FROM - 2, STREET_HALF_W + 1.2));
@@ -203,7 +206,7 @@ export class ArbatScene extends BaseLevelScene {
         const w = widths[i % widths.length];
         parts.push(...buildFacade(
           side * (STREET_HALF_W + 7.5), z - w / 2, w, 13,
-          3 + (i % 2), hues[i % hues.length], side,
+          3 + (i % 2), hues[i % hues.length], side, glow,
         ));
         z -= w + 1.2;
         i++;
@@ -211,7 +214,7 @@ export class ArbatScene extends BaseLevelScene {
     }
 
     // Торец улицы — большой универмаг, как ЦУМ в конце настоящего Арбата.
-    parts.push(...buildFacade(0, STREET_TO - 7, 34, 14, 4, ARBAT.facadeB, 1));
+    parts.push(...buildFacade(0, STREET_TO - 7, 34, 14, 4, ARBAT.facadeB, 1, glow));
 
     // Деревья двумя рядами и фонари по оси между ними.
     for (let z = STREET_FROM - 6; z > STREET_TO + 6; z -= 7.5) {
@@ -220,7 +223,7 @@ export class ArbatScene extends BaseLevelScene {
       }
     }
     for (let z = STREET_FROM - 8, k = 0; z > STREET_TO + 6; z -= 12, k++) {
-      parts.push(...buildLamp(k % 2 ? 5.6 : -5.6, z));
+      parts.push(...buildLamp(k % 2 ? 5.6 : -5.6, z, glow));
     }
 
     // Мебель и достопримечательности по оси, с юга на север.
@@ -265,6 +268,8 @@ export class ArbatScene extends BaseLevelScene {
 
     this.street = [assemble(parts, 'arbat')];
     for (const m of this.street) this.scene.add(m);
+    this.nightLights = assembleGlow(glow, 'arbat-lights');
+    this.scene.add(this.nightLights);
   }
 
   /**
@@ -438,6 +443,19 @@ export class ArbatScene extends BaseLevelScene {
     this.renderFrame();
   };
 
+  /**
+   * Окна и фонари зажигаются вместе с сумерками.
+   *
+   * Материал огней общий на всю улицу, поэтому это одна строка на кадр — но
+   * именно она превращает ночной Арбат из тёмного коридора в улицу, по
+   * которой хочется идти.
+   */
+  protected applyDay(s: DaySample) {
+    super.applyDay(s);
+    GLOW_MATERIAL.opacity = s.lampsOn;
+    if (this.nightLights) this.nightLights.visible = s.lampsOn > 0.02;
+  }
+
   private pushHud() {
     const online = (this.hub?.peers().length ?? 0) + 1;
     const status = this.hub?.status() ?? 'offline';
@@ -459,6 +477,7 @@ export class ArbatScene extends BaseLevelScene {
   }
 
   dispose() {
+    GLOW_MATERIAL.opacity = 0;
     this.hub?.leave();
     this.hub = null;
     for (const r of this.remotes.values()) {

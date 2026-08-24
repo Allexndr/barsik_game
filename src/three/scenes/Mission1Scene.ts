@@ -19,8 +19,7 @@ import {
   butterfly,
   bush,
   tulip,
-  skyDome,
-  bridge,
+    bridge,
 } from './BaseLevelScene';
 
 /**
@@ -465,7 +464,7 @@ export class Mission1Scene extends BaseLevelScene {
       seed: 1.4,
       features: [{ kind: 'flatRect', x: 0, z: -19, halfW: STRIP_HALF_X, halfD: 29, falloff: 9 }],
     });
-    this.scene.add(skyDome());
+    this.setupSky();
     this.setupClouds(7, 26, 80);
 
     this.pathCorridor = (z) => Math.sin((z - 8) * -0.24) * 1.9;
