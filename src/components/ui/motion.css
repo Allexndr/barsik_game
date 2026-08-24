@@ -106,6 +106,7 @@
   border: 2px solid var(--border);
   padding: var(--spacing-lg);
   text-align: center;
+  box-shadow: 0 3px 10px rgba(45, 27, 78, 0.08);
 }
 
 .friend-face-back {

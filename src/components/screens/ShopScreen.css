@@ -40,13 +40,19 @@
   font-size: 0.85rem;
   color: var(--text-light);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  box-shadow: 0 2px 6px rgba(45, 27, 78, 0.06);
+  transition: border-color 0.15s, color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.12s;
+}
+
+.shop-tab:active {
+  transform: translateY(1px);
 }
 
 .shop-tab.active {
   border-color: var(--primary);
   color: var(--primary);
   background: rgba(108, 92, 231, 0.08);
+  box-shadow: 0 3px 10px rgba(108, 92, 231, 0.18);
 }
 
 .shop-grid {
@@ -64,12 +70,19 @@
   border: 2px solid var(--border);
   background: white;
   text-align: center;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: 0 3px 10px rgba(45, 27, 78, 0.08);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s;
 }
 
 .shop-card:hover {
   border-color: rgba(108, 92, 231, 0.35);
   box-shadow: 0 6px 16px rgba(108, 92, 231, 0.12);
+  transform: translateY(-2px);
+}
+
+.shop-card:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 6px rgba(45, 27, 78, 0.1);
 }
 
 .shop-card.owned {
