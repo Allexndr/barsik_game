@@ -61,10 +61,14 @@ const DRIFTS: Array<[x: number, z: number]> = [
 interface Carryable {
   root: THREE.Object3D;
   marker: THREE.Object3D | null;
+  /** Authored pickup position. Carrying moves `root`, so retries need a home. */
+  home: THREE.Vector3;
   kind: 'chunk' | 'feature';
   id: string;
   slot?: [number, number, number];
   delivered: boolean;
+  /** Spare snow becomes scenery once the three required chunks are delivered. */
+  retired?: boolean;
 }
 
 export class Level15Scene extends BaseLevelScene {
@@ -132,6 +136,10 @@ export class Level15Scene extends BaseLevelScene {
     item.delivered = true;
 
     if (item.kind === 'chunk') {
+      // The growth and burst are the chunk's delivered state; leaving the
+      // carried mesh beside the snowman would duplicate the same snow.
+      item.root.visible = false;
+      if (item.marker) item.marker.visible = false;
       this.chunksDelivered++;
       this.meltLevel = Math.max(0, this.meltLevel - 0.35);
       this.stars += 5;
@@ -149,13 +157,18 @@ export class Level15Scene extends BaseLevelScene {
       } else if (this.chunksDelivered >= this.chunksTotal) {
         this.phase = 'features';
         this.meltLevel = 0;
+        this.updateSnowmanScale();
         this.setBeat(
           'Он спасён! Но где его нос, шапка и шарф? Ветер разнёс их по полю.',
           'Ол аман! Бірақ мұрны, тымағы мен орамалы қайда? Жел оларды далаға шашып жіберді.',
         );
         if (this.sunbeam) this.sunbeam.visible = false;
         for (const i of this.items) {
-          if (i.kind === 'feature') i.root.visible = true;
+          if (i.kind === 'feature') {
+            i.root.visible = true;
+            continue;
+          }
+          if (!i.delivered) this.settleSpareChunk(i);
         }
       }
       this.pushHud();
@@ -193,6 +206,25 @@ export class Level15Scene extends BaseLevelScene {
     this.snowman.scale.setScalar(Math.max(0.5, base));
   }
 
+  /** Turn an unused pickup into an ordinary, non-glowing patch of snow. */
+  private settleSpareChunk(item: Carryable) {
+    item.retired = true;
+    item.root.userData.retired = true;
+    item.root.position.copy(item.home);
+    item.root.position.y = this.groundHeightAt(item.home.x, item.home.z) + 0.06;
+    item.root.scale.set(1.35, 0.16, 1.35);
+    item.root.visible = true;
+    if (item.marker) item.marker.visible = false;
+    item.root.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      object.castShadow = false;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        if (material instanceof THREE.MeshStandardMaterial) material.emissiveIntensity = 0;
+      }
+    });
+  }
+
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: L15Hud) => void) {
     this.nick = nick || 'друг';
     this.lang = lang;
@@ -204,6 +236,7 @@ export class Level15Scene extends BaseLevelScene {
     for (const [x, z] of DRIFTS) this.reserve(x, z, 3);
     for (const f of FEATURES) this.reserve(f.x, f.z, 3);
 
+    const winterAmbientStart = this.scene.children.length;
     await this.setupWinterEnvironment(loader, {
       sunColor: 0xfff3e0,
       sky: ['#5a7a9a', '#9ab0c8', '#d0e8f0'],
@@ -221,13 +254,24 @@ export class Level15Scene extends BaseLevelScene {
         ],
       },
     });
+    // Distant winter scatter supplies silhouettes and depth, while Barsik,
+    // the snowman and quest objects remain the focal shadow casters.
+    for (const root of this.scene.children.slice(winterAmbientStart)) {
+      root.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = false;
+      });
+    }
 
     this.scene.add(zoneDisc(0, 6, 4, 0xe1f5fe, this.groundHeightAt(0, 6) + 0.04));
     this.scene.add(zoneDisc(0, -12, 4.4, 0x4fc3f7, this.groundHeightAt(0, -12) + 0.05));
     const pad = spawnPad(0, 6);
     this.snapToGround(pad);
     this.scene.add(pad);
-    this.scene.add(await placeWoodSign(loader, -3, 4, 0.3, 0xe1f5fe));
+    const entranceSign = await placeWoodSign(loader, -3, 4, 0.3, 0xe1f5fe);
+    entranceSign.traverse((object) => {
+      if (object instanceof THREE.Mesh) object.castShadow = false;
+    });
+    this.scene.add(entranceSign);
 
     // ── Snowman ──────────────────────────────────────────────────
     this.snowmanPos.y = this.groundHeightAt(0, -12);
@@ -256,15 +300,14 @@ export class Level15Scene extends BaseLevelScene {
     this.scene.add(this.sunbeam);
 
     // ── Snow drifts ──────────────────────────────────────────────
+    const chunkGeometry = new THREE.SphereGeometry(0.5, 10, 8);
+    const chunkMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff, roughness: 0.86,
+      emissive: 0xe1f5fe, emissiveIntensity: 0.18,
+    });
     for (const [x, z] of DRIFTS) {
       const y = this.groundHeightAt(x, z);
-      const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5, 10, 8),
-        new THREE.MeshStandardMaterial({
-          color: 0xffffff, roughness: 0.86,
-          emissive: 0xe1f5fe, emissiveIntensity: 0.18,
-        }),
-      );
+      const mesh = new THREE.Mesh(chunkGeometry, chunkMaterial);
       mesh.position.set(x, y + 0.3, z);
       mesh.scale.y = 0.55;
       mesh.castShadow = true;
@@ -274,7 +317,10 @@ export class Level15Scene extends BaseLevelScene {
       // Hidden until it is the nearest live objective — five lit beams at once
       // turn the field into a forest of lollipops and point nowhere.
       marker.visible = false;
-      this.items.push({ root: mesh, marker, kind: 'chunk', id: `chunk_${x}_${z}`, delivered: false });
+      this.items.push({
+        root: mesh, marker, home: mesh.position.clone(),
+        kind: 'chunk', id: `chunk_${x}_${z}`, delivered: false,
+      });
       this.scene.add(mesh, marker);
     }
 
@@ -287,10 +333,14 @@ export class Level15Scene extends BaseLevelScene {
       marker.position.set(f.x, this.groundHeightAt(f.x, f.z), f.z);
       marker.scale.setScalar(0.6);
       marker.visible = false;
-      this.items.push({ root: obj, marker, kind: 'feature', id: f.id, slot: f.slot, delivered: false });
+      this.items.push({
+        root: obj, marker, home: obj.position.clone(),
+        kind: 'feature', id: f.id, slot: f.slot, delivered: false,
+      });
       this.scene.add(obj, marker);
     }
 
+    const authoredAmbientStart = this.scene.children.length;
     await this.placeProps(loader, [
       { key: 'pine_tree', opts: { x: -11, z: -8, maxSize: 3.0 } },
       { key: 'pine_tree', opts: { x: 13, z: -24, maxSize: 2.6 } },
@@ -318,6 +368,11 @@ export class Level15Scene extends BaseLevelScene {
       { key: 'polar', x: -20, z: -9, rotY: 0.6, h: 0.95 },
       { key: 'rabbit', x: 5, z: -26, rotY: 2.1, h: 0.7 },
     ]);
+    for (const root of this.scene.children.slice(authoredAmbientStart)) {
+      root.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = false;
+      });
+    }
 
     this.hero.position.set(0, this.groundHeightAt(0, 6), 6);
     // This level is a serpentine, not a field: its beats sit alternately left
@@ -409,8 +464,11 @@ export class Level15Scene extends BaseLevelScene {
       );
     } else if (p === 'outro') {
       speaker = this.copy('Снеговик', 'Аққала');
-      line = this.copy('Спасибо! Я снова большой и красивый! А вон там — зимний сундук!', 'Рахмет! Мен қайта үлкен әрі әдеміМІН! Ана жерде — қысқы сандық!');
-      objective = this.copy('📦 К зимнему сундуку!', '📦 Қысқы сандыққа!');
+      line = this.copy(
+        'Спасибо! Теперь я снова целый — нос, шапка, шарф и пуговки на месте!',
+        'Рахмет! Енді мен қайта бүтінмін — мұрын, тымақ, орамал мен түймелер орнында!',
+      );
+      objective = this.copy('⛄ Снеговик спасён!', '⛄ Аққала құтқарылды!');
     }
 
     this.onHud?.({
@@ -431,7 +489,7 @@ export class Level15Scene extends BaseLevelScene {
   /** Only the items the current act is about are pickable. */
   private activeItems() {
     const wantFeature = this.phase === 'features';
-    return this.items.filter((i) => !i.delivered && (i.kind === 'feature') === wantFeature);
+    return this.items.filter((i) => !i.delivered && !i.retired && (i.kind === 'feature') === wantFeature);
   }
 
   private nearestInteract(): THREE.Object3D | null {
@@ -495,8 +553,9 @@ export class Level15Scene extends BaseLevelScene {
           const dropped = this.carrying;
           this.carrying = null;
           this.timerActive = false;
+          dropped.root.position.copy(dropped.home);
           dropped.root.visible = true;
-          if (dropped.marker) dropped.marker.visible = true;
+          if (dropped.marker) dropped.marker.visible = false;
           this.meltLevel = Math.min(0.8, this.meltLevel + 0.15);
           this.spawnSparks(this.hero.position, 10, [0x81d4fa, 0xe1f5fe]);
           AudioManager.sfx('stumble');
@@ -522,7 +581,7 @@ export class Level15Scene extends BaseLevelScene {
     }
 
     for (const item of this.items) {
-      if (item.delivered || item.kind !== 'chunk' || !item.root.visible) continue;
+      if (item.delivered || item.retired || item.kind !== 'chunk' || !item.root.visible) continue;
       if (this.carrying?.root === item.root) continue;
       item.root.position.y = this.groundHeightAt(item.root.position.x, item.root.position.z)
         + 0.3 + Math.sin(now * 0.003 + item.root.position.x) * 0.04;
@@ -569,12 +628,11 @@ export class Level15Scene extends BaseLevelScene {
         this.hero.position.y + 6.2 * f.heightMul,
         this.hero.position.z + 10.5 + f.backAdd,
       );
-      this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
-      this.camera.lookAt(
+      this.updateCamera(target, new THREE.Vector3(
         this.cameraLateral(this.hero.position.x),
         this.hero.position.y + 1.2 + f.lookUp,
         this.hero.position.z - 3 - f.lookAhead,
-      );
+      ), 0.0015, dt);
     }
 
     this.renderFrame();
