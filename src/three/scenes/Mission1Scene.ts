@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { AudioManager } from '@/audio/AudioManager';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeMany, placeAmbientCritters, setPlacementGround } from '../s1Place';
+import { placeAmbientCritters, setPlacementGround } from '../s1Place';
 import { createRiverWater, type RiverWater } from '../RiverWater';
 import { terrainSurfaceColor } from '../LevelTerrain';
 import {
@@ -787,7 +787,7 @@ export class Mission1Scene extends BaseLevelScene {
     // 43 сливаются в один меш, не теряя ни одного оттенка.
     addMerged(tulips);
 
-    await placeMany(this.scene, loader, [
+    await this.placeProps(loader, [
       { key: 'berry', opts: { x: -4.2, z: -27, maxSize: 0.4 } },
       { key: 'mushroom', opts: { x: 3.5, z: -10, maxSize: 0.45 } },
       { key: 'mushroom', opts: { x: -5, z: -8, maxSize: 0.35, rotY: 1.1 } },

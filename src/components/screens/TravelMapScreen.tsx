@@ -30,43 +30,43 @@ const CHAPTERS: {
     name: { ru: 'Фруктовый лес', kk: 'Жеміс орманы' },
     color: '#2ecc71',
     levels: 10,
-    bg: '/assets/map/chapter1_fruit_forest.jpg',
-    bgDesktop: '/assets/map/chapter1_fruit_forest_desktop.jpg',
+    bg: '/assets/map/chapter1_fruit_forest.jpg?v=20260814',
+    bgDesktop: '/assets/map/chapter1_fruit_forest_desktop.jpg?v=20260814',
     labelFill: '#2f6b3f',
   },
   {
     name: { ru: 'Ледяная долина', kk: 'Мұз аңғары' },
     color: '#74b9ff',
     levels: 7,
-    bg: '/assets/map/chapter2_ice_valley.jpg',
+    bg: '/assets/map/chapter2_ice_valley.jpg?v=20260814',
     labelFill: '#2c5a8a',
   },
   {
     name: { ru: 'Горное озеро', kk: 'Тау көлі' },
     color: '#00cec9',
     levels: 1,
-    bg: '/assets/map/chapter3_mountain_lake.jpg',
+    bg: '/assets/map/chapter3_mountain_lake.jpg?v=20260814',
     labelFill: '#0a6b68',
   },
   {
     name: { ru: 'Кок-Тобе', kk: 'Көктөбе' },
     color: '#fdcb6e',
     levels: 1,
-    bg: '/assets/map/chapter4_kok_tobe.jpg',
+    bg: '/assets/map/chapter4_kok_tobe.jpg?v=20260814',
     labelFill: '#8a5a12',
   },
   {
     name: { ru: 'Степь с тюльпанами', kk: 'Қызғалдақ даласы' },
     color: '#ff7675',
     levels: 1,
-    bg: '/assets/map/chapter5_tulip_steppe.jpg',
+    bg: '/assets/map/chapter5_tulip_steppe.jpg?v=20260814',
     labelFill: '#8a2e3a',
   },
   {
     name: { ru: 'Город Друзей', kk: 'Достар қаласы' },
     color: '#6c5ce7',
     levels: 1,
-    bg: '/assets/map/chapter6_friends_city.jpg',
+    bg: '/assets/map/chapter6_friends_city.jpg?v=20260814',
     labelFill: '#3a2e7a',
   },
 ];
@@ -453,6 +453,24 @@ export function TravelMapScreen() {
   const wideBg = wideCh.bgDesktop ?? wideCh.bg;
   const wideCover = coverFit(BG_W, BG_H, DESKTOP_W, DESKTOP_H);
 
+  // The "here" paw badge floats 44px above the pin. The camera never
+  // scrolls past the art's own top edge (clampCenter), so on level 1 — the
+  // very first pin, closest to that edge — the badge's bubble crossed above
+  // it and rendered half off-screen. Shrinking it (anchored at its tip,
+  // which already sits right on the pin) keeps the tip in place and only
+  // shrinks the bubble that was going to be clipped anyway.
+  const HERE_TIP_ABOVE_PIN = 14; // badge's tip sits 14px above the pin
+  const HERE_BUBBLE_SPAN = 42; // tip to bubble top, at scale 1
+  const HERE_FLOAT_AMPLITUDE = 6; // `pin-here-float` bobs up this far — stay clear at the peak too
+  const hereTopBound = wide ? 0 : portraitBounds.y0;
+  const hereScale = Math.min(
+    1,
+    Math.max(
+      0.2,
+      (currentPin.y - HERE_TIP_ABOVE_PIN - HERE_FLOAT_AMPLITUDE - hereTopBound) / HERE_BUBBLE_SPAN
+    )
+  );
+
   return (
     <div className={`screen screen-travel screen-travel--${tier} ${wide ? 'is-wide' : ''}`}>
       <div className="travel-chrome travel-header">
@@ -657,15 +675,24 @@ export function TravelMapScreen() {
             })}
 
             <g transform={`translate(${currentPin.x}, ${currentPin.y - 44})`}>
-              <g className="pin-here">
-                <path
-                  d="M0 30 C-14 30 -18 16 -18 6 A18 18 0 1 1 18 6 C18 16 14 30 0 30 Z"
-                  fill="#6c5ce7"
-                  stroke="#fff"
-                  strokeWidth="3"
-                />
-                <g transform="translate(-9, -13) scale(0.75)" fill="#fff">
-                  <IconPawPath />
+              {/* Scale group is separate from `.pin-here` below: that class
+                  has a CSS float animation on `transform`, which would
+                  override (not compose with) a transform attribute set here. */}
+              <g
+                transform={
+                  hereScale < 1 ? `translate(0,30) scale(${hereScale}) translate(0,-30)` : undefined
+                }
+              >
+                <g className="pin-here">
+                  <path
+                    d="M0 30 C-14 30 -18 16 -18 6 A18 18 0 1 1 18 6 C18 16 14 30 0 30 Z"
+                    fill="#6c5ce7"
+                    stroke="#fff"
+                    strokeWidth="3"
+                  />
+                  <g transform="translate(-9, -13) scale(0.75)" fill="#fff">
+                    <IconPawPath />
+                  </g>
                 </g>
               </g>
             </g>
