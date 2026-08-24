@@ -12,3 +12,33 @@ tmp/
 output/
 .codebase-memory/
 
+
+# Резервная копия перед установкой ruflo
+.backup-before-ruflo-*/
+.ruflo-backup-path
+
+# Ruflo local secrets and runtime data
+.env.*.local
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+
+# Codex local configuration
+.codex/
+# Claude Flow runtime data
+# Environment variables
+
+# Инструментарий ruflo: работает с диска, в репозиторий не идёт.
+# Ваши семь скиллов — .md в корне .claude/skills — остаются под git.
+.claude/agents/
+.claude/commands/
+.claude/helpers/
+.claude/skills/*/
+.claude-flow/
+.agents/
+.mcp.json
+AGENTS.md
+# Рантайм ruflo: база векторов и состояние роя
+.swarm/
+ruvector.db
+ruvector.db-*
