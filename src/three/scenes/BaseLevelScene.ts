@@ -2250,7 +2250,11 @@ export abstract class BaseLevelScene {
    *
    * Call it last, after the corridor and every `reserve`.
    */
-  protected async encloseLevel(loader: GLTFLoader, pad = 8) {
+  protected async encloseLevel(
+    loader: GLTFLoader,
+    pad = 8,
+    forest: { rows?: number; step?: number } = {},
+  ) {
     // Planting five hundred trees for a level React discarded two seconds ago
     // is the single most expensive thing an abandoned `init` still does, and
     // switching levels does it every time.
@@ -2267,7 +2271,11 @@ export abstract class BaseLevelScene {
     // These are what clampToPlayArea now holds z inside.
     this.corridorZMin = zMin - pad;
     this.corridorZMax = zMax + pad;
-    await this.encloseWithForest(loader, { zFrom: zMin - pad, zTo: zMax + pad });
+    await this.encloseWithForest(loader, {
+      zFrom: zMin - pad,
+      zTo: zMax + pad,
+      ...forest,
+    });
   }
 
   protected async encloseWithForest(

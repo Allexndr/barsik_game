@@ -88,6 +88,8 @@ const ROUTE_START_Z = 4;
 const ROUTE_END_Z = -68;
 /** Where the burrow sits, a little past the end of the walked route. */
 const HOME_Z = -71;
+/** Where Barsik takes the basket and the escort roles reverse. */
+const HANDOVER_Z = -34;
 
 /** Где белочка спотыкается и рассыпает орехи. */
 const SPILL_Z = -7;
@@ -117,6 +119,11 @@ const STORY_STOPS: ReadonlyArray<{ z: number; ru: string; kk: string }> = [
     kk: 'Үйдің иісі шығып тұр! Ін жанындағы қарағайлардың сыбдырын естисің бе?',
   },
 ];
+
+const BLOCKAGE_BEATS = [
+  ['stones', -16],
+  ['roots', -29],
+] as const;
 
 interface Obstacle {
   /** Object the child taps. */
@@ -383,6 +390,22 @@ export class Level5Scene extends BaseLevelScene {
     // band down the middle, now that the route actually bends.
     this.pathCorridor = routeX;
     this.pathCorridorHalf = 2.6;
+
+    // These are gameplay rooms, not merely decoration clearings. encloseLevel
+    // derives the playable z-range from reservations; when only the final
+    // burrow was reserved, the first movement frame clamped the spawn at z=4
+    // all the way to z=-57. Keeping every beat here also opens enough room to
+    // circle the nuts, blockages and story stops without touching glass walls.
+    const routeRooms: ReadonlyArray<readonly [number, number]> = [
+      [ROUTE_START_Z, 5],
+      [SPILL_Z, 5],
+      ...BLOCKAGE_BEATS.map(([, z]) => [z, 4.4] as const),
+      [HANDOVER_Z, 4.2],
+      ...STORY_STOPS.map(({ z }) => [z, 3.6] as const),
+      [HOME_Z, 6],
+    ];
+    for (const [z, radius] of routeRooms) this.reserve(routeX(z), z, radius);
+
     await this.setupForestEnvironment(loader, {
       flatRadius: 30,
       flatCenterZ: -22,
@@ -474,7 +497,7 @@ export class Level5Scene extends BaseLevelScene {
     // a child walked past without ever noticing they were meant to be in
     // the way.
     const kit = this.assetKit(loader);
-    for (const [kind, z] of [['stones', -16], ['roots', -29]] as const) {
+    for (const [kind, z] of BLOCKAGE_BEATS) {
       const items: Obstacle[] = [];
       const cx = routeX(z);
 
@@ -490,6 +513,7 @@ export class Level5Scene extends BaseLevelScene {
             new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.95, flatShading: true }),
           );
           if (!stone) mesh.position.set(cx + offset, 0.45, z);
+          mesh.position.y += this.groundHeightAt(mesh.position.x, mesh.position.z);
           this.scene.add(mesh);
           items.push({
             mesh,
@@ -504,6 +528,7 @@ export class Level5Scene extends BaseLevelScene {
       } else {
         for (const [i, offset] of [-1.0, 1.0].entries()) {
           const arch = makeRootArch(cx + offset, z, i === 0 ? 0.25 : -0.3);
+          arch.position.y += this.groundHeightAt(arch.position.x, arch.position.z);
           this.scene.add(arch);
           items.push({
             mesh: arch,
@@ -516,7 +541,7 @@ export class Level5Scene extends BaseLevelScene {
       }
 
       const marker = questMarker(0xffd479, 0xf6a623);
-      marker.position.set(cx, 0, z);
+      marker.position.set(cx, this.groundHeightAt(cx, z), z);
       marker.visible = false;
       this.scene.add(marker);
       this.blockages.push({ z, kind, items, marker });
@@ -574,12 +599,12 @@ export class Level5Scene extends BaseLevelScene {
     // ── The burrow ────────────────────────────────────────────
     const homeX = routeX(HOME_Z);
     const home = await buildSquirrelHome(kit, homeX, HOME_Z);
+    home.position.y = this.groundHeightAt(homeX, HOME_Z);
     this.scene.add(home);
     this.colliders.push({ kind: 'circle', x: homeX, z: HOME_Z, r: 1.2 });
-    this.reserve(homeX, HOME_Z, 6);
 
     this.homeMarker = questMarker(0xffcc80, 0xff9f43);
-    this.homeMarker.position.set(homeX, 0, HOME_Z);
+    this.homeMarker.position.set(homeX, this.groundHeightAt(homeX, HOME_Z), HOME_Z);
     this.homeMarker.visible = false;
     this.scene.add(this.homeMarker);
 
@@ -606,7 +631,11 @@ export class Level5Scene extends BaseLevelScene {
       new THREE.MeshBasicMaterial({ color: 0x81c784, transparent: true, opacity: 0.35, side: THREE.DoubleSide }),
     );
     this.escortRing.rotation.x = -Math.PI / 2;
-    this.escortRing.position.set(this.squirrelPos.x, 0.04, this.squirrelPos.z);
+    this.escortRing.position.set(
+      this.squirrelPos.x,
+      this.groundHeightAt(this.squirrelPos.x, this.squirrelPos.z) + 0.04,
+      this.squirrelPos.z,
+    );
     this.scene.add(this.escortRing);
 
     this.waitMarker = questMarker(0xffeaa7, 0xfdcb6e);
@@ -618,7 +647,7 @@ export class Level5Scene extends BaseLevelScene {
       (await loadPropModel(loader, CAST_PROP_GLB.acorn_key, { maxSize: 0.55 })) ??
       (await loadPropModel(loader, 'golden_key.glb', { maxSize: 0.55 }));
     if (meshyKey) {
-      meshyKey.position.set(homeX, 1.5, HOME_Z);
+      meshyKey.position.set(homeX, this.groundHeightAt(homeX, HOME_Z) + 1.5, HOME_Z);
       this.acornKey = meshyKey;
     } else {
       const kitKey = await kit.spawn('platformer', 'key', {
@@ -627,8 +656,11 @@ export class Level5Scene extends BaseLevelScene {
         ground: false,
       });
       this.acornKey = kitKey ?? makeAcornKey();
-      if (!kitKey) this.acornKey.position.set(homeX, 1.5, HOME_Z);
+      if (!kitKey) {
+        this.acornKey.position.set(homeX, this.groundHeightAt(homeX, HOME_Z) + 1.5, HOME_Z);
+      }
     }
+    this.acornKey.position.y = this.groundHeightAt(homeX, HOME_Z) + 1.5;
     this.acornKey.visible = false;
     this.scene.add(this.acornKey);
 
@@ -636,6 +668,7 @@ export class Level5Scene extends BaseLevelScene {
     if (treehouse) {
       treehouse.position.set(homeX + 3.4, 0, HOME_Z + 2);
       groundY(treehouse);
+      this.snapToGround(treehouse);
       this.scene.add(treehouse);
       this.colliders.push({ kind: 'circle', x: homeX + 3.4, z: HOME_Z + 2, r: 1.8 });
     }
@@ -686,7 +719,14 @@ export class Level5Scene extends BaseLevelScene {
     this.hero.position.set(routeX(4), this.groundHeightAt(routeX(4), 4), 4);
     // The wall. Planted last, so it can read the corridor and every room the
     // level reserved and hug the outside of both.
-    await this.encloseLevel(loader);
+    await this.encloseLevel(loader, 8, {
+      // The route is over 100 m including caps. Two overlapping tree rows are
+      // enough to explain the boundary in a phone-sized frame; the distant
+      // rows cost more triangles than the complete route batching saved in
+      // ADR 024 while adding canopy hidden behind the near wall.
+      rows: this.isMobile ? 2 : 4,
+      step: this.isMobile ? 4 : 3.2,
+    });
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
     this.activate(() => {
@@ -700,6 +740,13 @@ export class Level5Scene extends BaseLevelScene {
       if (start) {
         this.hero.position.set(start.x, this.groundHeightAt(start.x, start.z), start.z);
         this.phase = 'escort';
+        if (start.z < SPILL_Z) {
+          this.spillDone = true;
+          for (const nut of this.spilledNuts) {
+            nut.taken = true;
+            nut.mesh.visible = false;
+          }
+        }
         // Advance her to just behind wherever we were dropped, and open every
         // blockage already passed, so the level is consistent from any point.
         while (
@@ -710,6 +757,15 @@ export class Level5Scene extends BaseLevelScene {
           if (b.z > start.z) for (const o of b.items) { o.cleared = true; o.clearedAt = 1; }
         }
         this.squirrel?.position.set(routeX(start.z + 2), 0, start.z + 2);
+        if (start.z < HANDOVER_Z) {
+          this.carrying = true;
+          this.basket?.scale.setScalar(1.15);
+          this.squirrelSpeed = 3.0;
+          this.phase = 'carry';
+          for (const stop of this.stops) {
+            if (stop.z > start.z) stop.told = true;
+          }
+        }
 
         // Drop into the act that owns this spot, the same rule level 4 uses.
         // Standing next to a blockage means the blockage is the thing you came
@@ -935,7 +991,9 @@ export class Level5Scene extends BaseLevelScene {
     this.updateBasket(now);
 
     if (this.acornKey && this.acornKey.visible) {
-      this.acornKey.position.y = 1.5 + Math.sin(now * 0.004) * 0.15;
+      this.acornKey.position.y = this.groundHeightAt(this.acornKey.position.x, this.acornKey.position.z)
+        + 1.5
+        + Math.sin(now * 0.004) * 0.15;
       this.acornKey.rotation.y += dt * 1.5;
     }
 
@@ -978,7 +1036,11 @@ export class Level5Scene extends BaseLevelScene {
       // follows him, and a ring telling the child to stay inside something
       // that no longer constrains anything is just noise.
       this.escortRing.visible = this.phase === 'escort' || this.phase === 'blocked';
-      this.escortRing.position.set(s.position.x, 0.04, s.position.z);
+      this.escortRing.position.set(
+        s.position.x,
+        this.groundHeightAt(s.position.x, s.position.z) + 0.04,
+        s.position.z,
+      );
       const mat = this.escortRing.material as THREE.MeshBasicMaterial;
       mat.color.setHex(isNearby ? 0x81c784 : 0xffb74d);
       mat.opacity = isNearby ? 0.32 + Math.sin(now * 0.004) * 0.08 : 0.45;
@@ -1068,7 +1130,7 @@ export class Level5Scene extends BaseLevelScene {
 
     // She runs out of strength two thirds of the way along, which is where the
     // level's title finally happens.
-    if (this.phase === 'escort' && !this.carrying && s.position.z < -34) {
+    if (this.phase === 'escort' && !this.carrying && s.position.z < HANDOVER_Z) {
       this.squirrelMoving = false;
       this.phase = 'handover';
       this.pushHud();
@@ -1077,12 +1139,13 @@ export class Level5Scene extends BaseLevelScene {
     if (s.userData.isPlushAnimal || s.userData.isPlushCharacter) {
       updatePlushAnimal(s, this.squirrelMoving, now * 0.001);
     }
-    s.position.y = this.squirrelMoving
+    const squirrelGround = this.groundHeightAt(s.position.x, s.position.z);
+    s.position.y = squirrelGround + (this.squirrelMoving
       ? Math.abs(Math.sin(now * 0.01)) * 0.05
-      : Math.sin(now * 0.003) * 0.02;
+      : Math.sin(now * 0.003) * 0.02);
 
     if (this.waitMarker) {
-      this.waitMarker.position.set(s.position.x, 0, s.position.z);
+      this.waitMarker.position.set(s.position.x, squirrelGround, s.position.z);
       // Held back until the player has actually walked, or it fires on the
       // first frame of the level and reads as a telling-off for nothing.
       this.waitMarker.visible = this.phase === 'escort' && !isNearby && this.hasTakenFirstStep;
@@ -1118,7 +1181,7 @@ export class Level5Scene extends BaseLevelScene {
     const back = this.carrying ? 0.34 : 0.22;
     b.position.set(
       carrier.position.x - Math.sin(yaw) * back,
-      (this.carrying ? 0.74 : 0.55) + Math.sin(now * 0.012) * 0.02,
+      carrier.position.y + (this.carrying ? 0.74 : 0.55) + Math.sin(now * 0.012) * 0.02,
       carrier.position.z - Math.cos(yaw) * back,
     );
     b.rotation.y = yaw;
@@ -1144,7 +1207,10 @@ export class Level5Scene extends BaseLevelScene {
         o.mesh.position.x += (o.awayX - o.mesh.position.x) * k;
         o.mesh.position.z += (o.awayZ - o.mesh.position.z) * k;
         if (b.kind === 'stones') o.mesh.rotation.z += dt * 2.2;
-        else o.mesh.position.y += (1.9 - o.mesh.position.y) * k;
+        else {
+          const liftedY = this.groundHeightAt(o.mesh.position.x, o.mesh.position.z) + 1.9;
+          o.mesh.position.y += (liftedY - o.mesh.position.y) * k;
+        }
       }
     }
   }
