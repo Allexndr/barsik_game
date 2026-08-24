@@ -23,7 +23,7 @@ full golden-route evidence separate from touch smoke evidence.
 | Level | Authored contract now covered | Desktop route | Mobile route | Current evidence status |
 | ---: | --- | --- | --- | --- |
 | 0 | Dombra trail, three lanterns, twelve-stone crossing/recovery, three visible yurt pegs, explicit door entry, interior kui | Full, 252.62 s, 0 errors | Full, 171.79/179.89 s, 0 errors | Certified in both tested browser profiles |
-| 1 | Camera-relative rescue route and distant-decoration shadow budget | Full, 30.57 s, 0 errors | Touch movement, 7.56 rad orbit and UI contract | Mobile outro route still required |
+| 1 | Camera-relative rescue route and distant-decoration shadow budget | Full, 30.57 s, 0 errors | Full, 70.50 s, 9 interactions, 0 errors | Certified in both tested browser profiles |
 | 2 | Honest orchard boundary, sorting, irrigation, golden-apple delivery and reduced orchard budget | Full, 81.72 s, 0 errors | First learning loop, touch action and boundary profile, 19.10 s | Mobile irrigation/outro route still required |
 | 3 | Connected paw-print route, reachable terrain-attached sectors/bonuses/hedgehog, persistent search and instanced trail | Full 5/5 + hedgehog, 0 errors | Full 5/5 + 4/4 bonuses + hedgehog, 239.05 s, 0 errors | Certified in both tested browser profiles |
 | 4 | Bridge batching/shadows, three planks, five child-readable timed sections, fail/retry, winch and Aya crossing | Full, 0 errors | Full, 145.89 s incl. 4 stumble recoveries, 0 errors | Certified in both tested browser profiles |
@@ -60,7 +60,7 @@ full golden-route evidence separate from touch smoke evidence.
 
 ### P0 — required before calling Season 1 bug-free
 
-1. Run the missing full mobile golden routes for Levels 1–2 and 8–10. Do not
+1. Run the missing full mobile golden routes for Level 2 and Levels 8–10. Do not
    promote touch smoke to completion evidence.
 2. Complete one continuous new-save run from onboarding through Level 16 on
    the production build. Verify progress persistence, both keys, friends,
@@ -122,5 +122,5 @@ full golden-route evidence separate from touch smoke evidence.
 The first-season scene work is substantial and test-backed, but the honest
 answer is **not yet "everything is closed and optimization is at the maximum"**.
 The code and authored-content foundation are ready for an integration release
-candidate. Gold-master status waits on the five incomplete mobile routes, one
+candidate. Gold-master status waits on the four incomplete mobile routes, one
 continuous save run and real-device performance/audio QA.
