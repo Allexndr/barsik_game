@@ -263,6 +263,8 @@ export class Level14Scene extends BaseLevelScene {
 
     this.ayaMarker = questMarker(0xff6b6b, 0xff9f43);
     this.ayaMarker.position.copy(AYA_POS);
+    this.snapToGround(this.ayaMarker);
+    this.ayaMarker.position.y += 2.4;
     this.scene.add(this.ayaMarker);
     this.colliders.push({ kind: 'circle', x: AYA_POS.x, z: AYA_POS.z, r: 1.0 });
 
@@ -401,6 +403,8 @@ export class Level14Scene extends BaseLevelScene {
       line = this.copy(this.beatMsg.ru, this.beatMsg.kk);
     }
     const warmthIcon = this.warmth > 60 ? '🔥' : this.warmth > 25 ? '🌡️' : '🥶';
+    const warmthFilled = Math.round(Math.max(0, Math.min(10, this.warmth / 10)));
+    const warmthBar = `[${'█'.repeat(warmthFilled)}${'░'.repeat(10 - warmthFilled)}] ${Math.round(this.warmth)}%`;
 
     if (p === 'intro') {
       const lines = [
@@ -416,7 +420,7 @@ export class Level14Scene extends BaseLevelScene {
           ? this.copy('Апчхи! Погрейся у костра.', 'Апчхи! От жанында жылын.')
           : this.copy('Айя совсем замёрзла. Подойди к ней.', 'Айя мүлде тоңып қалды. Оған жақында.');
       }
-      objective = this.copy(`${warmthIcon} Тепло: ${Math.round(this.warmth)}%`, `${warmthIcon} Жылу: ${Math.round(this.warmth)}%`);
+      objective = this.copy(`${warmthIcon} Тепло ${warmthBar}`, `${warmthIcon} Жылу ${warmthBar}`);
     } else if (p === 'search') {
       if (!line) {
         line = this.hasScarf
@@ -426,8 +430,8 @@ export class Level14Scene extends BaseLevelScene {
             : this.copy(`Обыскано сугробов: ${this.searched}/${this.drifts.length}`, `Тінтілген үйінді: ${this.searched}/${this.drifts.length}`);
       }
       objective = this.hasScarf
-        ? this.copy(`🧣 Отдай шарф Айе  ·  ${warmthIcon} ${Math.round(this.warmth)}%`, `🧣 Орамалды Айяға бер  ·  ${warmthIcon} ${Math.round(this.warmth)}%`)
-        : this.copy(`🔍 ${this.searched}/${this.drifts.length}  ·  ${warmthIcon} ${Math.round(this.warmth)}%`, `🔍 ${this.searched}/${this.drifts.length}  ·  ${warmthIcon} ${Math.round(this.warmth)}%`);
+        ? this.copy(`🧣 Отдай шарф Айе  ·  ${warmthBar}`, `🧣 Орамалды Айяға бер  ·  ${warmthBar}`)
+        : this.copy(`🔍 ${this.searched}/${this.drifts.length}  ·  ${warmthBar}`, `🔍 ${this.searched}/${this.drifts.length}  ·  ${warmthBar}`);
     } else if (p === 'firewood') {
       if (!line) {
         line = this.carryingLog
@@ -435,8 +439,8 @@ export class Level14Scene extends BaseLevelScene {
           : this.copy(`Дрова: ${this.logsDelivered}/${this.logsTotal}. Найди ещё!`, `Отын: ${this.logsDelivered}/${this.logsTotal}. Тағы тап!`);
       }
       objective = this.copy(
-        `🪵 ${this.logsDelivered}/${this.logsTotal}  ·  ${warmthIcon} ${Math.round(this.warmth)}%`,
-        `🪵 ${this.logsDelivered}/${this.logsTotal}  ·  ${warmthIcon} ${Math.round(this.warmth)}%`,
+        `🪵 ${this.logsDelivered}/${this.logsTotal}  ·  ${warmthBar}`,
+        `🪵 ${this.logsDelivered}/${this.logsTotal}  ·  ${warmthBar}`,
       );
     } else if (p === 'outro') {
       speaker = this.copy('Айя', 'Айя');

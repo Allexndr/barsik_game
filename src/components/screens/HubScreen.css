@@ -14,6 +14,12 @@
   background: #cfe3f2;
 }
 
+/* Вкладка «Город» внутри GamePage: на весь game-content, без отдельного full-screen. */
+.screen-hub.is-embedded {
+  min-height: min(72vh, 640px);
+  border-radius: inherit;
+}
+
 .hub-canvas {
   position: absolute;
   inset: 0;

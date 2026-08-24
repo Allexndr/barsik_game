@@ -45,25 +45,25 @@ export function SettingsModal({ open, onClose }: Props) {
 
   return (
     <div
-      className="settings-overlay"
+      className="smodal-overlay"
       role="dialog"
       aria-modal="true"
       aria-label={t(lang, 'settings.title')}
       onClick={onClose}
     >
-      <div className="settings-card animate-slide-up" onClick={(e) => e.stopPropagation()}>
-        <div className="settings-head">
+      <div className="smodal-card animate-slide-up" onClick={(e) => e.stopPropagation()}>
+        <div className="smodal-head">
           <h2>{t(lang, 'settings.title')}</h2>
-          <button type="button" className="settings-x" onClick={onClose} aria-label={t(lang, 'settings.close')}>
+          <button type="button" className="smodal-x" onClick={onClose} aria-label={t(lang, 'settings.close')}>
             <IconClose size={16} />
           </button>
         </div>
 
-        {player && <p className="settings-nick">{player.nick}</p>}
+        {player && <p className="smodal-nick">{player.nick}</p>}
 
-        <div className="settings-row">
+        <div className="smodal-row">
           <span>{t(lang, 'settings.lang')}</span>
-          <div className="settings-lang" role="group">
+          <div className="smodal-lang" role="group">
             <button
               type="button"
               className={lang === 'ru' ? 'active' : ''}
@@ -81,11 +81,11 @@ export function SettingsModal({ open, onClose }: Props) {
           </div>
         </div>
 
-        <div className="settings-row">
+        <div className="smodal-row">
           <span>{t(lang, 'settings.sound')}</span>
           <button
             type="button"
-            className={`settings-mute-toggle ${muted ? 'is-muted' : ''}`}
+            className={`smodal-mute ${muted ? 'is-muted' : ''}`}
             onClick={toggleMuted}
             aria-pressed={muted}
           >
@@ -96,19 +96,19 @@ export function SettingsModal({ open, onClose }: Props) {
 
         <button
           type="button"
-          className="settings-parent-toggle"
+          className="smodal-parent"
           onClick={() => setParentOpen((v) => !v)}
           aria-expanded={parentOpen}
         >
           <IconShield size={16} />
           {t(lang, 'settings.parent')}
         </button>
-        {parentOpen && <p className="settings-parent-body">{t(lang, 'settings.parent.body')}</p>}
+        {parentOpen && <p className="smodal-parent-body">{t(lang, 'settings.parent.body')}</p>}
 
-        <PlushButton variant="danger" className="settings-exit" onClick={exitToStart}>
+        <PlushButton variant="danger" className="smodal-exit" onClick={exitToStart}>
           {t(lang, 'settings.exit')}
         </PlushButton>
-        <p className="settings-hint">{t(lang, 'settings.exit.hint')}</p>
+        <p className="smodal-hint">{t(lang, 'settings.exit.hint')}</p>
       </div>
     </div>
   );

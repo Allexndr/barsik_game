@@ -190,11 +190,29 @@
 }
 
 .pin-group {
-  transition: transform 0.15s;
+  /* Hit target stays put — no scale on the interactive <g>. Scaling the
+     group under the cursor causes hover flicker (enter → grow → leave → shrink). */
+  cursor: pointer;
 }
 
-.pin-group:hover {
-  transform: scale(1.05);
+.pin-group .pin-visual {
+  transition: filter 0.15s ease;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+.pin-group:hover .pin-visual,
+.pin-group:focus-visible .pin-visual {
+  filter: brightness(1.08) drop-shadow(0 2px 4px rgba(28, 36, 48, 0.25));
+}
+
+.pin-group:active .pin-visual {
+  filter: brightness(0.96);
+}
+
+.pin-hit {
+  fill: transparent;
+  pointer-events: all;
 }
 
 .pin-number-current {
@@ -206,17 +224,18 @@
 }
 
 .pin-pulse-ring {
-  stroke: #6c5ce7;
+  stroke: #2aa8d8;
   stroke-width: 2.5;
   opacity: 0.55;
   animation: pin-ring-pulse 1.6s ease-out infinite;
   transform-origin: center;
+  pointer-events: none;
 }
 
 .pin-here {
   animation: pin-here-float 2s ease-in-out infinite;
   pointer-events: none;
-  filter: drop-shadow(0 4px 8px rgba(45, 27, 78, 0.3));
+  filter: drop-shadow(0 4px 8px rgba(28, 36, 48, 0.28));
 }
 
 @keyframes pin-ring-pulse {
@@ -269,8 +288,8 @@
 }
 
 .legend-dot-current {
-  background: #6c5ce7;
-  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.25);
+  background: #2aa8d8;
+  box-shadow: 0 0 0 3px rgba(42, 168, 216, 0.25);
 }
 
 .travel-cta-dock {

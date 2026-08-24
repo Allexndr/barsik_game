@@ -249,7 +249,10 @@ export class Level16Scene extends BaseLevelScene {
 
     const marker = questMarker(0x4fc3f7, 0x81d4fa);
     marker.position.set(0, 0, CHEST_Z);
+    this.snapToGround(marker);
+    marker.position.y += 2.6;
     this.scene.add(marker);
+    this.prepMarkers.push(marker);
 
     // Floating ice key (from L13 master) — ice_key prop → golden tinted → procedural
     const iceKeyGlb = await loadPropModel(loader, CAST_PROP_GLB.ice_key_prop, { maxSize: 0.55 });

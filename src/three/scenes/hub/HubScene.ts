@@ -86,6 +86,37 @@ interface RemotePlayer {
   pose: HubPose;
 }
 
+const FRIEND_COLORS = [0x74b9ff, 0x55efc4, 0xfdcb6e, 0xff7675, 0xa29bfe, 0x81ecec, 0xfab1a0, 0x00cec9, 0xffeaa7];
+
+/** Soft stand-in for a collected season friend until a dedicated GLB arrives. */
+function makeFriendNpc(id: string, color: number): THREE.Group {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.28, 0.45, 6, 12),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.55 }),
+  );
+  body.position.y = 0.7;
+  body.castShadow = true;
+  g.add(body);
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.28, 14, 14),
+    new THREE.MeshStandardMaterial({ color: 0xffeaa7, roughness: 0.55 }),
+  );
+  head.position.y = 1.35;
+  head.castShadow = true;
+  g.add(head);
+  g.userData.friendId = id;
+  return g;
+}
+
+/** Seats around the Arbat fountain plaza — friends gather here, not on side streets. */
+function friendPlazaSpot(i: number, n: number): { x: number; z: number } {
+  const count = Math.max(n, 1);
+  const angle = (i / count) * Math.PI * 2 - Math.PI / 2;
+  const r = 6.4 + (i % 3) * 0.35;
+  return { x: Math.cos(angle) * r, z: -4 + Math.sin(angle) * r };
+}
+
 export class HubScene extends BaseLevelScene {
   private onHud: ((h: HubHud) => void) | null = null;
   private hub: HubConnection | null = null;
@@ -93,6 +124,7 @@ export class HubScene extends BaseLevelScene {
   private nightLights: THREE.Mesh | null = null;
   private place: HubLocation | null = null;
   private butterflies: THREE.Group[] = [];
+  private friendNpcs: THREE.Object3D[] = [];
   private myPose: HubPose = 'idle';
   private poseUntil = 0;
   private atPortal: HubHud['atPortal'] = null;
@@ -183,6 +215,7 @@ export class HubScene extends BaseLevelScene {
     locationId: LocationId = 'arbat',
     cameFrom: LocationId | null = null,
     onTravel?: (to: LocationId) => void,
+    friends: Array<{ id: string; name: string }> = [],
   ) {
     this.nick = nick || this.defaultNick(lang);
     this.lang = lang;
@@ -265,6 +298,24 @@ export class HubScene extends BaseLevelScene {
     this.hero.position.set(at.x, 0, at.z);
     this.scene.add(this.hero);
     await this.loadHero(createGameGltfLoader());
+
+    // Собранные друзья сезона живут на Арбате — это и есть «город друзей».
+    // На подлокациях (Панфилова / парк / КБТУ / ТЮЗ) их не дублируем.
+    if (place.id === 'arbat' && friends.length > 0) {
+      for (let i = 0; i < friends.length; i++) {
+        const f = friends[i];
+        const { x, z } = friendPlazaSpot(i, friends.length);
+        const npc = makeFriendNpc(f.id, FRIEND_COLORS[i % FRIEND_COLORS.length]);
+        npc.position.set(x, 0, z);
+        npc.rotation.y = Math.atan2(-x, -4 - z);
+        const tag = makeLabel(f.name || f.id, 'rgba(24,30,38,0.78)', '#fff8ee', 360);
+        tag.position.set(0, 2.05, 0);
+        npc.add(tag);
+        this.friendNpcs.push(npc);
+        this.scene.add(npc);
+        this.colliders.push({ kind: 'circle', x, z, r: 0.55 });
+      }
+    }
 
     // Приходя из соседнего места, нельзя тут же провалиться обратно: портал
     // взводится, только когда ребёнок от неё отошёл.

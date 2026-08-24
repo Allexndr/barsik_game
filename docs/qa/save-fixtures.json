@@ -1,0 +1,38 @@
+[
+  {
+    "id": "fresh",
+    "label": "New player — empty progress",
+    "progress": {
+      "level": 0,
+      "stars": 0,
+      "friends": [],
+      "cityObjects": {},
+      "season1Complete": false,
+      "levelStars": {}
+    }
+  },
+  {
+    "id": "mid-season",
+    "label": "Mid forest — after L4",
+    "progress": {
+      "level": 5,
+      "stars": 80,
+      "friends": ["aya", "hedgehog"],
+      "cityObjects": {},
+      "season1Complete": false,
+      "levelStars": { "0": 10, "1": 15, "2": 15, "3": 15, "4": 15 }
+    }
+  },
+  {
+    "id": "completed",
+    "label": "Season 1 complete",
+    "progress": {
+      "level": 17,
+      "stars": 280,
+      "friends": ["aya", "hedgehog", "squirrel", "putalo", "zhuldyz"],
+      "cityObjects": { "bench": true },
+      "season1Complete": true,
+      "levelStars": {}
+    }
+  }
+]

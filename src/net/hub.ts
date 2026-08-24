@@ -26,6 +26,27 @@ const SUPABASE_ANON =
   import.meta.env.VITE_SUPABASE_ANON_KEY
   ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdXFhYXRwenlhdHpobW1kbXVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwODYwNDUsImV4cCI6MjA5OTY2MjA0NX0.fA7_lyCIPUppg_DmgMuwKHaFR93jMLXD7T7tEfWsceo';
 
+/**
+ * Realtime multiplayer stays off until `supabase/city_chat.sql` (+ broadcast
+ * RLS) is confirmed on the project. Without that lock any anon client can
+ * publish into `hub:*` and bypass the receive-side filter for free text.
+ * Opt in explicitly: `VITE_HUB_REALTIME=1` in env / Vercel.
+ */
+const HUB_REALTIME_ENABLED =
+  import.meta.env.VITE_HUB_REALTIME === '1'
+  || import.meta.env.VITE_HUB_REALTIME === 'true';
+
+function offlineHub(): HubConnection {
+  return {
+    status: () => 'offline',
+    peers: () => [],
+    move() {},
+    say() {},
+    sayText() {},
+    leave() {},
+  };
+}
+
 /** Как часто уходят координаты. 10 раз в секунду — сглаживание берёт на себя сцена. */
 export const MOVE_HZ = 10;
 
@@ -130,6 +151,12 @@ export function connectHub(
   me: HubIdentity,
   onChange: () => void,
 ): HubConnection {
+  if (!HUB_REALTIME_ENABLED) {
+    // Solo hub: presence/chat stay local until ops confirms Realtime auth.
+    queueMicrotask(() => onChange());
+    return offlineHub();
+  }
+
   const known = new Map<string, HubPeer>();
   let status: HubStatus = 'connecting';
   let client: RealtimeClient | null = null;

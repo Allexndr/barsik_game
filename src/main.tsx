@@ -1,7 +1,10 @@
 import React, { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
+import { installQaConsoleCollector } from './dev/qaConsole';
 import './index.css';
+
+installQaConsoleCollector();
 
 /**
  * Отдельный вход в админку.
