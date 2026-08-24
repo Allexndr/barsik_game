@@ -50,8 +50,7 @@
 - [x] `qa` · A1: `?fps=1`, `?qa=1` → `__qaErrors()`, fixtures `docs/qa/save-fixtures.json`,
       гайд `docs/S1_QA_A1.md`. Screenshot matrix / reload awards — ещё руками.
 - [ ] `qa` · Screenshot matrix desktop/mobile × RU/KK (L0/L1/L8/L16) + reload awards.
-- [ ] `perf` · P2 — tier-scale grass count; AvatarPreview → renderQuality
-      (CityScene удалён).
+- [x] `perf` · P2 — tier-scale grass (`grassCountForTier`) + AvatarPreview → renderQuality.
 - [ ] `lead` · держать этот порядок актуальным после каждого нового `Done`
       (living task, не закрывается сама по себе).
 
@@ -63,35 +62,8 @@
 
 ## In progress
 
-- [ ] `levels-forest` (Allexndr agent) · audit L1–L9 (Mission1Scene, Level2–9Scene)
-  via `window.__audit()` dev tool (`src/dev/levelAudit.ts`, `?mission=N`) —
-  claimed 2026-08-24. Confirmed `placeMany` already fully gone from all 9
-  forest scene files (only Mission1Scene had 1 leftover call, now
-  `this.placeProps`, uncommitted). Partial audit results so far (dev server
-  on :8765 is shared/unstable across agents — kept restarting mid-run):
-  - **L1** (`Mission1Scene`, intro phase): `hero-off-frame` **block** —
-    worst `|x| 10.09` of 1.0 at play-area corners. Camera loses the hero
-    far outside frame at the edges of the ~2272 m² play area. Needs
-    `cameraFraming()`/follow-lerp check for this level specifically.
-  - **L2** (`Level2Scene`, intro phase): `off-ground` high (9 props, e.g.
-    `(-46,-66) ground 1.9`, `(44,-62) ground 0.9` — likely backdrop-range
-    false positives >|60|/|70|, need to re-check against the audit's own
-    backdrop cutoff) + same `hero-off-frame` **block**, worst `|x| 10.84`.
-  - **L3–L9**: not yet captured — dev server connection kept dropping
-    (`ERR_CONNECTION_REFUSED`) under concurrent load from other role
-    agents; rerun in progress when this claim paused.
-  - Raw JSON: `/Users/aleksandr/.claude/jobs/9e9c5802/tmp/audit_result.json`
-    (local, not in repo — re-run script at
-    `/Users/aleksandr/.claude/jobs/9e9c5802/tmp/audit_levels.mjs` against
-    `http://localhost:8765/?mission=N` once server is stable).
-  - **Next for whoever picks this up:** (1) finish L3–L9 sweep, (2) fix the
-    L1/L2 `hero-off-frame` block findings — these are exactly the
-    "camera loses character at map edge" bug class from the sprint brief,
-    (3) only then move to L8 placement-points Todo item and level-length /
-    sub-location work per `BARSIK_SEASON_1_FULL_SPEC.docx`.
-- [ ] `qa` (Allexndr agent) · пройти/зафиксировать L0,L1,L8,L16 blockers в S1_QA_SESSION.md — claimed 2026-08-24 — **частично**: L0 снят `__audit()` (1 low off-ground находка, reachability не финализирован), L1/L8/L16 не сняты, сессия уперлась в usage-limit. Детали и handoff: `docs/S1_QA_SESSION.md`.
-- [ ] `levels-ice` (Allexndr agent) · L14 warmth readable + L16 finale markers — claimed 2026-08-24
-- [ ] `levels-ice` (Allexndr agent bg) · Mission10–16 visual-bug audit (out-of-bounds, camera clipping, marker readability) + sub-location depth pass — claimed 2026-08-24
+_(пусто — stale claims 2026-08-24 закрыты: camera hero-off-frame пофиксен
+в `da10cf6`; L14 warmth + L16 markers — там же. Новый QA: screenshot matrix.)_
 ## Done
 
 - [x] `hub-ui` · TravelMap portrait polish — visual-bug audit (Playwright

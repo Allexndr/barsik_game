@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createBarsikAvatar, type AvatarLook, type AvatarPose, type BarsikAvatar } from './BarsikAvatar';
 import { dressAvatar, undressAvatar } from './dressAvatar';
+import { getRenderQualityProfile, resolveRenderQualityTier } from '../renderQuality';
 
 /**
  * The dressing-room renderer.
@@ -28,11 +29,22 @@ export interface AvatarPreview {
 }
 
 export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  const isMobile =
+    typeof window !== 'undefined'
+    && (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 760);
+  const profile = getRenderQualityProfile(resolveRenderQualityTier(isMobile), isMobile);
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: profile.antialias,
+    alpha: true,
+  });
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, profile.maxPixelRatio));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = profile.shadowSoft
+    ? THREE.PCFSoftShadowMap
+    : THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
   // Framed tight on purpose. The panel is wide and short, and at a wider
@@ -47,7 +59,7 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
   const key = new THREE.DirectionalLight(0xfff6e8, 2.1);
   key.position.set(2.4, 4, 3);
   key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.mapSize.set(profile.shadowMapSize, profile.shadowMapSize);
   key.shadow.camera.near = 0.5;
   key.shadow.camera.far = 12;
   const fill = new THREE.DirectionalLight(0xdcecff, 0.55);
