@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
   BaseLevelScene, type BaseHud, zoneDisc, spawnPad, questMarker, pathArrow,
   loadCharModel, loadPropModel, placeWoodSign,
@@ -55,12 +56,15 @@ const WAITING_FRIENDS: ReadonlyArray<{
 /** Сколько лучей у снежинки-замка. */
 const LOCK_RAYS = 3;
 
+const FRIEND_BODY_GEOMETRY = new THREE.CylinderGeometry(0.28, 0.32, 0.85, 8);
+const FRIEND_HEAD_GEOMETRY = new THREE.SphereGeometry(0.22, 8, 8);
+
 function makeFriendSilhouette(color: number, x: number, z: number): THREE.Group {
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.9 });
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 0.85, 8), mat);
+  const body = new THREE.Mesh(FRIEND_BODY_GEOMETRY, mat);
   body.position.y = 0.42;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), mat);
+  const head = new THREE.Mesh(FRIEND_HEAD_GEOMETRY, mat);
   head.position.y = 0.95;
   g.add(body, head);
   g.position.set(x, 0, z);
@@ -73,6 +77,7 @@ export class Level16Scene extends BaseLevelScene {
   private introI = 0;
   private nextAt = 0;
   private chest: THREE.Group | null = null;
+  private chestMarker: THREE.Object3D | null = null;
   private chestOpen = false;
   private lidOpenTime = 0;
   private friends: THREE.Object3D[] = [];
@@ -110,6 +115,8 @@ export class Level16Scene extends BaseLevelScene {
       const t = this.interactTarget;
       if (!t?.userData.isWaitingFriend || t.userData.greeted) return;
       t.userData.greeted = true;
+      const prepMarker = t.userData.prepMarker as THREE.Object3D | undefined;
+      if (prepMarker) prepMarker.visible = false;
       this.prepDone += 1;
       this.stars += 3;
       this.spawnSparks(t.position, 12, [0xffd700, 0x4fc3f7]);
@@ -167,6 +174,7 @@ export class Level16Scene extends BaseLevelScene {
     this.spawnSparks(this.chest.position, 20, [0x4fc3f7, 0xffd700]);
     AudioManager.sfx('success');
     if (this.iceKey) this.iceKey.visible = false;
+    if (this.chestMarker) this.chestMarker.visible = false;
     this.nextAt = performance.now() + 1800;
     this.pushHud();
   }
@@ -191,6 +199,7 @@ export class Level16Scene extends BaseLevelScene {
     const loader = createGameGltfLoader();
 
     this.camera.position.set(0, 6, 14);
+    const winterAmbientStart = this.scene.children.length;
     await this.setupWinterEnvironment(loader, {
       sky: ['#3a5a7a', '#6a8aaa', '#b0d0e8'],
       backdrop: 'finale',
@@ -201,26 +210,23 @@ export class Level16Scene extends BaseLevelScene {
       terrain: { playHalfExtent: 52, rimFalloff: 16 },
       decorCenterZ: -22,
     });
+    for (const root of this.scene.children.slice(winterAmbientStart)) {
+      root.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = false;
+      });
+    }
 
     this.scene.add(zoneDisc(0, 4, 6, 0x4fc3f7, 0.04));
     this.scene.add(zoneDisc(0, CHEST_Z, 6.5, 0xffd700, 0.05));
     this.scene.add(spawnPad(0, 4));
-    this.scene.add(await placeWoodSign(loader, -2.5, 2, 0.3, 0x4fc3f7));
+    const entranceSign = await placeWoodSign(loader, -2.5, 2, 0.3, 0x4fc3f7);
+    entranceSign.traverse((object) => {
+      if (object instanceof THREE.Mesh) object.castShadow = false;
+    });
+    this.scene.add(entranceSign);
 
     this.chest = this.makeChest();
     this.chest.position.set(0, 0, CHEST_Z);
-    const meshyChest = await loadPropModel(loader, 'treasure_chest.glb', { maxSize: 1.6 });
-    if (meshyChest) {
-      for (const child of [...this.chest.children]) {
-        if (child === this.chest.userData.glow) continue;
-        if (child === this.chest.userData.lid) continue;
-        if (child === this.chest.userData.lock) continue;
-        this.chest.remove(child);
-      }
-      meshyChest.rotation.y = Math.PI;
-      groundY(meshyChest);
-      this.chest.add(meshyChest);
-    }
     this.scene.add(this.chest);
     this.colliders.push({ kind: 'circle', x: 0, z: CHEST_Z, r: 1.2 });
 
@@ -230,26 +236,29 @@ export class Level16Scene extends BaseLevelScene {
     // финальный снимок собирает игрок, а не движок.
     //
     // Кольца-подсветки остаются: они отмечают, где ждёт друг.
+    const prepRingGeometry = new THREE.RingGeometry(0.6, 0.95, 24);
+    const prepRingMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffe066,
+      transparent: true,
+      opacity: 0.5,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
     for (const spot of WAITING_FRIENDS) {
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.6, 0.95, 24),
-        new THREE.MeshBasicMaterial({
-          color: 0xffe066,
-          transparent: true,
-          opacity: 0.5,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-        }),
+        prepRingGeometry,
+        prepRingMaterial,
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.set(spot.x, this.groundHeightAt(spot.x, spot.z) + 0.05, spot.z);
+      ring.userData.friendIndex = spot.index;
       this.scene.add(ring);
       this.prepMarkers.push(ring);
     }
 
-    const marker = questMarker(0x4fc3f7, 0x81d4fa);
-    marker.position.set(0, 0, CHEST_Z);
-    this.scene.add(marker);
+    this.chestMarker = questMarker(0x4fc3f7, 0x81d4fa);
+    this.chestMarker.position.set(0, 0, CHEST_Z);
+    this.scene.add(this.chestMarker);
 
     // Floating ice key (from L13 master) — ice_key prop → golden tinted → procedural
     const iceKeyGlb = await loadPropModel(loader, CAST_PROP_GLB.ice_key_prop, { maxSize: 0.55 });
@@ -288,26 +297,41 @@ export class Level16Scene extends BaseLevelScene {
     // метра ребёнок не опознаёт как «то, что надо взять». Тот же класс, что
     // яблоки на L2, только тонуть здесь не в чем — снег без высокой травы.
     const crystalTpl = await loadPropModel(loader, CAST_PROP_GLB.ice_crystal, { maxSize: 0.75 });
+    const lockCrystalSlots = new Set([0, 3, 6]);
+    const decorCrystalGeometry = new THREE.OctahedronGeometry(0.18, 0);
+    const decorCrystalMaterial = new THREE.MeshStandardMaterial({
+      color: 0x8ba8bd,
+      roughness: 0.7,
+      emissive: 0x31556e,
+      emissiveIntensity: 0.08,
+      transparent: true,
+      opacity: 0.58,
+    });
     for (let i = 0; i < 8; i++) {
       const angle = (i / 8) * Math.PI * 2;
       const r = 5.4;
       let crystal: THREE.Object3D;
-      if (crystalTpl) {
+      if (!lockCrystalSlots.has(i)) {
+        // Five low, dim facets complete the snowflake ring without posing as
+        // quest targets or redrawing the imported crystal into the shadow map.
+        crystal = new THREE.Mesh(decorCrystalGeometry, decorCrystalMaterial);
+        crystal.userData.isDecorativeCrystal = true;
+      } else if (crystalTpl) {
         crystal = crystalTpl.clone(true);
-        crystal.position.set(Math.cos(angle) * r, 0.5, CHEST_Z + Math.sin(angle) * r);
       } else {
         crystal = new THREE.Mesh(
           new THREE.OctahedronGeometry(0.28),
           new THREE.MeshStandardMaterial({ color: 0x4fc3f7, emissive: 0x4fc3f7, emissiveIntensity: 0.45, transparent: true, opacity: 0.85 }),
         );
-        crystal.position.set(Math.cos(angle) * r, 0.5, CHEST_Z + Math.sin(angle) * r);
         crystal.castShadow = true;
       }
+      crystal.position.set(Math.cos(angle) * r, 0.5, CHEST_Z + Math.sin(angle) * r);
       crystal.userData.spin = i;
       this.crystals.push(crystal);
       this.scene.add(crystal);
     }
 
+    const authoredAmbientStart = this.scene.children.length;
     await this.placeProps(loader, [
       { key: 'snowflake', opts: { x: 0, z: -4, maxSize: 0.7, y: 2.8 } },
       { key: 'pine_tree', opts: { x: -6, z: -8, maxSize: 2.6 } },
@@ -324,6 +348,11 @@ export class Level16Scene extends BaseLevelScene {
       { key: 'owl', x: 7, z: -5, rotY: -2.2, h: 0.7 },
       { key: 'penguin', x: -7, z: -4, rotY: 0.9, h: 0.75 },
     ]);
+    for (const root of this.scene.children.slice(authoredAmbientStart)) {
+      root.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = false;
+      });
+    }
 
     // Group photo — unlocked cast first; locked friends as soft silhouettes
     const unlocked = new Set(useGameStore.getState().friends.map((f) => f.id));
@@ -364,10 +393,28 @@ export class Level16Scene extends BaseLevelScene {
       f.position.set(x, 0, z);
       f.rotation.y = Math.atan2(-x, CHEST_Z - z);
       groundY(f);
-      f.visible = false;
+      // `groundY` stores the model-specific root offset. The terrain height
+      // is added every frame while the friend walks, rather than overwriting
+      // this offset and sinking different rigs into the snow.
+      f.userData.groundOffset = f.position.y;
       f.userData.unlockedFriend = isUnlocked;
       f.userData.photoX = x;
       f.userData.photoZ = z;
+
+      if (!isUnlocked) {
+        f.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          const makeGhost = (material: THREE.Material) => {
+            const ghost = material.clone();
+            ghost.transparent = true;
+            ghost.opacity = 0.42;
+            return ghost;
+          };
+          object.material = Array.isArray(object.material)
+            ? object.material.map(makeGhost)
+            : makeGhost(object.material);
+        });
+      }
 
       // Пятеро ждут по дороге. Они видны с начала уровня — это и есть цели
       // первого акта, а не невидимки, которые появятся в конце.
@@ -381,6 +428,11 @@ export class Level16Scene extends BaseLevelScene {
         f.userData.walking = false;
         f.userData.greetRu = waiting.ru;
         f.userData.greetKk = waiting.kk;
+        f.userData.prepMarker = this.prepMarkers.find((ring) => ring.userData.friendIndex === i);
+      } else {
+        // Four friends are already waiting at the cave. Showing them from the
+        // start makes the final photo assemble instead of popping into being.
+        f.visible = true;
       }
 
       this.friends.push(f);
@@ -391,10 +443,11 @@ export class Level16Scene extends BaseLevelScene {
     // Три луча над сундуком, каждый гаснет, пока в него не вернут кристалл.
     // Кристаллы уже кольцом стоят вокруг сундука с прошлой итерации и были
     // чистой декорацией.
+    const lockRayGeometry = new THREE.BoxGeometry(0.12, 0.12, 1.1);
     for (let i = 0; i < LOCK_RAYS; i++) {
       const a = (i / LOCK_RAYS) * Math.PI * 2;
       const ray = new THREE.Mesh(
-        new THREE.BoxGeometry(0.12, 0.12, 1.1),
+        lockRayGeometry,
         new THREE.MeshStandardMaterial({
           color: 0x9fd8ff,
           emissive: 0x2b7fb8,
@@ -447,28 +500,52 @@ export class Level16Scene extends BaseLevelScene {
   private makeChest(): THREE.Group {
     const g = new THREE.Group();
     const iceMat = new THREE.MeshStandardMaterial({
-      color: 0xb3e5fc, roughness: 0.15, metalness: 0.45, transparent: true, opacity: 0.88,
+      color: 0x7dd8f5,
+      roughness: 0.22,
+      metalness: 0.18,
+      emissive: 0x195e86,
+      emissiveIntensity: 0.18,
     });
     const goldMat = new THREE.MeshStandardMaterial({
       color: 0xffd700, roughness: 0.25, metalness: 0.75, emissive: 0xffd700, emissiveIntensity: 0.25,
     });
+    const innerMat = new THREE.MeshStandardMaterial({ color: 0x12354f, roughness: 0.8 });
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.85, 1.05), iceMat);
-    body.position.y = 0.42; body.castShadow = true;
-    const lid = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.32, 1.05), iceMat);
-    lid.position.y = 0.98; lid.castShadow = true;
+    const body = new THREE.Mesh(new RoundedBoxGeometry(1.9, 0.95, 1.3, 3, 0.14), iceMat);
+    body.position.y = 0.5;
+    body.castShadow = true;
+
+    // Dark inner lip makes the open state readable even against white snow.
+    const cavity = new THREE.Mesh(new RoundedBoxGeometry(1.58, 0.12, 1.02, 2, 0.06), innerMat);
+    cavity.position.y = 0.94;
+
+    // Hinge at the rear edge. Rotating this group opens the actual visible
+    // lid instead of moving a second lid over an immovable GLB chest.
+    const lid = new THREE.Group();
+    lid.position.set(0, 0.92, -0.57);
+    const lidShell = new THREE.Mesh(new RoundedBoxGeometry(1.9, 0.38, 1.3, 3, 0.13), iceMat);
+    lidShell.position.set(0, 0.18, 0.57);
+    lidShell.castShadow = true;
+    const lidBand = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.42, 1.34), goldMat);
+    lidBand.position.set(0, 0.18, 0.57);
+    lid.add(lidShell, lidBand);
+
+    const rim = new THREE.Mesh(new THREE.BoxGeometry(1.96, 0.12, 1.36), goldMat);
+    rim.position.y = 0.9;
+    const frontBand = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.84, 0.08), goldMat);
+    frontBand.position.set(0, 0.48, 0.68);
 
     const lock = new THREE.Mesh(new THREE.OctahedronGeometry(0.18), goldMat);
-    lock.position.set(0, 0.82, 0.54);
+    lock.position.set(0, 0.76, 0.76);
 
     const glow = new THREE.Mesh(
-      new THREE.RingGeometry(1.1, 1.6, 28),
+      new THREE.RingGeometry(1.15, 1.65, 28),
       new THREE.MeshBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.45, side: THREE.DoubleSide }),
     );
     glow.rotation.x = -Math.PI / 2;
     glow.position.y = 0.02;
 
-    g.add(body, lid, lock, glow);
+    g.add(body, cavity, rim, frontBand, lid, lock, glow);
     g.userData.lid = lid;
     g.userData.glow = glow;
     g.userData.lock = lock;
@@ -627,20 +704,9 @@ export class Level16Scene extends BaseLevelScene {
       AudioManager.sfx('levelComplete');
       for (const f of this.friends) {
         f.visible = true;
-        if (!f.userData.unlockedFriend) {
-          f.traverse((o) => {
-            const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-            if (m && 'opacity' in m) {
-              const mat = m.clone();
-              mat.transparent = true;
-              mat.opacity = 0.45;
-              (o as THREE.Mesh).material = mat;
-            }
-          });
-        }
       }
       if (this.chest) {
-        const lid = this.chest.userData.lid as THREE.Mesh;
+        const lid = this.chest.userData.lid as THREE.Group;
         lid.userData.opening = true;
         (this.chest.userData.lock as THREE.Mesh).visible = false;
       }
@@ -650,7 +716,9 @@ export class Level16Scene extends BaseLevelScene {
 
     if (this.phase === 'open' && now > this.nextAt) {
       this.phase = 'outro';
-      this.spawnSparks(new THREE.Vector3(0, 2, -5), 30, [0xffd700, 0x00cec9]);
+      const finale = this.chest?.position.clone() ?? new THREE.Vector3(0, 0, CHEST_Z);
+      finale.y += 2;
+      this.spawnSparks(finale, 30, [0xffd700, 0x00cec9]);
       this.pushHud();
     }
 
@@ -658,7 +726,7 @@ export class Level16Scene extends BaseLevelScene {
     if ((this.phase === 'open' || this.phase === 'outro') && now - this.confettiBurst > 800) {
       this.confettiBurst = now;
       this.spawnSparks(
-        new THREE.Vector3((Math.random() - 0.5) * 4, 1.5, -4 + (Math.random() - 0.5) * 3),
+        new THREE.Vector3((Math.random() - 0.5) * 6, 2.2, CHEST_Z + (Math.random() - 0.5) * 5),
         12,
         [0x4fc3f7, 0xffd700],
       );
@@ -675,21 +743,27 @@ export class Level16Scene extends BaseLevelScene {
         lock.rotation.y += dt * 2.5;
         lock.rotation.x = Math.sin(now * 0.003) * 0.2;
       }
-      const lid = this.chest.userData.lid as THREE.Mesh;
+      const lid = this.chest.userData.lid as THREE.Group;
       if (lid.userData.opening) {
         const elapsed = now - this.lidOpenTime;
         if (elapsed < 900) {
-          lid.rotation.x = -Math.PI * 0.65 * (elapsed / 900);
-          lid.position.y = 0.98 + Math.sin((elapsed / 900) * Math.PI) * 0.35;
+          const progress = elapsed / 900;
+          const eased = 1 - (1 - progress) ** 3;
+          lid.rotation.x = -Math.PI * 0.62 * eased;
         } else {
-          lid.rotation.x = -Math.PI * 0.65;
-          lid.position.y = 1.15;
+          lid.rotation.x = -Math.PI * 0.62;
         }
       }
     }
 
     if (this.iceKey?.visible) {
-      this.iceKey.position.y = 2.2 + Math.sin(now * 0.003) * 0.12;
+      // The key came from Level 13 and belongs to Barsik's inventory. Keeping
+      // it at his shoulder makes possession and the final hand-off continuous.
+      this.iceKey.position.set(
+        this.hero.position.x - 0.62,
+        this.hero.position.y + 1.32 + Math.sin(now * 0.003) * 0.08,
+        this.hero.position.z + 0.08,
+      );
       this.iceKey.rotation.y += dt * 1.8;
     }
 
@@ -714,7 +788,11 @@ export class Level16Scene extends BaseLevelScene {
           f.rotation.y = Math.atan2(dx, dz);
         }
       }
-      if (f.visible) f.position.y = Math.sin(now * 0.003 + f.position.x) * 0.05;
+      if (f.visible) {
+        f.position.y = this.groundHeightAt(f.position.x, f.position.z)
+          + (f.userData.groundOffset as number)
+          + Math.sin(now * 0.003 + f.position.x) * 0.035;
+      }
     }
 
     // Кристалл летит в свой луч снежинки-замка.
@@ -782,8 +860,7 @@ export class Level16Scene extends BaseLevelScene {
       // the finale moved to the end of the climb it would have shot thirty
       // metres of empty snow for the most important frame of the season.
       const target = new THREE.Vector3(0, 5.8, CHEST_Z + 11);
-      this.camera.position.lerp(target, 1 - Math.pow(0.002, dt));
-      this.camera.lookAt(0, 1.3, CHEST_Z - 2.5);
+      this.updateCamera(target, new THREE.Vector3(0, 1.3, CHEST_Z - 2.5), 0.002, dt);
     } else {
       // Same framing as the rest of the season: a tall or short frame needs a
       // flatter, further-back camera, or the desktop pitch spends the lower
@@ -791,15 +868,14 @@ export class Level16Scene extends BaseLevelScene {
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
         this.cameraLateral(this.hero.position.x) + f.lateral,
-        5.5 * f.heightMul,
+        this.hero.position.y + 5.5 * f.heightMul,
         this.hero.position.z + 9 + f.backAdd,
       );
-      this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
-      this.camera.lookAt(
+      this.updateCamera(target, new THREE.Vector3(
         this.cameraLateral(this.hero.position.x),
-        1.15 + f.lookUp,
+        this.hero.position.y + 1.15 + f.lookUp,
         this.hero.position.z - 0.5 - f.lookAhead,
-      );
+      ), 0.0015, dt);
     }
 
     this.renderFrame();
