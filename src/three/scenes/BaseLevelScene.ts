@@ -1029,12 +1029,12 @@ export abstract class BaseLevelScene {
     this.renderQuality = getRenderQualityProfile(resolveRenderQualityTier(this.isMobile), this.isMobile);
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: true,
+      antialias: this.renderQuality.antialias,
       powerPreference: 'high-performance',
     });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.renderQuality.maxPixelRatio));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = this.renderQuality.shadowSoft ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 300);
   }
