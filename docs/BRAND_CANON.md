@@ -21,7 +21,7 @@
 | Лицо | Крупные **жёлтые/золотые** очки |
 | Глаза | Большие тёмные с бликом |
 
-Файлы: `barsik_trio_kazakh.jpg` · 3D геймплей: MCP Hyper3D + Blender rig `chars/barsik_rigged.glb` (Idle/Walk/Wave). Wardrobe/фото-канон для UI.  
+Файлы: `barsik_trio_kazakh.jpg` · 3D геймплей: **одетый** Tripo/Meshy Barsik (`barsik_meshy_legacy` → `barsik_rigged.glb` Idle/Walk/Wave: худи/джинсы/жёлтые очки). Рефы T-pose: `brand/barsik_tpose_front.jpg`. Hyper3D nude — **не** герой.
 Стартовый outfit: `tubeteika_blue` + `glasses_yellow`
 
 ### Варианты маскота (UI / маркетинг)
