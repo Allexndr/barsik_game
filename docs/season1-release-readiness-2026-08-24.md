@@ -1,6 +1,6 @@
 # BARSIK Season 1 release-readiness roll-up
 
-- Date: 2026-08-24
+- Date: 2026-08-25
 - Scope: Level 0 through Level 16 on the current stacked Codex branch chain
 - Decision: **feature-complete at the scene-patch level; not yet a certified gold master**
 - Production deployment: not performed
@@ -70,7 +70,8 @@ full golden-route evidence separate from touch smoke evidence.
 2. Complete one continuous new-save run from onboarding through Level 16 on
    the production build. Verify progress persistence, both keys, friends,
    rewards, language, reload recovery and map transitions without direct state
-   mutation.
+   mutation. The first attempt exposed and patched a Level 0 river ordering
+   bug (ADR 052); this gate is still open until the full route is rerun.
 3. Test real Safari/iOS and Chrome/Android devices. The existing headless
    390×844 profile validates layout/input logic, not thermals, memory pressure,
    audio policy, WebGL context loss or vendor GPU drivers.

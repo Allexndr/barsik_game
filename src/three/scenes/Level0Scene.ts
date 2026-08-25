@@ -1956,7 +1956,14 @@ export class Level0Scene extends BaseLevelScene {
       // Judged at the water line, not at the river bed. Before the lanterns,
       // even the submerged stone footprints are water; after they rise, the
       // top platform is the only safe surface.
-      const wet = inChannel && !standing && h.y < this.waterY + 0.05;
+      // Let a jump that starts at the visible bank edge clear the water line
+      // before judging the miss. The loop updates movement before the
+      // ballistic arc, so checking an airborne hero here used to reset them
+      // on the first submerged frame — the jump button appeared to do
+      // nothing even though the request was accepted. Once the arc lands,
+      // the next frame still applies the normal wet recovery if no stone was
+      // reached.
+      const wet = inChannel && !standing && !this.airborne && h.y < this.waterY + 0.05;
       if (wet && now > this.wetUntil) {
         this.wetUntil = now + 1500;
         AudioManager.sfx('stumble');
