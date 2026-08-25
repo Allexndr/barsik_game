@@ -553,7 +553,10 @@ export class Level13Scene extends BaseLevelScene {
 
     this.updateAmbient(dt, now);
 
-    if (this.phase === 'intro') {
+    // Cinematic only until the first step, same fix as L2/L8/L16 — without
+    // the guard the camera stays locked to this fixed path for the whole
+    // intro timer even after the hero starts moving.
+    if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [
         new THREE.Vector3(0, 8, 17),

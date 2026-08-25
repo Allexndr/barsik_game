@@ -8,6 +8,7 @@ import {
   tulip,
   loadPropModel,
   loadCharModel,
+  loadGlb,
   mountain,
 } from './BaseLevelScene';
 import { AudioManager } from '@/audio/AudioManager';
@@ -15,6 +16,7 @@ import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeAmbientCritters } from '../s1Place';
 import { createRiverWater, type RiverWater } from '../RiverWater';
 import { CAST_PROP_GLB } from '../castModels';
+import { fitHeight, fitMaxSize } from '../modelUtils';
 import {
   buildYurtInterior,
   buildAnswerPads,
@@ -555,6 +557,33 @@ export class Level0Scene extends BaseLevelScene {
   /** Set while the blackout is deep enough to move the hero without it being seen. */
   private pendingTeleport: (() => void) | null = null;
 
+  /** Soft-3D yurt GLB when Meshy quality pack lands; procedural stays as fallback. */
+  private async upgradeYurtToQualityGlb() {
+    if (!this.yurt) return;
+    const gltf = await loadGlb(createGameGltfLoader(), '/assets/models/props/s1_quality_yurt.glb');
+    if (!gltf || !this.yurt.parent) return;
+    const next = gltf.scene;
+    fitHeight(next, 3.55);
+    next.position.copy(this.yurt.position);
+    next.rotation.y = this.yurt.rotation.y;
+    this.scene.remove(this.yurt);
+    this.yurt = next as THREE.Group;
+    this.scene.add(this.yurt);
+  }
+
+  private async upgradeDombraToQualityGlb() {
+    if (!this.dombra) return;
+    const gltf = await loadGlb(createGameGltfLoader(), '/assets/models/props/s1_quality_dombra.glb');
+    if (!gltf || !this.dombra.parent) return;
+    const next = gltf.scene;
+    fitMaxSize(next, 1.05);
+    next.position.copy(this.dombra.position);
+    next.rotation.copy(this.dombra.rotation);
+    this.scene.remove(this.dombra);
+    this.dombra = next as THREE.Group;
+    this.scene.add(this.dombra);
+  }
+
   /**
    * The kui, as call and response.
    *
@@ -1060,6 +1089,7 @@ export class Level0Scene extends BaseLevelScene {
     this.yurt.position.set(YURT.x, this.groundHeightAt(YURT.x, YURT.z), YURT.z);
     this.scene.add(this.yurt);
     this.colliders.push({ kind: 'circle', x: YURT.x, z: YURT.z, r: 3.2 });
+    void this.upgradeYurtToQualityGlb();
 
     for (const p of PEGS) {
       const panel = makeFeltPanel();
@@ -1110,6 +1140,7 @@ export class Level0Scene extends BaseLevelScene {
     this.dombra.position.set(dx, this.groundHeightAt(dx, porchZ + 0.3), porchZ + 0.3);
     this.dombra.rotation.set(0.22, 0.55, -0.08);
     this.scene.add(this.dombra);
+    void this.upgradeDombraToQualityGlb();
     // Solid. Without this the hero walks straight through the instrument and
     // stands inside the gardener, which reads as the world being made of
     // scenery rather than of things.
@@ -1754,7 +1785,12 @@ export class Level0Scene extends BaseLevelScene {
 
     this.updateAmbient(dt, now);
 
-    if (this.phase === 'intro') {
+    // Cinematic only until the first step, same fix as L2/L8/L16 — without
+    // the guard the camera stays locked to this fixed path for the whole
+    // intro timer even after the hero starts moving. Not currently
+    // symptomatic here (intro is short enough not to trip the threshold),
+    // but the same root cause is present, so the guard goes in anyway.
+    if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const from = [
         new THREE.Vector3(10, 9, SPAWN_Z + 13),

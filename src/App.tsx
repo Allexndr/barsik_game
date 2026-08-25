@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { useGameStore, type Friend } from '@/store/useGameStore';
+import { useGameStore, type Friend, GAME_SAVE_VERSION } from '@/store/useGameStore';
 import { useUIStore } from '@/store/useUIStore';
 import { WelcomeScreen } from '@/components/WelcomeScreen';
 import { QuickStartScreen } from '@/components/QuickStartScreen';
@@ -129,8 +129,15 @@ function migrateProgress(raw: unknown) {
     // the outfit was persisted correctly and then thrown away on every
     // reload, because whatever this function omits is left at its default.
     outfit: Array.isArray(data.outfit)
-      ? data.outfit.filter((id): id is string => typeof id === 'string')
-      : ['cap_green', 'glasses_yellow'],
+      ? (() => {
+          const ids = data.outfit.filter((id): id is string => typeof id === 'string');
+          // Brand-canon migrate: old starter cap → tubeteika from photos trio.
+          if (ids.length === 2 && ids.includes('cap_green') && ids.includes('glasses_yellow')) {
+            return ['tubeteika_blue', 'glasses_yellow'];
+          }
+          return ids;
+        })()
+      : ['tubeteika_blue', 'glasses_yellow'],
     season1Complete:
       data.season1Complete === true ||
       (Number.isFinite(data.currentLevel) && Number(data.currentLevel) >= 17) ||
@@ -172,7 +179,28 @@ export function App() {
     if (progress) {
       try {
         const migrated = migrateProgress(JSON.parse(progress));
+        // Heal: currentLevel must be at least one past the highest completed
+        // level. Older saves / aborted outros could leave the pointer on a
+        // finished mission, so «Продолжить» restarted that same level.
+        const highestDone = Math.max(
+          -1,
+          ...migrated.unlockedLevels,
+          ...Object.entries(migrated.levelStars)
+            .filter(([, stars]) => Number(stars) > 0)
+            .map(([id]) => Number(id)),
+        );
+        if (highestDone >= 0 && migrated.currentLevel <= highestDone) {
+          migrated.currentLevel = Math.min(17, highestDone + 1);
+        }
         useGameStore.setState(migrated);
+        try {
+          localStorage.setItem(
+            'barsik_progress',
+            JSON.stringify({ version: GAME_SAVE_VERSION, ...migrated }),
+          );
+        } catch {
+          /* ignore */
+        }
       } catch (e) {
         console.error('Failed to load progress', e);
         localStorage.removeItem('barsik_progress');

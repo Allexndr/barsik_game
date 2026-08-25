@@ -385,6 +385,11 @@ export class Level16Scene extends BaseLevelScene {
       const waiting = WAITING_FRIENDS.find((w) => w.index === i);
       if (waiting) {
         f.position.set(waiting.x, f.position.y, waiting.z);
+        // Height above came from groundY(f) at the gathering spot near the
+        // chest, which is flat (base 0). The waiting spot is partway up the
+        // snow slope — reusing that y buried two of five friends into the
+        // mound.
+        groundY(f, this.groundHeightAt(waiting.x, waiting.z));
         f.rotation.y = Math.atan2(-waiting.x, 4 - waiting.z);
         f.visible = true;
         f.userData.isWaitingFriend = true;
@@ -428,7 +433,13 @@ export class Level16Scene extends BaseLevelScene {
       this.lockCrystals.push(c);
     }
 
-    for (let z = 0; z > CHEST_Z + 6; z -= 3.5) this.scene.add(pathArrow(0, z, 0));
+    for (let z = 0; z > CHEST_Z + 6; z -= 3.5) {
+      const arrow = pathArrow(0, z, 0);
+      // The climb to the chest is a snow slope, not flat ground — pathArrow's
+      // fixed y=0 buried the trail markers up to 1.6 units into the mound.
+      this.snapToGround(arrow);
+      this.scene.add(arrow);
+    }
 
     this.hero.position.set(0, this.groundHeightAt(0, 4), 4);
     // One room, not one road. A corridor here would put a wall through the
@@ -460,8 +471,11 @@ export class Level16Scene extends BaseLevelScene {
     const iceMat = new THREE.MeshStandardMaterial({
       color: 0xb3e5fc, roughness: 0.15, metalness: 0.45, transparent: true, opacity: 0.88,
     });
+    // No environment map in this game, so a mostly-metal surface has nothing
+    // to reflect and reads as flat black instead of gold — same class of bug
+    // as the CC0 kit assets. Emissive carries the gold glow instead.
     const goldMat = new THREE.MeshStandardMaterial({
-      color: 0xffd700, roughness: 0.25, metalness: 0.75, emissive: 0xffd700, emissiveIntensity: 0.25,
+      color: 0xffd700, roughness: 0.25, metalness: 0.12, emissive: 0xffd700, emissiveIntensity: 0.35,
     });
 
     const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.85, 1.05), iceMat);
@@ -775,10 +789,13 @@ export class Level16Scene extends BaseLevelScene {
 
     this.updateAmbient(dt, now);
 
-    if (this.phase === 'intro') {
+    if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       // The last intro shot looks all the way down the valley to the cave, so
       // the goal of the season's final level is visible before the first step.
+      // Locked to the cinematic path until then — same fix as L2/L8: without
+      // the guard, a child who moves immediately walks off-frame for the
+      // rest of intro's fixed multi-second timer, not just one bad frame.
       const introPos = [new THREE.Vector3(0, 6, 14), new THREE.Vector3(0, 6.5, 13), new THREE.Vector3(0, 8, 12)];
       const introLook = [
         new THREE.Vector3(0, 1, 2),

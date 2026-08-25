@@ -51,8 +51,22 @@
       гайд `docs/S1_QA_A1.md`. Screenshot matrix / reload awards — ещё руками.
 - [ ] `qa` · Screenshot matrix desktop/mobile × RU/KK (L0/L1/L8/L16) + reload awards.
 - [x] `perf` · P2 — tier-scale grass (`grassCountForTier`) + AvatarPreview → renderQuality.
+- [x] `polish` · Brand canon `photos/` + outfit tubeteika; L0 quality yurt/dombra
+      hooks; butterfly/cloud quality upgrade; cast remesh (hedgehog…bird); leaderboard
+      nick filter on read. (felt panels / stepping stones stay procedural — gameplay sockets)
 - [ ] `lead` · держать этот порядок актуальным после каждого нового `Done`
       (living task, не закрывается сама по себе).
+
+## Remaining outside code (не блокируют «добить S1 в репо»)
+
+| Что | Кто |
+|-----|-----|
+| Screenshot matrix + reload awards | человек / QA |
+| `city_chat.sql` + Realtime RLS → `VITE_HUB_REALTIME=1` | владелец Supabase |
+| Leaderboard **write** (сейчас read-only) | confirm + edge function |
+| Cloud save reconciliation | confirm |
+| Rigged `barsik.glb` / проф. KK VO / реальный QR | бренд / vendor |
+| KK-вычитка носителем | носитель |
 
 ## Blocked
 

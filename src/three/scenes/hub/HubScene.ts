@@ -3,6 +3,7 @@ import { BaseLevelScene, type BaseHud, butterfly, tulip } from '../BaseLevelScen
 import {
   createBarsikAvatar, DEFAULT_LOOK, type BarsikAvatar, type AvatarPose,
 } from '../../avatar/BarsikAvatar';
+import { dressAvatar } from '../../avatar/dressAvatar';
 import { connectHub, type HubConnection, type HubPeer, type HubPose } from '@/net/hub';
 import { renderChat } from '@/utils/safeChat';
 import { createGameGltfLoader } from '../../createGameGltfLoader';
@@ -11,6 +12,9 @@ import { arrivalPoint, getLocation, type HubLocation, type LocationId } from './
 import { pickSeat, type Ride } from './rides';
 import type { FountainFx } from './fountains';
 import type { DaySample } from '../../DayCycle';
+import { loadHubDressing } from './hubDressing';
+import { CAST_CHAR_GLB } from '../../castModels';
+import { loadCharModel } from '../BaseLevelScene';
 
 /**
  * Общая сцена хаба.
@@ -136,6 +140,7 @@ export class HubScene extends BaseLevelScene {
   private ridingOn: Ride | null = null;
   private ridingSeat = -1;
   private seatPos = new THREE.Vector3();
+  private dressing: THREE.Object3D[] = [];
 
   protected currentPhase() {
     return 'hub';
@@ -297,7 +302,16 @@ export class HubScene extends BaseLevelScene {
     const at = arrivalPoint(place, cameFrom);
     this.hero.position.set(at.x, 0, at.z);
     this.scene.add(this.hero);
-    await this.loadHero(createGameGltfLoader());
+    const loader = createGameGltfLoader();
+    await this.loadHero(loader);
+
+    // Soft-3D landmarks + street NPCs (skip silently until GLBs exist).
+    this.dressing = await loadHubDressing(
+      loader,
+      place.id,
+      this.scene,
+      this.colliders as Array<{ kind: 'circle'; x: number; z: number; r: number }>,
+    );
 
     // Собранные друзья сезона живут на Арбате — это и есть «город друзей».
     // На подлокациях (Панфилова / парк / КБТУ / ТЮЗ) их не дублируем.
@@ -305,8 +319,19 @@ export class HubScene extends BaseLevelScene {
       for (let i = 0; i < friends.length; i++) {
         const f = friends[i];
         const { x, z } = friendPlazaSpot(i, friends.length);
-        const npc = makeFriendNpc(f.id, FRIEND_COLORS[i % FRIEND_COLORS.length]);
+        const file = CAST_CHAR_GLB[f.id as keyof typeof CAST_CHAR_GLB];
+        let npc: THREE.Object3D | null = null;
+        if (file) {
+          npc = await loadCharModel(loader, file, 1.25);
+        }
+        if (!npc) {
+          npc = makeFriendNpc(f.id, FRIEND_COLORS[i % FRIEND_COLORS.length]);
+        }
         npc.position.set(x, 0, z);
+        if (file && npc) {
+          const box = new THREE.Box3().setFromObject(npc);
+          npc.position.y = -box.min.y;
+        }
         npc.rotation.y = Math.atan2(-x, -4 - z);
         const tag = makeLabel(f.name || f.id, 'rgba(24,30,38,0.78)', '#fff8ee', 360);
         tag.position.set(0, 2.05, 0);
@@ -371,6 +396,9 @@ export class HubScene extends BaseLevelScene {
         const avatar = createBarsikAvatar({
           height: 1.45,
           look: { ...DEFAULT_LOOK, fur: peer.fur, spots: peer.spots, hoodie: peer.hoodie },
+        });
+        dressAvatar(avatar, ['tubeteika_blue', 'glasses_yellow'], {
+          ...DEFAULT_LOOK, fur: peer.fur, spots: peer.spots, hoodie: peer.hoodie,
         });
         avatar.root.position.set(peer.x, 0, peer.z);
         const nameTag = makeLabel(peer.name, 'rgba(28,34,42,0.82)', '#ffffff', 340);
@@ -608,6 +636,10 @@ export class HubScene extends BaseLevelScene {
     this.rides = [];
     for (const f of this.fountains) f.dispose();
     this.fountains = [];
+    for (const d of this.dressing) this.scene.remove(d);
+    this.dressing = [];
+    for (const n of this.friendNpcs) this.scene.remove(n);
+    this.friendNpcs = [];
     this.ridingOn = null;
     GLOW_MATERIAL.opacity = 0;
     this.hub?.leave();

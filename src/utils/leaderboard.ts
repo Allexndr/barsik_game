@@ -14,6 +14,7 @@ const SUPABASE_ANON =
   ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdXFhYXRwenlhdHpobW1kbXVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwODYwNDUsImV4cCI6MjA5OTY2MjA0NX0.fA7_lyCIPUppg_DmgMuwKHaFR93jMLXD7T7tEfWsceo';
 
 import { POINTS_PER_FRIEND, POINTS_PER_LEVEL, POINTS_PER_STAR, maxSeasonScore } from './score';
+import { checkText } from './moderation';
 
 export interface LeaderboardRow {
   name: string;
@@ -83,6 +84,13 @@ function isPlausible(row: LeaderboardRow): boolean {
   return score >= 0 && score <= maxSeasonScore();
 }
 
+/** Hide rows whose nicknames would fail the same child-safety check as signup. */
+function isSafeName(row: LeaderboardRow): boolean {
+  const name = typeof row.name === 'string' ? row.name.trim() : '';
+  if (!name) return false;
+  return checkText(name, { minLength: 1, maxLength: 32 }).ok;
+}
+
 /**
  * Best row per player.
  *
@@ -110,5 +118,7 @@ export async function fetchLeaderboard(limit = 20): Promise<LeaderboardRow[]> {
     throw new Error(`leaderboard_${res.status}`);
   }
   const rows = (await res.json()) as LeaderboardRow[];
-  return Array.isArray(rows) ? dedupeByName(rows.filter(isPlausible)).slice(0, limit) : [];
+  return Array.isArray(rows)
+    ? dedupeByName(rows.filter((r) => isPlausible(r) && isSafeName(r))).slice(0, limit)
+    : [];
 }

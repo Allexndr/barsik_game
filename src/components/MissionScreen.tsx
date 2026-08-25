@@ -60,16 +60,17 @@ export function MissionScreen({
   const [hud, setHud] = useState<BaseHud>(emptyHud);
   const [loading, setLoading] = useState(true);
   const [assetsReady, setAssetsReady] = useState(false);
+  const savedOutroRef = useRef(false);
   const lang = useUIStore((s) => s.lang);
   const setScreen = useUIStore((s) => s.setScreen);
   const player = useGameStore((s) => s.player);
   const addFriend = useGameStore((s) => s.addFriend);
   const completeLevel = useGameStore((s) => s.completeLevel);
 
-  const finishToMap = () => {
-    AudioManager.sfx('click');
-    AudioManager.stopTts();
-    AudioManager.stopMusic();
+  /** Persist as soon as the level is won — not only when the CTA is pressed. */
+  const persistWin = () => {
+    if (savedOutroRef.current) return;
+    savedOutroRef.current = true;
     if (rewardFriendId && rewardFriendName) {
       const catalogFriend = SEASON1_FRIENDS.find((friend) => friend.id === rewardFriendId);
       addFriend({
@@ -84,8 +85,25 @@ export function MissionScreen({
     }
     const earnedStars = rewardStars + hud.stars;
     completeLevel(levelId, { stars: earnedStars, friendId: rewardFriendId });
+  };
+
+  const finishToMap = () => {
+    AudioManager.sfx('click');
+    AudioManager.stopTts();
+    AudioManager.stopMusic();
+    persistWin();
+    useUIStore.setState({ activeTab: 'travel' });
     setScreen('game');
   };
+
+  useEffect(() => {
+    if (hud.outro) persistWin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- save once when outro flips on
+  }, [hud.outro]);
+
+  useEffect(() => {
+    savedOutroRef.current = false;
+  }, [levelId]);
 
   const handlePlayFromLoading = () => {
     AudioManager.sfx('click');
@@ -380,7 +398,7 @@ export function MissionScreen({
           <ConfettiBurst active count={36} />
           <div className="m0-outro-card reward-pop">
             <div className="m0-outro-badge">
-              {lang === 'kk' ? `${levelId}-деңгей` : `Уровень ${levelId}`}
+              {lang === 'kk' ? `${levelId + 1}-деңгей` : `Уровень ${levelId + 1}`}
             </div>
             <h2 className="m0-outro-title">
               {lang === 'kk' ? 'Керемет!' : 'Отлично получилось!'}
@@ -408,8 +426,7 @@ export function MissionScreen({
                   AudioManager.sfx('click');
                   AudioManager.stopTts();
                   AudioManager.stopMusic();
-                  const earnedStars = rewardStars + hud.stars;
-                  completeLevel(levelId, { stars: earnedStars, friendId: rewardFriendId });
+                  persistWin();
                   useUIStore.getState().setActiveTab('qr');
                   setScreen('game');
                 }}

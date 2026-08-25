@@ -53,6 +53,26 @@ function cap(color: number, peak = 0xffffff): THREE.Group {
   return grp(crown, brim);
 }
 
+/** Brand canon tubeteika — `photos/` trio cool Barsik. */
+function tubeteika(base: number, gold: number): THREE.Group {
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.17, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    mat(base, 0.75),
+  );
+  dome.position.y = 0.02;
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.165, 0.018, 8, 20), mat(gold, 0.35, 0.55));
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.02;
+  const g = grp(dome, rim);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.4;
+    const jewel = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), mat(gold, 0.3, 0.7));
+    jewel.position.set(Math.cos(a) * 0.12, 0.1, Math.sin(a) * 0.12);
+    g.add(jewel);
+  }
+  return g;
+}
+
 function beanie(color: number, pom = 0xffffff): THREE.Group {
   const body = new THREE.Mesh(new THREE.SphereGeometry(0.21, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat(color, 0.95));
   body.scale.set(1, 0.85, 1);
@@ -330,6 +350,8 @@ export const WARDROBE: WardrobeItem[] = [
   // ── Head ────────────────────────────────────────────────
   { id: 'cap_green', name: { ru: 'Зелёная кепка', kk: 'Жасыл кепка' }, category: 'head', socket: 'head', cost: 0, rarity: 'common', build: () => cap(0x3dcc6e, 0x2fae5b) },
   { id: 'cap_red', name: { ru: 'Красная кепка', kk: 'Қызыл кепка' }, category: 'head', socket: 'head', cost: 12, rarity: 'common', build: () => cap(0xe74c3c, 0xc0392b) },
+  /** Brand canon (`photos/` trio): blue tubeteika with gold trim — free starter. */
+  { id: 'tubeteika_blue', name: { ru: 'Тюбетейка', kk: 'Төбетей' }, category: 'head', socket: 'head', cost: 0, rarity: 'common', build: () => tubeteika(0x1a3a6e, 0xf0d24a) },
   { id: 'cap_blue', name: { ru: 'Синяя кепка', kk: 'Көк кепка' }, category: 'head', socket: 'head', cost: 12, rarity: 'common', build: () => cap(0x4a90d9, 0x2e6fb0) },
   { id: 'beanie_yellow', name: { ru: 'Жёлтая шапочка', kk: 'Сары бөрік' }, category: 'head', socket: 'head', cost: 18, rarity: 'common', build: () => beanie(0xf1c40f, 0xfff3b0) },
   { id: 'beanie_pink', name: { ru: 'Розовая шапочка', kk: 'Қызғылт бөрік' }, category: 'head', socket: 'head', cost: 18, rarity: 'common', build: () => beanie(0xfd79a8, 0xffe0ee) },

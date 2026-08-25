@@ -51,6 +51,7 @@ export function Mission0Screen() {
   const [hud, setHud] = useState<L0Hud>(emptyHud);
   const [loading, setLoading] = useState(true);
   const [assetsReady, setAssetsReady] = useState(false);
+  const savedOutroRef = useRef(false);
   const lang = useUIStore((s) => s.lang);
   const setScreen = useUIStore((s) => s.setScreen);
   const muted = useUIStore((s) => s.muted);
@@ -63,9 +64,10 @@ export function Mission0Screen() {
   const addFriend = useGameStore((s) => s.addFriend);
   const completeLevel = useGameStore((s) => s.completeLevel);
 
-  const finishToMap = () => {
-    AudioManager.sfx('click');
-    AudioManager.stopTts();
+  /** Persist the win as soon as outro starts — leaving via settings/reload must keep it. */
+  const persistWin = () => {
+    if (savedOutroRef.current) return;
+    savedOutroRef.current = true;
     markIntroFinished();
     addFriend({
       id: 'gardener',
@@ -79,9 +81,21 @@ export function Mission0Screen() {
     });
     const earnedStars = Math.max(hud.stars, 10);
     completeLevel(0, { stars: earnedStars, friendId: 'gardener' });
+  };
+
+  const finishToMap = () => {
+    AudioManager.sfx('click');
+    AudioManager.stopTts();
+    persistWin();
     AudioManager.stopMusic();
+    useUIStore.setState({ activeTab: 'travel' });
     setScreen('game');
   };
+
+  useEffect(() => {
+    if (hud.outro) persistWin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- save once when outro flips on
+  }, [hud.outro]);
 
   const handlePlayFromLoading = () => {
     AudioManager.sfx('click');

@@ -96,6 +96,22 @@ const PROP_SUBSTITUTE: Partial<Record<keyof typeof CAST_PROP_GLB, string>> = {
   pine_tree: '/assets/models/kits/nature/tree_pineTallA_detailed.glb',
 };
 
+/** Prefer remeshed soft-3D quality props when present on disk. */
+const PROP_QUALITY: Partial<Record<keyof typeof CAST_PROP_GLB, string>> = {
+  apple: 's1_quality_apple.glb',
+  apple_gold: 's1_quality_apple.glb',
+  berry: 's1_quality_sticky_berry.glb',
+  acorn_key: 's1_quality_acorn_key.glb',
+  ice_key_prop: 's1_quality_ice_key.glb',
+  snowflake: 's1_quality_snowflake.glb',
+  stump: 's1_quality_stump.glb',
+  treasure_chest: 's1_quality_chest.glb',
+  wood_bridge: 's1_quality_bridge.glb',
+  snowman: 's1_quality_snowman.glb',
+  camera: 's1_quality_camera.glb',
+  lantern: 's1_quality_lamp.glb',
+};
+
 /**
  * Place a model by absolute URL rather than by prop-directory name.
  *
@@ -135,6 +151,11 @@ export async function placeS1Prop(
   if (substitute) {
     const light = await placeAbsolute(loader, substitute, opts);
     if (light) return light;
+  }
+  const quality = PROP_QUALITY[key];
+  if (quality) {
+    const q = await placeFile(loader, 'prop', quality, opts);
+    if (q) return q;
   }
   const obj = await placeFile(loader, 'prop', CAST_PROP_GLB[key], opts);
   if (!obj) return null;
