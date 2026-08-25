@@ -830,7 +830,7 @@ export async function placeWoodSign(
   return woodSign(x, z, rotY, color);
 }
 
-export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.45): Promise<HeroRig> {
+export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.15): Promise<HeroRig> {
   // Prefer MCP Hyper3D Barsik with Blender limb clips (Walk / Idle / Wave).
   if (!FORCE_AVATAR_HERO) {
     for (const file of HERO_CANDIDATES) {
@@ -1802,7 +1802,7 @@ export abstract class BaseLevelScene {
   }
 
   /** Textured static hero with procedural locomotion; plush fallback if loading fails. */
-  protected async loadHero(loader: GLTFLoader, height = 1.45) {
+  protected async loadHero(loader: GLTFLoader, height = 1.15) {
     const rig = await loadBarsikHeroRig(loader, height);
     if (this.disposed) {
       rig.mixer?.stopAllAction();
