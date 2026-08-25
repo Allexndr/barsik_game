@@ -21,7 +21,7 @@
 | Лицо | Крупные **жёлтые/золотые** очки |
 | Глаза | Большие тёмные с бликом |
 
-Файлы: `barsik_trio_kazakh.jpg` · 3D: `chars/barsik.glb` = `barsik_meshy_legacy.glb`  
+Файлы: `barsik_trio_kazakh.jpg` · 3D геймплей: MCP Hyper3D + Blender rig `chars/barsik_rigged.glb` (Idle/Walk/Wave). Wardrobe/фото-канон для UI.  
 Стартовый outfit: `tubeteika_blue` + `glasses_yellow`
 
 ### Варианты маскота (UI / маркетинг)
