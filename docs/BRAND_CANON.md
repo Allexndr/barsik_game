@@ -21,7 +21,7 @@
 | Лицо | Крупные **жёлтые/золотые** очки |
 | Глаза | Большие тёмные с бликом |
 
-Файлы: `barsik_trio_kazakh.jpg` · 3D геймплей: **одетый** Tripo/Meshy Barsik (`barsik_meshy_legacy` → `barsik_rigged.glb` Idle/Walk/Wave: худи/джинсы/жёлтые очки). Рефы T-pose: `brand/barsik_tpose_front.jpg`. Hyper3D nude — **не** герой.
+Файлы: `barsik_trio_kazakh.jpg` · 3D геймплей: **procedural avatar** (худи/джинсы + outfit тюбетейка/жёлтые очки). GLB только через `?hero=glb` или после хорошего Tripo-export. Meshy/Hyper3D nude — **не** герой. Рефы T-pose: `brand/barsik_tpose_*.jpg`.
 Стартовый outfit: `tubeteika_blue` + `glasses_yellow`
 
 ### Варианты маскота (UI / маркетинг)
@@ -66,5 +66,5 @@
 При любом выборе GLB / генерации / swap:
 
 1. Сначала сверь с `photos/`  
-2. Для героя в игре — **только** Meshy/Tripo clothed legacy  
+2. Для героя в игре — procedural avatar, пока нет чистого Tripo GLB  
 3. Гардероб по умолчанию = trio cool Barsik  

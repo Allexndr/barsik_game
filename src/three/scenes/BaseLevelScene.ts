@@ -40,12 +40,13 @@ import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityPr
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
 /**
- * Default hero = MCP Hyper3D Barsik with Blender walk/idle/wave (`barsik_rigged.glb`).
- * `?hero=avatar` keeps the procedural jointed fallback for A/B.
+ * Default hero = procedural Barsik with green hoodie / jeans / brand glasses
+ * (matches `photos/` better than Meshy/Hyper3D nude mush).
+ * `?hero=glb` forces barsik_rigged.glb when we have a good Tripo/export.
  */
-const FORCE_AVATAR_HERO =
+const USE_GLB_HERO =
   typeof location !== 'undefined'
-  && new URLSearchParams(location.search).get('hero') === 'avatar';
+  && new URLSearchParams(location.search).get('hero') === 'glb';
 
 // ─── Shared types ───────────────────────────────────────────────
 export type Collider = 
@@ -831,8 +832,8 @@ export async function placeWoodSign(
 }
 
 export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.15): Promise<HeroRig> {
-  // Prefer MCP Hyper3D Barsik with Blender limb clips (Walk / Idle / Wave).
-  if (!FORCE_AVATAR_HERO) {
+  // Optional GLB path (Tripo export / future photo→3D). Default = clothed avatar.
+  if (USE_GLB_HERO) {
     for (const file of HERO_CANDIDATES) {
       const gltf = await loadGlb(loader, CHARS + file);
       if (!gltf) {
@@ -851,7 +852,7 @@ export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.15): Prom
         const walkAction = mixer.clipAction(walk);
         const idleAction = mixer.clipAction(idle);
         idleAction.play();
-        console.info(`[hero] MCP rigged ${file} clips=${gltf.animations.map((a) => a.name).join(',')}`);
+        console.info(`[hero] GLB ${file} clips=${gltf.animations.map((a) => a.name).join(',')}`);
         return { model: gltf.scene, animMode: 'rigged', mixer, walkAction, idleAction, avatar: null };
       }
 
@@ -861,8 +862,7 @@ export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.15): Prom
     }
   }
 
-  // Procedural avatar — only when forced or MCP rig failed to load.
-  console.warn('[hero] falling back to procedural avatar');
+  console.info('[hero] procedural Barsik (hoodie/jeans/glasses)');
   const avatar = createBarsikAvatar({ height });
   const outfit = outfitWithBrandCanon(useGameStore.getState().outfit);
   dressAvatar(avatar, outfit, DEFAULT_LOOK);
