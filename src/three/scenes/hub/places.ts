@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  ARBAT, box, buildAppleMonument, buildBench, buildEasel, buildFacade, buildFountain,
+  ARBAT, box, buildBench, buildEasel, buildFacade, buildFountain,
   buildGate, buildLamp, buildPaving, buildPigeon, buildPlanter, buildStall, buildTerrace,
   buildTree, cyl, paint, type FacadeStyle,
 } from './arbatProps';
@@ -10,8 +10,8 @@ import {
 const FACADE_STYLES: readonly FacadeStyle[] = ['classic', 'flat', 'attic'];
 const styleAt = (i: number): FacadeStyle => FACADE_STYLES[i % FACADE_STYLES.length];
 import {
-  buildAlley, buildCarouselBase, buildCathedral, buildLawn, buildMemorial, buildMuseum,
-  buildParkTree, buildSeesawBase, buildSwingFrame, buildTheatre, buildUniversity, CIVIC,
+  buildAlley, buildCarouselBase, buildLawn, buildMuseum,
+  buildParkTree, buildSeesawBase, buildSwingFrame, CIVIC,
 } from './civicProps';
 import { registerLocation, type LocationBuild } from './locations';
 import { createCarousel, createSeesaw, createSwing } from './rides';
@@ -150,7 +150,7 @@ registerLocation({
       solid.push(...buildBench(-3.4, z, Math.PI / 2), ...buildBench(3.4, z, -Math.PI / 2));
       colliders.push({ kind: 'circle', x: -3.4, z, r: 1.0 }, { kind: 'circle', x: 3.4, z, r: 1.0 });
     }
-    solid.push(...buildAppleMonument(0, -25));
+    // Яблоко — GLB из hubDressing (hub_apple_monument), не procedural shell.
     colliders.push({ kind: 'circle', x: 0, z: -25, r: 2.6 });
     for (const z of [-21.5, -28.5]) {
       solid.push(...buildPlanter(-3.6, z), ...buildPlanter(3.6, z));
@@ -297,6 +297,12 @@ registerLocation({
     return { solid, glow, colliders, treeSpots };
   },
   fountains: () => [createFountainFx(0, -8, 2.8)],
+  // Уличные аттракционы у клумб — кооператив на Панфиловой.
+  rides: () => [
+    createSeesaw('pan-seesaw', -5.2, -25.5),
+    createSwing('pan-swing', 5.2, -34.5),
+    createCarousel('pan-carousel', 0, -55),
+  ],
 });
 
 // ── 3. Парк 28 панфиловцев ──────────────────────────────────────────────────
@@ -325,11 +331,9 @@ registerLocation({
     solid.push(...buildAlley(46, -44, -46, 36, 3.4));
     solid.push(...buildAlley(-30, 40, 30, 40, 3.0));
 
-    solid.push(...buildCathedral(20, -22));
+    // Собор / мемориал — GLB из hubDressing; коллайдеры оставляем.
     colliders.push({ kind: 'aabb', x: 20, z: -22, halfW: 7, halfD: 9 });
     colliders.push({ kind: 'aabb', x: 20, z: -11.5, halfW: 3.4, halfD: 3.4 });
-
-    solid.push(...buildMemorial(-22, 22, glow));
     colliders.push({ kind: 'aabb', x: -22, z: 19.6, halfW: 16, halfD: 1.6 });
     colliders.push({ kind: 'circle', x: -22, z: 25.4, r: 3.0 });
 
@@ -437,7 +441,7 @@ registerLocation({
     solid.push(...buildAlley(0, 38, 0, 2, 6.0));
     solid.push(...buildAlley(-40, 20, 40, 20, 4.0));
 
-    solid.push(...buildUniversity(0, -12, glow));
+    // КБТУ корпус — GLB hub_university*; коллайдеры без procedural shell.
     colliders.push({ kind: 'aabb', x: 0, z: -12, halfW: 17, halfD: 7 });
     for (const side of [-1, 1] as const) {
       colliders.push({ kind: 'aabb', x: side * 12.5, z: 1.5, halfW: 4.5, halfD: 6.5 });
@@ -494,6 +498,12 @@ registerLocation({
     createFountainFx(-28, 12, 3.6),
     createFountainFx(28, 12, 3.6),
   ],
+  // Студенческий двор КБТУ — качели и карусель на газоне.
+  rides: () => [
+    createSeesaw('kbtu-seesaw', -22, 28),
+    createCarousel('kbtu-carousel', 22, 28),
+    createSwing('kbtu-swing', -32, 4),
+  ],
 });
 
 // ── 5. Сквер Иманова и ТЮЗ ──────────────────────────────────────────────────
@@ -528,8 +538,7 @@ registerLocation({
     solid.push(...buildFountain(0, 0, 3.4));
     colliders.push({ kind: 'circle', x: 0, z: 0, r: 3.7 });
 
-    // Театр в западной части.
-    solid.push(...buildTheatre(-22, -20, glow));
+    // ТЮЗ — GLB hub_theatre*; коллайдеры без procedural shell.
     colliders.push({ kind: 'aabb', x: -22, z: -20, halfW: 13, halfD: 8 });
     colliders.push({ kind: 'aabb', x: -22, z: -10, halfW: 10, halfD: 3 });
 

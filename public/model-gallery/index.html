@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Barsik · 3D Model Gallery</title>
+  <style>
+    :root {
+      --ink: #1c2430;
+      --ink-2: #4a5568;
+      --paper: #f7f3e3;
+      --paper-2: #efe8d4;
+      --pear: #f0d24a;
+      --cyan: #2aa8d8;
+      --coral: #ef6b3a;
+      --stroke: #1c2430;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #ffe8a8 0%, transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, #b8e7f5 0%, transparent 50%),
+        var(--paper);
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 20px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 3px solid color-mix(in oklab, var(--pear) 70%, var(--stroke));
+      background: color-mix(in oklab, var(--paper) 88%, white);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      font-size: 1.15rem;
+    }
+    .brand i {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--pear);
+      border: 3px solid var(--stroke);
+      display: inline-block;
+      box-shadow: 0 3px 0 #c9a812;
+    }
+    .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    input[type="search"], select, button {
+      font: inherit;
+      border: 2.5px solid var(--stroke);
+      border-radius: 999px;
+      padding: 8px 14px;
+      background: white;
+      color: var(--ink);
+    }
+    button {
+      cursor: pointer;
+      background: var(--pear);
+      font-weight: 700;
+      box-shadow: 0 3px 0 #c9a812;
+    }
+    button:active { transform: translateY(1px); box-shadow: 0 2px 0 #c9a812; }
+    button.ghost { background: white; box-shadow: none; }
+    button.active { background: var(--cyan); color: white; box-shadow: 0 3px 0 #1a7fa8; }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(220px, 300px) 1fr;
+      height: calc(100% - 74px);
+      min-height: 0;
+    }
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; grid-template-rows: 38vh 1fr; }
+    }
+    .list {
+      overflow: auto;
+      border-right: 3px solid color-mix(in oklab, var(--stroke) 18%, transparent);
+      padding: 12px;
+      background: color-mix(in oklab, var(--paper-2) 70%, white);
+    }
+    .meta {
+      font-size: 0.85rem;
+      color: var(--ink-2);
+      margin: 0 0 10px;
+    }
+    .card {
+      width: 100%;
+      text-align: left;
+      border-radius: 14px;
+      border: 2.5px solid transparent;
+      background: white;
+      padding: 10px 12px;
+      margin: 0 0 8px;
+      box-shadow: 0 2px 0 color-mix(in oklab, var(--stroke) 12%, transparent);
+      cursor: pointer;
+    }
+    .card:hover { border-color: var(--cyan); }
+    .card.selected {
+      border-color: var(--stroke);
+      background: #e8f7fc;
+    }
+    .card strong { display: block; font-size: 0.95rem; }
+    .card span { color: var(--ink-2); font-size: 0.78rem; }
+    .stage-wrap {
+      position: relative;
+      min-height: 0;
+      background:
+        linear-gradient(180deg, #d9f1fa 0%, #f7f3e3 55%);
+    }
+    #stage { width: 100%; height: 100%; display: block; }
+    .hud {
+      position: absolute;
+      left: 14px; right: 14px; bottom: 14px;
+      display: flex; flex-wrap: wrap; gap: 8px;
+      align-items: center;
+      pointer-events: none;
+    }
+    .hud > * { pointer-events: auto; }
+    .pill {
+      background: color-mix(in oklab, white 88%, transparent);
+      border: 2px solid var(--stroke);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      backdrop-filter: blur(6px);
+    }
+    .empty {
+      position: absolute; inset: 0;
+      display: grid; place-items: center;
+      color: var(--ink-2); font-weight: 600;
+      pointer-events: none;
+    }
+    .err { color: var(--coral); padding: 12px; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><i></i> BARSIK · 3D Gallery</div>
+    <div class="tools">
+      <input id="q" type="search" placeholder="Поиск…" />
+      <select id="cat">
+        <option value="all">Все</option>
+        <option value="hub">Хаб Алматы</option>
+        <option value="chars">Персонажи</option>
+        <option value="props">Пропы</option>
+        <option value="gallery">Новые</option>
+        <option value="cc0">CC0</option>
+      </select>
+      <button type="button" id="resetCam" class="ghost">Камера</button>
+      <button type="button" id="toggleSpin" class="active">Вращение</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="list">
+      <p class="meta" id="count">Загрузка…</p>
+      <div id="cards"></div>
+      <p class="err" id="err" hidden></p>
+    </aside>
+    <main class="stage-wrap">
+      <canvas id="stage"></canvas>
+      <div class="empty" id="empty">Выбери модель слева</div>
+      <div class="hud">
+        <div class="pill" id="title">—</div>
+        <div class="pill" id="info">—</div>
+      </div>
+    </main>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+    import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+    const canvas = document.getElementById('stage');
+    const cardsEl = document.getElementById('cards');
+    const countEl = document.getElementById('count');
+    const titleEl = document.getElementById('title');
+    const infoEl = document.getElementById('info');
+    const emptyEl = document.getElementById('empty');
+    const errEl = document.getElementById('err');
+    const qEl = document.getElementById('q');
+    const catEl = document.getElementById('cat');
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+
+    const scene = new THREE.Scene();
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 200);
+    camera.position.set(2.4, 1.6, 3.2);
+
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.target.set(0, 0.8, 0);
+
+    const hemi = new THREE.HemisphereLight(0xe8f6ff, 0xf0e2c0, 1.1);
+    scene.add(hemi);
+    const key = new THREE.DirectionalLight(0xffffff, 1.35);
+    key.position.set(3, 6, 4);
+    scene.add(key);
+    const fill = new THREE.DirectionalLight(0xffe0b0, 0.45);
+    fill.position.set(-4, 2, -2);
+    scene.add(fill);
+
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(3.2, 64),
+      new THREE.MeshStandardMaterial({ color: 0xf2ebda, roughness: 0.92, metalness: 0 }),
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = 0;
+    scene.add(floor);
+
+    const draco = new DRACOLoader();
+    draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(draco);
+
+    let items = [];
+    let currentRoot = null;
+    let spin = true;
+    let selectedId = null;
+
+    function resize() {
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      if (!w || !h) return;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    new ResizeObserver(resize).observe(canvas.parentElement);
+    resize();
+
+    function fitCamera(object) {
+      const box = new THREE.Box3().setFromObject(object);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+      const dist = maxDim * 2.2;
+      controls.target.copy(center);
+      camera.position.set(center.x + dist * 0.55, center.y + dist * 0.35, center.z + dist * 0.75);
+      camera.near = Math.max(0.01, dist / 100);
+      camera.far = Math.max(50, dist * 20);
+      camera.updateProjectionMatrix();
+      controls.update();
+      floor.position.y = box.min.y - 0.001;
+      floor.scale.setScalar(Math.max(1.2, maxDim * 1.1));
+    }
+
+    async function show(item) {
+      selectedId = item.id;
+      renderCards();
+      emptyEl.hidden = true;
+      titleEl.textContent = item.name;
+      infoEl.textContent = `${item.category} · ${(item.bytes / 1024).toFixed(0)} KB`;
+      if (currentRoot) {
+        scene.remove(currentRoot);
+        currentRoot.traverse((o) => {
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) {
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            mats.forEach((m) => m.dispose?.());
+          }
+        });
+        currentRoot = null;
+      }
+      try {
+        const gltf = await loader.loadAsync(item.path);
+        currentRoot = gltf.scene;
+        scene.add(currentRoot);
+        fitCamera(currentRoot);
+      } catch (e) {
+        errEl.hidden = false;
+        errEl.textContent = `Не удалось загрузить ${item.path}: ${e.message || e}`;
+      }
+    }
+
+    function filtered() {
+      const q = qEl.value.trim().toLowerCase();
+      const cat = catEl.value;
+      return items.filter((it) => {
+        if (cat !== 'all' && it.category !== cat) return false;
+        if (!q) return true;
+        return `${it.name} ${it.id} ${it.path}`.toLowerCase().includes(q);
+      });
+    }
+
+    function renderCards() {
+      const list = filtered();
+      countEl.textContent = `${list.length} / ${items.length} моделей`;
+      cardsEl.innerHTML = '';
+      for (const it of list) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'card' + (it.id === selectedId ? ' selected' : '');
+        btn.innerHTML = `<strong>${it.name}</strong><span>${it.category} · ${it.id}</span>`;
+        btn.onclick = () => show(it);
+        cardsEl.appendChild(btn);
+      }
+    }
+
+    document.getElementById('resetCam').onclick = () => {
+      if (currentRoot) fitCamera(currentRoot);
+    };
+    document.getElementById('toggleSpin').onclick = (e) => {
+      spin = !spin;
+      e.currentTarget.classList.toggle('active', spin);
+    };
+    qEl.oninput = renderCards;
+    catEl.onchange = renderCards;
+
+    const clock = new THREE.Clock();
+    function frame() {
+      requestAnimationFrame(frame);
+      const dt = clock.getDelta();
+      if (spin && currentRoot) currentRoot.rotation.y += dt * 0.35;
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    frame();
+
+    try {
+      const res = await fetch('./manifest.json');
+      if (!res.ok) throw new Error(`manifest ${res.status}`);
+      const data = await res.json();
+      items = data.items || [];
+      renderCards();
+      const prefer = items.find((i) => i.id === 'barsik_meshy_legacy')
+        || items.find((i) => i.id === 'barsik')
+        || items.find((i) => i.id === 'barsik_hyper3d')
+        || items[0];
+      if (prefer) show(prefer);
+    } catch (e) {
+      errEl.hidden = false;
+      errEl.textContent = String(e.message || e);
+      countEl.textContent = 'Нет манифеста';
+    }
+  </script>
+</body>
+</html>

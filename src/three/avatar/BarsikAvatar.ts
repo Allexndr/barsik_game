@@ -696,5 +696,7 @@ export function createBarsikAvatar(
     },
   };
 
+  // Brand lock glasses come from outfit via dressAvatar (face socket = on eyes).
+  // Do not auto-equip here — would fight the worn set and duplicate on head.
   return avatar;
 }

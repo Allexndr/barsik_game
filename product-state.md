@@ -5,7 +5,7 @@
 
 ```yaml
 product_id: barsik-game
-updated_at: "2026-08-24"
+updated_at: "2026-08-25"
 playbook_version: "book-2-ai-team@workspace"
 source_mode: playbook
 stage: implementation   # S1 polish/QA; ближайший непройденный гейт ≈ quality_security для релиза «идеал»

@@ -4,7 +4,21 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { QualityPipeline } from '../QualityPipeline';
 import { stylizeHeroGlb } from '../stylizeHeroGlb';
 import { createPlushBarsik, updatePlushLocomotion } from '../PlushBarsik';
-import { createBarsikAvatar, type BarsikAvatar } from '../avatar/BarsikAvatar';
+import { createBarsikAvatar, DEFAULT_LOOK, type BarsikAvatar } from '../avatar/BarsikAvatar';
+import { dressAvatar } from '../avatar/dressAvatar';
+import { WARDROBE_BY_ID } from '../avatar/wardrobe';
+import { useGameStore } from '@/store/useGameStore';
+
+/** Brand-canon head/face from `photos/` trio when the save has neither. */
+function outfitWithBrandCanon(outfit: string[]): string[] {
+  const ids = outfit.filter((id) => WARDROBE_BY_ID.has(id));
+  const sockets = new Set(
+    ids.map((id) => WARDROBE_BY_ID.get(id)?.socket).filter(Boolean),
+  );
+  if (!sockets.has('head')) ids.push('tubeteika_blue');
+  if (!sockets.has('face')) ids.push('glasses_yellow');
+  return ids.length ? ids : ['tubeteika_blue', 'glasses_yellow'];
+}
 import { isUsableHeroGlb } from '../heroQuality';
 import { markStaticHeroBaseY, updateStaticHeroLocomotion } from '../staticHeroLocomotion';
 import { AudioManager } from '@/audio/AudioManager';
@@ -17,6 +31,7 @@ import { AssetKit } from '../AssetKit';
 import { placePatch, ringAnchors, type PatchSpec } from '../sceneComposition';
 import { placeMany, placementGround, setPlacementGround } from '../s1Place';
 import { disposeObject3DResources, fitHeight, fitMaxSize, groundY, measurePlinthFraction, repairDefaultMaterial } from '../modelUtils';
+import { createGameGltfLoader } from '../createGameGltfLoader';
 import { createFpsSampler } from '@/dev/fpsSampler';
 // Registers window.__audit under import.meta.env.DEV; absent from a build.
 import '@/dev/levelAudit';
@@ -812,6 +827,9 @@ export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.45): Prom
   // than the extra polish of a model that does none of those things.
   if (!DISABLE_AVATAR_HERO) {
     const avatar = createBarsikAvatar({ height });
+    // Brand canon outfit from `photos/` trio (tubeteika + yellow glasses).
+    const outfit = outfitWithBrandCanon(useGameStore.getState().outfit);
+    dressAvatar(avatar, outfit, DEFAULT_LOOK);
     return {
       model: avatar.root,
       animMode: 'avatar',
@@ -916,6 +934,7 @@ export abstract class BaseLevelScene {
   protected pathArrows: THREE.Group[] = [];
   /** Filled on the first ambient frame; butterflies are never added later. */
   private butterflyCache: THREE.Group[] | null = null;
+  private butterfliesQualityTried = false;
   protected snowfall: THREE.Points | null = null;
   protected fireflies: Fireflies | null = null;
   protected guideArrow: THREE.Group | null = null;
@@ -1375,6 +1394,56 @@ export abstract class BaseLevelScene {
       this.clouds.push(c);
       this.scene.add(c);
     }
+    void this.upgradeCloudsToQualityGlb();
+  }
+
+  /** Soft-3D cloud GLB when present; procedural spheres stay as fallback. */
+  private async upgradeCloudsToQualityGlb() {
+    const loader = createGameGltfLoader();
+    const gltf = await loadGlb(loader, '/assets/models/props/s1_quality_cloud.glb');
+    if (!gltf) return;
+    fitMaxSize(gltf.scene, 8);
+    for (const c of this.clouds) {
+      const clone = gltf.scene.clone(true);
+      clone.position.copy(c.position);
+      clone.userData.speed = c.userData.speed;
+      this.scene.remove(c);
+      this.scene.add(clone);
+      const idx = this.clouds.indexOf(c);
+      if (idx >= 0) this.clouds[idx] = clone as THREE.Group;
+    }
+  }
+
+  /**
+   * Soft-3D butterfly GLB when present. Procedural hinged wings stay as
+   * fallback; GLB clones bob instead of folding (no hinge sockets).
+   */
+  protected async upgradeButterfliesToQualityGlb() {
+    const loader = createGameGltfLoader();
+    const gltf = await loadGlb(loader, '/assets/models/props/s1_quality_butterfly.glb');
+    if (!gltf) return;
+    fitMaxSize(gltf.scene, 0.55);
+    if (!this.butterflyCache) {
+      this.butterflyCache = [];
+      this.scene.traverse((o) => {
+        if (o.userData.isButterfly) this.butterflyCache!.push(o as THREE.Group);
+      });
+    }
+    const next: THREE.Group[] = [];
+    for (const b of this.butterflyCache) {
+      const clone = gltf.scene.clone(true) as THREE.Group;
+      clone.position.copy(b.position);
+      clone.userData.isButterfly = true;
+      clone.userData.phase = b.userData.phase;
+      clone.userData.ox = b.userData.ox;
+      clone.userData.oz = b.userData.oz;
+      clone.userData.flapRate = b.userData.flapRate;
+      clone.userData.hinges = [];
+      this.scene.remove(b);
+      this.scene.add(clone);
+      next.push(clone);
+    }
+    this.butterflyCache = next;
   }
 
   /**
@@ -2834,6 +2903,10 @@ export abstract class BaseLevelScene {
     // Wings. Collected from the scene once rather than threaded through
     // seven levels that each keep their own butterfly array — the flap is a
     // property of the butterfly, not of any level.
+    if (!this.butterfliesQualityTried) {
+      this.butterfliesQualityTried = true;
+      void this.upgradeButterfliesToQualityGlb();
+    }
     if (!this.butterflyCache) {
       this.butterflyCache = [];
       this.scene.traverse((o) => {
@@ -2841,12 +2914,18 @@ export abstract class BaseLevelScene {
       });
     }
     for (const b of this.butterflyCache) {
-      const hinges = b.userData.hinges as THREE.Group[];
+      const hinges = (b.userData.hinges as THREE.Group[] | undefined) ?? [];
       const beat = Math.sin(now * 0.001 * (b.userData.flapRate as number) + (b.userData.phase as number));
-      // Up to nearly vertical, down to almost flat: a shallow flap looks like
-      // a twitch, and a full fold makes the butterfly vanish edge-on.
-      const fold = (0.55 + beat * 0.75) * motionScale;
-      for (const h of hinges) h.rotation.z = -(h.userData.side as number) * fold;
+      if (hinges.length) {
+        // Up to nearly vertical, down to almost flat: a shallow flap looks like
+        // a twitch, and a full fold makes the butterfly vanish edge-on.
+        const fold = (0.55 + beat * 0.75) * motionScale;
+        for (const h of hinges) h.rotation.z = -(h.userData.side as number) * fold;
+      } else {
+        // Quality GLB butterflies: gentle bob + yaw instead of hinged fold.
+        b.position.y = 1.15 + beat * 0.12 * motionScale;
+        b.rotation.y = now * 0.0012 + (b.userData.phase as number);
+      }
       // Bank into the turn, so drifting sideways looks like flying.
       b.rotation.z = Math.sin(now * 0.0008 + (b.userData.phase as number)) * 0.25 * motionScale;
     }
@@ -3087,9 +3166,18 @@ export abstract class BaseLevelScene {
   /**
    * Teleport for QA: moves the hero and sits them on the ground properly,
    * which `hero.position.set` from a console does not.
+   *
+   * Also counts as the player's first step. Without this, `__audit()`'s
+   * camera sweep and `?at=` mid-level drops both left `hasTakenFirstStep`
+   * false, so any level gating its intro cinematic on that flag (L2, L8,
+   * L16) kept the camera locked to a fixed reveal shot no matter where the
+   * QA teleport sent the hero — every corner of the play area read as
+   * `hero-off-frame`, which was the sweep failing to reach the real follow
+   * camera at all, not the follow camera losing the hero.
    */
   devTeleport(x: number, z: number) {
     this.hero.position.set(x, this.groundHeightAt(x, z), z);
+    this.hasTakenFirstStep = true;
   }
 
   // ── Resize ───────────────────────────────────────────────────

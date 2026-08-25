@@ -143,7 +143,10 @@ export interface L10Hud extends BaseHud {
 function makeChest(x: number, z: number): THREE.Group {
   const g = new THREE.Group();
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.8, metalness: 0.1 });
-  const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.3, metalness: 0.7, emissive: 0xffd700, emissiveIntensity: 0.2 });
+  // No environment map in this game, so a mostly-metal surface has nothing
+  // to reflect and reads as flat black instead of gold. Emissive carries
+  // the gold glow instead — same fix as L16's chest lock.
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.3, metalness: 0.12, emissive: 0xffd700, emissiveIntensity: 0.3 });
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 1.0), woodMat);
   body.position.y = 0.4;
@@ -423,7 +426,9 @@ export class Level9Scene extends BaseLevelScene {
       const seal = new THREE.Group();
       const disk = new THREE.Mesh(
         new THREE.CylinderGeometry(0.28, 0.28, 0.08, 16),
-        new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.65, roughness: 0.3, emissive: 0xffb300, emissiveIntensity: 0.35 }),
+        // Same no-envmap fix as the chest lock above: metal with nothing to
+        // reflect renders black, so this leans on emissive for the gold look.
+        new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.12, roughness: 0.3, emissive: 0xffb300, emissiveIntensity: 0.45 }),
       );
       disk.position.y = 0.4;
       const ring = new THREE.Mesh(
@@ -1055,7 +1060,10 @@ export class Level9Scene extends BaseLevelScene {
     this.updateAmbient(dt, now);
 
     // Camera
-    if (this.phase === 'intro') {
+    // Cinematic only until the first step, same fix as L2/L8/L16 — without
+    // the guard the camera stays locked to this fixed path for the whole
+    // intro timer even after the hero starts moving.
+    if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       // Open on the depth of the forest, then come down behind the hero. The
       // old reveal looked at z = 0 to −4, which was the whole level when the

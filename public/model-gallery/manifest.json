@@ -1,0 +1,893 @@
+{
+  "generatedAt": "2026-08-25T08:08:58.855712+00:00",
+  "items": [
+    {
+      "id": "bedDouble",
+      "path": "/public/assets/models/cc0/bedDouble.glb",
+      "category": "cc0",
+      "name": "bedDouble"
+    },
+    {
+      "id": "campfire_stones",
+      "path": "/public/assets/models/cc0/campfire_stones.glb",
+      "category": "cc0",
+      "name": "campfire stones"
+    },
+    {
+      "id": "chair",
+      "path": "/public/assets/models/cc0/chair.glb",
+      "category": "cc0",
+      "name": "chair"
+    },
+    {
+      "id": "doorway",
+      "path": "/public/assets/models/cc0/doorway.glb",
+      "category": "cc0",
+      "name": "doorway"
+    },
+    {
+      "id": "flower_redA",
+      "path": "/public/assets/models/cc0/flower_redA.glb",
+      "category": "cc0",
+      "name": "flower redA"
+    },
+    {
+      "id": "flower_yellowA",
+      "path": "/public/assets/models/cc0/flower_yellowA.glb",
+      "category": "cc0",
+      "name": "flower yellowA"
+    },
+    {
+      "id": "lampRoundTable",
+      "path": "/public/assets/models/cc0/lampRoundTable.glb",
+      "category": "cc0",
+      "name": "lampRoundTable"
+    },
+    {
+      "id": "path_stone",
+      "path": "/public/assets/models/cc0/path_stone.glb",
+      "category": "cc0",
+      "name": "path stone"
+    },
+    {
+      "id": "plantSmall1",
+      "path": "/public/assets/models/cc0/plantSmall1.glb",
+      "category": "cc0",
+      "name": "plantSmall1"
+    },
+    {
+      "id": "plantSmall2",
+      "path": "/public/assets/models/cc0/plantSmall2.glb",
+      "category": "cc0",
+      "name": "plantSmall2"
+    },
+    {
+      "id": "rock_largeA",
+      "path": "/public/assets/models/cc0/rock_largeA.glb",
+      "category": "cc0",
+      "name": "rock largeA"
+    },
+    {
+      "id": "rock_smallA",
+      "path": "/public/assets/models/cc0/rock_smallA.glb",
+      "category": "cc0",
+      "name": "rock smallA"
+    },
+    {
+      "id": "table",
+      "path": "/public/assets/models/cc0/table.glb",
+      "category": "cc0",
+      "name": "table"
+    },
+    {
+      "id": "tent_detailedOpen",
+      "path": "/public/assets/models/cc0/tent_detailedOpen.glb",
+      "category": "cc0",
+      "name": "tent detailedOpen"
+    },
+    {
+      "id": "tree_cone",
+      "path": "/public/assets/models/cc0/tree_cone.glb",
+      "category": "cc0",
+      "name": "tree cone"
+    },
+    {
+      "id": "tree_default",
+      "path": "/public/assets/models/cc0/tree_default.glb",
+      "category": "cc0",
+      "name": "tree default"
+    },
+    {
+      "id": "tree_detailed",
+      "path": "/public/assets/models/cc0/tree_detailed.glb",
+      "category": "cc0",
+      "name": "tree detailed"
+    },
+    {
+      "id": "tree_oak",
+      "path": "/public/assets/models/cc0/tree_oak.glb",
+      "category": "cc0",
+      "name": "tree oak"
+    },
+    {
+      "id": "tree_pineDefaultA",
+      "path": "/public/assets/models/cc0/tree_pineDefaultA.glb",
+      "category": "cc0",
+      "name": "tree pineDefaultA"
+    },
+    {
+      "id": "aibek",
+      "path": "/public/assets/models/chars/aibek.glb",
+      "category": "chars",
+      "name": "aibek"
+    },
+    {
+      "id": "aibek_meshy_legacy",
+      "path": "/public/assets/models/chars/aibek_meshy_legacy.glb",
+      "category": "chars",
+      "name": "aibek meshy legacy"
+    },
+    {
+      "id": "aya",
+      "path": "/public/assets/models/chars/aya.glb",
+      "category": "chars",
+      "name": "aya"
+    },
+    {
+      "id": "aya_meshy_legacy",
+      "path": "/public/assets/models/chars/aya_meshy_legacy.glb",
+      "category": "chars",
+      "name": "aya meshy legacy"
+    },
+    {
+      "id": "barsik",
+      "path": "/public/assets/models/chars/barsik.glb",
+      "category": "chars",
+      "name": "barsik"
+    },
+    {
+      "id": "barsik_meshy_legacy",
+      "path": "/public/assets/models/chars/barsik_meshy_legacy.glb",
+      "category": "chars",
+      "name": "barsik meshy legacy"
+    },
+    {
+      "id": "barsik_quality",
+      "path": "/public/assets/models/chars/barsik_quality.glb",
+      "category": "chars",
+      "name": "barsik quality"
+    },
+    {
+      "id": "bird",
+      "path": "/public/assets/models/chars/bird.glb",
+      "category": "chars",
+      "name": "bird"
+    },
+    {
+      "id": "bird_meshy_legacy",
+      "path": "/public/assets/models/chars/bird_meshy_legacy.glb",
+      "category": "chars",
+      "name": "bird meshy legacy"
+    },
+    {
+      "id": "friend_placeholder",
+      "path": "/public/assets/models/chars/friend_placeholder.glb",
+      "category": "chars",
+      "name": "friend placeholder"
+    },
+    {
+      "id": "hedgehog",
+      "path": "/public/assets/models/chars/hedgehog.glb",
+      "category": "chars",
+      "name": "hedgehog"
+    },
+    {
+      "id": "hedgehog_meshy_legacy",
+      "path": "/public/assets/models/chars/hedgehog_meshy_legacy.glb",
+      "category": "chars",
+      "name": "hedgehog meshy legacy"
+    },
+    {
+      "id": "hero_placeholder",
+      "path": "/public/assets/models/chars/hero_placeholder.glb",
+      "category": "chars",
+      "name": "hero placeholder"
+    },
+    {
+      "id": "ice_master",
+      "path": "/public/assets/models/chars/ice_master.glb",
+      "category": "chars",
+      "name": "ice master"
+    },
+    {
+      "id": "ice_master_meshy_legacy",
+      "path": "/public/assets/models/chars/ice_master_meshy_legacy.glb",
+      "category": "chars",
+      "name": "ice master meshy legacy"
+    },
+    {
+      "id": "s1_kit_beaver",
+      "path": "/public/assets/models/chars/pets/s1_kit_beaver.glb",
+      "category": "chars",
+      "name": "s1 kit beaver"
+    },
+    {
+      "id": "s1_kit_bee",
+      "path": "/public/assets/models/chars/pets/s1_kit_bee.glb",
+      "category": "chars",
+      "name": "s1 kit bee"
+    },
+    {
+      "id": "s1_kit_cat",
+      "path": "/public/assets/models/chars/pets/s1_kit_cat.glb",
+      "category": "chars",
+      "name": "s1 kit cat"
+    },
+    {
+      "id": "s1_kit_chick",
+      "path": "/public/assets/models/chars/pets/s1_kit_chick.glb",
+      "category": "chars",
+      "name": "s1 kit chick"
+    },
+    {
+      "id": "s1_kit_deer",
+      "path": "/public/assets/models/chars/pets/s1_kit_deer.glb",
+      "category": "chars",
+      "name": "s1 kit deer"
+    },
+    {
+      "id": "s1_kit_penguin",
+      "path": "/public/assets/models/chars/pets/s1_kit_penguin.glb",
+      "category": "chars",
+      "name": "s1 kit penguin"
+    },
+    {
+      "id": "s1_kit_polar",
+      "path": "/public/assets/models/chars/pets/s1_kit_polar.glb",
+      "category": "chars",
+      "name": "s1 kit polar"
+    },
+    {
+      "id": "putalo",
+      "path": "/public/assets/models/chars/putalo.glb",
+      "category": "chars",
+      "name": "putalo"
+    },
+    {
+      "id": "putalo_meshy_legacy",
+      "path": "/public/assets/models/chars/putalo_meshy_legacy.glb",
+      "category": "chars",
+      "name": "putalo meshy legacy"
+    },
+    {
+      "id": "s1_fox",
+      "path": "/public/assets/models/chars/s1_fox.glb",
+      "category": "chars",
+      "name": "s1 fox"
+    },
+    {
+      "id": "s1_frog",
+      "path": "/public/assets/models/chars/s1_frog.glb",
+      "category": "chars",
+      "name": "s1 frog"
+    },
+    {
+      "id": "s1_owl",
+      "path": "/public/assets/models/chars/s1_owl.glb",
+      "category": "chars",
+      "name": "s1 owl"
+    },
+    {
+      "id": "s1_rabbit",
+      "path": "/public/assets/models/chars/s1_rabbit.glb",
+      "category": "chars",
+      "name": "s1 rabbit"
+    },
+    {
+      "id": "squirrel",
+      "path": "/public/assets/models/chars/squirrel.glb",
+      "category": "chars",
+      "name": "squirrel"
+    },
+    {
+      "id": "squirrel_discover",
+      "path": "/public/assets/models/chars/squirrel_discover.glb",
+      "category": "chars",
+      "name": "squirrel discover"
+    },
+    {
+      "id": "squirrel_meshy_legacy",
+      "path": "/public/assets/models/chars/squirrel_meshy_legacy.glb",
+      "category": "chars",
+      "name": "squirrel meshy legacy"
+    },
+    {
+      "id": "yagodka",
+      "path": "/public/assets/models/chars/yagodka.glb",
+      "category": "chars",
+      "name": "yagodka"
+    },
+    {
+      "id": "yagodka_meshy_legacy",
+      "path": "/public/assets/models/chars/yagodka_meshy_legacy.glb",
+      "category": "chars",
+      "name": "yagodka meshy legacy"
+    },
+    {
+      "id": "zhuldyz",
+      "path": "/public/assets/models/chars/zhuldyz.glb",
+      "category": "chars",
+      "name": "zhuldyz"
+    },
+    {
+      "id": "zhuldyz_meshy_legacy",
+      "path": "/public/assets/models/chars/zhuldyz_meshy_legacy.glb",
+      "category": "chars",
+      "name": "zhuldyz meshy legacy"
+    },
+    {
+      "id": "aya_hyper3d",
+      "path": "/public/assets/models/gallery/aya_hyper3d.glb",
+      "category": "gallery",
+      "name": "aya hyper3d"
+    },
+    {
+      "id": "backpack_cyan",
+      "path": "/public/assets/models/gallery/backpack_cyan.glb",
+      "category": "gallery",
+      "name": "backpack cyan"
+    },
+    {
+      "id": "barsik_hyper3d",
+      "path": "/public/assets/models/gallery/barsik_hyper3d.glb",
+      "category": "gallery",
+      "name": "barsik hyper3d"
+    },
+    {
+      "id": "cap_green",
+      "path": "/public/assets/models/gallery/cap_green.glb",
+      "category": "gallery",
+      "name": "cap green"
+    },
+    {
+      "id": "cap_green_hyper3d",
+      "path": "/public/assets/models/gallery/cap_green_hyper3d.glb",
+      "category": "gallery",
+      "name": "cap green hyper3d"
+    },
+    {
+      "id": "glasses_yellow",
+      "path": "/public/assets/models/gallery/glasses_yellow.glb",
+      "category": "gallery",
+      "name": "glasses yellow"
+    },
+    {
+      "id": "glasses_yellow_hyper3d",
+      "path": "/public/assets/models/gallery/glasses_yellow_hyper3d.glb",
+      "category": "gallery",
+      "name": "glasses yellow hyper3d"
+    },
+    {
+      "id": "hoodie_green",
+      "path": "/public/assets/models/gallery/hoodie_green.glb",
+      "category": "gallery",
+      "name": "hoodie green"
+    },
+    {
+      "id": "putalo_hyper3d",
+      "path": "/public/assets/models/gallery/putalo_hyper3d.glb",
+      "category": "gallery",
+      "name": "putalo hyper3d"
+    },
+    {
+      "id": "scarf_coral",
+      "path": "/public/assets/models/gallery/scarf_coral.glb",
+      "category": "gallery",
+      "name": "scarf coral"
+    },
+    {
+      "id": "zhuldyz_hyper3d",
+      "path": "/public/assets/models/gallery/zhuldyz_hyper3d.glb",
+      "category": "gallery",
+      "name": "zhuldyz hyper3d"
+    },
+    {
+      "id": "hub_apple_monument",
+      "path": "/public/assets/models/hub/hub_apple_monument.glb",
+      "category": "hub",
+      "name": "hub apple monument"
+    },
+    {
+      "id": "hub_baursak_stall",
+      "path": "/public/assets/models/hub/hub_baursak_stall.glb",
+      "category": "hub",
+      "name": "hub baursak stall"
+    },
+    {
+      "id": "hub_cathedral",
+      "path": "/public/assets/models/hub/hub_cathedral.glb",
+      "category": "hub",
+      "name": "hub cathedral"
+    },
+    {
+      "id": "hub_cathedral_hyper3d",
+      "path": "/public/assets/models/hub/hub_cathedral_hyper3d.glb",
+      "category": "hub",
+      "name": "hub cathedral hyper3d"
+    },
+    {
+      "id": "hub_dombra_musician",
+      "path": "/public/assets/models/hub/hub_dombra_musician.glb",
+      "category": "hub",
+      "name": "hub dombra musician"
+    },
+    {
+      "id": "hub_flower_seller",
+      "path": "/public/assets/models/hub/hub_flower_seller.glb",
+      "category": "hub",
+      "name": "hub flower seller"
+    },
+    {
+      "id": "hub_ice_cream_cart",
+      "path": "/public/assets/models/hub/hub_ice_cream_cart.glb",
+      "category": "hub",
+      "name": "hub ice cream cart"
+    },
+    {
+      "id": "hub_kalpak_modern",
+      "path": "/public/assets/models/hub/hub_kalpak_modern.glb",
+      "category": "hub",
+      "name": "hub kalpak modern"
+    },
+    {
+      "id": "hub_ornament_jacket",
+      "path": "/public/assets/models/hub/hub_ornament_jacket.glb",
+      "category": "hub",
+      "name": "hub ornament jacket"
+    },
+    {
+      "id": "hub_panfilov_monument",
+      "path": "/public/assets/models/hub/hub_panfilov_monument.glb",
+      "category": "hub",
+      "name": "hub panfilov monument"
+    },
+    {
+      "id": "hub_park_bench",
+      "path": "/public/assets/models/hub/hub_park_bench.glb",
+      "category": "hub",
+      "name": "hub park bench"
+    },
+    {
+      "id": "hub_poster_stand",
+      "path": "/public/assets/models/hub/hub_poster_stand.glb",
+      "category": "hub",
+      "name": "hub poster stand"
+    },
+    {
+      "id": "hub_school_kid",
+      "path": "/public/assets/models/hub/hub_school_kid.glb",
+      "category": "hub",
+      "name": "hub school kid"
+    },
+    {
+      "id": "hub_shashlik_grill",
+      "path": "/public/assets/models/hub/hub_shashlik_grill.glb",
+      "category": "hub",
+      "name": "hub shashlik grill"
+    },
+    {
+      "id": "hub_street_artist",
+      "path": "/public/assets/models/hub/hub_street_artist.glb",
+      "category": "hub",
+      "name": "hub street artist"
+    },
+    {
+      "id": "hub_student",
+      "path": "/public/assets/models/hub/hub_student.glb",
+      "category": "hub",
+      "name": "hub student"
+    },
+    {
+      "id": "hub_theatre",
+      "path": "/public/assets/models/hub/hub_theatre.glb",
+      "category": "hub",
+      "name": "hub theatre"
+    },
+    {
+      "id": "hub_theatre_hyper3d",
+      "path": "/public/assets/models/hub/hub_theatre_hyper3d.glb",
+      "category": "hub",
+      "name": "hub theatre hyper3d"
+    },
+    {
+      "id": "hub_university",
+      "path": "/public/assets/models/hub/hub_university.glb",
+      "category": "hub",
+      "name": "hub university"
+    },
+    {
+      "id": "hub_university_hyper3d",
+      "path": "/public/assets/models/hub/hub_university_hyper3d.glb",
+      "category": "hub",
+      "name": "hub university hyper3d"
+    },
+    {
+      "id": "cabin",
+      "path": "/public/assets/models/props/cabin.glb",
+      "category": "props",
+      "name": "cabin"
+    },
+    {
+      "id": "s1_kit_apple",
+      "path": "/public/assets/models/props/food/s1_kit_apple.glb",
+      "category": "props",
+      "name": "s1 kit apple"
+    },
+    {
+      "id": "s1_kit_cake",
+      "path": "/public/assets/models/props/food/s1_kit_cake.glb",
+      "category": "props",
+      "name": "s1 kit cake"
+    },
+    {
+      "id": "s1_kit_honey",
+      "path": "/public/assets/models/props/food/s1_kit_honey.glb",
+      "category": "props",
+      "name": "s1 kit honey"
+    },
+    {
+      "id": "s1_kit_strawberry",
+      "path": "/public/assets/models/props/food/s1_kit_strawberry.glb",
+      "category": "props",
+      "name": "s1 kit strawberry"
+    },
+    {
+      "id": "golden_key",
+      "path": "/public/assets/models/props/golden_key.glb",
+      "category": "props",
+      "name": "golden key"
+    },
+    {
+      "id": "s1_kit_lantern_hang",
+      "path": "/public/assets/models/props/holiday/s1_kit_lantern_hang.glb",
+      "category": "props",
+      "name": "s1 kit lantern hang"
+    },
+    {
+      "id": "s1_kit_lantern_wood",
+      "path": "/public/assets/models/props/holiday/s1_kit_lantern_wood.glb",
+      "category": "props",
+      "name": "s1 kit lantern wood"
+    },
+    {
+      "id": "s1_kit_present",
+      "path": "/public/assets/models/props/holiday/s1_kit_present.glb",
+      "category": "props",
+      "name": "s1 kit present"
+    },
+    {
+      "id": "s1_kit_present_b",
+      "path": "/public/assets/models/props/holiday/s1_kit_present_b.glb",
+      "category": "props",
+      "name": "s1 kit present b"
+    },
+    {
+      "id": "s1_kit_snow_pile",
+      "path": "/public/assets/models/props/holiday/s1_kit_snow_pile.glb",
+      "category": "props",
+      "name": "s1 kit snow pile"
+    },
+    {
+      "id": "s1_kit_tree_decorated",
+      "path": "/public/assets/models/props/holiday/s1_kit_tree_decorated.glb",
+      "category": "props",
+      "name": "s1 kit tree decorated"
+    },
+    {
+      "id": "s1_kit_winter_hat",
+      "path": "/public/assets/models/props/holiday/s1_kit_winter_hat.glb",
+      "category": "props",
+      "name": "s1 kit winter hat"
+    },
+    {
+      "id": "ice_rabbit",
+      "path": "/public/assets/models/props/ice_rabbit.glb",
+      "category": "props",
+      "name": "ice rabbit"
+    },
+    {
+      "id": "s1_kit_bridge_mini",
+      "path": "/public/assets/models/props/miniforest/s1_kit_bridge_mini.glb",
+      "category": "props",
+      "name": "s1 kit bridge mini"
+    },
+    {
+      "id": "s1_kit_flag",
+      "path": "/public/assets/models/props/platformer/s1_kit_flag.glb",
+      "category": "props",
+      "name": "s1 kit flag"
+    },
+    {
+      "id": "s1_kit_flowers",
+      "path": "/public/assets/models/props/platformer/s1_kit_flowers.glb",
+      "category": "props",
+      "name": "s1 kit flowers"
+    },
+    {
+      "id": "s1_kit_flowers_tall",
+      "path": "/public/assets/models/props/platformer/s1_kit_flowers_tall.glb",
+      "category": "props",
+      "name": "s1 kit flowers tall"
+    },
+    {
+      "id": "s1_kit_star",
+      "path": "/public/assets/models/props/platformer/s1_kit_star.glb",
+      "category": "props",
+      "name": "s1 kit star"
+    },
+    {
+      "id": "s1_apple",
+      "path": "/public/assets/models/props/s1_apple.glb",
+      "category": "props",
+      "name": "s1 apple"
+    },
+    {
+      "id": "s1_carrot",
+      "path": "/public/assets/models/props/s1_carrot.glb",
+      "category": "props",
+      "name": "s1 carrot"
+    },
+    {
+      "id": "s1_gen_acorn_key",
+      "path": "/public/assets/models/props/s1_gen_acorn_key.glb",
+      "category": "props",
+      "name": "s1 gen acorn key"
+    },
+    {
+      "id": "s1_gen_apple",
+      "path": "/public/assets/models/props/s1_gen_apple.glb",
+      "category": "props",
+      "name": "s1 gen apple"
+    },
+    {
+      "id": "s1_gen_apple_gold",
+      "path": "/public/assets/models/props/s1_gen_apple_gold.glb",
+      "category": "props",
+      "name": "s1 gen apple gold"
+    },
+    {
+      "id": "s1_gen_basket_blue",
+      "path": "/public/assets/models/props/s1_gen_basket_blue.glb",
+      "category": "props",
+      "name": "s1 gen basket blue"
+    },
+    {
+      "id": "s1_gen_basket_green",
+      "path": "/public/assets/models/props/s1_gen_basket_green.glb",
+      "category": "props",
+      "name": "s1 gen basket green"
+    },
+    {
+      "id": "s1_gen_basket_red",
+      "path": "/public/assets/models/props/s1_gen_basket_red.glb",
+      "category": "props",
+      "name": "s1 gen basket red"
+    },
+    {
+      "id": "s1_gen_berry",
+      "path": "/public/assets/models/props/s1_gen_berry.glb",
+      "category": "props",
+      "name": "s1 gen berry"
+    },
+    {
+      "id": "s1_gen_camera",
+      "path": "/public/assets/models/props/s1_gen_camera.glb",
+      "category": "props",
+      "name": "s1 gen camera"
+    },
+    {
+      "id": "s1_gen_garland",
+      "path": "/public/assets/models/props/s1_gen_garland.glb",
+      "category": "props",
+      "name": "s1 gen garland"
+    },
+    {
+      "id": "s1_gen_ice_crystal",
+      "path": "/public/assets/models/props/s1_gen_ice_crystal.glb",
+      "category": "props",
+      "name": "s1 gen ice crystal"
+    },
+    {
+      "id": "s1_gen_ice_key",
+      "path": "/public/assets/models/props/s1_gen_ice_key.glb",
+      "category": "props",
+      "name": "s1 gen ice key"
+    },
+    {
+      "id": "s1_gen_lantern",
+      "path": "/public/assets/models/props/s1_gen_lantern.glb",
+      "category": "props",
+      "name": "s1 gen lantern"
+    },
+    {
+      "id": "s1_gen_map_scroll",
+      "path": "/public/assets/models/props/s1_gen_map_scroll.glb",
+      "category": "props",
+      "name": "s1 gen map scroll"
+    },
+    {
+      "id": "s1_gen_mushroom",
+      "path": "/public/assets/models/props/s1_gen_mushroom.glb",
+      "category": "props",
+      "name": "s1 gen mushroom"
+    },
+    {
+      "id": "s1_gen_party_table",
+      "path": "/public/assets/models/props/s1_gen_party_table.glb",
+      "category": "props",
+      "name": "s1 gen party table"
+    },
+    {
+      "id": "s1_gen_scarf",
+      "path": "/public/assets/models/props/s1_gen_scarf.glb",
+      "category": "props",
+      "name": "s1 gen scarf"
+    },
+    {
+      "id": "s1_gen_snowflake",
+      "path": "/public/assets/models/props/s1_gen_snowflake.glb",
+      "category": "props",
+      "name": "s1 gen snowflake"
+    },
+    {
+      "id": "s1_gen_wood_bridge",
+      "path": "/public/assets/models/props/s1_gen_wood_bridge.glb",
+      "category": "props",
+      "name": "s1 gen wood bridge"
+    },
+    {
+      "id": "s1_kit_fence",
+      "path": "/public/assets/models/props/s1_kit_fence.glb",
+      "category": "props",
+      "name": "s1 kit fence"
+    },
+    {
+      "id": "s1_kit_fence_gate",
+      "path": "/public/assets/models/props/s1_kit_fence_gate.glb",
+      "category": "props",
+      "name": "s1 kit fence gate"
+    },
+    {
+      "id": "s1_kit_flower_red",
+      "path": "/public/assets/models/props/s1_kit_flower_red.glb",
+      "category": "props",
+      "name": "s1 kit flower red"
+    },
+    {
+      "id": "s1_mushroom_cottage",
+      "path": "/public/assets/models/props/s1_mushroom_cottage.glb",
+      "category": "props",
+      "name": "s1 mushroom cottage"
+    },
+    {
+      "id": "s1_pine_tree",
+      "path": "/public/assets/models/props/s1_pine_tree.glb",
+      "category": "props",
+      "name": "s1 pine tree"
+    },
+    {
+      "id": "s1_pinecone",
+      "path": "/public/assets/models/props/s1_pinecone.glb",
+      "category": "props",
+      "name": "s1 pinecone"
+    },
+    {
+      "id": "s1_quality_dombra",
+      "path": "/public/assets/models/props/s1_quality_dombra.glb",
+      "category": "props",
+      "name": "s1 quality dombra"
+    },
+    {
+      "id": "s1_quality_felt_panel",
+      "path": "/public/assets/models/props/s1_quality_felt_panel.glb",
+      "category": "props",
+      "name": "s1 quality felt panel"
+    },
+    {
+      "id": "s1_quality_stepping_stone",
+      "path": "/public/assets/models/props/s1_quality_stepping_stone.glb",
+      "category": "props",
+      "name": "s1 quality stepping stone"
+    },
+    {
+      "id": "s1_quality_sticky_berry",
+      "path": "/public/assets/models/props/s1_quality_sticky_berry.glb",
+      "category": "props",
+      "name": "s1 quality sticky berry"
+    },
+    {
+      "id": "s1_quality_yurt",
+      "path": "/public/assets/models/props/s1_quality_yurt.glb",
+      "category": "props",
+      "name": "s1 quality yurt"
+    },
+    {
+      "id": "s1_rock_snow",
+      "path": "/public/assets/models/props/s1_rock_snow.glb",
+      "category": "props",
+      "name": "s1 rock snow"
+    },
+    {
+      "id": "s1_stump_moss",
+      "path": "/public/assets/models/props/s1_stump_moss.glb",
+      "category": "props",
+      "name": "s1 stump moss"
+    },
+    {
+      "id": "s1_table",
+      "path": "/public/assets/models/props/s1_table.glb",
+      "category": "props",
+      "name": "s1 table"
+    },
+    {
+      "id": "snowman",
+      "path": "/public/assets/models/props/snowman.glb",
+      "category": "props",
+      "name": "snowman"
+    },
+    {
+      "id": "stump",
+      "path": "/public/assets/models/props/stump.glb",
+      "category": "props",
+      "name": "stump"
+    },
+    {
+      "id": "s1_kit_campfire",
+      "path": "/public/assets/models/props/survival/s1_kit_campfire.glb",
+      "category": "props",
+      "name": "s1 kit campfire"
+    },
+    {
+      "id": "s1_kit_tent",
+      "path": "/public/assets/models/props/survival/s1_kit_tent.glb",
+      "category": "props",
+      "name": "s1 kit tent"
+    },
+    {
+      "id": "s1_kit_bench",
+      "path": "/public/assets/models/props/town/s1_kit_bench.glb",
+      "category": "props",
+      "name": "s1 kit bench"
+    },
+    {
+      "id": "treasure_chest",
+      "path": "/public/assets/models/props/treasure_chest.glb",
+      "category": "props",
+      "name": "treasure chest"
+    },
+    {
+      "id": "treehouse",
+      "path": "/public/assets/models/props/treehouse.glb",
+      "category": "props",
+      "name": "treehouse"
+    },
+    {
+      "id": "wood_sign",
+      "path": "/public/assets/models/props/wood_sign.glb",
+      "category": "props",
+      "name": "wood sign"
+    },
+    {
+      "id": "wood_sign_cartoon",
+      "path": "/public/assets/models/props/wood_sign_cartoon.glb",
+      "category": "props",
+      "name": "wood sign cartoon"
+    },
+    {
+      "id": "wood_sign_discover",
+      "path": "/public/assets/models/props/wood_sign_discover.glb",
+      "category": "props",
+      "name": "wood sign discover"
+    }
+  ]
+}

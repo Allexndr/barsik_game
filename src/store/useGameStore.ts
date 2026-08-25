@@ -48,7 +48,7 @@ export const useGameStore = create<GameState>((set) => ({
   currentLevel: 0,
   levelStars: {},
   cityObjects: {},
-  outfit: ['cap_green', 'glasses_yellow'],
+  outfit: ['tubeteika_blue', 'glasses_yellow'],
   stars: 0,
   season1Complete: false,
 
