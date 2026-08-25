@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { QualityPipeline } from '../QualityPipeline';
 import { stylizeHeroGlb } from '../stylizeHeroGlb';
-import { createPlushBarsik, updatePlushLocomotion } from '../PlushBarsik';
+import { updatePlushLocomotion } from '../PlushBarsik';
 import { createBarsikAvatar, DEFAULT_LOOK, type BarsikAvatar } from '../avatar/BarsikAvatar';
 import { dressAvatar } from '../avatar/dressAvatar';
 import { WARDROBE_BY_ID } from '../avatar/wardrobe';
@@ -40,13 +40,12 @@ import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityPr
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
 /**
- * `?hero=glb` falls back to the old GLB path. Kept so the two can be compared
- * side by side in a browser without a rebuild — the static model still looks
- * better standing still, and that trade is worth being able to re-check.
+ * Default hero = MCP Hyper3D Barsik with Blender walk/idle/wave (`barsik_rigged.glb`).
+ * `?hero=avatar` keeps the procedural jointed fallback for A/B.
  */
-const DISABLE_AVATAR_HERO =
+const FORCE_AVATAR_HERO =
   typeof location !== 'undefined'
-  && new URLSearchParams(location.search).get('hero') === 'glb';
+  && new URLSearchParams(location.search).get('hero') === 'avatar';
 
 // ─── Shared types ───────────────────────────────────────────────
 export type Collider = 
@@ -159,7 +158,7 @@ export function mountain(x: number, z: number, h: number, w: number) {
     const snow = new THREE.Mesh(new THREE.ConeGeometry(peakW * 0.4, peakH * 0.26, 6), snowMat);
     snow.position.set(offsetX, peakH * 0.7, offsetX * 0.18);
     snow.rotation.y = rock.rotation.y;
-    g.add(rock, snow);
+  g.add(rock, snow);
   }
   g.position.set(x, 0, z);
   return g;
@@ -732,7 +731,22 @@ export async function loadCharModel(
   if (Math.abs(gltf.scene.position.y) > 1e-4) {
     const feetAtOrigin = new THREE.Group();
     feetAtOrigin.add(gltf.scene);
+    // MCP-rigged Idle when the mesh ships Walk/Idle clips.
+    if (gltf.animations.length) {
+      const mixer = new THREE.AnimationMixer(gltf.scene);
+      const idle =
+        gltf.animations.find((c) => /idle/i.test(c.name)) || gltf.animations[0];
+      mixer.clipAction(idle).play();
+      feetAtOrigin.userData.animMixer = mixer;
+    }
     return feetAtOrigin;
+  }
+  if (gltf.animations.length) {
+    const mixer = new THREE.AnimationMixer(gltf.scene);
+    const idle =
+      gltf.animations.find((c) => /idle/i.test(c.name)) || gltf.animations[0];
+    mixer.clipAction(idle).play();
+    gltf.scene.userData.animMixer = mixer;
   }
   return gltf.scene;
 }
@@ -817,79 +831,68 @@ export async function placeWoodSign(
 }
 
 export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.45): Promise<HeroRig> {
-  // The jointed avatar first, ahead of every GLB.
-  //
-  // barsik.glb has no skin and no animation clips, so for sixteen levels the
-  // hero stood with his arms spread and slid across the ground. No amount of
-  // shader or lighting work fixes a character that cannot move; a child reads
-  // it as broken before they read anything else as good. The procedural rig
-  // walks, runs, jumps, sits, waves and wears clothes, which is worth more
-  // than the extra polish of a model that does none of those things.
-  if (!DISABLE_AVATAR_HERO) {
-    const avatar = createBarsikAvatar({ height });
-    // Brand canon outfit from `photos/` trio (tubeteika + yellow glasses).
-    const outfit = outfitWithBrandCanon(useGameStore.getState().outfit);
-    dressAvatar(avatar, outfit, DEFAULT_LOOK);
-    return {
-      model: avatar.root,
-      animMode: 'avatar',
-      mixer: null,
-      walkAction: null,
-      idleAction: null,
-      avatar,
-    };
-  }
+  // Prefer MCP Hyper3D Barsik with Blender limb clips (Walk / Idle / Wave).
+  if (!FORCE_AVATAR_HERO) {
+    for (const file of HERO_CANDIDATES) {
+      const gltf = await loadGlb(loader, CHARS + file);
+      if (!gltf) continue;
 
-  for (const file of HERO_CANDIDATES) {
-    const gltf = await loadGlb(loader, CHARS + file);
-    if (!gltf) continue;
-
-    if (isUsableHeroGlb(gltf)) {
-      stylizeHeroGlb(gltf.scene);
-      fitHeight(gltf.scene, height);
-      const mixer = new THREE.AnimationMixer(gltf.scene);
-      const walk =
-        gltf.animations.find((c) => /walk|run/i.test(c.name)) || gltf.animations[0];
-      const idle =
-        gltf.animations.find((c) => /idle|survey|sit/i.test(c.name)) || gltf.animations[0];
-      const walkAction = mixer.clipAction(walk);
-      const idleAction = mixer.clipAction(idle);
-      idleAction.play();
-      return { model: gltf.scene, animMode: 'rigged', mixer, walkAction, idleAction, avatar: null };
-    }
-
-    // Last resort: any loaded textured/mesh barsik.glb (Meshy static)
-    if (gltf.scene) {
-      let verts = 0;
-      gltf.scene.traverse((obj) => {
-        const mesh = obj as THREE.Mesh;
-        if (mesh.isMesh) verts += mesh.geometry?.attributes?.position?.count ?? 0;
-      });
-      if (verts > 200) {
+      if (isUsableHeroGlb(gltf)) {
         stylizeHeroGlb(gltf.scene);
         fitHeight(gltf.scene, height);
-        markStaticHeroBaseY(gltf.scene);
+        const mixer = new THREE.AnimationMixer(gltf.scene);
+        const walk =
+          gltf.animations.find((c) => /walk|run/i.test(c.name)) || gltf.animations[0];
+        const idle =
+          gltf.animations.find((c) => /idle|survey|sit/i.test(c.name)) || gltf.animations[0];
+        const walkAction = mixer.clipAction(walk);
+        const idleAction = mixer.clipAction(idle);
+        idleAction.play();
+        return { model: gltf.scene, animMode: 'rigged', mixer, walkAction, idleAction, avatar: null };
+      }
+
+      // Textured MCP mesh without clips — last resort before procedural.
+      if (gltf.scene) {
+        let verts = 0;
         gltf.scene.traverse((obj) => {
           const mesh = obj as THREE.Mesh;
-          if (!mesh.isMesh) return;
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
+          if (mesh.isMesh) verts += mesh.geometry?.attributes?.position?.count ?? 0;
         });
-        return {
-          model: gltf.scene,
-          animMode: 'static',
-          mixer: null,
-          walkAction: null,
-          idleAction: null,
-          avatar: null,
-        };
+        if (verts > 200) {
+          stylizeHeroGlb(gltf.scene);
+          fitHeight(gltf.scene, height);
+          markStaticHeroBaseY(gltf.scene);
+          gltf.scene.traverse((obj) => {
+            const mesh = obj as THREE.Mesh;
+            if (!mesh.isMesh) return;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+          });
+          return {
+            model: gltf.scene,
+            animMode: 'static',
+            mixer: null,
+            walkAction: null,
+            idleAction: null,
+            avatar: null,
+          };
+        }
       }
     }
   }
 
-  const plush = createPlushBarsik();
-  fitHeight(plush, height * 0.93);
-  return { model: plush, animMode: 'plush', mixer: null, walkAction: null, idleAction: null, avatar: null };
+  // Procedural avatar — only when forced or MCP rig failed to load.
+  const avatar = createBarsikAvatar({ height });
+  const outfit = outfitWithBrandCanon(useGameStore.getState().outfit);
+  dressAvatar(avatar, outfit, DEFAULT_LOOK);
+  return {
+    model: avatar.root,
+    animMode: 'avatar',
+    mixer: null,
+    walkAction: null,
+    idleAction: null,
+    avatar,
+  };
 }
 
 // ─── Base scene class ───────────────────────────────────────────
@@ -935,6 +938,7 @@ export abstract class BaseLevelScene {
   /** Filled on the first ambient frame; butterflies are never added later. */
   private butterflyCache: THREE.Group[] | null = null;
   private butterfliesQualityTried = false;
+  private npcMixerCache: THREE.AnimationMixer[] | null = null;
   protected snowfall: THREE.Points | null = null;
   protected fireflies: Fireflies | null = null;
   protected guideArrow: THREE.Group | null = null;
@@ -2192,7 +2196,7 @@ export abstract class BaseLevelScene {
       const radius = arena.r + this.corridorSlack + 1.4 + row * 2.6;
       // Constant arc spacing, so the outer rings are not sparse.
       const count = Math.max(8, Math.round((2 * Math.PI * radius) / 3.2));
-      for (let i = 0; i < count; i++) {
+    for (let i = 0; i < count; i++) {
         const a = (i / count) * Math.PI * 2 + Math.random() * 0.12;
         const rr = radius + Math.random() * 1.1;
         const x = arena.x + Math.sin(a) * rr;
@@ -2392,7 +2396,7 @@ export abstract class BaseLevelScene {
     const small = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
 
     const placements: Array<{ names: string[]; x: number; z: number; height: number }> = [];
-    for (let i = 0; i < count; i++) {
+      for (let i = 0; i < count; i++) {
       const ang = (i / count) * Math.PI * 2;
       if (ang > 1.1 && ang < 2.0) continue;
       const ring = i % 3;
@@ -2975,6 +2979,14 @@ export abstract class BaseLevelScene {
       }
     }
     this.mixer?.update(dt);
+    if (!this.npcMixerCache) {
+      this.npcMixerCache = [];
+      this.scene.traverse((o) => {
+        const m = o.userData?.animMixer as THREE.AnimationMixer | undefined;
+        if (m) this.npcMixerCache!.push(m);
+      });
+    }
+    for (const m of this.npcMixerCache) m.update(dt);
     if (this.heroAvatar) {
       // Pose follows what the hero is actually doing, so the rig never claims
       // to be walking while the character stands still — the exact mismatch
