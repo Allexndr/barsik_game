@@ -53,6 +53,10 @@ full golden-route evidence separate from touch smoke evidence.
 - Audio: 754 deterministic authored clips (381 RU, 373 KK), missing `0`, orphan
   `0`; actual RU desktop and KK mobile playback requests return audio with no
   browser errors.
+- Mobile intro sweep: all 17 levels initialize with visible touch controls and
+  no page/console errors. The three remaining shadow outliers were reduced on
+  the authored branch: Level 3 `161→46`, Level 4 `163→73`, Level 5 `190→45`
+  casters.
 - Engineering gates: current source passes TypeScript, ESLint with one known
   non-gameplay warning, production build, voice freshness and diff checks.
 

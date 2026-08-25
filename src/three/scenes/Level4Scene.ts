@@ -1013,11 +1013,21 @@ export class Level4Scene extends BaseLevelScene {
     ]);
 
     // Trees on both banks. The near bank now has 20 metres of depth behind
-    // spawn, and without a treeline it reads as an empty stage.
+    // spawn, and without a treeline it reads as an empty stage. The authored
+    // bridge/winch/Aya dressing owns the gameplay shadows; the two generic
+    // banks are receiving-only to keep the mobile intro from paying 163
+    // shadow draws on background trees and undergrowth.
+    const ambientShadowStart = this.scene.children.length;
     await this.loadTrees(loader, 20, 22, -34, 4.5);
     await this.loadTrees(loader, 16, 18, 24, 4.5);
     await this.loadProps(loader, 7, 8, 18, -34);
     await this.loadProps(loader, 6, 9, 16, 20);
+    for (const root of this.scene.children.slice(ambientShadowStart)) {
+      root.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (mesh.isMesh) mesh.castShadow = false;
+      });
+    }
 
     const ayaGlb = await loadCharModel(loader, 'aya.glb', 1.28);
     const ayaGroup = ayaGlb ?? createPlushCharacter(AYA_LOOK);

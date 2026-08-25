@@ -449,9 +449,21 @@ export class Level3Scene extends BaseLevelScene {
       this.scene.add(a);
     }
 
-    // Trees
+    // The five search sectors and their landmarks own the readable shadows in
+    // this scene. The generic forest ring is depth dressing; keeping every
+    // distant tree and undergrowth mesh as a caster made the mobile intro pay
+    // 161 shadow casters before the player had reached the first clue. Keep
+    // the ring lit and receiving-only so the forest still has volume without
+    // spending a shadow draw on every background asset.
+    const ambientShadowStart = this.scene.children.length;
     await this.loadTrees(loader, 40, 28, -16, 4.5);
     await this.loadProps(loader, 10, 6, 32, -18);
+    for (const root of this.scene.children.slice(ambientShadowStart)) {
+      root.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (mesh.isMesh) mesh.castShadow = false;
+      });
+    }
 
     // S1 landmarks — mushroom cottage, stump, critters (laconic)
     await this.placeProps(loader, [

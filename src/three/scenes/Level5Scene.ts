@@ -683,12 +683,24 @@ export class Level5Scene extends BaseLevelScene {
       { key: 'stump', opts: { x: routeX(-38) - 3.6, z: -38, maxSize: 1.1 } },
     ]);
 
+    // The squirrel, blockages, basket and route markers are the authored
+    // focal points. Generic forest dressing should add depth, not submit a
+    // shadow for every background mesh: the untouched scatter reached 190
+    // mobile shadow casters at the intro. Keep it receiving-only while
+    // preserving the scene's stylized volume and light direction.
+    const ambientShadowStart = this.scene.children.length;
     await this.loadTrees(loader, 34, 26, -22, 4.5);
     await this.loadProps(loader, 9, 7, 26, -24);
     // Подлесок был рассыпан вокруг (0, −24) и до третьего акта не доходил:
     // замерено 90 вызовов отрисовки на кадр в новой части против 463 на
     // старте — то есть последняя треть пути шла по голой земле.
     await this.loadProps(loader, 8, 6, 24, -56);
+    for (const root of this.scene.children.slice(ambientShadowStart)) {
+      root.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (mesh.isMesh) mesh.castShadow = false;
+      });
+    }
 
     for (let i = 0; i < 6; i++) {
       const z = -5 - Math.random() * 36;
