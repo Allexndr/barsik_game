@@ -20,7 +20,7 @@ function outfitWithBrandCanon(outfit: string[]): string[] {
   return ids.length ? ids : ['tubeteika_blue', 'glasses_yellow'];
 }
 import { isUsableHeroGlb } from '../heroQuality';
-import { markStaticHeroBaseY, updateStaticHeroLocomotion } from '../staticHeroLocomotion';
+import { updateStaticHeroLocomotion } from '../staticHeroLocomotion';
 import { AudioManager } from '@/audio/AudioManager';
 import { useUIStore } from '@/store/useUIStore';
 import { createFireflies, type Fireflies } from '../Fireflies';
@@ -835,7 +835,10 @@ export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.45): Prom
   if (!FORCE_AVATAR_HERO) {
     for (const file of HERO_CANDIDATES) {
       const gltf = await loadGlb(loader, CHARS + file);
-      if (!gltf) continue;
+      if (!gltf) {
+        console.warn(`[hero] failed to load ${file}`);
+        continue;
+      }
 
       if (isUsableHeroGlb(gltf)) {
         stylizeHeroGlb(gltf.scene);
@@ -848,40 +851,18 @@ export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.45): Prom
         const walkAction = mixer.clipAction(walk);
         const idleAction = mixer.clipAction(idle);
         idleAction.play();
+        console.info(`[hero] MCP rigged ${file} clips=${gltf.animations.map((a) => a.name).join(',')}`);
         return { model: gltf.scene, animMode: 'rigged', mixer, walkAction, idleAction, avatar: null };
       }
 
-      // Textured MCP mesh without clips — last resort before procedural.
-      if (gltf.scene) {
-        let verts = 0;
-        gltf.scene.traverse((obj) => {
-          const mesh = obj as THREE.Mesh;
-          if (mesh.isMesh) verts += mesh.geometry?.attributes?.position?.count ?? 0;
-        });
-        if (verts > 200) {
-          stylizeHeroGlb(gltf.scene);
-          fitHeight(gltf.scene, height);
-          markStaticHeroBaseY(gltf.scene);
-          gltf.scene.traverse((obj) => {
-            const mesh = obj as THREE.Mesh;
-            if (!mesh.isMesh) return;
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-          });
-          return {
-            model: gltf.scene,
-            animMode: 'static',
-            mixer: null,
-            walkAction: null,
-            idleAction: null,
-            avatar: null,
-          };
-        }
-      }
+      console.warn(`[hero] ${file} loaded but not usable as rigged`, {
+        anims: gltf.animations.map((a) => a.name),
+      });
     }
   }
 
   // Procedural avatar — only when forced or MCP rig failed to load.
+  console.warn('[hero] falling back to procedural avatar');
   const avatar = createBarsikAvatar({ height });
   const outfit = outfitWithBrandCanon(useGameStore.getState().outfit);
   dressAvatar(avatar, outfit, DEFAULT_LOOK);
@@ -1423,31 +1404,8 @@ export abstract class BaseLevelScene {
    * fallback; GLB clones bob instead of folding (no hinge sockets).
    */
   protected async upgradeButterfliesToQualityGlb() {
-    const loader = createGameGltfLoader();
-    const gltf = await loadGlb(loader, '/assets/models/props/s1_quality_butterfly.glb');
-    if (!gltf) return;
-    fitMaxSize(gltf.scene, 0.55);
-    if (!this.butterflyCache) {
-      this.butterflyCache = [];
-      this.scene.traverse((o) => {
-        if (o.userData.isButterfly) this.butterflyCache!.push(o as THREE.Group);
-      });
-    }
-    const next: THREE.Group[] = [];
-    for (const b of this.butterflyCache) {
-      const clone = gltf.scene.clone(true) as THREE.Group;
-      clone.position.copy(b.position);
-      clone.userData.isButterfly = true;
-      clone.userData.phase = b.userData.phase;
-      clone.userData.ox = b.userData.ox;
-      clone.userData.oz = b.userData.oz;
-      clone.userData.flapRate = b.userData.flapRate;
-      clone.userData.hinges = [];
-      this.scene.remove(b);
-      this.scene.add(clone);
-      next.push(clone);
-    }
-    this.butterflyCache = next;
+    // Off: early Blender butterfly export rendered as a giant blue plane.
+    return;
   }
 
   /**
