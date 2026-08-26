@@ -1,5 +1,5 @@
-/* Hallmark · photographic fold · Barsik Hum · P4 H4 E4 S4 R4 V4
-   critique: killed violet/italic stroke brand; pear push CTA; cream paper; brand dominates hero */
+/* Hallmark · genre: playful · macrostructure: photographic-journey · design-system: design.md
+   pre-emit critique: P5 H4 E4 S5 R4 V5 · anti-slop: no indigo/violet · no 3-card feature grid · AI photos kept */
 .welcome-screen {
   --welcome-ink: #1c2430;
   --welcome-ink-2: #4a5568;
@@ -13,7 +13,7 @@
   --welcome-paper-2: #f0ead4;
   width: 100%;
   height: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
   overflow-y: auto;
   scroll-behavior: smooth;
   background: var(--welcome-paper);
@@ -308,6 +308,8 @@
   line-height: 1.05;
   letter-spacing: -0.03em;
   text-shadow: none;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .welcome-hero-lead {
@@ -425,259 +427,225 @@
 
 .welcome-section-heading {
   max-width: 760px;
-  margin: 0 auto 46px;
-  text-align: center;
+  margin: 0 0 46px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .welcome-section-heading h2,
 .welcome-parent-copy h2,
 .welcome-final-cta h2 {
-  margin: 9px 0 13px;
+  margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2.2rem, 4vw, 3.7rem);
+  font-size: clamp(2.2rem, 4vw, 3.4rem);
   font-weight: 800;
   font-style: normal;
   line-height: 1.05;
   letter-spacing: -0.03em;
   color: var(--welcome-ink);
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .welcome-section-heading > span,
-.welcome-parent-copy > span {
+.welcome-parent-copy > p {
   display: block;
   color: var(--welcome-ink-2);
   font-size: 1.05rem;
   font-weight: 650;
   line-height: 1.65;
+  max-width: 62ch;
 }
 
-.welcome-world-grid {
+/* Meet Barsik — AI brand photos kept on main */
+.welcome-meet {
+  padding: 0;
+  background: var(--welcome-paper-2);
+}
+
+.welcome-meet-figure {
+  margin: 0;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.9fr);
+  align-items: stretch;
+  min-height: min(72vh, 720px);
 }
 
-.welcome-world-card {
-  overflow: hidden;
-  border-radius: 22px;
-  background: #fff;
-  border: 3px solid var(--welcome-ink);
-  box-shadow: 0 8px 0 color-mix(in oklab, var(--welcome-ink) 12%, transparent);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.welcome-world-card:hover {
-  transform: translateY(-8px) rotate(-0.5deg);
-  box-shadow: 0 23px 46px rgba(50, 38, 100, 0.2);
-}
-
-.welcome-world-card:nth-child(2):hover {
-  transform: translateY(-8px) rotate(0.5deg);
-}
-
-.welcome-world-card img {
+.welcome-meet-figure > img {
   width: 100%;
-  height: 205px;
-  display: block;
+  height: 100%;
+  min-height: 320px;
   object-fit: cover;
+  object-position: center 30%;
+  display: block;
 }
 
-.welcome-world-card > div {
-  position: relative;
-  min-height: 190px;
-  padding: 25px 25px 28px;
+.welcome-meet-figure figcaption {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  padding: clamp(28px, 5vw, 64px);
+  background: var(--welcome-paper);
+  border-left: 3px solid color-mix(in oklab, var(--welcome-yellow) 70%, var(--welcome-pear-edge));
 }
 
-.welcome-world-card > div > span {
-  position: absolute;
-  top: -27px;
-  right: 18px;
-  display: grid;
-  place-items: center;
-  width: 54px;
-  height: 54px;
-  color: #fff;
-  border-radius: 50%;
-  background: var(--welcome-orange);
-  border: 4px solid #fff;
+.welcome-meet-figure h2 {
+  margin: 0;
   font-family: var(--font-display);
-  font-weight: 1000;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--welcome-ink);
 }
 
-.welcome-world-card:nth-child(2) > div > span {
-  background: #3aa9dc;
-}
-
-.welcome-world-card:nth-child(3) > div > span {
-  background: var(--welcome-mint);
-}
-
-.welcome-world-card h3 {
-  margin-bottom: 8px;
-  font-family: var(--font-display);
-  font-size: 1.35rem;
-  font-weight: 1000;
-}
-
-.welcome-world-card p {
-  color: #756b8d;
-  font-size: 0.92rem;
+.welcome-meet-figure p {
+  margin: 0;
+  max-width: 36ch;
+  color: var(--welcome-ink-2);
+  font-size: 1.08rem;
   font-weight: 650;
   line-height: 1.55;
 }
 
-.welcome-features {
-  position: relative;
+.welcome-meet-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border-top: 3px solid var(--welcome-ink);
+}
+
+.welcome-meet-strip img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+  filter: saturate(1.05);
+}
+
+/* Worlds — zig-zag media rows (not 3 equal cards) */
+.welcome-world-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.welcome-world-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
+  gap: 0;
   overflow: hidden;
-  background:
-    linear-gradient(160deg, #1e6f8a 0%, #1a4f63 48%, #163d4d 100%);
+  border-radius: 22px;
+  border: 3px solid var(--welcome-ink);
+  background: #fff;
+  box-shadow: 0 8px 0 color-mix(in oklab, var(--welcome-ink) 12%, transparent);
 }
 
-.welcome-features::before,
-.welcome-features::after {
-  display: none;
-  content: none;
+.welcome-world-row.is-flip {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr);
 }
 
-.welcome-section-heading-light h2,
-.welcome-section-heading-light > p {
-  color: #fff;
+.welcome-world-row.is-flip .welcome-world-media {
+  order: 2;
 }
 
-.welcome-section-heading-light > p {
-  color: #56d9f3;
+.welcome-world-row.is-flip .welcome-world-copy {
+  order: 1;
 }
 
-.welcome-feature-grid {
+.welcome-world-media {
+  min-width: 0;
+}
+
+.welcome-world-media img {
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  object-fit: cover;
+  display: block;
+}
+
+.welcome-world-copy {
   position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  padding: clamp(22px, 3vw, 40px);
+  min-width: 0;
 }
 
-.welcome-feature-grid article {
-  position: relative;
-  min-height: 300px;
-  padding: 35px 28px 30px;
-  text-align: center;
-  border-radius: 27px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+.welcome-world-index {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--welcome-orange);
 }
 
-.welcome-feature-icon {
-  width: 70px;
-  height: 70px;
-  display: grid;
-  place-items: center;
-  margin: 0 auto 18px;
+.welcome-world-row--ice .welcome-world-index {
+  color: var(--welcome-cyan);
+}
+
+.welcome-world-row--city .welcome-world-index {
+  color: var(--welcome-mint);
+}
+
+.welcome-world-copy h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
   color: var(--welcome-ink);
-  border-radius: 18px;
-  background: var(--welcome-yellow);
-  transform: rotate(-4deg);
-  box-shadow: 0 5px 0 var(--welcome-pear-edge);
 }
 
-.welcome-feature-grid article:nth-child(2) .welcome-feature-icon {
-  background: #4ed9ee;
-  box-shadow: 0 6px 0 #2095bd;
-  transform: rotate(4deg);
-}
-
-.welcome-feature-grid article:nth-child(3) .welcome-feature-icon {
-  background: #ff8c83;
-  box-shadow: 0 6px 0 #d95756;
-}
-
-.welcome-feature-icon svg {
-  width: 36px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.welcome-feature-grid article > strong {
-  position: absolute;
-  top: 25px;
-  right: 27px;
-  color: rgba(255, 255, 255, 0.18);
-  font-family: var(--font-display);
-  font-size: 2.2rem;
-  font-weight: 1000;
-}
-
-.welcome-feature-grid h3 {
-  color: #fff;
-  font-family: var(--font-display);
-  font-size: 1.32rem;
-  font-weight: 1000;
-}
-
-.welcome-feature-grid p {
-  margin-top: 10px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.92rem;
+.welcome-world-copy p {
+  margin: 0;
+  max-width: 36ch;
+  color: var(--welcome-ink-2);
+  font-size: 0.98rem;
   font-weight: 650;
   line-height: 1.55;
 }
 
 .welcome-parents {
   background:
-    radial-gradient(circle at 0 100%, rgba(255, 219, 56, 0.25), transparent 27%),
+    radial-gradient(circle at 0 100%, color-mix(in oklab, var(--welcome-yellow) 28%, transparent), transparent 30%),
     #fffdf5;
 }
 
-.welcome-parent-card {
+.welcome-parent-band {
   max-width: 960px;
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 200px minmax(0, 1fr);
   align-items: center;
-  gap: 55px;
+  gap: 40px;
   margin: 0 auto;
-  padding: 50px 60px;
-  border-radius: 38px;
+  padding: 42px 48px;
+  border-radius: 28px;
   background: #fff;
-  border: 3px solid #f2eaff;
-  box-shadow: 0 18px 48px rgba(54, 36, 109, 0.13);
+  border: 3px solid var(--welcome-ink);
+  box-shadow: 0 10px 0 color-mix(in oklab, var(--welcome-mint) 35%, var(--welcome-ink));
 }
 
 .welcome-parent-shield {
-  position: relative;
-  width: 220px;
-  height: 220px;
+  width: 160px;
+  height: 160px;
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--welcome-ink);
   border-radius: 50%;
-  background: linear-gradient(145deg, #a67beb, #6041bd);
-  box-shadow: 0 12px 0 #432790, 0 24px 40px rgba(67, 39, 144, 0.23);
-}
-
-.welcome-parent-shield::before,
-.welcome-parent-shield::after {
-  position: absolute;
-  color: var(--welcome-yellow);
-  font-size: 2.2rem;
-  content: '✦';
-}
-
-.welcome-parent-shield::before {
-  top: 0;
-  right: 9px;
-}
-
-.welcome-parent-shield::after {
-  bottom: 10px;
-  left: 2px;
-  font-size: 1.5rem;
+  background: var(--welcome-mint);
+  border: 3px solid var(--welcome-ink);
+  box-shadow: 0 8px 0 color-mix(in oklab, var(--welcome-mint) 55%, #1c2430);
 }
 
 .welcome-parent-shield svg {
-  width: 105px;
+  width: 78px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -689,24 +657,22 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 23px;
+  margin-top: 20px;
+  padding: 0;
   list-style: none;
 }
 
 .welcome-parent-copy li {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 13px;
+  padding: 8px 14px;
   border-radius: 999px;
-  color: #554778;
-  background: #f5f0ff;
+  color: var(--welcome-ink);
+  background: color-mix(in oklab, var(--welcome-yellow) 35%, #fff);
+  border: 2px solid var(--welcome-ink);
   font-size: 0.82rem;
-  font-weight: 900;
-}
-
-.welcome-parent-copy li b {
-  color: #26ad66;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .welcome-final-cta {
@@ -722,14 +688,10 @@
   margin: 0 auto;
 }
 
-.welcome-final-cta > div > span {
-  font-size: 3rem;
-}
-
 .welcome-final-cta h2 {
-  color: #fff;
-  -webkit-text-stroke: 6px var(--welcome-stroke);
-  paint-order: stroke fill;
+  color: var(--welcome-ink);
+  -webkit-text-stroke: 0;
+  paint-order: normal;
 }
 
 .welcome-final-cta p {
@@ -750,8 +712,8 @@
   justify-content: space-between;
   gap: 24px;
   padding: 22px max(28px, calc((100vw - 1180px) / 2));
-  color: rgba(255, 255, 255, 0.67);
-  background: #20155c;
+  color: color-mix(in oklab, #fff 78%, transparent);
+  background: var(--welcome-ink);
 }
 
 .welcome-brand-footer {
@@ -760,7 +722,11 @@
 
 .welcome-brand-footer .welcome-brand-word {
   font-size: 1.4rem;
-  -webkit-text-stroke-width: 3px;
+  color: #fff;
+}
+
+.welcome-brand-footer .welcome-brand-paw {
+  background: var(--welcome-yellow);
 }
 
 .welcome-footer p {
@@ -773,6 +739,7 @@
   color: #fff;
   font-size: 0.82rem;
   font-weight: 900;
+  white-space: nowrap;
 }
 
 .welcome-screen button:focus-visible,
@@ -804,8 +771,14 @@
     width: min(560px, 55vw);
   }
 
-  .welcome-world-card img {
-    height: 180px;
+  .welcome-meet-figure {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .welcome-meet-figure figcaption {
+    border-left: none;
+    border-top: 3px solid color-mix(in oklab, var(--welcome-yellow) 70%, var(--welcome-pear-edge));
   }
 }
 
@@ -819,13 +792,11 @@
   .welcome-brand-paw {
     width: 36px;
     height: 36px;
-    font-size: 19px;
   }
 
   .welcome-brand-word {
     padding-right: 7px;
     font-size: 1.35rem;
-    -webkit-text-stroke-width: 3px;
   }
 
   .welcome-brand-sub,
@@ -833,9 +804,7 @@
     display: none;
   }
 
-  .welcome-nav-tools {
-    gap: 6px;
-  }
+  .welcome-nav-tools { gap: 6px; }
 
   .welcome-lang button {
     min-width: 33px;
@@ -850,12 +819,10 @@
   }
 
   .welcome-hero {
-    min-height: 790px;
+    min-height: min(100dvh, 790px);
   }
 
-  .welcome-hero-image {
-    object-position: center 46%;
-  }
+  .welcome-hero-image { object-position: center 46%; }
 
   .welcome-hero-sky {
     background:
@@ -870,14 +837,16 @@
     text-align: center;
   }
 
-  .welcome-hero-copy {
-    width: 100%;
+  .welcome-hero-copy { width: 100%; }
+
+  .welcome-hero-brand {
+    justify-content: center;
+    font-size: clamp(2.2rem, 11vw, 3.4rem);
   }
 
   .welcome-hero h1 {
     margin: 11px 0 12px;
-    font-size: clamp(2.65rem, 12vw, 4rem);
-    -webkit-text-stroke-width: 6px;
+    font-size: clamp(1.85rem, 8vw, 2.6rem);
   }
 
   .welcome-hero-lead {
@@ -902,61 +871,41 @@
     margin-top: 18px;
   }
 
-  .welcome-scroll-cue {
-    bottom: 39px;
-  }
+  .welcome-scroll-cue { bottom: 39px; }
+  .welcome-section { padding: 70px 18px; }
+  .welcome-section-heading { margin-bottom: 32px; }
 
-  .welcome-section {
-    padding: 70px 18px;
-  }
-
-  .welcome-section-heading {
-    margin-bottom: 32px;
-  }
-
-  .welcome-world-grid,
-  .welcome-feature-grid {
+  .welcome-world-row,
+  .welcome-world-row.is-flip {
     grid-template-columns: 1fr;
   }
 
-  .welcome-world-card {
-    max-width: 520px;
-    margin: 0 auto;
+  .welcome-world-row.is-flip .welcome-world-media,
+  .welcome-world-row.is-flip .welcome-world-copy {
+    order: initial;
   }
 
-  .welcome-world-card img {
-    height: 210px;
+  .welcome-world-media img {
+    min-height: 200px;
+    max-height: 240px;
   }
 
-  .welcome-feature-grid {
-    max-width: 520px;
-    margin: 0 auto;
-  }
-
-  .welcome-feature-grid article {
-    min-height: 250px;
-  }
-
-  .welcome-parent-card {
+  .welcome-parent-band {
     grid-template-columns: 1fr;
-    gap: 35px;
-    padding: 40px 25px;
+    gap: 28px;
+    padding: 32px 22px;
     text-align: center;
   }
 
   .welcome-parent-shield {
-    width: 170px;
-    height: 170px;
+    width: 120px;
+    height: 120px;
     margin: 0 auto;
   }
 
-  .welcome-parent-shield svg {
-    width: 80px;
-  }
-
-  .welcome-parent-copy ul {
-    justify-content: center;
-  }
+  .welcome-parent-shield svg { width: 58px; }
+  .welcome-parent-copy p { margin-inline: auto; }
+  .welcome-parent-copy ul { justify-content: center; }
 
   .welcome-footer {
     flex-direction: column;
@@ -965,33 +914,12 @@
 }
 
 @media (max-width: 430px) {
-  .welcome-hero {
-    min-height: 740px;
-  }
-
-  .welcome-hero-content {
-    padding-top: 32px;
-  }
-
-  .welcome-hero-eyebrow {
-    font-size: 0.68rem;
-  }
-
-  .welcome-hero h1 {
-    font-size: 2.65rem;
-  }
-
-  .welcome-hero-lead {
-    font-size: 0.92rem;
-  }
-
-  .welcome-secondary {
-    min-height: 46px;
-  }
-
-  .welcome-world-card img {
-    height: 175px;
-  }
+  .welcome-hero { min-height: min(100dvh, 740px); }
+  .welcome-hero-content { padding-top: 32px; }
+  .welcome-hero h1 { font-size: 1.85rem; }
+  .welcome-hero-lead { font-size: 0.92rem; }
+  .welcome-secondary { min-height: 46px; }
+  .welcome-meet-strip img { aspect-ratio: 4 / 5; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1001,8 +929,10 @@
     animation: none;
   }
 
-  .welcome-world-card,
+  .welcome-world-row,
   .welcome-play,
+  .welcome-secondary,
+  .welcome-settings,
   [data-reveal] {
     transition: none;
   }
