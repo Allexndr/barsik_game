@@ -8,7 +8,7 @@ Do not regenerate per page — amend this file when the system grows.
 playful (kids adventure · family · soft-tactile · bilingual RU/ҚАЗ)
 
 ## Macrostructure family
-- Marketing (Welcome): **photographic fold** — full-bleed hero image + left copy band; worlds as tinted accent cards; parents band; single CTA close.
+- Marketing (Welcome): **photographic journey** — full-bleed AI hero · brand photo meet band · zig-zag world rows · compact how-to · parents · CTA. No 3-equal feature card grid.
 - App hub (map / friends / city / shop): **workbench** — sticky nav + one job per screen; no marketing hero.
 - Level HUD: keep existing MissionScreen chrome (do not redesign mid-session).
 
@@ -23,7 +23,8 @@ playful (kids adventure · family · soft-tactile · bilingual RU/ҚАЗ)
 - `--color-mint`      oklch(72% 0.12 150)   /* forest world */
 - `--color-ice`       oklch(78% 0.08 230)   /* ice world */
 - `--color-focus`     oklch(55% 0.16 235)
-- **Banned:** purple/violet gradients, italic display headers, glassmorphism, gradient text, emoji-as-ornament replacing icons.
+- **Banned:** purple/violet gradients, italic display headers, glassmorphism, gradient text, emoji-as-ornament replacing icons, indigo accents, decorative left accent stripes, 3-equal icon feature cards.
+- **Keep on Welcome:** AI landing hero (`landing_hero_*.webp`) + brand AI photos (`brand/barsik_*.jpg`).
 
 ## Typography
 - Display: **Baloo 2** 700/800 (already shipped; rounded kids display). Style: **roman only** — never italic headers.
