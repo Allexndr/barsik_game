@@ -2,6 +2,10 @@
 
 Meta-harness вокруг Claude Code / Cursor MCP. Не часть игрового рантайма.
 
+Визуальный офис агентов (Michael + Claude workers на этаже) — отдельно:
+[MUNDER_OPS.md](./MUNDER_OPS.md). Ruflo = swarm/tasks/memory; Munder = PTY-исполнители.
+Не сливать в один процесс.
+
 ## Уже подключено
 
 | Слой | Где |

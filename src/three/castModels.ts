@@ -34,6 +34,11 @@ export const CAST_CHAR_GLB = {
   kit_cat: 'pets/s1_kit_cat.glb',
 };
 
+/**
+ * When Meshy `*_rigged.glb` lands, `loadCharModel` prefers it automatically
+ * for any plain `name.glb` cast entry above.
+ */
+
 // Без аннотации `Record<string, string>` намеренно: с ней `keyof typeof`
 // вырождается в `string`, и опечатка в ключе расстановки проходит
 // тайпчек, а объект молча не появляется в сцене. Выведенный тип

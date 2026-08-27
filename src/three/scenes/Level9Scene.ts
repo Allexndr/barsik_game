@@ -660,7 +660,7 @@ export class Level9Scene extends BaseLevelScene {
 
     await this.placeProps(loader, [
       { key: 'map_scroll', opts: { x: -3.2, z: SPAWN_Z - 4, maxSize: 0.6, y: 0.15 } },
-      { key: 'lantern', opts: { x: 3.5, z: SPAWN_Z - 3.5, maxSize: 0.7 } },
+      { key: 'lantern', opts: { x: 3.5, z: SPAWN_Z - 3.5, height: 1.4 } },
       { key: 'pinecone', opts: { x: 2.2, z: SPAWN_Z - 2, maxSize: 0.3 } },
       { key: 'stump', opts: { x: -5.5, z: -14, maxSize: 1.1 } },
       { key: 'mushroom', opts: { x: 6.2, z: -9, maxSize: 0.5 } },
@@ -668,8 +668,8 @@ export class Level9Scene extends BaseLevelScene {
       // the thing the level asks for, one that cannot be picked is a trap —
       // the same defect as L7's twelve decorative photographs.
       { key: 'flowers', opts: { x: 5.5, z: -30, maxSize: 0.7 } },
-      { key: 'lantern_wood', opts: { x: -4.6, z: CHEST_Z + 5, maxSize: 0.7 } },
-      { key: 'lantern_wood', opts: { x: 4.6, z: CHEST_Z + 5, maxSize: 0.7 } },
+      { key: 'lantern_wood', opts: { x: -4.6, z: CHEST_Z + 5, height: 1.4 } },
+      { key: 'lantern_wood', opts: { x: 4.6, z: CHEST_Z + 5, height: 1.4 } },
     ]);
     await placeAmbientCritters(this.scene, loader, [
       { key: 'squirrel', x: 5, z: -6, rotY: -1.0, h: 0.9 },

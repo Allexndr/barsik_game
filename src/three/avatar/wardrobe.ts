@@ -14,7 +14,7 @@ import type { AvatarSocket } from './BarsikAvatar';
  * sits and it stays attached while the body moves.
  */
 
-export type WardrobeCategory = 'head' | 'face' | 'neck' | 'back' | 'hands' | 'feet' | 'tail' | 'color';
+export type WardrobeCategory = 'head' | 'face' | 'neck' | 'body' | 'back' | 'hands' | 'feet' | 'tail' | 'color';
 
 export interface WardrobeItem {
   id: string;
@@ -28,6 +28,8 @@ export interface WardrobeItem {
   build?: () => THREE.Object3D;
   /** Recolour items patch the avatar's palette. */
   look?: { fur?: number; hoodie?: number; trousers?: number; spots?: number };
+  /** Toggle procedural body garments (hoodie / jeans). */
+  bodyWear?: { hoodie?: boolean; jeans?: boolean };
 }
 
 const mat = (color: number, rough = 0.8, metal = 0) =>
@@ -350,8 +352,10 @@ export const WARDROBE: WardrobeItem[] = [
   // ── Head ────────────────────────────────────────────────
   { id: 'cap_green', name: { ru: 'Зелёная кепка', kk: 'Жасыл кепка' }, category: 'head', socket: 'head', cost: 0, rarity: 'common', build: () => cap(0x3dcc6e, 0x2fae5b) },
   { id: 'cap_red', name: { ru: 'Красная кепка', kk: 'Қызыл кепка' }, category: 'head', socket: 'head', cost: 12, rarity: 'common', build: () => cap(0xe74c3c, 0xc0392b) },
-  /** Brand canon (`photos/` trio): blue tubeteika with gold trim — free starter. */
-  { id: 'tubeteika_blue', name: { ru: 'Тюбетейка', kk: 'Төбетей' }, category: 'head', socket: 'head', cost: 0, rarity: 'common', build: () => tubeteika(0x1a3a6e, 0xf0d24a) },
+  /** Packaging / client 26.08: red tubeteika with gold trim — free starter. */
+  { id: 'tubeteika_red', name: { ru: 'Красная тюбетейка', kk: 'Қызыл төбетей' }, category: 'head', socket: 'head', cost: 0, rarity: 'common', build: () => tubeteika(0xc0392b, 0xf0d24a) },
+  /** Alternate trio look: blue tubeteika. */
+  { id: 'tubeteika_blue', name: { ru: 'Синяя тюбетейка', kk: 'Көк төбетей' }, category: 'head', socket: 'head', cost: 0, rarity: 'common', build: () => tubeteika(0x1a3a6e, 0xf0d24a) },
   { id: 'cap_blue', name: { ru: 'Синяя кепка', kk: 'Көк кепка' }, category: 'head', socket: 'head', cost: 12, rarity: 'common', build: () => cap(0x4a90d9, 0x2e6fb0) },
   { id: 'beanie_yellow', name: { ru: 'Жёлтая шапочка', kk: 'Сары бөрік' }, category: 'head', socket: 'head', cost: 18, rarity: 'common', build: () => beanie(0xf1c40f, 0xfff3b0) },
   { id: 'beanie_pink', name: { ru: 'Розовая шапочка', kk: 'Қызғылт бөрік' }, category: 'head', socket: 'head', cost: 18, rarity: 'common', build: () => beanie(0xfd79a8, 0xffe0ee) },
@@ -363,6 +367,8 @@ export const WARDROBE: WardrobeItem[] = [
   { id: 'crown_gold', name: { ru: 'Золотая корона', kk: 'Алтын тәж' }, category: 'head', socket: 'head', cost: 120, rarity: 'epic', build: () => crown(0xf1c40f, 0x74b9ff) },
 
   // ── Face ────────────────────────────────────────────────
+  /** Packaging: clear lenses like on the box. */
+  { id: 'glasses_clear', name: { ru: 'Прозрачные очки', kk: 'Мөлдір көзілдірік' }, category: 'face', socket: 'face', cost: 0, rarity: 'common', build: () => glasses(0xdfe6ed, 0xf5fbff, 0.14) },
   { id: 'glasses_yellow', name: { ru: 'Жёлтые очки', kk: 'Сары көзілдірік' }, category: 'face', socket: 'face', cost: 0, rarity: 'common', build: () => glasses(0xf1c40f, 0xfff8d0, 0.4) },
   { id: 'glasses_round', name: { ru: 'Круглые очки', kk: 'Дөңгелек көзілдірік' }, category: 'face', socket: 'face', cost: 20, rarity: 'common', build: () => glasses(0xb0834a, 0xeaf6ff, 0.3) },
   { id: 'sunglasses', name: { ru: 'Тёмные очки', kk: 'Қара көзілдірік' }, category: 'face', socket: 'face', cost: 30, rarity: 'rare', build: () => glasses(0x2d3436, 0x1e272e, 0.85) },
@@ -401,11 +407,16 @@ export const WARDROBE: WardrobeItem[] = [
   { id: 'tail_bow_pink', name: { ru: 'Бантик на хвост', kk: 'Құйрыққа бантик' }, category: 'tail', socket: 'tail', cost: 14, rarity: 'common', build: () => tailBow(0xfd79a8) },
   { id: 'tail_bow_gold', name: { ru: 'Золотой бантик', kk: 'Алтын бантик' }, category: 'tail', socket: 'tail', cost: 48, rarity: 'rare', build: () => tailBow(0xf1c40f) },
 
+  // ── Body (procedural garments on fur base) ──────────────
+  { id: 'hoodie_red', name: { ru: 'Красное худи', kk: 'Қызыл худи' }, category: 'body', socket: null, cost: 0, rarity: 'common', bodyWear: { hoodie: true }, look: { hoodie: 0xe74c3c } },
+  { id: 'hoodie_green', name: { ru: 'Зелёное худи', kk: 'Жасыл худи' }, category: 'body', socket: null, cost: 0, rarity: 'common', bodyWear: { hoodie: true }, look: { hoodie: 0x3dcc6e } },
+  { id: 'jeans_blue', name: { ru: 'Синие джинсы', kk: 'Көк джинсы' }, category: 'body', socket: null, cost: 0, rarity: 'common', bodyWear: { jeans: true }, look: { trousers: 0x4a6fa5 } },
+  { id: 'hoodie_purple', name: { ru: 'Фиолетовая толстовка', kk: 'Күлгін толстовка' }, category: 'body', socket: null, cost: 22, rarity: 'common', bodyWear: { hoodie: true }, look: { hoodie: 0xa29bfe } },
+  { id: 'hoodie_orange', name: { ru: 'Оранжевая толстовка', kk: 'Қызғылт сары толстовка' }, category: 'body', socket: null, cost: 22, rarity: 'common', bodyWear: { hoodie: true }, look: { hoodie: 0xe67e22 } },
+  { id: 'hoodie_pink', name: { ru: 'Розовая толстовка', kk: 'Қызғылт толстовка' }, category: 'body', socket: null, cost: 22, rarity: 'common', bodyWear: { hoodie: true }, look: { hoodie: 0xfd79a8 } },
+
   // ── Colours ─────────────────────────────────────────────
   // Recolours rather than meshes: the same rig, a different Barsik.
-  { id: 'hoodie_purple', name: { ru: 'Фиолетовая толстовка', kk: 'Күлгін толстовка' }, category: 'color', socket: null, cost: 22, rarity: 'common', look: { hoodie: 0xa29bfe } },
-  { id: 'hoodie_orange', name: { ru: 'Оранжевая толстовка', kk: 'Қызғылт сары толстовка' }, category: 'color', socket: null, cost: 22, rarity: 'common', look: { hoodie: 0xe67e22 } },
-  { id: 'hoodie_pink', name: { ru: 'Розовая толстовка', kk: 'Қызғылт толстовка' }, category: 'color', socket: null, cost: 22, rarity: 'common', look: { hoodie: 0xfd79a8 } },
   { id: 'fur_snow', name: { ru: 'Снежная шубка', kk: 'Қарлы жүн' }, category: 'color', socket: null, cost: 60, rarity: 'rare', look: { fur: 0xffffff, spots: 0xbcd3e6 } },
   { id: 'fur_sand', name: { ru: 'Песочная шубка', kk: 'Құмды жүн' }, category: 'color', socket: null, cost: 60, rarity: 'rare', look: { fur: 0xf0d9b5, spots: 0xb08a5a } },
   { id: 'fur_night', name: { ru: 'Ночная шубка', kk: 'Түнгі жүн' }, category: 'color', socket: null, cost: 140, rarity: 'epic', look: { fur: 0x6c7a9c, spots: 0x2d3550 } },
@@ -417,6 +428,7 @@ export const CATEGORY_LABEL: Record<WardrobeCategory, { ru: string; kk: string }
   head: { ru: 'Голова', kk: 'Бас' },
   face: { ru: 'Очки', kk: 'Көзілдірік' },
   neck: { ru: 'Шея', kk: 'Мойын' },
+  body: { ru: 'Одежда', kk: 'Киім' },
   back: { ru: 'Спина', kk: 'Арқа' },
   hands: { ru: 'В лапах', kk: 'Табанда' },
   feet: { ru: 'Обувь', kk: 'Аяқкиім' },

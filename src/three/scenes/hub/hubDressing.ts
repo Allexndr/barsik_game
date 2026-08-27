@@ -15,7 +15,7 @@ import { fitHeight, fitMaxSize } from '../../modelUtils';
 import type { LocationId } from './locations';
 
 export type HubDressingSpot = {
-  /** Prefer first existing URL (Hyper3D → Meshy). */
+  /** Prefer first existing URL (Meshy/base → Hyper3D fallback). */
   urls: string[];
   kind: 'prop' | 'char';
   x: number;
@@ -29,7 +29,8 @@ const H = '/assets/models/hub';
 const C = '/assets/models/chars';
 const G = '/assets/models/gallery';
 
-const landmark = (hyper: string, meshy: string) => [`${H}/${hyper}`, `${H}/${meshy}`];
+/** Prefer Meshy/base landmark over Hyper3D mush. */
+const landmark = (meshy: string, hyper: string) => [`${H}/${meshy}`, `${H}/${hyper}`];
 
 export const HUB_DRESSING: Record<LocationId, HubDressingSpot[]> = {
   arbat: [
@@ -61,7 +62,7 @@ export const HUB_DRESSING: Record<LocationId, HubDressingSpot[]> = {
     { urls: [`${C}/zhuldyz.glb`], kind: 'char', x: 3.0, z: -20, rotY: -0.4, height: 1.3 },
   ],
   park28: [
-    { urls: landmark('hub_cathedral_hyper3d.glb', 'hub_cathedral.glb'), kind: 'prop', x: 20, z: -22, height: 9.5 },
+    { urls: landmark('hub_cathedral.glb', 'hub_cathedral_hyper3d.glb'), kind: 'prop', x: 20, z: -22, height: 9.5 },
     { urls: [`${H}/hub_panfilov_monument.glb`], kind: 'prop', x: -22, z: 22, height: 4.5 },
     { urls: [`${H}/hub_park_bench.glb`], kind: 'prop', x: 6, z: 8, rotY: Math.PI, maxSize: 2.0 },
     { urls: [`${H}/hub_park_bench.glb`], kind: 'prop', x: -14, z: -8, rotY: 0.8, maxSize: 2.0 },
@@ -72,7 +73,7 @@ export const HUB_DRESSING: Record<LocationId, HubDressingSpot[]> = {
     { urls: [`${C}/hedgehog.glb`], kind: 'char', x: 12, z: 14, rotY: -1.8, height: 0.55 },
   ],
   kbtu: [
-    { urls: landmark('hub_university_hyper3d.glb', 'hub_university.glb'), kind: 'prop', x: 0, z: -12, height: 11 },
+    { urls: landmark('hub_university.glb', 'hub_university_hyper3d.glb'), kind: 'prop', x: 0, z: -12, height: 11 },
     { urls: [`${H}/hub_student.glb`], kind: 'char', x: -8, z: 18, rotY: 0.2, height: 1.35 },
     { urls: [`${H}/hub_school_kid.glb`], kind: 'char', x: 10, z: 16, rotY: -2.0, height: 1.2 },
     { urls: [`${H}/hub_student.glb`], kind: 'char', x: 6, z: 26, rotY: 2.8, height: 1.35 },
@@ -82,7 +83,7 @@ export const HUB_DRESSING: Record<LocationId, HubDressingSpot[]> = {
     { urls: [`${C}/squirrel.glb`], kind: 'char', x: 30, z: 8, rotY: -2.4, height: 0.6 },
   ],
   tyuz: [
-    { urls: landmark('hub_theatre_hyper3d.glb', 'hub_theatre.glb'), kind: 'prop', x: -22, z: -20, height: 8.5 },
+    { urls: landmark('hub_theatre.glb', 'hub_theatre_hyper3d.glb'), kind: 'prop', x: -22, z: -20, height: 8.5 },
     { urls: [`${H}/hub_poster_stand.glb`], kind: 'prop', x: -12, z: -8, rotY: 0.6, maxSize: 1.8 },
     { urls: [`${H}/hub_street_artist.glb`], kind: 'char', x: 8, z: 6, rotY: -0.8, height: 1.35 },
     { urls: [`${H}/hub_ice_cream_cart.glb`], kind: 'prop', x: 16, z: -10, rotY: 2.0, maxSize: 2.0 },
@@ -101,27 +102,34 @@ export async function loadHubDressing(
 ): Promise<THREE.Object3D[]> {
   const spots = HUB_DRESSING[locationId] ?? [];
   const placed: THREE.Object3D[] = [];
-  for (const spot of spots) {
-    let gltf = null;
-    for (const url of spot.urls) {
-      gltf = await loadGlb(loader, url);
-      if (gltf) break;
-    }
-    if (!gltf) continue;
-    const node = gltf.scene;
-    if (spot.height !== undefined) fitHeight(node, spot.height);
-    else if (spot.maxSize !== undefined) fitMaxSize(node, spot.maxSize);
-    node.position.set(spot.x, 0, spot.z);
-    if (spot.rotY !== undefined) node.rotation.y = spot.rotY;
-    const box = new THREE.Box3().setFromObject(node);
-    node.position.y = -box.min.y;
-    scene.add(node);
-    placed.push(node);
+  // Параллельно: на Арбате ~15 GLB по 5–9 МБ — подряд это минуты пустого экрана.
+  const results = await Promise.all(
+    spots.map(async (spot) => {
+      let gltf = null;
+      for (const url of spot.urls) {
+        gltf = await loadGlb(loader, url);
+        if (gltf) break;
+      }
+      if (!gltf) return null;
+      const node = gltf.scene;
+      if (spot.height !== undefined) fitHeight(node, spot.height);
+      else if (spot.maxSize !== undefined) fitMaxSize(node, spot.maxSize);
+      node.position.set(spot.x, 0, spot.z);
+      if (spot.rotY !== undefined) node.rotation.y = spot.rotY;
+      const box = new THREE.Box3().setFromObject(node);
+      node.position.y = -box.min.y;
+      return { node, spot };
+    }),
+  );
+  for (const item of results) {
+    if (!item) continue;
+    scene.add(item.node);
+    placed.push(item.node);
     colliders.push({
       kind: 'circle',
-      x: spot.x,
-      z: spot.z,
-      r: spot.kind === 'char' ? 0.55 : 1.35,
+      x: item.spot.x,
+      z: item.spot.z,
+      r: item.spot.kind === 'char' ? 0.55 : 1.35,
     });
   }
   return placed;

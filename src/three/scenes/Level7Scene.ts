@@ -447,9 +447,9 @@ export class Level7Scene extends BaseLevelScene {
     await this.placeProps(loader, [
       { key: 'camera', opts: { x: 2.4, z: SPAWN_Z - 5, maxSize: 0.55, y: 0.05 } },
       { key: 'mushroom_cottage', opts: { x: -14, z: -22, maxSize: 2.2, rotY: 0.4 } },
-      { key: 'lantern', opts: { x: HIDES[0].x + 2.4, z: HIDES[0].z + 1.4, maxSize: 0.65 } },
-      { key: 'lantern_wood', opts: { x: HIDES[1].x - 2.2, z: HIDES[1].z + 1.6, maxSize: 0.65 } },
-      { key: 'lantern_hang', opts: { x: HIDES[2].x + 2.6, z: HIDES[2].z + 1.2, maxSize: 0.6, y: 1.7 } },
+      { key: 'lantern', opts: { x: HIDES[0].x + 2.4, z: HIDES[0].z + 1.4, height: 1.35 } },
+      { key: 'lantern_wood', opts: { x: HIDES[1].x - 2.2, z: HIDES[1].z + 1.6, height: 1.35 } },
+      { key: 'lantern_hang', opts: { x: HIDES[2].x + 2.6, z: HIDES[2].z + 1.2, height: 1.0, y: 2.0 } },
       { key: 'berry', opts: { x: 6, z: -9, maxSize: 0.35 } },
       { key: 'stump', opts: { x: -8, z: -26, maxSize: 1.1 } },
     ]);

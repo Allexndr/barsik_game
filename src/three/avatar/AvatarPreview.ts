@@ -81,7 +81,7 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
   const turntable = new THREE.Group();
   scene.add(turntable);
 
-  const avatar = createBarsikAvatar({ height: 1.45 });
+  const avatar = createBarsikAvatar({ height: 1.1 });
   turntable.add(avatar.root);
 
   const baseLook: AvatarLook = avatar.getLook();

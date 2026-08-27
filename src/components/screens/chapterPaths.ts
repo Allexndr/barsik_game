@@ -217,34 +217,113 @@ export function samplePathProgress(path: PathPoint[], s: number): PathPoint {
   return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
 }
 
-/** Landscape desktop path for chapter 1 (fruit forest) — left→right. */
+/**
+ * Dense samples along a path between two progress values (inclusive).
+ * Used so map route strokes follow the painted dirt instead of pin-to-pin chords.
+ */
+export function samplePathRange(
+  path: PathPoint[],
+  s0: number,
+  s1: number,
+  samplesPerGap = 14,
+): PathPoint[] {
+  if (!path.length) return [];
+  const a = Math.max(0, Math.min(1, s0));
+  const b = Math.max(0, Math.min(1, s1));
+  if (Math.abs(b - a) < 1e-6) return [samplePathProgress(path, a)];
+  const steps = Math.max(2, Math.round(Math.abs(b - a) * (path.length - 1) * (samplesPerGap / 4)));
+  const out: PathPoint[] = [];
+  for (let k = 0; k <= steps; k++) {
+    const s = a + (b - a) * (k / steps);
+    out.push(samplePathProgress(path, s));
+  }
+  return out;
+}
+
+/** Catmull-Rom → cubic Bézier SVG `d` (absolute coords already in SVG space). */
+export function pointsToSmoothPathD(points: PathPoint[]): string {
+  if (points.length === 0) return '';
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  if (points.length === 2) {
+    return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+  }
+
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i === 0 ? i : i - 1];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] ?? p2;
+    // Catmull-Rom to cubic (tension 1)
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${c1x} ${c1y} ${c2x} ${c2y} ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
+/**
+ * SVG path `d` for the dirt route between pin progresses.
+ * `toSvg` maps normalized 0..1 path points into SVG coordinates.
+ */
+export function routePathD(
+  path: PathPoint[],
+  pinCount: number,
+  fromPin: number,
+  toPin: number,
+  toSvg: (p: PathPoint) => PathPoint,
+  samplesPerGap = 14,
+): string {
+  if (!path.length || pinCount < 1 || toPin <= fromPin) return '';
+  const pts: PathPoint[] = [];
+  for (let i = fromPin; i < toPin; i++) {
+    const s0 = pinCount > 1 ? i / (pinCount - 1) : 0;
+    const s1 = pinCount > 1 ? (i + 1) / (pinCount - 1) : 0;
+    const seg = samplePathRange(path, s0, s1, samplesPerGap);
+    for (let k = 0; k < seg.length; k++) {
+      if (i > fromPin && k === 0) continue;
+      pts.push(toSvg(seg[k]));
+    }
+  }
+  return pointsToSmoothPathD(pts);
+}
+
+/** Landscape desktop path for chapter 1 (fruit forest) — left→right along dirt. */
 export const CHAPTER1_DESKTOP_PATH: PathPoint[] = [
-  { x: 0.027, y: 0.52 },
-  { x: 0.062, y: 0.64 },
-  { x: 0.099, y: 0.63 },
-  { x: 0.134, y: 0.572 },
-  { x: 0.169, y: 0.542 },
-  { x: 0.207, y: 0.523 },
-  { x: 0.242, y: 0.46 },
-  { x: 0.279, y: 0.39 },
-  { x: 0.314, y: 0.385 },
-  { x: 0.349, y: 0.4 },
-  { x: 0.387, y: 0.472 },
-  { x: 0.422, y: 0.568 },
-  { x: 0.457, y: 0.586 },
-  { x: 0.494, y: 0.587 },
-  { x: 0.529, y: 0.574 },
-  { x: 0.567, y: 0.557 },
-  { x: 0.602, y: 0.526 },
-  { x: 0.637, y: 0.513 },
-  { x: 0.674, y: 0.535 },
-  { x: 0.709, y: 0.564 },
-  { x: 0.744, y: 0.605 },
-  { x: 0.782, y: 0.607 },
-  { x: 0.817, y: 0.601 },
-  { x: 0.854, y: 0.583 },
-  { x: 0.889, y: 0.519 },
-  { x: 0.924, y: 0.425 },
-  { x: 0.962, y: 0.4 },
-  { x: 0.997, y: 0.37 },
+  { x: 0.02, y: 0.72 },
+  { x: 0.05, y: 0.70 },
+  { x: 0.08, y: 0.67 },
+  { x: 0.11, y: 0.63 },
+  { x: 0.14, y: 0.58 },
+  { x: 0.17, y: 0.55 },
+  { x: 0.20, y: 0.53 },
+  { x: 0.23, y: 0.48 },
+  { x: 0.26, y: 0.42 },
+  { x: 0.29, y: 0.38 },
+  { x: 0.32, y: 0.37 },
+  { x: 0.35, y: 0.39 },
+  { x: 0.38, y: 0.45 },
+  { x: 0.41, y: 0.52 },
+  { x: 0.44, y: 0.56 },
+  { x: 0.47, y: 0.58 },
+  { x: 0.50, y: 0.585 },
+  { x: 0.53, y: 0.575 },
+  { x: 0.56, y: 0.555 },
+  { x: 0.59, y: 0.53 },
+  { x: 0.62, y: 0.51 },
+  { x: 0.65, y: 0.50 },
+  { x: 0.68, y: 0.52 },
+  { x: 0.71, y: 0.55 },
+  { x: 0.74, y: 0.58 },
+  { x: 0.77, y: 0.60 },
+  { x: 0.80, y: 0.595 },
+  { x: 0.83, y: 0.57 },
+  { x: 0.86, y: 0.54 },
+  { x: 0.89, y: 0.50 },
+  { x: 0.92, y: 0.45 },
+  { x: 0.95, y: 0.40 },
+  { x: 0.98, y: 0.37 },
+  { x: 0.995, y: 0.36 },
 ];

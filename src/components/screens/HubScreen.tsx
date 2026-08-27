@@ -53,6 +53,9 @@ export function HubScreen({ embedded = false }: { embedded?: boolean } = {}) {
     return (known as string[]).includes(want ?? '') ? (want as LocationId) : 'arbat';
   });
   const cameFromRef = useRef<LocationId | null>(null);
+  // Стабильный ключ: иначе новый массив friends из стора пересоздаёт сцену
+  // на каждом рендере и Арбат снова висит на пустом фоне.
+  const friendKey = friends.map((f) => f.id).join(',');
 
   const [hud, setHud] = useState<HubHud | null>(null);
   const [group, setGroup] = useState<ChatGroup>('hello');
@@ -65,6 +68,16 @@ export function HubScreen({ embedded = false }: { embedded?: boolean } = {}) {
     const scene = new HubScene(canvas);
     sceneRef.current = scene;
     const from = cameFromRef.current;
+    const friendList =
+      place === 'arbat'
+        ? friends.map((f) => {
+            const meta = SEASON1_FRIENDS.find((c) => c.id === f.id);
+            return {
+              id: f.id,
+              name: meta ? (lang === 'kk' ? meta.nameKk : meta.name) : f.name,
+            };
+          })
+        : [];
     void scene.init(
       player?.nick ?? '',
       lang,
@@ -78,24 +91,15 @@ export function HubScreen({ embedded = false }: { embedded?: boolean } = {}) {
         cameFromRef.current = place;
         setPlace(to);
       },
-      // Друзья собираются на Арбате — центральном хабе; на подлокациях их нет.
-      place === 'arbat'
-        ? friends.map((f) => {
-            const meta = SEASON1_FRIENDS.find((c) => c.id === f.id);
-            return {
-              id: f.id,
-              name: meta ? (lang === 'kk' ? meta.nameKk : meta.name) : f.name,
-            };
-          })
-        : [],
+      friendList,
     );
     return () => {
       sceneRef.current = null;
       scene.dispose();
     };
-    // Пересоздаём сцену при смене языка: реплики соседей рисуются в текстуру
-    // при получении, и на лету их не перерисовать.
-  }, [lang, player?.nick, place, friends]);
+    // friendKey, не friends: ссылка массива меняется чаще, чем состав.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- friends read via friendKey
+  }, [lang, player?.nick, place, friendKey]);
 
   const phrases = useMemo(() => CHAT_PHRASES.filter((p) => p.group === group), [group]);
 

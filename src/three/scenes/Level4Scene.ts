@@ -17,6 +17,7 @@ import { createPlushCharacter, updatePlushCharacter } from '../PlushCharacter';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeS1Prop } from '../s1Place';
 import { createRiverWater, type RiverWater } from '../RiverWater';
+import { NPC_PEER_HEIGHT } from '../worldScale';
 
 /**
  * Level 4 «Качающийся мостик» — GDD Chapter 1 Level 4, timing without a fail
@@ -579,7 +580,7 @@ export class Level4Scene extends BaseLevelScene {
     this.scene.add(cap);
 
     this.islandLantern = await placeS1Prop(loader, 'lantern_wood', {
-      x: -1.7, z: ISLAND_Z - 1.9, maxSize: 0.85,
+      x: -1.7, z: ISLAND_Z - 1.9, height: 1.4,
     });
     if (this.islandLantern) this.scene.add(this.islandLantern);
 
@@ -873,8 +874,8 @@ export class Level4Scene extends BaseLevelScene {
       { key: 'pine_tree', opts: { x: 9, z: FAR_EDGE - 4.5, maxSize: 2.4 } },
       { key: 'mushroom', opts: { x: 4.6, z: 8.5, maxSize: 0.4 } },
       { key: 'flowers', opts: { x: 3.7, z: 6.4, maxSize: 0.65 } },
-      { key: 'lantern_wood', opts: { x: -3.7, z: 5.6, maxSize: 0.7 } },
-      { key: 'lantern_wood', opts: { x: 3.6, z: FAR_EDGE - 1.4, maxSize: 0.7 } },
+      { key: 'lantern_wood', opts: { x: -3.7, z: 5.6, height: 1.35 } },
+      { key: 'lantern_wood', opts: { x: 3.6, z: FAR_EDGE - 1.4, height: 1.35 } },
     ]);
 
     // Trees on both banks. The near bank now has 20 metres of depth behind
@@ -884,7 +885,7 @@ export class Level4Scene extends BaseLevelScene {
     await this.loadProps(loader, 7, 8, 18, -34);
     await this.loadProps(loader, 6, 9, 16, 20);
 
-    const ayaGlb = await loadCharModel(loader, 'aya.glb', 1.28);
+    const ayaGlb = await loadCharModel(loader, 'aya.glb', NPC_PEER_HEIGHT);
     const ayaGroup = ayaGlb ?? createPlushCharacter(AYA_LOOK);
     ayaGroup.position.set(0, 0, AYA_Z);
     ayaGroup.rotation.y = Math.PI; // face the bridge, and the arriving player

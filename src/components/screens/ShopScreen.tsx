@@ -11,7 +11,7 @@ import './meta-screen.css';
 import './ShopScreen.css';
 
 const TABS: Array<WardrobeCategory | 'all'> = [
-  'all', 'head', 'face', 'neck', 'back', 'hands', 'feet', 'tail', 'color',
+  'all', 'body', 'head', 'face', 'neck', 'back', 'hands', 'feet', 'tail', 'color',
 ];
 
 /**
@@ -23,6 +23,9 @@ const TABS: Array<WardrobeCategory | 'all'> = [
  * the character straight away whether or not it has been bought. Trying before
  * buying is the whole point, so the price only comes up once the child decides
  * to keep the look.
+ *
+ * Meshy full-body look swaps (pack / nude / explorer / …) were removed: they
+ * put a different character on the stand and read as a broken Barsik.
  */
 export function ShopScreen() {
   const stars = useGameStore((s) => s.stars);
@@ -81,7 +84,15 @@ export function ShopScreen() {
       if (current.includes(id)) return current.filter((x) => x !== id);
       const sameSlot = current.filter((x) => {
         const other = WARDROBE_BY_ID.get(x);
-        return other ? other.category !== item.category : false;
+        if (!other) return false;
+        // Hoodie + jeans share category `body` but stack together.
+        if (item.category === 'body' && other.category === 'body') {
+          const conflict =
+            (!!item.bodyWear?.hoodie && !!other.bodyWear?.hoodie)
+            || (!!item.bodyWear?.jeans && !!other.bodyWear?.jeans);
+          return !conflict;
+        }
+        return other.category !== item.category;
       });
       return [...sameSlot, id];
     });

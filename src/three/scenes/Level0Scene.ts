@@ -6,20 +6,18 @@ import {
   butterfly,
   bush,
   tulip,
-  loadPropModel,
-  loadCharModel,
-  loadGlb,
   mountain,
+  loadPropModel,
 } from './BaseLevelScene';
 import { AudioManager } from '@/audio/AudioManager';
 import { createGameGltfLoader } from '../createGameGltfLoader';
-import { placeAmbientCritters } from '../s1Place';
+import { loadCastPropModel, placeAmbientCritters } from '../s1Place';
+import { fitHeight, fitMaxSize, groundY } from '../modelUtils';
 import { createRiverWater, type RiverWater } from '../RiverWater';
-import { CAST_PROP_GLB } from '../castModels';
-import { fitHeight, fitMaxSize } from '../modelUtils';
 import {
   buildYurtInterior,
   buildAnswerPads,
+  dressYurtCushions,
   YURT_INSIDE,
   INSIDE_R,
   roofHeightAt,
@@ -102,7 +100,9 @@ function routeX(z: number) {
 const LANTERNS: Array<{ x: number; z: number; rotZ: number }> = [
   { x: routeX(8) + 2.2, z: 8, rotZ: 1.35 },
   { x: routeX(-2) - 3.4, z: -2, rotZ: -1.5 },
-  { x: routeX(-13) + 4.1, z: -13, rotZ: 1.2 },
+  // Before the crossing (CROSSING_FROM −14). At z −13 the third lantern sat on
+  // the near bank slope and read as half in the water.
+  { x: routeX(-7) + 3.8, z: -7, rotZ: 1.2 },
 ];
 
 /**
@@ -132,48 +132,52 @@ const CROSSING_FROM = -14;
 // door, so there was no bank to land on — you crossed a river straight into a
 // wall of felt. The beach between is where the level lets you breathe.
 const CROSSING_TO = -40;
+/** Water mesh half-width; treeline and pushback use the same number. */
+const RIVER_HALF_WIDTH = 26;
+/** Clear band beyond the water edge before the forest wall starts. */
+const RIVER_BANK_CLEAR = 4;
 
 /** Pad radius. Wide on purpose: a five-year-old aims for the stone, not for a point. */
 const STONE_R = 1.35;
 
 /**
- * Laid out by marching an S-curve at a fixed *chord* — every hop is 3.30 m
- * centre to centre, so no stone is harder than any other.
- *
- * The first version was hand-typed, and two of its gaps (4.36 m and 4.32 m)
- * were beyond the hero's reach entirely: a 5.4 m/s jump under 12.2 m/s²
- * gravity is 0.885 s of air, which at walking speed carries 2.83 m. Nobody
- * could have crossed it. Spacing is generated and checked now — see
- * `assertCrossingIsJumpable`.
- *
- * With a 1.35 m pad at each end, the real ask is 3.10 − 1.35 = 1.75 m against
- * 2.83 m of reach: 62% of margin, and 0.40 m of open water still shows
- * between pads, so it reads as a jump rather than a walkway.
+ * Stepping stones zig-zagging across a wider bed. Centre-to-centre hops are
+ * ~3.7 m with ~1 m of open water between pads (was ~0.4 m — read as a walkway).
+ * The exit hop is longer and expects a running jump; everything else fits at
+ * walk speed — see `assertCrossingIsJumpable`.
  */
 const STONES: Array<{ x: number; z: number; sink?: boolean }> = [
-  // Pulled in to the shore so the first hop is the easiest one, not the
-  // hardest: at z −16 the step off the bank was 2.44 m of the 2.83 m reach.
-  { x: 1.25, z: -15.2 },
-  { x: 2.24, z: -18.1 },
-  { x: 0.18, z: -20.5 },
-  { x: -2.57, z: -22.1, sink: true },
-  { x: -0.15, z: -23.9 },
-  { x: 2.33, z: -25.5 },
-  { x: -0.24, z: -27.5, sink: true },
-  { x: -1.16, z: -30.6 },
-  { x: 1.21, z: -32.2 },
-  { x: -0.33, z: -35.2, sink: true },
-  { x: -0.06, z: -38.1 },
-  // The exit stone, placed against the shore the terrain actually built
-  // rather than against CROSSING_TO. Without it the last hop was 3.60 m.
-  { x: 1.5, z: -40.4 },
+  { x: 1.5, z: -15.0 },
+  { x: 4.0, z: -17.7 },
+  { x: 1.2, z: -20.2 },
+  { x: 3.8, z: -22.9, sink: true },
+  { x: 0.8, z: -25.4 },
+  { x: 3.5, z: -28.1 },
+  { x: 1.0, z: -30.6, sink: true },
+  { x: 3.3, z: -33.3 },
+  { x: 0.9, z: -35.8 },
+  { x: 1.6, z: -40.4, sink: true },
 ];
 
-/** Loose felt panels round the yurt. Three, spread so mending is a lap. */
+/** Loose felt panels round the yurt. Three, spread so mending is a lap.
+ *  Kept clear of the door mat (porch at z ≈ YURT.z+3.1) so pegs are not
+ *  hidden behind the red circle. */
 const PEGS: Array<{ x: number; z: number }> = [
-  { x: YURT.x - 3.1, z: YURT.z + 1.6 },
-  { x: YURT.x + 3.0, z: YURT.z + 1.9 },
-  { x: YURT.x + 0.4, z: YURT.z - 3.2 },
+  { x: YURT.x - 3.4, z: YURT.z + 0.4 },
+  { x: YURT.x + 3.4, z: YURT.z + 0.6 },
+  { x: YURT.x + 0.2, z: YURT.z - 3.5 },
+];
+
+/** Decorative guy-rope stakes around the skirt — always visible from the door. */
+const YURT_STAKES: Array<{ angle: number }> = [
+  { angle: 0.35 },
+  { angle: 1.05 },
+  { angle: 1.85 },
+  { angle: 2.55 },
+  { angle: 3.45 },
+  { angle: 4.15 },
+  { angle: 4.95 },
+  { angle: 5.65 },
 ];
 
 export type L0Phase =
@@ -438,30 +442,37 @@ function boulder(x: number, z: number, scale: number, groundY: number): THREE.Gr
  * read as a flat sliver at gameplay camera distance — barely a peg at all,
  * just a dark triangle on the panel.
  */
-function makePeg(): THREE.Group {
+function makePeg(template: THREE.Object3D | null = null): THREE.Group {
+  if (template) {
+    const g = new THREE.Group();
+    const body = template.clone(true);
+    fitHeight(body, 1.15);
+    g.add(body);
+    g.rotation.z = 0.14;
+    return g;
+  }
   const g = new THREE.Group();
   // Втрое толще и вдвое выше прежнего. С игровой камеры в девяти метрах
   // колышек радиусом 4.5 см — это волосок: ребёнок не видит предмет, которым
   // ему предлагают что-то сделать.
   const shaft = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.13, 0.055, 0.95, 8),
+    new THREE.CylinderGeometry(0.16, 0.07, 1.05, 8),
     new THREE.MeshStandardMaterial({ color: 0x9c6a38, roughness: 0.85 }),
   );
-  shaft.position.y = 0.47;
+  shaft.position.y = 0.52;
   shaft.castShadow = true;
-  // Насечки на древке — по ним видно, что это струганое дерево, а не палка.
   const notchMat = new THREE.MeshStandardMaterial({ color: 0x7a4f26, roughness: 0.9 });
-  for (const y of [0.3, 0.55]) {
-    const notch = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.016, 5, 12), notchMat);
+  for (const y of [0.35, 0.62]) {
+    const notch = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.02, 5, 12), notchMat);
     notch.rotation.x = Math.PI / 2;
     notch.position.y = y;
     g.add(notch);
   }
   const head = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.2, 0.17, 0.16, 8),
+    new THREE.CylinderGeometry(0.24, 0.2, 0.2, 8),
     new THREE.MeshStandardMaterial({ color: 0x6b431f, roughness: 0.75 }),
   );
-  head.position.y = 1.0;
+  head.position.y = 1.12;
   head.castShadow = true;
   g.add(shaft, head);
   g.rotation.z = 0.14;
@@ -473,21 +484,12 @@ function makePeg(): THREE.Group {
  * — the animation is the whole read: a child sees which ones still need
  * doing without being told a number.
  */
-function makeFeltPanel(): THREE.Group {
+function makeFeltPanel(pegTemplate: THREE.Object3D | null = null): THREE.Group {
   const g = new THREE.Group();
   const felt = new THREE.MeshStandardMaterial({
     color: 0xe9e2d2, roughness: 0.95, side: THREE.DoubleSide,
   });
 
-  // Войлок, а не карточка.
-  //
-  // Здесь стояла `PlaneGeometry` без поворота — то есть плоский прямоугольник
-  // СТОЙМЯ на траве, ровно как игральная карта. Толщины нет, тени по кромке
-  // нет, лежать он не лежит: узнать в нём кусок войлока невозможно.
-  //
-  // Теперь это отвернувшийся край кошмы: коробка с толщиной, наклонённая от
-  // земли, и завёрнутый уголок сверху. Силуэт сразу читается как «тряпка
-  // отошла и хлопает», а хлопанье в `loop` наконец имеет что колыхать.
   const panel = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.07, 1.35), felt);
   panel.position.set(0, 0.42, -0.28);
   panel.rotation.x = -0.62;
@@ -499,7 +501,6 @@ function makeFeltPanel(): THREE.Group {
   curl.rotation.x = 0.55;
   curl.castShadow = true;
 
-  // Прижимной ремешок: по нему видно, куда именно бить колышком.
   const strap = new THREE.Mesh(
     new THREE.BoxGeometry(0.22, 0.05, 1.0),
     new THREE.MeshStandardMaterial({ color: 0xb08a5a, roughness: 0.9 }),
@@ -507,21 +508,19 @@ function makeFeltPanel(): THREE.Group {
   strap.position.set(0, 0.3, -0.1);
   strap.rotation.x = -0.62;
 
-  // Колышек лежит рядом с самого начала.
-  //
-  // Он был `visible = false` до починки: ребёнку предлагалось «приколоть»
-  // предмет, которого он ни разу не видел. Теперь колышек лежит на траве
-  // рядом с заплатой, а после починки встаёт в неё стоймя.
-  const peg = makePeg();
-  peg.position.set(0.62, 0.13, 0.42);
-  peg.rotation.set(0, 0.5, Math.PI / 2 - 0.1);
+  // Peg sits on the grass in front of the flap — proud of the panel, not
+  // tucked under it where the camera loses it against the felt.
+  const peg = makePeg(pegTemplate);
+  peg.position.set(0.85, 0.02, 0.55);
+  peg.rotation.set(0.05, 0.35, Math.PI / 2 - 0.05);
+  peg.scale.setScalar(1.15);
 
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.8, 1.16, 24),
-    new THREE.MeshBasicMaterial({ color: 0xf0d24a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }),
+    new THREE.RingGeometry(0.9, 1.28, 24),
+    new THREE.MeshBasicMaterial({ color: 0xf0d24a, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }),
   );
   ring.rotation.x = -Math.PI / 2;
-  ring.position.y = 0.03;
+  ring.position.y = 0.04;
 
   g.add(panel, curl, strap, peg, ring);
   g.userData.panel = panel;
@@ -556,33 +555,6 @@ export class Level0Scene extends BaseLevelScene {
   private fadeTo = 0;
   /** Set while the blackout is deep enough to move the hero without it being seen. */
   private pendingTeleport: (() => void) | null = null;
-
-  /** Soft-3D yurt GLB when Meshy quality pack lands; procedural stays as fallback. */
-  private async upgradeYurtToQualityGlb() {
-    if (!this.yurt) return;
-    const gltf = await loadGlb(createGameGltfLoader(), '/assets/models/props/s1_quality_yurt.glb');
-    if (!gltf || !this.yurt.parent) return;
-    const next = gltf.scene;
-    fitHeight(next, 3.55);
-    next.position.copy(this.yurt.position);
-    next.rotation.y = this.yurt.rotation.y;
-    this.scene.remove(this.yurt);
-    this.yurt = next as THREE.Group;
-    this.scene.add(this.yurt);
-  }
-
-  private async upgradeDombraToQualityGlb() {
-    if (!this.dombra) return;
-    const gltf = await loadGlb(createGameGltfLoader(), '/assets/models/props/s1_quality_dombra.glb');
-    if (!gltf || !this.dombra.parent) return;
-    const next = gltf.scene;
-    fitMaxSize(next, 1.05);
-    next.position.copy(this.dombra.position);
-    next.rotation.copy(this.dombra.rotation);
-    this.scene.remove(this.dombra);
-    this.dombra = next as THREE.Group;
-    this.scene.add(this.dombra);
-  }
 
   /**
    * The kui, as call and response.
@@ -630,9 +602,49 @@ export class Level0Scene extends BaseLevelScene {
    * по которому ребёнок ходит. Ограничиваем проверку прямоугольником реки.
    */
   protected isUnderwater(x: number, z: number) {
-    if (Math.abs(x - routeX(z)) > 20) return false;
+    if (Math.abs(x - routeX(z)) > RIVER_HALF_WIDTH + 2) return false;
     if (z > CROSSING_FROM + 6 || z < CROSSING_TO - 6) return false;
     return super.isUnderwater(x, z);
+  }
+
+  /** True in the z band where the stream runs. */
+  private isInRiverChannel(z: number) {
+    return z < CROSSING_FROM + 1.5 && z > CROSSING_TO - 1.5;
+  }
+
+  /**
+   * Fall into the water → stumble sfx and back to the near bank. Works in
+   * every outdoor beat, not only during `crossing`: before the lanterns are
+   * done children still wander to the stream edge.
+   */
+  private ejectFromRiver(now: number) {
+    if (this.insideYurt || this.phase === 'intro' || this.phase === 'song' || this.phase === 'outro') return;
+    const h = this.hero.position;
+    if (!this.isInRiverChannel(h.z)) return;
+
+    const standing = this.stones.find((s) => this.isStandingOn(s));
+    const sunkUnder = standing && (standing.userData.sunk as number) > 0.92;
+    if (standing && !sunkUnder) return;
+
+    const bed = this.groundHeightAt(h.x, h.z);
+    const inWater = bed < this.waterY + 0.06 || h.y < this.waterY + 0.1;
+    if (!inWater || now <= this.wetUntil) return;
+
+    this.wetUntil = now + 1500;
+    AudioManager.sfx('stumble');
+    this.spawnSparks(h.clone(), 18, [0x2aa8d8, 0xffffff]);
+    h.z = CROSSING_FROM + 2.6;
+    h.x = routeX(h.z);
+    h.y = this.groundHeightAt(h.x, h.z);
+    this.jumpVelocity = 0;
+    this.airborne = false;
+    if (this.phase === 'crossing') {
+      for (const s of this.stones) {
+        s.userData.sunk = 0;
+        s.position.y = s.userData.restY as number;
+      }
+    }
+    this.pushHud();
   }
 
   protected currentPhase() { return this.phase; }
@@ -893,34 +905,31 @@ export class Level0Scene extends BaseLevelScene {
     this.pathCorridorHalf = 3.2;
 
     await this.setupForestEnvironment(loader, {
-      flatRadius: 9,
-      flatCenterZ: YURT.z,
+      flatRadius: 14,
+      flatCenterZ: YURT.z - 2,
       terrain: {
-        playHalfExtent: 54,
-        rimFalloff: 15,
+        playHalfExtent: 62,
+        rimFalloff: 12,
         rimHeight: 3.2,
         seed: 0,
         features: [
           { kind: 'flat', x: 0, z: SPAWN_Z - 3, r: 8 },
-          { kind: 'flat', x: YURT.x, z: YURT.z, r: 9 },
-          // The river bed, bank to bank.
-          //
-          // Two earlier attempts got this wrong. `flat` levels but does not
-          // dig, so the water sat below the ground and the stones stood on
-          // grass. Then basins dug — but basins are applied *before* the path
-          // corridor is carved, and that carve scales the height by 0.08 on
-          // the centre line, filling a 3 m basin back in to half a metre. The
-          // result was a shallow ribbon of water with dry land either side,
-          // which is the "why is there ground here" you can see in the shot.
-          //
-          // A trench is applied after the corridor and spans the full width
-          // the player can reach, so during the crossing there is nowhere to
-          // stand but the stones.
+          // Campsite terrace: yurt, porch, and the ground behind toward the
+          // treeline. A disc of r=9 was too small and sat inside the world rim,
+          // so corridor + rim put the tent on a hillside.
+          {
+            kind: 'flatRect' as const,
+            x: YURT.x,
+            z: YURT.z - 3,
+            halfW: 11,
+            halfD: 14,
+            falloff: 5,
+          },
           {
             kind: 'trench' as const,
             x: routeX((CROSSING_FROM + CROSSING_TO) / 2),
             z: (CROSSING_FROM + CROSSING_TO) / 2,
-            halfW: 15,
+            halfW: RIVER_HALF_WIDTH,
             halfD: Math.abs(CROSSING_TO - CROSSING_FROM) / 2,
             depth: 2.6,
           },
@@ -956,7 +965,7 @@ export class Level0Scene extends BaseLevelScene {
     // through the water either side of the stones.
     for (let i = 0; i <= 10; i++) {
       const z = CROSSING_FROM - (i / 10) * (CROSSING_FROM - CROSSING_TO);
-      this.reserve(routeX(z), z, 13);
+      this.reserve(routeX(z), z, RIVER_HALF_WIDTH);
     }
     for (const l of LANTERNS) this.reserve(l.x, l.z, 2.5);
     for (const p of PEGS) this.reserve(p.x, p.z, 2);
@@ -1005,7 +1014,7 @@ export class Level0Scene extends BaseLevelScene {
     // The stones are passed in so the water knows something is standing in
     // it: twelve cylinders in a mirror-flat sheet look painted on.
     this.river = createRiverWater({
-      width: 38,
+      width: RIVER_HALF_WIDTH * 2,
       length: Math.abs(CROSSING_TO - CROSSING_FROM) + 12,
       centre: { x: routeX(midZ), z: midZ },
       y: waterY,
@@ -1040,7 +1049,7 @@ export class Level0Scene extends BaseLevelScene {
       // through every one of them.
       // The reach is a touch wider than the pad — a child aiming at the edge
       // gets the stone, not the water.
-      this.addPlatform(stone, STONE_R + 0.25, h / 2);
+      this.addPlatform(stone, STONE_R + 0.45, h / 2);
     }
     this.assertCrossingIsJumpable(waterY);
 
@@ -1048,8 +1057,8 @@ export class Level0Scene extends BaseLevelScene {
     for (const spec of LANTERNS) {
       const holder = new THREE.Group();
       const glb =
-        (await loadPropModel(loader, CAST_PROP_GLB.lantern, { height: 1.05, aspectMax: 4 })) ??
-        (await loadPropModel(loader, CAST_PROP_GLB.lantern_wood, { height: 1.05, aspectMax: 4 }));
+        (await loadCastPropModel(loader, 'lantern', { height: 1.65, aspectMax: 6 })) ??
+        (await loadCastPropModel(loader, 'lantern_wood', { height: 1.65, aspectMax: 6 }));
       const body = glb ?? this.makeSimpleLantern();
       body.position.y = 0;
       holder.add(body);
@@ -1062,7 +1071,7 @@ export class Level0Scene extends BaseLevelScene {
           color: 0xf0d24a, emissive: 0xf0d24a, emissiveIntensity: 0, roughness: 0.4,
         }),
       );
-      flame.position.y = 0.62;
+      flame.position.y = 0.98;
       holder.add(flame);
 
       const glow = new THREE.Mesh(
@@ -1073,8 +1082,13 @@ export class Level0Scene extends BaseLevelScene {
       glow.position.y = 0.03;
       holder.add(glow);
 
-      holder.position.set(spec.x, this.groundHeightAt(spec.x, spec.z), spec.z);
+      const bed = this.groundHeightAt(spec.x, spec.z);
+      holder.position.set(spec.x, bed, spec.z);
       holder.rotation.z = spec.rotZ;   // knocked over
+      // fitHeight grounds the mesh upright; after tipping, lift so the lowest
+      // point still rests on the terrain.
+      holder.updateMatrixWorld(true);
+      groundY(holder, bed);
       holder.userData.isLantern = true;
       holder.userData.done = false;
       holder.userData.restZ = spec.rotZ;
@@ -1089,10 +1103,30 @@ export class Level0Scene extends BaseLevelScene {
     this.yurt.position.set(YURT.x, this.groundHeightAt(YURT.x, YURT.z), YURT.z);
     this.scene.add(this.yurt);
     this.colliders.push({ kind: 'circle', x: YURT.x, z: YURT.z, r: 3.2 });
-    void this.upgradeYurtToQualityGlb();
+
+    const pegTpl =
+      (await loadPropModel(loader, 's1_quality_tent_peg.glb', { height: 1.15, aspectMax: 14 })) ??
+      null;
+
+    // Permanent skirt stakes — readable guy-rope pegs around the yurt even
+    // before the mend beat, so the tent does not look like it floats free.
+    const stakeR = 3.55;
+    for (const s of YURT_STAKES) {
+      const x = YURT.x + Math.cos(s.angle) * stakeR;
+      const z = YURT.z + Math.sin(s.angle) * stakeR;
+      // Skip the doorway arc so stakes do not sit on the red porch mat.
+      const doorAng = Math.PI / 2; // +z entrance
+      const dAng = Math.abs(Math.atan2(Math.sin(s.angle - doorAng), Math.cos(s.angle - doorAng)));
+      if (dAng < 0.55) continue;
+      const stake = makePeg(pegTpl);
+      stake.scale.setScalar(0.95);
+      stake.rotation.set(0.08, s.angle, 0.18);
+      stake.position.set(x, this.groundHeightAt(x, z), z);
+      this.scene.add(stake);
+    }
 
     for (const p of PEGS) {
-      const panel = makeFeltPanel();
+      const panel = makeFeltPanel(pegTpl);
       panel.position.set(p.x, this.groundHeightAt(p.x, p.z), p.z);
       panel.lookAt(YURT.x, panel.position.y, YURT.z);
       panel.userData.isPanel = true;
@@ -1122,28 +1156,33 @@ export class Level0Scene extends BaseLevelScene {
     mat.position.set(YURT.x - 1.1, this.groundHeightAt(YURT.x - 1.1, porchZ) + 0.02, porchZ);
     this.scene.add(mat);
 
-    this.gardener =
-      (await loadCharModel(loader, 'zhuldyz.glb', 1.5)) ??
-      (await loadCharModel(loader, 'aya.glb', 1.5));
-    if (this.gardener) {
-      this.gardener.position.set(gx, this.groundHeightAt(gx, porchZ), porchZ);
-      // Angled toward the door instead of square-on to the player — tending
-      // it, not posted there waiting for someone to walk up.
-      this.gardener.rotation.y = Math.PI * 0.82;
-      this.scene.add(this.gardener);
-    }
+    // No porch NPC: Meshy `*_rigged` friends here read as a giant doll next to
+    // the yurt. The door/dialogue still work; sparks fall back to the hero.
+    this.gardener = null;
+
+    // Soft-3D Meshy dombra — porch prop + interior kui instrument body.
+    const dombraGlb =
+      (await loadPropModel(loader, 's1_quality_dombra.glb', { height: 1.45, aspectMax: 10 })) ??
+      null;
 
     // Leaned against the felt at a single backward tilt, the way you rest an
     // instrument when your hands are busy pinning down a wall — not the old
     // three-axis knock-over that read as dropped mid-lawn.
-    this.dombra = makeDombra();
+    if (dombraGlb) {
+      const porch = dombraGlb.clone(true);
+      fitHeight(porch, 1.45);
+      const box = new THREE.Box3().setFromObject(porch);
+      porch.position.y -= box.min.y;
+      porch.userData.groundLift = 0.02;
+      this.dombra = porch as THREE.Group;
+    } else {
+      this.dombra = makeDombra();
+      this.dombra.userData.groundLift = 0.55;
+    }
     this.dombra.position.set(dx, this.groundHeightAt(dx, porchZ + 0.3), porchZ + 0.3);
     this.dombra.rotation.set(0.22, 0.55, -0.08);
     this.scene.add(this.dombra);
-    void this.upgradeDombraToQualityGlb();
-    // Solid. Without this the hero walks straight through the instrument and
-    // stands inside the gardener, which reads as the world being made of
-    // scenery rather than of things.
+    // Solid. Without this the hero walks straight through the instrument.
     this.colliders.push({ kind: 'circle', x: (gx + dx) / 2, z: porchZ + 0.15, r: 1.15 });
 
     // ── The door marker ─────────────────────────────────────────────
@@ -1199,17 +1238,36 @@ export class Level0Scene extends BaseLevelScene {
 
     // The wall. Planted last, so it can read the corridor and every room the
     // level reserved and hug the outside of both.
-    await this.encloseWithForest(loader, { zFrom: YURT.z - 8, zTo: SPAWN_Z + 4 });
+    await this.encloseWithForest(loader, {
+      zFrom: YURT.z - 8,
+      zTo: SPAWN_Z + 4,
+      river: {
+        centreX: routeX,
+        halfWidth: RIVER_HALF_WIDTH,
+        zMin: CROSSING_TO - 6,
+        zMax: CROSSING_FROM + 6,
+        bankClear: RIVER_BANK_CLEAR,
+      },
+    });
 
     // ── The second location ──────────────────────────────────────
     // Built two hundred metres out, well past the terrain's own extent and
     // past the fog, so there is no angle from which one location can see the
     // other. It costs nothing to leave it in the scene: it is a single group,
     // never in the camera frustum until the hero is standing in it.
-    const interior = buildYurtInterior();
+    const interior = buildYurtInterior({
+      dombraBody: dombraGlb
+        ? (() => {
+            const body = dombraGlb.clone(true);
+            // Interior kui uses an oversized instrument; sizing is done in buildDombra.
+            return body;
+          })()
+        : null,
+    });
     this.interior = interior;
     interior.root.visible = false;
     this.scene.add(interior.root);
+    await this.upgradeYurtCushions(loader, interior.root);
     // The pads sit in an arc in front of the instrument.
     this.pads = buildAnswerPads();
     for (const pad of this.pads) {
@@ -1247,6 +1305,38 @@ export class Level0Scene extends BaseLevelScene {
   }
 
   /**
+   * Soft-3D kurpeshki + pillows along the wall. Procedural blocks stay until
+   * these load (or if Meshy files are missing).
+   */
+  private async upgradeYurtCushions(loader: ReturnType<typeof createGameGltfLoader>, root: THREE.Group) {
+    const kurpeshki: THREE.Object3D[] = [];
+    for (const file of ['s1_quality_kurpeshki.glb', 's1_quality_kurpeshki_blue.glb']) {
+      const glb = await loadPropModel(loader, file, { maxSize: 2.6, aspectMax: 12 });
+      if (!glb) continue;
+      // Prefer long-flat orientation: if Meshy stood it on end, lay it down.
+      const size = new THREE.Box3().setFromObject(glb).getSize(new THREE.Vector3());
+      if (size.y > Math.max(size.x, size.z) * 0.7) {
+        glb.rotation.x = -Math.PI / 2;
+        glb.updateMatrixWorld(true);
+        fitMaxSize(glb, 2.6);
+      }
+      const box = new THREE.Box3().setFromObject(glb);
+      glb.position.y -= box.min.y;
+      kurpeshki.push(glb);
+    }
+    const pillows: THREE.Object3D[] = [];
+    for (const file of ['s1_quality_pillow_ornament.glb', 's1_quality_pillow_blue.glb']) {
+      const glb = await loadPropModel(loader, file, { maxSize: 0.85, aspectMax: 6 });
+      if (!glb) continue;
+      const box = new THREE.Box3().setFromObject(glb);
+      glb.position.y -= box.min.y;
+      pillows.push(glb);
+    }
+    if (!kurpeshki.length && !pillows.length) return;
+    dressYurtCushions(root, { kurpeshki, pillows });
+  }
+
+  /**
    * Refuse to ship a crossing the hero cannot make.
    *
    * The first crossing had two gaps of 4.36 m and 4.32 m against 2.83 m of
@@ -1268,7 +1358,9 @@ export class Level0Scene extends BaseLevelScene {
     // would be hiding behind.
     if (this.disposed) return;
     const airtime = (2 * this.jumpSpeed) / this.gravity;
-    const reach = this.baseSpeed * airtime;
+    // Most hops are sized for a walk-jump; the exit expects a short run-up.
+    const walkReach = this.baseSpeed * airtime;
+    const reach = this.runSpeed * airtime;
 
     // The banks are found by asking the terrain where it comes out of the
     // water, never by trusting CROSSING_FROM/TO. Those are inputs to the
@@ -1316,6 +1408,10 @@ export class Level0Scene extends BaseLevelScene {
       if (h.need > reach) {
         console.error(
           `[L0] ${h.what} needs ${h.need.toFixed(2)} m but the jump reaches ${reach.toFixed(2)} m — unreachable`,
+        );
+      } else if (h.need > walkReach) {
+        console.warn(
+          `[L0] ${h.what} needs ${h.need.toFixed(2)} m — walk-jump is ${walkReach.toFixed(2)} m, run-up required`,
         );
       }
     }
@@ -1624,11 +1720,26 @@ export class Level0Scene extends BaseLevelScene {
     }
     if (this.interior) {
       // Firelight breathes; the dust in the shaft turns.
-      this.interior.hearthLight.intensity = 2.4 + Math.sin(now * 0.006) * 0.35;
+      // Soft lamp fill — no campfire flicker.
+      this.interior.hearthLight.intensity = 1.45 + Math.sin(now * 0.003) * 0.08;
       this.interior.motes.rotation.y += dt * 0.06;
     }
 
     const canMove = !['intro', 'song', 'outro'].includes(this.phase) && this.fade < 0.5;
+
+    // Sinking stones move before height is settled so the hero rides down with
+    // the pad instead of one frame behind it.
+    if (this.phase === 'crossing') {
+      const standing = this.stones.find((s) => this.isStandingOn(s));
+      for (const s of this.stones) {
+        if (!s.userData.sink) continue;
+        const loaded = s === standing && !this.airborne;
+        const target = loaded ? Math.min(1, (s.userData.sunk as number) + dt / 1.5) : 0;
+        s.userData.sunk = loaded ? target : Math.max(0, (s.userData.sunk as number) - dt * 1.6);
+        s.position.y = (s.userData.restY as number) - (s.userData.sunk as number) * 0.75;
+      }
+    }
+
     if (this.insideYurt) {
       // A closed room needs no corridor: the walls are the bounds, and
       // `clampToPlayArea` is overridden to a circle while we are in here.
@@ -1663,6 +1774,7 @@ export class Level0Scene extends BaseLevelScene {
       const done = l.userData.done as boolean;
       const target = done ? 0 : (l.userData.restZ as number);
       l.rotation.z += (target - l.rotation.z) * Math.min(1, dt * 6);
+      groundY(l, this.groundHeightAt(l.position.x, l.position.z));
       const flame = l.userData.flame as THREE.Mesh;
       const fm = flame.material as THREE.MeshStandardMaterial;
       fm.emissiveIntensity += ((done ? 0.9 + Math.sin(now * 0.006) * 0.15 : 0) - fm.emissiveIntensity) * Math.min(1, dt * 4);
@@ -1677,47 +1789,6 @@ export class Level0Scene extends BaseLevelScene {
     // ── The crossing ─────────────────────────────────────────────
     if (this.phase === 'crossing') {
       const h = this.hero.position;
-      // Standing *on* it, not merely near it. The old radius check called a
-      // hero treading water beside a stone "standing", which is how a fall
-      // could go unnoticed.
-      const standing = this.stones.find((s) => this.isStandingOn(s));
-
-      // Sinking stones. The only pressure in the level, and deliberately
-      // gentle: about a second and a half of standing before it goes under,
-      // and it floats back the moment you are off it. A child who freezes
-      // loses a hop, not the section.
-      for (const s of this.stones) {
-        if (!s.userData.sink) continue;
-        const loaded = s === standing && !this.airborne;
-        const target = loaded ? Math.min(1, (s.userData.sunk as number) + dt / 1.5) : 0;
-        s.userData.sunk = loaded ? target : Math.max(0, (s.userData.sunk as number) - dt * 1.6);
-        s.position.y = (s.userData.restY as number) - (s.userData.sunk as number) * 0.75;
-      }
-      const sunkUnder = standing && (standing.userData.sunk as number) > 0.92;
-
-      const inChannel = h.z < CROSSING_FROM + 1.5 && h.z > CROSSING_TO - 1.5;
-      // Judged at the water line, not at the river bed. Waiting for the hero
-      // to touch bottom meant a metre of swimming underwater before the
-      // splash — the fall has to answer the moment it is a fall.
-      const wet = inChannel && (!standing || sunkUnder) && h.y < this.waterY + 0.05;
-      if (wet && now > this.wetUntil) {
-        this.wetUntil = now + 1500;
-        AudioManager.sfx('stumble');
-        this.spawnSparks(h.clone(), 18, [0x2aa8d8, 0xffffff]);
-        // Back to the near bank of this section, not to the level start. The
-        // cost of a miss is the stones you had already crossed, which is what
-        // makes them worth crossing carefully — and nothing else is taken.
-        h.z = CROSSING_FROM + 2.6;
-        h.x = routeX(h.z);
-        h.y = this.groundHeightAt(h.x, h.z);
-        this.jumpVelocity = 0;
-        this.airborne = false;
-        for (const s of this.stones) {
-          s.userData.sunk = 0;
-          s.position.y = s.userData.restY as number;
-        }
-        this.pushHud();
-      }
 
       if (!this.crossed && h.z < CROSSING_TO - 1.0) {
         this.crossed = true;
@@ -1728,6 +1799,8 @@ export class Level0Scene extends BaseLevelScene {
         this.pushHud();
       }
     }
+
+    if (!this.insideYurt) this.ejectFromRiver(now);
 
     // Отошедший войлок хлопает; прижатый ложится, и колышек встаёт в него.
     for (const p of this.panels) {
@@ -1758,8 +1831,9 @@ export class Level0Scene extends BaseLevelScene {
     }
 
     if (this.dombra) {
+      const lift = (this.dombra.userData.groundLift as number) ?? 0.55;
       this.dombra.position.y =
-        this.groundHeightAt(this.dombra.position.x, this.dombra.position.z) + 0.55 +
+        this.groundHeightAt(this.dombra.position.x, this.dombra.position.z) + lift +
         Math.sin(now * 0.002) * (this.phase === 'song' || this.phase === 'outro' ? 0.09 : 0.02);
       if (this.phase === 'song' || this.phase === 'outro') this.dombra.rotation.z = -0.5 + Math.sin(now * 0.009) * 0.12;
     }

@@ -6,6 +6,7 @@ import {
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeAmbientCritters } from '../s1Place';
 import { AudioManager } from '@/audio/AudioManager';
+import { NPC_PEER_HEIGHT } from '../worldScale';
 
 /**
  * Level 11 «Первые снежинки» — GDD Level 11.
@@ -129,7 +130,7 @@ export class Level11Scene extends BaseLevelScene {
     this.scene.add(this.snowman);
     this.colliders.push({ kind: 'circle', x: 0, z: -12, r: 1.1 });
 
-    const ayaGlb = await loadCharModel(loader, 'aya.glb', 1.28);
+    const ayaGlb = await loadCharModel(loader, 'aya.glb', NPC_PEER_HEIGHT);
     if (ayaGlb) {
       ayaGlb.position.set(-4.5, 0, -9);
       this.snapToGround(ayaGlb);

@@ -25,12 +25,16 @@ export function dressAvatar(
   // Colours reset first, or removing a recolour leaves the previous one on:
   // the palette is state, not a mesh.
   avatar.setLook(baseLook);
+  avatar.setBodyWear({ hoodie: false, jeans: false });
   for (const socket of SOCKETS) avatar.equip(socket, null);
 
   const worn: THREE.Object3D[] = [];
   for (const id of itemIds) {
     const item = WARDROBE_BY_ID.get(id);
     if (!item) continue;
+    if (item.bodyWear) {
+      avatar.setBodyWear(item.bodyWear);
+    }
     if (item.look) {
       avatar.setLook(item.look);
       continue;

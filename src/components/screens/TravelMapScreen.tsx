@@ -10,6 +10,8 @@ import {
   CHAPTER1_DESKTOP_PATH,
   samplePathProgress,
   samplePathX,
+  routePathD,
+  pointsToSmoothPathD,
   type PathPoint,
 } from './chapterPaths';
 import './TravelMapScreen.css';
@@ -270,6 +272,50 @@ function buildWidePins(currentLevel: number): { pins: Pin[]; chapterIdx: number 
   return { pins, chapterIdx };
 }
 
+/** Portrait route: follow each chapter's dirt X while Y walks pin-to-pin. */
+function buildPortraitRouteD(
+  portrait: { pins: Pin[] },
+  fromPin: number,
+  toPin: number,
+): string {
+  const pins = portrait.pins;
+  if (toPin <= fromPin || !pins.length) return '';
+  const pts: PathPoint[] = [];
+
+  for (let i = fromPin; i < toPin; i++) {
+    const a = pins[i];
+    const b = pins[i + 1];
+    if (!a || !b) continue;
+
+    if (a.chapterIdx !== b.chapterIdx) {
+      // Chapter seam — short straight join between bands.
+      if (!pts.length) pts.push({ x: a.x, y: a.y });
+      pts.push({ x: b.x, y: b.y });
+      continue;
+    }
+
+    const ch = CHAPTERS[a.chapterIdx];
+    const path = CHAPTER_PATHS[a.chapterIdx];
+    const cover = CHAPTER_COVERS[a.chapterIdx];
+    const start = pins.findIndex((p) => p.chapterIdx === a.chapterIdx);
+    const localA = i - start;
+    const localB = i + 1 - start;
+    const s0 = ch.levels > 1 ? localA / (ch.levels - 1) : 0;
+    const s1 = ch.levels > 1 ? localB / (ch.levels - 1) : 0;
+    const steps = 12;
+    for (let k = 0; k <= steps; k++) {
+      if (k === 0 && pts.length) continue;
+      const t = k / steps;
+      const s = s0 + (s1 - s0) * t;
+      const x = BAND_LEFT + cover.xNormToBoxX(samplePathX(path, s));
+      const y = a.y + (b.y - a.y) * t;
+      pts.push({ x, y });
+    }
+  }
+
+  return pointsToSmoothPathD(pts);
+}
+
 export function TravelMapScreen() {
   const levelStars = useGameStore((s) => s.levelStars);
   const currentLevel = useGameStore((s) => s.currentLevel);
@@ -436,14 +482,29 @@ export function TravelMapScreen() {
   const localPins = pins;
   const splitLocal = localPins.findIndex((p) => p.id >= currentLevel);
   const splitIdx = splitLocal < 0 ? localPins.length - 1 : splitLocal;
-  const pathDone = localPins
-    .slice(0, splitIdx + 1)
-    .map((p) => `${p.x},${p.y}`)
-    .join(' L ');
-  const pathAhead = localPins
-    .slice(splitIdx)
-    .map((p) => `${p.x},${p.y}`)
-    .join(' L ');
+
+  // Route strokes follow the painted dirt (dense samples + Catmull-Rom),
+  // not pin-to-pin chords that cut across grass between missions.
+  let pathDoneD = '';
+  let pathAheadD = '';
+  if (wide) {
+    const norm = DESKTOP_PATHS[wideChapterIdx] ?? CHAPTER_PATHS[wideChapterIdx];
+    const toSvg = (p: PathPoint): PathPoint => {
+      if (DESKTOP_PATHS[wideChapterIdx]) {
+        return { x: p.x * DESKTOP_W, y: p.y * DESKTOP_H };
+      }
+      const cover = coverFit(BG_W, BG_H, DESKTOP_W, DESKTOP_H);
+      return {
+        x: p.x * cover.renderW - cover.offsetX,
+        y: p.y * cover.renderH - cover.offsetY,
+      };
+    };
+    pathDoneD = routePathD(norm, localPins.length, 0, splitIdx, toSvg);
+    pathAheadD = routePathD(norm, localPins.length, splitIdx, localPins.length - 1, toSvg);
+  } else {
+    pathDoneD = buildPortraitRouteD(portrait, 0, splitIdx);
+    pathAheadD = buildPortraitRouteD(portrait, splitIdx, portrait.pins.length - 1);
+  }
 
   const chapterIdx = wide ? wideChapterIdx : currentPin.chapterIdx;
   const currentChapterName =
@@ -597,23 +658,28 @@ export function TravelMapScreen() {
               </>
             )}
 
-            <path
-              d={`M ${pathAhead}`}
-              fill="none"
-              stroke="#c9c2ff"
-              strokeWidth="5"
-              strokeDasharray="3,10"
-              strokeLinecap="round"
-              opacity="0.6"
-            />
-            <path
-              d={`M ${pathDone}`}
-              fill="none"
-              stroke="#00b894"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            {pathAheadD && (
+              <path
+                d={pathAheadD}
+                fill="none"
+                stroke="#c9c2ff"
+                strokeWidth="5"
+                strokeDasharray="3,10"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity="0.6"
+              />
+            )}
+            {pathDoneD && (
+              <path
+                d={pathDoneD}
+                fill="none"
+                stroke="#00b894"
+                strokeWidth="6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
 
             {localPins.map((pin) => {
               const chapterColor = CHAPTERS[pin.chapterIdx].color;

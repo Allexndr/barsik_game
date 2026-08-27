@@ -1,11 +1,12 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { useUIStore } from '@/store/useUIStore';
 import { Chip } from '@/components/ui/Chip';
 import { IconPaw } from '@/components/ui/icons';
 import { FriendPortrait } from '@/components/widgets/FriendPortrait';
 import { MetaScreenFooter } from '@/components/widgets/MetaScreenFooter';
-import { SEASON1_FRIENDS, isFriendUnlocked } from '@/utils/season1Friends';
+import { SEASON1_FRIENDS, isFriendUnlocked, type Season1FriendEntry } from '@/utils/season1Friends';
+import { createFriendPreview, type FriendPreview } from '@/three/avatar/FriendPreview';
 import '@/components/ui/motion.css';
 import './meta-screen.css';
 import './FriendsScreen.css';
@@ -17,9 +18,6 @@ export function FriendsScreen() {
   const unlockedCount = SEASON1_FRIENDS.filter((f) =>
     isFriendUnlocked(f.id, unlockedIds),
   ).length;
-  // Point at the next specific friend rather than saying "find the rest".
-  // The old hint was the same sentence no matter how far along you were, and
-  // it repeated what nine locked cards were already saying.
   const next = SEASON1_FRIENDS.find((f) => !isFriendUnlocked(f.id, unlockedIds));
   const hint = !next
     ? lang === 'kk'
@@ -28,6 +26,8 @@ export function FriendsScreen() {
     : lang === 'kk'
       ? `Келесі: ${next.nameKk} — ${next.levelId + 1}-деңгей.`
       : `Следующий: ${next.name} — уровень ${next.levelId + 1}.`;
+
+  const [inspect, setInspect] = useState<Season1FriendEntry | null>(null);
 
   return (
     <div className="screen screen-friends screen-meta">
@@ -55,16 +55,24 @@ export function FriendsScreen() {
               name={lang === 'kk' ? entry.nameKk : entry.name}
               role={lang === 'kk' ? entry.roleKk : entry.role}
               rarity={entry.rarity}
-              blurb={lang === 'kk' ? entry.blurbKk : entry.blurb}
               unlocked={unlocked}
               levelLabel={entry.levelId + 1}
               lang={lang}
+              onInspect={() => setInspect(entry)}
             />
           );
         })}
       </div>
 
       <MetaScreenFooter hint={hint} />
+
+      {inspect && (
+        <FriendInspectModal
+          entry={inspect}
+          lang={lang}
+          onClose={() => setInspect(null)}
+        />
+      )}
     </div>
   );
 }
@@ -74,27 +82,26 @@ function FriendTiltCard({
   name,
   role,
   rarity,
-  blurb,
   unlocked,
   levelLabel,
   lang,
+  onInspect,
 }: {
   id: string;
   name: string;
   role: string;
   rarity: string;
-  blurb: string;
   unlocked: boolean;
   levelLabel: number;
   lang: 'ru' | 'kk';
+  onInspect: () => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
-  const [flipped, setFlipped] = useState(false);
 
   const onMove = useCallback(
     (e: React.PointerEvent) => {
-      if (!unlocked || flipped) return;
+      if (!unlocked) return;
       const el = wrapRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
@@ -102,22 +109,14 @@ function FriendTiltCard({
       const py = (e.clientY - r.top) / r.height - 0.5;
       setTilt({ x: py * -10, y: px * 12 });
     },
-    [flipped, unlocked],
+    [unlocked],
   );
 
   const onLeave = useCallback(() => {
-    if (!flipped) setTilt({ x: 0, y: 0 });
-  }, [flipped]);
-
-  const transform = flipped
-    ? 'rotateY(180deg)'
-    : `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`;
+    setTilt({ x: 0, y: 0 });
+  }, []);
 
   if (!unlocked) {
-    // One silhouette and one level number. The card used to repeat the same
-    // sentence and the same "На карту" button on every locked friend — nine
-    // copies of one instruction, which is noise, not guidance. The screen says
-    // it once, in the footer.
     return (
       <div className="friend-tilt-wrap">
         <div className="friend-card friend-card-locked">
@@ -142,17 +141,10 @@ function FriendTiltCard({
     >
       <button
         type="button"
-        className={`friend-tilt-inner ${flipped ? 'is-flipped' : ''} rarity-${rarity}`}
-        style={{ transform }}
-        onClick={() => {
-          setFlipped((v) => !v);
-          setTilt({ x: 0, y: 0 });
-        }}
-        aria-label={
-          flipped
-            ? `${name}: ${lang === 'kk' ? 'жабу' : 'свернуть'}`
-            : `${name}: ${lang === 'kk' ? 'толығырақ' : 'подробнее'}`
-        }
+        className={`friend-tilt-inner rarity-${rarity}`}
+        style={{ transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)` }}
+        onClick={onInspect}
+        aria-label={`${name}: ${lang === 'kk' ? '3D қарау' : 'осмотреть в 3D'}`}
       >
         <div className={`friend-face friend-face-front friend-card rarity-${rarity}`}>
           <div className="friend-avatar">
@@ -161,17 +153,88 @@ function FriendTiltCard({
           <h3>{name}</h3>
           <p className="friend-role">{role}</p>
           <span className="friend-rarity">{rarityLabel(rarity, lang)}</span>
-          <div className="friend-flip-hint" aria-hidden>↻</div>
-        </div>
-        <div className={`friend-face friend-face-back rarity-${rarity}`}>
-          <div className="friend-avatar friend-avatar-sm">
-            <FriendPortrait id={id} size={44} />
+          <div className="friend-flip-hint" aria-hidden>
+            ↻ {lang === 'kk' ? '3D' : '3D'}
           </div>
-          <h3>{name}</h3>
-          <p className="friend-role">{blurb}</p>
-          <div className="friend-flip-hint" aria-hidden>↺</div>
         </div>
       </button>
+    </div>
+  );
+}
+
+function FriendInspectModal({
+  entry,
+  lang,
+  onClose,
+}: {
+  entry: Season1FriendEntry;
+  lang: 'ru' | 'kk';
+  onClose: () => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<FriendPreview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const name = lang === 'kk' ? entry.nameKk : entry.name;
+  const blurb = lang === 'kk' ? entry.blurbKk : entry.blurb;
+  const role = lang === 'kk' ? entry.roleKk : entry.role;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const stage = stageRef.current;
+    if (!canvas || !stage) return;
+    const preview = createFriendPreview(canvas);
+    previewRef.current = preview;
+    const resize = () => preview.resize(stage.clientWidth, stage.clientHeight);
+    resize();
+    preview.start();
+    const ro = new ResizeObserver(resize);
+    ro.observe(stage);
+    setLoading(true);
+    void preview.setFriend(entry.id).then(() => {
+      if (previewRef.current === preview) setLoading(false);
+    });
+    return () => {
+      ro.disconnect();
+      preview.dispose();
+      previewRef.current = null;
+    };
+  }, [entry.id]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="friend-inspect" role="dialog" aria-modal="true" aria-label={name}>
+      <button type="button" className="friend-inspect-backdrop" aria-label={lang === 'kk' ? 'Жабу' : 'Закрыть'} onClick={onClose} />
+      <div className="friend-inspect-card">
+        <header className="friend-inspect-head">
+          <div>
+            <h3>{name}</h3>
+            <p>{role}</p>
+          </div>
+          <button type="button" className="friend-inspect-close" onClick={onClose}>
+            ✕
+          </button>
+        </header>
+        <div className="friend-inspect-stage" ref={stageRef}>
+          <canvas ref={canvasRef} className="friend-inspect-canvas" />
+          {loading && (
+            <div className="friend-inspect-loading">
+              {lang === 'kk' ? 'Жүктелуде…' : 'Загрузка…'}
+            </div>
+          )}
+        </div>
+        <p className="friend-inspect-hint">
+          {lang === 'kk' ? 'Сүйреп бұр — досыңды жан-жақтан қара' : 'Тяни пальцем — крути друга и смотри со всех сторон'}
+        </p>
+        <p className="friend-inspect-blurb">{blurb}</p>
+      </div>
     </div>
   );
 }

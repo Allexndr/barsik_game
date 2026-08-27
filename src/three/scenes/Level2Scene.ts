@@ -24,6 +24,15 @@ import type { AssetKit } from '../AssetKit';
 import { CAST_PROP_GLB } from '../castModels';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { makeOldOak } from './Level3Scene';
+import {
+  APPLE_SIZE,
+  ARCH_POST_HEIGHT,
+  BASKET_MAX_SIZE,
+  GATE_POST_HEIGHT,
+  HERO_HEIGHT,
+  NPC_ADULT_HEIGHT,
+  orchardTreeHeight,
+} from '../worldScale';
 /**
  * Level 3 «Яблоневый сад» — GDD Chapter 1 Level 2:
  * Apple orchard sorting. Collect apples, sort into colored baskets.
@@ -236,10 +245,8 @@ async function makeKitApple(
     : color === 'red'
       ? CAST_PROP_GLB.apple
       : CAST_PROP_GLB.apple_discover;
-  // Крупнее: было 0.48 у обычного яблока при траве ростом до 0.68 м —
-  // яблоко было НИЖЕ травы, в которой лежало. Замерено: верх наземных яблок
-  // стоял на 35–46 см, то есть внутри травяного полога.
-  const meshyApple = await loadPropModel(loader, meshyFile, { maxSize: bonus ? 0.85 : 0.78 });
+  // Cub-scale fruit: maxSize 0.78 was nearly Barsik's torso height.
+  const meshyApple = await loadPropModel(loader, meshyFile, { maxSize: bonus ? APPLE_SIZE * 1.15 : APPLE_SIZE });
   if (meshyApple) {
     if (!bonus && color !== 'red') tintAppleRoot(meshyApple, displayColor, 0.22);
     else if (bonus) tintAppleRoot(meshyApple, displayColor, 0.45);
@@ -262,7 +269,7 @@ async function makeKitApple(
   }
 
   const kitApple = await kit.spawn('food', 'apple', {
-    maxSize: bonus ? 0.85 : 0.78,
+    maxSize: bonus ? APPLE_SIZE * 1.15 : APPLE_SIZE,
     position: [x, y, z],
     ground: false,
   });
@@ -299,7 +306,7 @@ async function makeBasketAsync(
       : color === 'green'
         ? CAST_PROP_GLB.basket_green
         : CAST_PROP_GLB.basket_blue;
-  const glb = await loadPropModel(loader, file, { maxSize: 1.1 });
+  const glb = await loadPropModel(loader, file, { maxSize: BASKET_MAX_SIZE });
   if (glb) {
     const g = new THREE.Group();
     glb.position.set(0, 0, 0);
@@ -1264,7 +1271,7 @@ export class Level2Scene extends BaseLevelScene {
     const placements = ORCHARD_ROWS.map(([x, z], i) => ({
       x,
       z,
-      height: 4.2 + (i % 3) * 0.55,
+      height: orchardTreeHeight(i),
     }));
     const trees = await kit.scatter('nature', names, placements);
     const canopies: THREE.BufferGeometry[] = [];
@@ -1518,16 +1525,17 @@ export class Level2Scene extends BaseLevelScene {
       this.scene.add(a);
     }
 
-    // Apple archway entrance
+    // Apple archway entrance — posts tall enough that a 1.1 m cub walks under.
     this.archway = new THREE.Group();
     const archMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
-    const postL = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.5, 8), archMat);
-    postL.position.set(-1.5, 1.25, -4);
+    const archH = ARCH_POST_HEIGHT;
+    const postL = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, archH, 8), archMat);
+    postL.position.set(-1.5, archH / 2, -4);
     postL.castShadow = true;
     const postR = postL.clone();
     postR.position.x = 1.5;
-    const archTop = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.15, 0.3), archMat);
-    archTop.position.set(0, 2.5, -4);
+    const archTop = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.18, 0.32), archMat);
+    archTop.position.set(0, archH, -4);
     archTop.castShadow = true;
     this.archway.add(postL, postR, archTop);
     // Only the two posts are solid — the gap between them is the entrance.
@@ -1541,7 +1549,7 @@ export class Level2Scene extends BaseLevelScene {
         sharedAppleGeo,
         new THREE.MeshStandardMaterial({ color: 0xff4757, emissive: 0xff4757, emissiveIntensity: 0.3 }),
       );
-      a.position.set(i * 1.0, 2.5, -4);
+      a.position.set(i * 1.0, archH, -4);
       this.archway.add(a);
     }
     this.scene.add(this.archway);
@@ -1557,25 +1565,27 @@ export class Level2Scene extends BaseLevelScene {
     // somewhere new" beat the way the arch gives the first.
     const gateGroup = new THREE.Group();
     const fenceMat = new THREE.MeshStandardMaterial({ color: 0x7a5c3e, roughness: 1 });
+    const fenceH = 1.85;
     for (const side of [-1, 1] as const) {
       for (const gx of [3.2, 5.2] as const) {
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.1, 6), fenceMat);
-        post.position.set(side * gx, 0.55, -9);
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, fenceH, 6), fenceMat);
+        post.position.set(side * gx, fenceH / 2, -9);
         post.castShadow = true;
         gateGroup.add(post);
         this.colliders.push({ kind: 'circle', x: side * gx, z: -9, r: 0.22 });
       }
-      for (const railY of [0.35, 0.75]) {
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.07, 0.07), fenceMat);
+      for (const railY of [0.55, 1.15, 1.55]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.08, 0.08), fenceMat);
         rail.position.set(side * 4.2, railY, -9);
         rail.castShadow = true;
         gateGroup.add(rail);
       }
     }
     // Gate posts either side of the path gap (x ±1.5..3.2 stays open).
+    const gateH = GATE_POST_HEIGHT;
     for (const gx of [-3.2, 3.2] as const) {
-      const gatePost = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.6, 6), fenceMat);
-      gatePost.position.set(gx, 0.8, -9);
+      const gatePost = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, gateH, 6), fenceMat);
+      gatePost.position.set(gx, gateH / 2, -9);
       gatePost.castShadow = true;
       gateGroup.add(gatePost);
     }
@@ -1621,16 +1631,11 @@ export class Level2Scene extends BaseLevelScene {
       { x: 3, z: -16, y: 0.22, color: 'red', onGround: true },
       { x: -3.5, z: -18, y: 0.22, color: 'yellow', onGround: true },
       { x: 1.5, z: -20, y: 0.22, color: 'green', onGround: true },
-      // Tree apples — low hanging, reachable without jump (kids UX).
-      //
-      // Высота поднята с 0.55 до 1.3: на каждое из этих мест теперь посажена
-      // яблоня (`ORCHARD_ROWS`), и яблоко висит на краю кроны, на уровне плеча
-      // Барсика, а не лежит на траве рядом со стволом. Дотянуться всё так же
-      // можно откуда угодно: `nearestInteract` меряет расстояние по плоскости.
-      { x: -5, z: -10, y: 1.3, color: 'red', onGround: false, bonus: true },
-      { x: 5, z: -14, y: 1.3, color: 'yellow', onGround: false, bonus: true },
-      { x: -4, z: -18, y: 1.25, color: 'green', onGround: false, bonus: true },
-      { x: 4.5, z: -20, y: 1.3, color: 'red', onGround: false, bonus: true },
+      // Tree apples — low hanging at cub shoulder (~1.0–1.15 m above ground).
+      { x: -5, z: -10, y: 1.05, color: 'red', onGround: false, bonus: true },
+      { x: 5, z: -14, y: 1.05, color: 'yellow', onGround: false, bonus: true },
+      { x: -4, z: -18, y: 1.0, color: 'green', onGround: false, bonus: true },
+      { x: 4.5, z: -20, y: 1.05, color: 'red', onGround: false, bonus: true },
     ];
 
     const kit = this.assetKit(loader);
@@ -1642,7 +1647,7 @@ export class Level2Scene extends BaseLevelScene {
       );
       // Низ яблока на 10 см над землёй у наземных и на метр у висящих —
       // считается от габаритов модели, а не от её начала координат.
-      seatOnGround(apple.mesh, g, p.bonus ? 1.0 : 0.1);
+      seatOnGround(apple.mesh, g, p.bonus ? 0.95 : 0.12);
       // Трава сюда не растёт: 22 000 травинок ростом до 68 см иначе стоят
       // прямо сквозь пикап. Резерв ставится до `activate`, где трава и
       // раскладывается.
@@ -1661,9 +1666,9 @@ export class Level2Scene extends BaseLevelScene {
     this.apples.push(this.demoApple);
     this.scene.add(this.demoApple.mesh, this.demoApple.ring, this.demoApple.beam);
 
-    // Gardener NPC — Meshy zhuldyz.glb when present, else plush Жұлдыз
-    const zhuldyzGlb = await loadCharModel(loader, 'zhuldyz.glb', 1.28);
-    const gardener = zhuldyzGlb ?? createPlushCharacter({ ...ZHULDYZ_LOOK, height: 1.28 });
+    // Gardener NPC — adult vs cub (HERO_HEIGHT), not another giant.
+    const zhuldyzGlb = await loadCharModel(loader, 'zhuldyz.glb', NPC_ADULT_HEIGHT);
+    const gardener = zhuldyzGlb ?? createPlushCharacter({ ...ZHULDYZ_LOOK, height: NPC_ADULT_HEIGHT });
     gardener.position.set(-2.5, 0, -6);
     groundY(gardener);
     this.gardener = gardener;
@@ -1720,7 +1725,7 @@ export class Level2Scene extends BaseLevelScene {
     await this.encloseArena(loader);
 
     this.scene.add(this.hero);
-    if (!(await this.loadHero(loader))) return;
+    if (!(await this.loadHero(loader, HERO_HEIGHT))) return;
     this.activate(() => {
       this.setupGuideArrow();
       this.setupQuality();
@@ -1790,7 +1795,7 @@ export class Level2Scene extends BaseLevelScene {
         'Корзины полны! Но смотри — дальний край сада сохнет: арык закрыт створкой.',
         'Себеттер толды! Бірақ қара — бақтың арғы шеті құрғап тұр: арық қақпақпен жабылған.',
       );
-      objective = this.copy('💧 Открой створку на западе', '💧 Батыстағы қақпақты аш');
+      objective = this.copy('💧 Открой створку у арыка', '💧 Арықтағы қақпақты аш');
     } else if (p === 'clear') {
       line = this.copy(
         'Вода дошла до завала. Убери его — и она побежит дальше.',

@@ -357,7 +357,7 @@ export class Level14Scene extends BaseLevelScene {
       { key: 'rock_snow', opts: { x: 10, z: -6, maxSize: 1.4 } },
       { key: 'rock_snow', opts: { x: -17, z: -18, maxSize: 1.3 } },
       { key: 'tent', opts: { x: 9.5, z: -1, maxSize: 1.8, rotY: -0.6 } },
-      { key: 'lantern', opts: { x: 5, z: -2, maxSize: 0.65 } },
+      { key: 'lantern', opts: { x: 5, z: -2, height: 1.35 } },
       { key: 'snow_pile', opts: { x: -6, z: -31, maxSize: 1.2 } },
       { key: 'tree_decorated', opts: { x: 20, z: -30, maxSize: 2.4 } },
     ]);
