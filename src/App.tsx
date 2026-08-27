@@ -131,13 +131,21 @@ function migrateProgress(raw: unknown) {
     outfit: Array.isArray(data.outfit)
       ? (() => {
           const ids = data.outfit.filter((id): id is string => typeof id === 'string');
-          // Brand-canon migrate: old starter cap → tubeteika from photos trio.
-          if (ids.length === 2 && ids.includes('cap_green') && ids.includes('glasses_yellow')) {
-            return ['tubeteika_blue', 'glasses_yellow'];
+          const cool = ['hoodie_green', 'jeans_blue', 'tubeteika_blue', 'glasses_yellow'];
+          // Retired red pack (client cut) → cool green.
+          const redPack = ['hoodie_red', 'jeans_blue', 'tubeteika_red', 'glasses_clear'];
+          if (
+            ids.length === redPack.length
+            && redPack.every((id) => ids.includes(id))
+          ) {
+            return cool;
           }
-          return ids;
+          if (ids.length === 2 && ids.includes('cap_green') && ids.includes('glasses_yellow')) {
+            return cool;
+          }
+          return ids.length ? ids : cool;
         })()
-      : ['tubeteika_blue', 'glasses_yellow'],
+      : ['hoodie_green', 'jeans_blue', 'tubeteika_blue', 'glasses_yellow'],
     season1Complete:
       data.season1Complete === true ||
       (Number.isFinite(data.currentLevel) && Number(data.currentLevel) >= 17) ||

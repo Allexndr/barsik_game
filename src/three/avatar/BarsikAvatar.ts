@@ -59,10 +59,10 @@ export interface AvatarLook {
 export const DEFAULT_LOOK: AvatarLook = {
   fur: 0xf5f3ef,
   belly: 0xfdfcfa,
-  spots: 0x8ba4b8,
+  spots: 0x5a6e82, // clearer leopard rosettes (client: пятнистость барса)
   nose: 0xf8a4c0,
-  eye: 0x4a90d9,
-  hoodie: 0x3dcc6e,
+  eye: 0x3d7ab8,
+  hoodie: 0xe74c3c, // packaging red
   trousers: 0x4a6fa5,
 };
 
@@ -91,6 +91,8 @@ type JointName = keyof Joints;
 type Rot = { x?: number; y?: number; z?: number };
 type PoseTargets = Partial<Record<JointName, Rot>>;
 
+export type BodyWear = { hoodie: boolean; jeans: boolean };
+
 export interface BarsikAvatar {
   root: THREE.Group;
   sockets: Record<AvatarSocket, THREE.Group>;
@@ -101,6 +103,12 @@ export interface BarsikAvatar {
   update(dt: number, t: number, speed?: number): void;
   setLook(look: Partial<AvatarLook>): void;
   getLook(): AvatarLook;
+  /**
+   * Toggle garment meshes/materials. Fur body is the default; hoodie/jeans
+   * are wardrobe body-wear, not baked-in forever.
+   */
+  setBodyWear(wear: Partial<BodyWear>): void;
+  getBodyWear(): BodyWear;
   /** Put an item on a socket, replacing whatever was there. Null clears it. */
   equip(socket: AvatarSocket, item: THREE.Object3D | null): void;
   equipped(socket: AvatarSocket): THREE.Object3D | null;
@@ -169,15 +177,16 @@ function tile(source: THREE.Texture, x: number, y: number): THREE.Texture {
   return t;
 }
 
-/** Torso: broad chest, drawn in at the waist, flat down the front. */
+/** Torso: plush-chubbier chest/belly (client: плотнее как на упаковке). */
 function shapeTorso(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   return deform(geo, (v) => {
     const up = v.y / 0.19; // −1 at the hem, +1 at the collar
-    const chest = 1 + 0.09 * Math.exp(-((up - 0.45) ** 2) / 0.5);
-    const waist = 1 - 0.1 * Math.exp(-((up + 0.4) ** 2) / 0.35);
-    v.x *= chest * waist;
-    v.z *= chest * waist * 0.84;
-    v.y *= 1.15;
+    const chest = 1 + 0.14 * Math.exp(-((up - 0.35) ** 2) / 0.55);
+    const belly = 1 + 0.12 * Math.exp(-((up + 0.15) ** 2) / 0.45);
+    const waist = 1 - 0.04 * Math.exp(-((up + 0.55) ** 2) / 0.3);
+    v.x *= chest * belly * waist;
+    v.z *= chest * belly * waist * 0.92;
+    v.y *= 1.08;
   });
 }
 
@@ -305,14 +314,12 @@ const CYCLIC = new Set<AvatarPose>(['walk', 'run', 'idle', 'dance', 'wave', 'che
 export function createBarsikAvatar(
   opts: { height?: number; look?: Partial<AvatarLook> } = {},
 ): BarsikAvatar {
-  const { height = 1.45 } = opts;
+  const { height = 1.1 } = opts;
   const look: AvatarLook = { ...DEFAULT_LOOK, ...opts.look };
 
-  // Two coats: the body carries dense small rosettes, the head fewer and
-  // larger. A single density looks wrong on both — a head textured at body
-  // scale turns into a spotted golf ball.
-  const coatBody = furMaps(look.fur, look.spots, 1.35);
-  const coatHead = furMaps(look.fur, look.spots, 0.6);
+  // Two coats: body denser rosettes (brand “барса”), head fewer/larger.
+  const coatBody = furMaps(look.fur, look.spots, 1.65);
+  const coatHead = furMaps(look.fur, look.spots, 0.75);
 
   const mats = {
     fur: new THREE.MeshStandardMaterial({
@@ -394,11 +401,13 @@ export function createBarsikAvatar(
     return mesh;
   };
 
-  // Torso, to the width budget above: 0.19 base, widened at the chest to about
-  // 0.205 half-width. Narrower than the head on purpose — the head is the
-  // silhouette, the body is what hangs under it.
-  const torsoMesh = add(torso, new THREE.Mesh(shapeTorso(new THREE.SphereGeometry(0.19, 22, 18)), mats.hoodie));
+  // Torso: fur by default (naked base). Hoodie pieces toggle via setBodyWear.
+  // Plumper plush sphere (client brief).
+  const torsoMesh = add(torso, new THREE.Mesh(shapeTorso(new THREE.SphereGeometry(0.215, 22, 18)), mats.fur));
   torsoMesh.position.y = 0.2;
+  const bellyPatch = add(torso, new THREE.Mesh(shapeTorso(new THREE.SphereGeometry(0.14, 16, 12)), mats.belly), false);
+  bellyPatch.scale.set(0.98, 0.9, 0.62);
+  bellyPatch.position.set(0, 0.14, 0.13);
   // Hood, sitting behind the neck. It is what says "hoodie" from behind, and
   // it fills the gap between a big head and a small body.
   const hood = add(torso, new THREE.Mesh(new THREE.SphereGeometry(0.142, 16, 14), mats.hoodie));
@@ -412,8 +421,7 @@ export function createBarsikAvatar(
   const pocket = add(torso, new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.075, 0.05), mats.hoodieDark), false);
   pocket.position.set(0, 0.075, 0.128);
   pocket.rotation.x = -0.12;
-  // No belly patch. The character is wearing a hoodie, so a ball of white fur
-  // bulging out of the chest was fur rendered on top of the clothing.
+  const hoodieOnly = [hood, hem, pocket];
 
   // Head. Wider than the shoulders — the chibi read the reference model has,
   // and the reason it now clears the torso instead of sinking into it.
@@ -432,24 +440,24 @@ export function createBarsikAvatar(
   nose.position.set(0, -0.016, 0.322);
   const nostrilGap = add(head, new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.02, 0.02), mats.pupil), false);
   nostrilGap.position.set(0, -0.04, 0.328);
-  const mouth = add(head, new THREE.Mesh(new THREE.TorusGeometry(0.031, 0.009, 6, 14, Math.PI), mats.pupil), false);
-  mouth.position.set(0, -0.086, 0.307);
-  mouth.rotation.z = Math.PI;
-  // Brow ridges. Without them the eyes sit on a bare dome and the face has no
-  // expression at all — this is most of what reads as "a character looking at
-  // you" rather than "spheres arranged on a ball".
+  // Smile (half-torus opening up) — «поймай радость», not a frown.
+  const mouth = add(head, new THREE.Mesh(new THREE.TorusGeometry(0.038, 0.01, 6, 16, Math.PI * 0.95), mats.pupil), false);
+  mouth.position.set(0, -0.078, 0.308);
+  mouth.rotation.z = 0;
+  mouth.rotation.x = 0.15;
+  // Soft raised brows (happy), not angled-down sad.
   for (const side of [-1, 1] as const) {
-    const brow = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.064, 12, 10), mats.furHead), false);
-    brow.scale.set(1.15, 0.42, 0.55);
-    brow.position.set(side * 0.11, 0.119, 0.19);
-    brow.rotation.z = side * 0.22;
+    const brow = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.058, 12, 10), mats.furHead), false);
+    brow.scale.set(1.2, 0.38, 0.5);
+    brow.position.set(side * 0.105, 0.128, 0.195);
+    brow.rotation.z = side * -0.18;
   }
   // Cheek ruffs: snow leopards have wide, soft cheeks, and they give the head
   // a silhouette that is not a circle from the front.
   for (const side of [-1, 1] as const) {
-    const cheek = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.093, 14, 12), mats.furHead), false);
-    cheek.scale.set(0.72, 0.95, 0.8);
-    cheek.position.set(side * 0.177, -0.053, 0.102);
+    const cheek = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.105, 14, 12), mats.furHead), false);
+    cheek.scale.set(0.78, 1.05, 0.85);
+    cheek.position.set(side * 0.185, -0.048, 0.108);
   }
 
   for (const [side, ear] of [[-1, earL], [1, earR]] as const) {
@@ -475,11 +483,11 @@ export function createBarsikAvatar(
     patch.rotation.z = side * 0.18;
 
     const eye = makeEye(mats);
-    eye.scale.setScalar(0.88);
-    eye.position.set(side * 0.113, 0.049, 0.226);
-    // Toe-in, so the pair converges on whatever is in front of the character
-    // instead of staring off to both sides.
-    eye.rotation.y = side * -0.16;
+    eye.scale.setScalar(0.95);
+    eye.position.set(side * 0.113, 0.055, 0.228);
+    // Slight upward glance reads happier than a flat stare.
+    eye.rotation.x = -0.08;
+    eye.rotation.y = side * -0.14;
     head.add(eye);
     eyes.push(eye);
   }
@@ -498,34 +506,42 @@ export function createBarsikAvatar(
     }
   }
 
-  // Arms: upper arm from the shoulder, forearm and paw from the elbow.
+  // Arms: fur by default; sleeves swap to hoodie material when worn.
+  const armCloth: THREE.Mesh[] = [];
+  const armCuffs: THREE.Mesh[] = [];
   for (const [shoulder, elbow] of [[shoulderL, elbowL], [shoulderR, elbowR]] as const) {
     // Shoulder cap: rounds the join so the arm grows out of the body rather
     // than being a tube parked against it.
-    const cap = add(shoulder, new THREE.Mesh(new THREE.SphereGeometry(0.058, 12, 10), mats.hoodie), false);
+    const cap = add(shoulder, new THREE.Mesh(new THREE.SphereGeometry(0.058, 12, 10), mats.furSmall), false);
     cap.scale.set(1, 0.9, 1);
-    const upper = add(shoulder, new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.16, 6, 12), mats.hoodie));
+    const upper = add(shoulder, new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.16, 6, 12), mats.furSmall));
     upper.position.y = -0.108;
-    const fore = add(elbow, new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.14, 6, 12), mats.hoodie));
+    const fore = add(elbow, new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.14, 6, 12), mats.furSmall));
     fore.position.y = -0.096;
+    armCloth.push(cap, upper, fore);
     // Cuff, so the paw reads as a paw coming out of a sleeve.
     const cuff = add(elbow, new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.048, 0.028, 12), mats.belly), false);
     cuff.position.y = -0.163;
+    armCuffs.push(cuff);
     const paw = add(elbow, new THREE.Mesh(new THREE.SphereGeometry(0.056, 12, 10), mats.furSmall));
     paw.scale.set(1, 1.12, 1.05);
     paw.position.y = -0.206;
   }
 
-  // Legs: thigh from the hip, shin and foot from the knee.
+  // Legs: fur by default; trousers material when jeans are worn.
+  const legCloth: THREE.Mesh[] = [];
+  const legCuffs: THREE.Mesh[] = [];
   for (const [hip, knee] of [[hipL, kneeL], [hipR, kneeR]] as const) {
-    const thigh = add(hip, new THREE.Mesh(new THREE.CapsuleGeometry(0.062, 0.15, 6, 10), mats.trousers));
+    const thigh = add(hip, new THREE.Mesh(new THREE.CapsuleGeometry(0.062, 0.15, 6, 10), mats.furSmall));
     thigh.position.y = -0.115;
-    const shin = add(knee, new THREE.Mesh(new THREE.CapsuleGeometry(0.054, 0.13, 6, 10), mats.trousers));
+    const shin = add(knee, new THREE.Mesh(new THREE.CapsuleGeometry(0.054, 0.13, 6, 10), mats.furSmall));
     shin.position.y = -0.095;
+    legCloth.push(thigh, shin);
     // Trouser cuff, matching the sleeves — the paw comes out of the leg the
     // same way the hand comes out of the arm.
     const legCuff = add(knee, new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.056, 0.028, 12), mats.trousers), false);
     legCuff.position.y = -0.158;
+    legCuffs.push(legCuff);
     const foot = add(knee, new THREE.Mesh(new THREE.SphereGeometry(0.066, 12, 10), mats.furSmall));
     foot.scale.set(1.05, 0.7, 1.45);
     foot.position.set(0, -0.188, 0.032);
@@ -587,6 +603,20 @@ export function createBarsikAvatar(
     current.set(name, new THREE.Euler(0, 0, 0));
   }
   const equipment = new Map<AvatarSocket, THREE.Object3D>();
+  const bodyWear: BodyWear = { hoodie: false, jeans: false };
+
+  function applyBodyWear() {
+    const hoodOn = bodyWear.hoodie;
+    torsoMesh.material = hoodOn ? mats.hoodie : mats.fur;
+    bellyPatch.visible = !hoodOn;
+    for (const m of hoodieOnly) m.visible = hoodOn;
+    for (const m of armCloth) m.material = hoodOn ? mats.hoodie : mats.furSmall;
+    for (const m of armCuffs) m.visible = hoodOn;
+    const jeansOn = bodyWear.jeans;
+    for (const m of legCloth) m.material = jeansOn ? mats.trousers : mats.furSmall;
+    for (const m of legCuffs) m.visible = jeansOn;
+  }
+  applyBodyWear();
 
   function targetFor(name: JointName): Rot {
     return POSES[pose][name] ?? {};
@@ -671,6 +701,13 @@ export function createBarsikAvatar(
     },
 
     getLook: () => ({ ...look }),
+
+    setBodyWear(next) {
+      Object.assign(bodyWear, next);
+      applyBodyWear();
+    },
+
+    getBodyWear: () => ({ ...bodyWear }),
 
     equip(socket, item) {
       const slot = sockets[socket];

@@ -4,6 +4,7 @@ import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeAmbientCritters, setPlacementGround } from '../s1Place';
 import { createRiverWater, type RiverWater } from '../RiverWater';
 import { terrainSurfaceColor } from '../LevelTerrain';
+import { NPC_PEER_HEIGHT } from '../worldScale';
 import {
   BaseLevelScene,
   CC0,
@@ -106,10 +107,12 @@ const BERRY_PULLS = 2;
 /** Выход из леса — там же, где вошли. */
 const EXIT_Z = 7;
 
-/** Ручей: единственная вода уровня. */
+/** Ров под мостом: единственная вода уровня. Глубина выше прыжка (~1.2 м). */
 const CREEK_Z = -14;
-const CREEK_HALF_WIDTH = 3.2;
-const CREEK_DEPTH = 0.55;
+const CREEK_HALF_WIDTH = 3.6;
+const CREEK_DEPTH = 1.45;
+/** Щель в заборе ровно под настилом моста (полуширина). */
+const BRIDGE_GAP = 1.65;
 
 /**
  * Полоса русла вместе с подходами к мосту.
@@ -260,6 +263,8 @@ export class Mission1Scene extends BaseLevelScene {
   private exitMarker: THREE.Group | null = null;
   private ayaFollow = false;
   private ayaSeatOffset = 0;
+  /** Idle vs Walk while trailing Барсик — without Walk she slides in a floaty Idle. */
+  private ayaMoving = false;
   private leaveLineI = 0;
   private stuckFruit: THREE.Object3D | null = null;
   private aya: THREE.Object3D | null = null;
@@ -400,6 +405,22 @@ export class Mission1Scene extends BaseLevelScene {
     this.praiseUntil = performance.now() + 900;
   }
 
+  /** Walk while trailing; Idle when she catches up. Cross-fade so it isn't a pop. */
+  private setAyaLocomotion(moving: boolean) {
+    if (!this.aya || this.ayaMoving === moving) return;
+    this.ayaMoving = moving;
+    const walk = this.aya.userData.walkAction as THREE.AnimationAction | undefined;
+    const idle = this.aya.userData.idleAction as THREE.AnimationAction | undefined;
+    if (!walk || !idle) return;
+    if (moving) {
+      idle.fadeOut(0.2);
+      walk.reset().setEffectiveWeight(1).fadeIn(0.2).play();
+    } else {
+      walk.fadeOut(0.25);
+      idle.reset().setEffectiveWeight(1).fadeIn(0.25).play();
+    }
+  }
+
   /** Ближайшая живая цель из списка, чтобы стрелка не гоняла через всю поляну. */
   private nearestAlive(list: THREE.Object3D[]): THREE.Object3D | null {
     let best: THREE.Object3D | null = null;
@@ -462,7 +483,19 @@ export class Mission1Scene extends BaseLevelScene {
       playHalfExtent: 66,
       corridorTint: false,
       seed: 1.4,
-      features: [{ kind: 'flatRect', x: 0, z: -19, halfW: STRIP_HALF_X, halfD: 29, falloff: 9 }],
+      features: [
+        { kind: 'flatRect', x: 0, z: -19, halfW: STRIP_HALF_X, halfD: 29, falloff: 9 },
+        // Ров режется после flatRect (см. LevelTerrain): иначе полоса затирает воду
+        // и мост лежит на траве без пропасти.
+        {
+          kind: 'trench',
+          x: 0,
+          z: CREEK_Z,
+          halfW: STRIP_HALF_X - 0.8,
+          halfD: CREEK_HALF_WIDTH,
+          depth: CREEK_DEPTH,
+        },
+      ],
     });
     this.setupSky();
     this.setupClouds(7, 26, 80);
@@ -493,9 +526,12 @@ export class Mission1Scene extends BaseLevelScene {
     const dirtTiles: THREE.Object3D[] = [];
     for (let i = 0; i < 42; i++) {
       const bend = Math.sin(i * 0.24) * 2.1;
+      const z = 8 - i * 1.05;
+      // Плитки тропы раньше сплошняком закрывали ров — мост читался «просто так».
+      if (inCreekBand(bend, z)) continue;
       const dirt = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.1), dirtMat);
       dirt.rotation.x = -Math.PI / 2;
-      dirt.position.set(bend, 0.035, 8 - i * 1.05);
+      dirt.position.set(bend, 0.035, z);
       dirtTiles.push(dirt);
     }
     addMerged(dirtTiles);
@@ -509,10 +545,11 @@ export class Mission1Scene extends BaseLevelScene {
     });
     const glowTiles: THREE.Object3D[] = [];
     for (let i = 0; i < 12; i++) {
-      const tile = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.65), glowMat);
-      tile.rotation.x = -Math.PI / 2;
       const z = 6.5 - i * 4.2;
       const bend = Math.sin((7.5 - z) * 0.24) * 1.9;
+      if (inCreekBand(bend, z)) continue;
+      const tile = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.65), glowMat);
+      tile.rotation.x = -Math.PI / 2;
       tile.position.set(bend, 0.05, z);
       glowTiles.push(tile);
     }
@@ -551,8 +588,8 @@ export class Mission1Scene extends BaseLevelScene {
     };
     const bankY = 0;
     const bedY = -CREEK_DEPTH;
-    const waterY = bedY + Math.max(0.25, (bankY - bedY) * 0.55);
-    const BRIDGE_HALF_X = 1.6;
+    const waterY = bedY + Math.max(0.35, (bankY - bedY) * 0.42);
+    const BRIDGE_HALF_X = BRIDGE_GAP;
     const BRIDGE_DECK_Y = 0.25; // matches bridge()'s own plank height, so the deck and the hero's feet agree
 
     // Bed geometry: flat in X (a straight ditch, matching the wide collider
@@ -604,34 +641,76 @@ export class Mission1Scene extends BaseLevelScene {
     });
     this.scene.add(this.river.mesh);
 
-    this.scene.add(bridge(0, CREEK_Z, 0, { deckY: BRIDGE_DECK_Y, bedY }));
+    this.scene.add(bridge(0, CREEK_Z, 0, {
+      deckY: BRIDGE_DECK_Y,
+      bedY,
+      length: CREEK_HALF_WIDTH * 2 + 0.8,
+    }));
 
-    // Hero feet and prop placement follow the bed everywhere, and the deck
-    // height on the narrow gap the colliders leave open for the bridge.
-    //
-    // Раньше это присваивание *заменяло* высоту земли, и весь мир снаружи
-    // становился плоским. Теперь оно складывается с рельефом: внутри полосы
-    // рельеф равен нулю, поэтому в игровой зоне высоты не изменились ни на
-    // миллиметр, а деревья и камни за её краем встают на склоны, а не висят
-    // над ними. Ров считается только там, где лежит само русло, иначе он
-    // тянулся бы призраком через холмы.
+    // Hero feet: настил над рвом, иначе высота рельефа (уже с trench).
+    // Раньше creekDepthAt складывался поверх terrain и после trench копал
+    // дважды; теперь ров один — в сэмплере земли.
     const terrainHeightAt = this.groundHeightAt;
-    const creekAt = (x: number, z: number) => (Math.abs(x) <= STRIP_HALF_X ? creekDepthAt(z) : 0);
     this.groundHeightAt = (x, z) =>
       Math.abs(x) <= BRIDGE_HALF_X && Math.abs(z - CREEK_Z) <= CREEK_HALF_WIDTH + 0.6
         ? BRIDGE_DECK_Y
-        : terrainHeightAt(x, z) + creekAt(x, z);
-    // `setupSculptedGround` направил размещение объектов на чистый рельеф;
-    // после подмены о ней нужно сказать заново, иначе всё, что ставится
-    // помощниками ниже, сядет мимо русла.
+        : terrainHeightAt(x, z);
     setPlacementGround(this.groundHeightAt);
     this.waterLineY = waterY;
 
-    // Blocks a straight wade through the water on either side of the
-    // bridge; the gap between the two AABBs is exactly the bridge's width.
+    // Заборчики по обоим берегам рва: щель только под мостом. Высота ~2 м —
+    // выше прыжка 1.2 м; коллайдеры закрывают обход по берегу.
+    const fenceMat = new THREE.MeshStandardMaterial({ color: 0x7a5c3e, roughness: 1 });
+    const fenceGroup = new THREE.Group();
+    const FENCE_H = 2.05;
+    const POST_R = 0.09;
+    const bankZs = [CREEK_Z - CREEK_HALF_WIDTH - 0.12, CREEK_Z + CREEK_HALF_WIDTH + 0.12] as const;
+    const postXs: number[] = [];
+    for (let x = -STRIP_HALF_X + 0.6; x <= STRIP_HALF_X - 0.6; x += 1.15) {
+      if (Math.abs(x) < BRIDGE_GAP + 0.15) continue;
+      postXs.push(x);
+    }
+    postXs.push(-BRIDGE_GAP, BRIDGE_GAP);
+    postXs.sort((a, b) => a - b);
+    for (const bz of bankZs) {
+      for (const px of postXs) {
+        const post = new THREE.Mesh(
+          new THREE.CylinderGeometry(POST_R, POST_R * 1.1, FENCE_H, 6),
+          fenceMat,
+        );
+        post.position.set(px, FENCE_H / 2, bz);
+        post.castShadow = true;
+        fenceGroup.add(post);
+        this.colliders.push({ kind: 'circle', x: px, z: bz, r: 0.28 });
+      }
+      for (const seg of [
+        { x0: -STRIP_HALF_X + 0.6, x1: -BRIDGE_GAP },
+        { x0: BRIDGE_GAP, x1: STRIP_HALF_X - 0.6 },
+      ]) {
+        const mid = (seg.x0 + seg.x1) / 2;
+        const len = Math.max(0.4, seg.x1 - seg.x0);
+        for (const railY of [0.55, 1.15, 1.75]) {
+          const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.08, 0.08), fenceMat);
+          rail.position.set(mid, railY, bz);
+          rail.castShadow = true;
+          fenceGroup.add(rail);
+        }
+        this.colliders.push({
+          kind: 'aabb',
+          x: mid,
+          z: bz,
+          halfW: len / 2 + 0.1,
+          halfD: 0.35,
+        });
+      }
+    }
+    this.scene.add(fenceGroup);
+
+    // Вода по бокам моста: нельзя перейти вброд (щель = ширина настила).
+    const waterHalfW = (STRIP_HALF_X - BRIDGE_GAP) / 2;
     this.colliders.push(
-      { kind: 'aabb', x: -9.3, z: CREEK_Z, halfW: 7.7, halfD: 2.4 },
-      { kind: 'aabb', x: 9.3, z: CREEK_Z, halfW: 7.7, halfD: 2.4 },
+      { kind: 'aabb', x: -(BRIDGE_GAP + waterHalfW), z: CREEK_Z, halfW: waterHalfW, halfD: CREEK_HALF_WIDTH * 0.85 },
+      { kind: 'aabb', x: BRIDGE_GAP + waterHalfW, z: CREEK_Z, halfW: waterHalfW, halfD: CREEK_HALF_WIDTH * 0.85 },
     );
 
     this.scene.add(bush(-3, -29, 1.6));
@@ -725,17 +804,17 @@ export class Mission1Scene extends BaseLevelScene {
       this.reserve(b.x, b.z, 1.4);
     }
 
-    const ayaMeshy = await loadCharModel(loader, 'aya.glb', 1.2);
+    const ayaMeshy = await loadCharModel(loader, 'aya.glb', NPC_PEER_HEIGHT);
     if (ayaMeshy) {
       ayaMeshy.position.set(-7, 0, -40.5);
-      groundY(ayaMeshy);
+      groundY(ayaMeshy, this.groundHeightAt(-7, -40.5));
       this.aya = ayaMeshy;
       this.scene.add(ayaMeshy);
     } else {
       const ayaPh = await loadCharModel(loader, 'friend_placeholder.glb', 1.1);
       if (ayaPh) {
         ayaPh.position.set(-7, 0, -40.5);
-        groundY(ayaPh);
+        groundY(ayaPh, this.groundHeightAt(-7, -40.5));
         this.aya = ayaPh;
         this.scene.add(ayaPh);
       } else {
@@ -758,8 +837,11 @@ export class Mission1Scene extends BaseLevelScene {
     this.ayaMarker.visible = false;
     this.scene.add(this.ayaMarker);
 
-    // Модели садятся на землю по своим габаритам, а не по нулю. Запоминаем
-    // поправку, иначе на ходу за Барсиком Айя уйдёт в землю по колено.
+    // Один тик Idle до замера посадки: иначе bbox берётся с bind-позы, а клип
+    // поднимает бёдра — и на follow она «левитирует» ровно на эту разницу.
+    const ayaMixer = this.aya!.userData.animMixer as THREE.AnimationMixer | undefined;
+    ayaMixer?.update(1 / 30);
+    groundY(this.aya!, this.groundHeightAt(this.aya!.position.x, this.aya!.position.z));
     this.ayaSeatOffset =
       this.aya!.position.y - this.groundHeightAt(this.aya!.position.x, this.aya!.position.z);
 
@@ -791,8 +873,8 @@ export class Mission1Scene extends BaseLevelScene {
       { key: 'berry', opts: { x: -4.2, z: -27, maxSize: 0.4 } },
       { key: 'mushroom', opts: { x: 3.5, z: -10, maxSize: 0.45 } },
       { key: 'mushroom', opts: { x: -5, z: -8, maxSize: 0.35, rotY: 1.1 } },
-      { key: 'lantern', opts: { x: 2.8, z: -6, maxSize: 0.6 } },
-      { key: 'lantern_hang', opts: { x: -3.2, z: -5.5, maxSize: 0.5 } },
+      { key: 'lantern', opts: { x: 2.8, z: -6, height: 1.35 } },
+      { key: 'lantern_hang', opts: { x: -3.2, z: -5.5, height: 1.0, y: 1.9 } },
       { key: 'pinecone', opts: { x: 4, z: -22, maxSize: 0.3 } },
       { key: 'strawberry', opts: { x: -2.5, z: -26, maxSize: 0.35 } },
       { key: 'honey', opts: { x: 5.5, z: -18, maxSize: 0.4 } },
@@ -1075,21 +1157,34 @@ export class Mission1Scene extends BaseLevelScene {
     }
     if (this.ayaFollow && this.aya) {
       // Держится сзади-сбоку, чтобы не загораживать Барсика и не толкаться с
-      // ним в кадре. Высота берётся от земли плюс её собственная посадка.
-      // Барсика ограда держит, Айю — нет: без зажима она на поворотах тропы
-      // выходила бы за стену и шла сквозь неё на глазах у ребёнка.
+      // ним в кадре. Барсика ограда держит, Айю — нет: без зажима она на
+      // поворотах тропы выходила бы за стену и шла сквозь неё.
       const tz = this.hero.position.z + 1.7;
       const centre = trailBend(tz);
       const tx = THREE.MathUtils.clamp(this.hero.position.x + 1.5, centre - 3.0, centre + 3.0);
       const k = 1 - Math.pow(0.05, dt);
+      const prevX = this.aya.position.x;
+      const prevZ = this.aya.position.z;
       this.aya.position.x += (tx - this.aya.position.x) * k;
       this.aya.position.z += (tz - this.aya.position.z) * k;
+      const dx = this.aya.position.x - prevX;
+      const dz = this.aya.position.z - prevZ;
+      const step = Math.hypot(dx, dz);
+      const moving = step > 0.002;
+      this.setAyaLocomotion(moving);
+      if (moving) {
+        this.aya.rotation.y = Math.atan2(dx, dz);
+      } else {
+        this.aya.rotation.y = Math.atan2(
+          this.hero.position.x - this.aya.position.x,
+          this.hero.position.z - this.aya.position.z,
+        );
+      }
+      // Черновая высота до апдейта клипа; после mixer — точная посадка ног.
       this.aya.position.y =
         this.groundHeightAt(this.aya.position.x, this.aya.position.z) + this.ayaSeatOffset;
-      this.aya.rotation.y = Math.atan2(
-        this.hero.position.x - this.aya.position.x,
-        this.hero.position.z - this.aya.position.z,
-      );
+    } else if (this.aya && this.ayaMoving) {
+      this.setAyaLocomotion(false);
     }
 
     for (const st of this.berryStrands) {
@@ -1117,6 +1212,14 @@ export class Mission1Scene extends BaseLevelScene {
     if (prev !== this.interactTarget) this.pushHud();
 
     this.updateAmbient(dt, now);
+
+    // Ноги после клипа: Idle у aya_rigged поднимает бёдра выше Walk, и без
+    // повторной посадки она тащится за Барсиком в воздухе.
+    if (this.aya) {
+      groundY(this.aya, this.groundHeightAt(this.aya.position.x, this.aya.position.z));
+      this.ayaSeatOffset =
+        this.aya.position.y - this.groundHeightAt(this.aya.position.x, this.aya.position.z);
+    }
 
     // Cinematic intro only while the hero is still at spawn. As soon as the
     // player walks (or QA teleports to a corner), follow — otherwise the hero

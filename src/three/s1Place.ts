@@ -96,20 +96,14 @@ const PROP_SUBSTITUTE: Partial<Record<keyof typeof CAST_PROP_GLB, string>> = {
   pine_tree: '/assets/models/kits/nature/tree_pineTallA_detailed.glb',
 };
 
-/** Prefer remeshed soft-3D quality props when present on disk. */
+/** Prefer remeshed soft-3D quality props when present on disk.
+ *  Only small Blender-authored assets — Meshy landmark mush (yurt/berry/…) quarantined. */
 const PROP_QUALITY: Partial<Record<keyof typeof CAST_PROP_GLB, string>> = {
   apple: 's1_quality_apple.glb',
   apple_gold: 's1_quality_apple.glb',
-  berry: 's1_quality_sticky_berry.glb',
-  acorn_key: 's1_quality_acorn_key.glb',
-  ice_key_prop: 's1_quality_ice_key.glb',
-  snowflake: 's1_quality_snowflake.glb',
-  stump: 's1_quality_stump.glb',
-  treasure_chest: 's1_quality_chest.glb',
-  wood_bridge: 's1_quality_bridge.glb',
-  snowman: 's1_quality_snowman.glb',
-  camera: 's1_quality_camera.glb',
-  lantern: 's1_quality_lamp.glb',
+  lantern: 's1_quality_path_lantern.glb',
+  lantern_wood: 's1_quality_path_lantern.glb',
+  lantern_hang: 's1_quality_lantern_hang.glb',
 };
 
 /**
@@ -140,6 +134,20 @@ async function placeAbsolute(
     if (m.isMesh) m.castShadow = true;
   });
   return obj;
+}
+
+/** Load a cast prop, preferring remeshed quality GLBs when mapped in PROP_QUALITY. */
+export async function loadCastPropModel(
+  loader: GLTFLoader,
+  key: keyof typeof CAST_PROP_GLB,
+  opts: { height?: number; maxSize?: number; aspectMax?: number } = {},
+): Promise<THREE.Object3D | null> {
+  const quality = PROP_QUALITY[key];
+  if (quality) {
+    const q = await loadPropModel(loader, quality, opts);
+    if (q) return q;
+  }
+  return loadPropModel(loader, CAST_PROP_GLB[key], opts);
 }
 
 export async function placeS1Prop(

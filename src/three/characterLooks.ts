@@ -14,7 +14,7 @@ export const AYA_LOOK: PlushCharacterOptions = {
   accent: 0xfd79a8,
   eye: 0x3d5a80,
   hairStyle: 'braids',
-  height: 1.3,
+  height: 1.08,
 };
 
 /** Жұлдыз — the gardener who tends the orchard. */
@@ -26,7 +26,7 @@ export const ZHULDYZ_LOOK: PlushCharacterOptions = {
   accent: 0xfdcb6e,
   eye: 0x2f4858,
   hairStyle: 'bun',
-  height: 1.42,
+  height: 1.28,
 };
 
 /** Айбек — the boy from the village fair. */
@@ -38,5 +38,5 @@ export const AIBEK_LOOK: PlushCharacterOptions = {
   accent: 0xe17055,
   eye: 0x34495e,
   hairStyle: 'cap',
-  height: 1.34,
+  height: 1.12,
 };

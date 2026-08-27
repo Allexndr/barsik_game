@@ -9,15 +9,22 @@ import { dressAvatar } from '../avatar/dressAvatar';
 import { WARDROBE_BY_ID } from '../avatar/wardrobe';
 import { useGameStore } from '@/store/useGameStore';
 
-/** Brand-canon head/face from `photos/` trio when the save has neither. */
+/** Packaging / cool canon: green hoodie, blue tubeteika, yellow glasses. */
 function outfitWithBrandCanon(outfit: string[]): string[] {
-  const ids = outfit.filter((id) => WARDROBE_BY_ID.has(id));
+  let ids = outfit.filter((id) => WARDROBE_BY_ID.has(id));
+  if (!ids.some((id) => WARDROBE_BY_ID.get(id)?.bodyWear?.hoodie)) {
+    ids = ['hoodie_green', ...ids];
+  }
+  if (!ids.some((id) => WARDROBE_BY_ID.get(id)?.bodyWear?.jeans)) {
+    ids = ['jeans_blue', ...ids];
+  }
   const sockets = new Set(
     ids.map((id) => WARDROBE_BY_ID.get(id)?.socket).filter(Boolean),
   );
   if (!sockets.has('head')) ids.push('tubeteika_blue');
   if (!sockets.has('face')) ids.push('glasses_yellow');
-  return ids.length ? ids : ['tubeteika_blue', 'glasses_yellow'];
+  const seen = new Set<string>();
+  return ids.filter((id) => (seen.has(id) ? false : (seen.add(id), true)));
 }
 import { isUsableHeroGlb } from '../heroQuality';
 import { updateStaticHeroLocomotion } from '../staticHeroLocomotion';
@@ -36,17 +43,32 @@ import { createFpsSampler } from '@/dev/fpsSampler';
 // Registers window.__audit under import.meta.env.DEV; absent from a build.
 import '@/dev/levelAudit';
 import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
+import { HERO_HEIGHT, TREE_RING, forestRowHeight } from '../worldScale';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
 /**
- * Default hero = procedural Barsik with green hoodie / jeans / brand glasses
- * (matches `photos/` better than Meshy/Hyper3D nude mush).
- * `?hero=glb` forces barsik_rigged.glb when we have a good Tripo/export.
+ * Default hero = Meshy full-body look (clothes baked in the GLB).
+ * Canon likeness = green-hoodie Barsik (`cool` / `barsik_rigged`), like 2D.
+ * Wardrobe layering is only for `?hero=avatar` procedural path.
+ * `?look=cool|nude|astronaut|…` swaps the whole skin.
  */
+function heroGlbCandidates(): string[] {
+  if (typeof location === 'undefined') {
+    return ['barsik_cool_rigged.glb', 'barsik_rigged.glb', 'barsik.glb'];
+  }
+  const params = new URLSearchParams(location.search);
+  // Pack / nude / costume looks removed from product — only cool (or explicit cool).
+  const look = params.get('look');
+  if (look && look !== 'cool' && look !== 'glb') {
+    console.warn(`[hero] look=${look} retired; using cool`);
+  }
+  return ['barsik_cool_rigged.glb', 'barsik_rigged.glb', 'barsik.glb'];
+}
+
 const USE_GLB_HERO =
-  typeof location !== 'undefined'
-  && new URLSearchParams(location.search).get('hero') === 'glb';
+  typeof location === 'undefined'
+  || new URLSearchParams(location.search).get('hero') !== 'avatar';
 
 // ─── Shared types ───────────────────────────────────────────────
 export type Collider = 
@@ -322,6 +344,72 @@ export function butterfly(x: number, z: number, color: number) {
 }
 
 /**
+ * Split a quality butterfly GLB into left/right wing hinges so ambient flap
+ * still works without Meshy insect bones (auto-rig on bugs is unreliable).
+ */
+function hingeButterflyWings(root: THREE.Object3D): THREE.Group[] {
+  const meshes: THREE.Mesh[] = [];
+  root.updateMatrixWorld(true);
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.isMesh) meshes.push(m);
+  });
+  if (meshes.length < 2) return [];
+
+  type WingPick = { mesh: THREE.Mesh; side: -1 | 1; cx: number };
+  const picks: WingPick[] = [];
+  for (const mesh of meshes) {
+    const box = new THREE.Box3().setFromObject(mesh);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    // Wings are the wide thin-ish parts off the midline; skip the body capsule.
+    if (Math.max(size.x, size.z) < 0.04) continue;
+    if (Math.abs(center.x) < 0.02 && size.x < size.y * 1.2) continue;
+    const side: -1 | 1 = center.x >= 0 ? 1 : -1;
+    picks.push({ mesh, side, cx: center.x });
+  }
+  if (picks.length < 2) {
+    // Fallback: take the two meshes farthest left/right.
+    const ranked = meshes
+      .map((mesh) => {
+        const c = new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3());
+        return { mesh, cx: c.x };
+      })
+      .sort((a, b) => a.cx - b.cx);
+    if (ranked.length < 2) return [];
+    picks.length = 0;
+    picks.push({ mesh: ranked[0].mesh, side: -1, cx: ranked[0].cx });
+    picks.push({ mesh: ranked[ranked.length - 1].mesh, side: 1, cx: ranked[ranked.length - 1].cx });
+  }
+
+  const hinges: THREE.Group[] = [];
+  const used = new Set<THREE.Mesh>();
+  for (const side of [-1, 1] as const) {
+    const cand = picks
+      .filter((p) => p.side === side && !used.has(p.mesh))
+      .sort((a, b) => Math.abs(b.cx) - Math.abs(a.cx))[0];
+    if (!cand) continue;
+    used.add(cand.mesh);
+    const mesh = cand.mesh;
+    const parent = mesh.parent;
+    if (!parent) continue;
+    const hinge = new THREE.Group();
+    hinge.userData.side = side;
+    // Pivot near the body: keep world position, then fold about local Z.
+    const worldPos = new THREE.Vector3();
+    mesh.getWorldPosition(worldPos);
+    parent.worldToLocal(worldPos);
+    hinge.position.copy(worldPos);
+    hinge.position.x *= 0.15; // pull hinge toward spine
+    parent.add(hinge);
+    parent.remove(mesh);
+    hinge.attach(mesh);
+    hinges.push(hinge);
+  }
+  return hinges;
+}
+
+/**
  * Scatter bush. The third argument is a **scale**, not a height — passing a y
  * there builds a bush of that size, and passing 0 builds nothing at all.
  *
@@ -488,22 +576,23 @@ export function bridge(
   x: number,
   z: number,
   rotY: number,
-  opts: { deckY?: number; bedY?: number } = {},
+  opts: { deckY?: number; bedY?: number; length?: number } = {},
 ) {
   const deckY = opts.deckY ?? 0.25;
   const bedY = opts.bedY ?? deckY - 0.5;
+  const length = opts.length ?? 2.4;
   const g = new THREE.Group();
   const wood = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 1 });
   for (let i = -3; i <= 3; i++) {
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.08, 2.4), wood);
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.08, length), wood);
     plank.position.set(i * 0.42, deckY, 0);
     plank.castShadow = true; plank.receiveShadow = true;
     g.add(plank);
   }
   const railL = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.1, 0.1), wood);
-  railL.position.set(0, deckY + 0.3, -1.15);
+  railL.position.set(0, deckY + 0.3, -length * 0.48);
   const railR = railL.clone();
-  railR.position.z = 1.15;
+  railR.position.z = length * 0.48;
   g.add(railL, railR);
 
   // Support posts, so the deck reads as spanning a gap rather than resting
@@ -511,8 +600,9 @@ export function bridge(
   // reaching from just under the deck down to the bed the water sits in.
   const postMat = new THREE.MeshStandardMaterial({ color: 0x6d4c34, roughness: 1 });
   const postHeight = Math.max(0.2, deckY - bedY);
+  const postZ = length * 0.42;
   for (const px of [-1.35, 1.35]) {
-    for (const pz of [-1.0, 1.0]) {
+    for (const pz of [-postZ, postZ]) {
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, postHeight, 6), postMat);
       post.position.set(px, bedY + postHeight / 2, pz);
       post.castShadow = true;
@@ -527,10 +617,11 @@ export function bridge(
 
 export function woodSign(x: number, z: number, rotY: number, color = 0xffeaa7) {
   const g = new THREE.Group();
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2, 6), new THREE.MeshStandardMaterial({ color: 0x6d4c41 }));
-  post.position.y = 0.6;
-  const board = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.4, 0.06), new THREE.MeshStandardMaterial({ color }));
-  board.position.y = 1.1;
+  // Post ~SIGN_HEIGHT (1.6 m) — was 1.2 m and read as shin-high next to the cub.
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.55, 6), new THREE.MeshStandardMaterial({ color: 0x6d4c41 }));
+  post.position.y = 0.775;
+  const board = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.5, 0.07), new THREE.MeshStandardMaterial({ color }));
+  board.position.y = 1.45;
   post.castShadow = true; board.castShadow = true;
   g.add(post, board);
   g.position.set(x, 0, z);
@@ -681,16 +772,36 @@ export interface HeroRig {
  * the project satisfied it. (`hero_placeholder.glb` does — skin 1, three
  * clips — which is how the branch was tested.)
  */
-const HERO_CANDIDATES = ['barsik_rigged.glb', 'barsik.glb'] as const;
+const HERO_CANDIDATES = [
+  'barsik_cool_rigged.glb',
+  'barsik_rigged.glb',
+  'barsik.glb',
+] as const;
 
-/** Load a named character GLB from /chars, sized to `height`. Null if missing. */
+/** Load a named character GLB from /chars, sized to `height`. Null if missing.
+ * Prefers `*_rigged.glb` when the caller passes a plain `name.glb`.
+ */
 export async function loadCharModel(
   loader: GLTFLoader,
   file: string,
   height: number,
 ): Promise<THREE.Object3D | null> {
-  const gltf = await loadGlb(loader, CHARS + file);
+  const candidates =
+    file.endsWith('_rigged.glb') || file.includes('/')
+      ? [file]
+      : [file.replace(/\.glb$/i, '_rigged.glb'), file];
+
+  let gltf = null;
+  let used = file;
+  for (const candidate of candidates) {
+    gltf = await loadGlb(loader, CHARS + candidate);
+    if (gltf) {
+      used = candidate;
+      break;
+    }
+  }
   if (!gltf) return null;
+  void used;
   fitHeight(gltf.scene, height);
   // Sink any presentation plinth below the ground, and grow the model back so
   // the character itself — not the character plus its trophy base — is the
@@ -729,26 +840,30 @@ export async function loadCharModel(
   // scene, lit, and visible, and still read as a rock from five metres off.
   // Moving the offset inside a wrapper puts it somewhere position.set cannot
   // reach, so y = 0 means "standing here" for every caller.
+  const attachClips = (host: THREE.Object3D, target: THREE.Object3D) => {
+    if (!gltf.animations.length) return;
+    const mixer = new THREE.AnimationMixer(target);
+    const idleClip =
+      gltf.animations.find((c) => /idle/i.test(c.name)) || gltf.animations[0];
+    const walkClip = gltf.animations.find((c) => /walk/i.test(c.name));
+    const idleAction = mixer.clipAction(idleClip);
+    idleAction.play();
+    host.userData.animMixer = mixer;
+    host.userData.idleAction = idleAction;
+    if (walkClip) {
+      const walkAction = mixer.clipAction(walkClip);
+      walkAction.enabled = true;
+      host.userData.walkAction = walkAction;
+    }
+  };
+
   if (Math.abs(gltf.scene.position.y) > 1e-4) {
     const feetAtOrigin = new THREE.Group();
     feetAtOrigin.add(gltf.scene);
-    // MCP-rigged Idle when the mesh ships Walk/Idle clips.
-    if (gltf.animations.length) {
-      const mixer = new THREE.AnimationMixer(gltf.scene);
-      const idle =
-        gltf.animations.find((c) => /idle/i.test(c.name)) || gltf.animations[0];
-      mixer.clipAction(idle).play();
-      feetAtOrigin.userData.animMixer = mixer;
-    }
+    attachClips(feetAtOrigin, gltf.scene);
     return feetAtOrigin;
   }
-  if (gltf.animations.length) {
-    const mixer = new THREE.AnimationMixer(gltf.scene);
-    const idle =
-      gltf.animations.find((c) => /idle/i.test(c.name)) || gltf.animations[0];
-    mixer.clipAction(idle).play();
-    gltf.scene.userData.animMixer = mixer;
-  }
+  attachClips(gltf.scene, gltf.scene);
   return gltf.scene;
 }
 
@@ -831,10 +946,11 @@ export async function placeWoodSign(
   return woodSign(x, z, rotY, color);
 }
 
-export async function loadBarsikHeroRig(loader: GLTFLoader, height = 1.15): Promise<HeroRig> {
+export async function loadBarsikHeroRig(loader: GLTFLoader, height = HERO_HEIGHT): Promise<HeroRig> {
   // Optional GLB path (Tripo export / future photo→3D). Default = clothed avatar.
   if (USE_GLB_HERO) {
-    for (const file of HERO_CANDIDATES) {
+    const files = heroGlbCandidates().length ? heroGlbCandidates() : [...HERO_CANDIDATES];
+    for (const file of files) {
       const gltf = await loadGlb(loader, CHARS + file);
       if (!gltf) {
         console.warn(`[hero] failed to load ${file}`);
@@ -1401,11 +1517,65 @@ export abstract class BaseLevelScene {
 
   /**
    * Soft-3D butterfly GLB when present. Procedural hinged wings stay as
-   * fallback; GLB clones bob instead of folding (no hinge sockets).
+   * fallback. Meshy insect rigs are unreliable, so flap is code-driven:
+   * left/right wing meshes (split by local X) rotate about the spine.
    */
   protected async upgradeButterfliesToQualityGlb() {
-    // Off: early Blender butterfly export rendered as a giant blue plane.
-    return;
+    const files = [
+      's1_quality_butterfly.glb',
+      's1_quality_butterfly_coral.glb',
+      's1_quality_butterfly_cyan.glb',
+    ];
+    const loader = createGameGltfLoader();
+    const templates: THREE.Object3D[] = [];
+    for (const file of files) {
+      const gltf = await loadGlb(loader, `/assets/models/props/${file}`);
+      if (!gltf) continue;
+      fitMaxSize(gltf.scene, 0.42);
+      const size = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3());
+      // Reject the flat "giant poster" failure mode from early exports.
+      const flat = size.y < Math.max(size.x, size.z) * 0.12;
+      const huge = Math.max(size.x, size.y, size.z) > 0.55;
+      if (flat || huge) {
+        if (import.meta.env.DEV) {
+          console.warn(
+            `[butterfly] rejecting ${file} — ${size.x.toFixed(2)}×${size.y.toFixed(2)}×${size.z.toFixed(2)}`,
+          );
+        }
+        disposeObject3DResources(gltf.scene);
+        continue;
+      }
+      // Rest lowest point near local zero so flight height stays consistent.
+      const box = new THREE.Box3().setFromObject(gltf.scene);
+      gltf.scene.position.y -= box.min.y;
+      templates.push(gltf.scene);
+    }
+    if (!templates.length) return;
+
+    const procedural: THREE.Object3D[] = [];
+    this.scene.traverse((o) => {
+      if (o.userData.isButterfly) procedural.push(o);
+    });
+    for (let i = 0; i < procedural.length; i++) {
+      const old = procedural[i];
+      const tpl = templates[i % templates.length];
+      const clone = tpl.clone(true);
+      // Keep the same Group so levels that hold `this.butterflies` references
+      // keep animating the right object after the swap.
+      while (old.children.length) {
+        const child = old.children[0];
+        old.remove(child);
+        disposeObject3DResources(child);
+      }
+      old.add(clone);
+      old.userData.hinges = hingeButterflyWings(clone);
+      old.userData.flapRate = old.userData.flapRate ?? 9 + Math.random() * 5;
+      old.userData.phase = old.userData.phase ?? Math.random() * Math.PI * 2;
+      old.userData.ox = old.userData.ox ?? old.position.x;
+      old.userData.oz = old.userData.oz ?? old.position.z;
+      old.userData.isButterfly = true;
+    }
+    this.butterflyCache = null;
   }
 
   /**
@@ -1788,21 +1958,34 @@ export abstract class BaseLevelScene {
   protected onMovementHintDismiss() {}
 
   protected setupGuideArrow() {
+    // Горизонтальная «куда идти», не plumbob вниз на макушку.
+    // rotation.y в updateGuideArrow целится в objective в локали героя;
+    // конус смотрит в +Z группы при rotation.y = 0 (= atan2(dx,dz) на цель).
     this.guideArrow = new THREE.Group();
-    const ga = new THREE.Mesh(
-      new THREE.ConeGeometry(0.28, 0.7, 4),
-      new THREE.MeshStandardMaterial({ color: 0x00cec9, emissive: 0x00b894, emissiveIntensity: 0.8 }),
-    );
-    ga.rotation.x = Math.PI;
-    this.guideArrow.add(ga);
-    this.guideArrow.position.y = 2.6;
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x00cec9,
+      emissive: 0x00b894,
+      emissiveIntensity: 0.85,
+      roughness: 0.45,
+    });
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.62, 3), mat);
+    tip.rotation.x = -Math.PI / 2; // tip → local +Z
+    tip.position.set(0, 0, 0.28);
+    tip.castShadow = false;
+    tip.receiveShadow = false;
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.36), mat);
+    shaft.position.set(0, 0, -0.08);
+    shaft.castShadow = false;
+    shaft.receiveShadow = false;
+    this.guideArrow.add(tip, shaft);
+    this.guideArrow.position.y = 2.35;
     this.guideArrow.userData.isGuideArrow = true;
     this.guideArrow.visible = false;
     this.hero.add(this.guideArrow);
   }
 
   /** Textured static hero with procedural locomotion; plush fallback if loading fails. */
-  protected async loadHero(loader: GLTFLoader, height = 1.15) {
+  protected async loadHero(loader: GLTFLoader, height = HERO_HEIGHT) {
     const rig = await loadBarsikHeroRig(loader, height);
     if (this.disposed) {
       rig.mixer?.stopAllAction();
@@ -2091,9 +2274,7 @@ export abstract class BaseLevelScene {
         placements.push({
           names: row === 0 ? near : row === 1 ? mid : far,
           x, z,
-          height: row === 0 ? 2.6 + Math.random() * 1.0
-            : row === 1 ? 5.4 + Math.random() * 1.6
-              : 8.5 + Math.random() * 3.0,
+          height: forestRowHeight(row),
         });
       }
     };
@@ -2128,7 +2309,7 @@ export abstract class BaseLevelScene {
           placements.push({
             names: row === 0 ? mid : far,
             x, z,
-            height: row === 0 ? 5.4 + Math.random() * 1.6 : 8.5 + Math.random() * 3,
+            height: forestRowHeight(row === 0 ? 1 : 2),
           });
         }
       }
@@ -2163,9 +2344,7 @@ export abstract class BaseLevelScene {
         placements.push({
           names: row === 0 ? near : row === 1 ? mid : far,
           x, z,
-          height: row === 0 ? 2.6 + Math.random() * 1.0
-            : row === 1 ? 5.4 + Math.random() * 1.6
-              : 8.5 + Math.random() * 3.0,
+          height: forestRowHeight(row),
         });
       }
     }
@@ -2204,14 +2383,42 @@ export abstract class BaseLevelScene {
 
   protected async encloseWithForest(
     loader: GLTFLoader,
-    opts: { zFrom: number; zTo: number; rows?: number; step?: number },
+    opts: {
+      zFrom: number;
+      zTo: number;
+      rows?: number;
+      step?: number;
+      /** Keep the river channel open: forest starts beyond both banks. */
+      river?: {
+        centreX: (z: number) => number;
+        halfWidth: number;
+        zMin: number;
+        zMax: number;
+        bankClear: number;
+      };
+    },
   ) {
     if (!this.pathCorridor || this.disposed) return;
-    const { zFrom, zTo, rows = 4, step = 3.2 } = opts;
+    const { zFrom, zTo, rows = 4, step = 3.2, river } = opts;
     const kit = this.assetKit(loader);
     const near = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
     const mid = ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default'];
     const far = ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_tall'];
+
+    const blocksRiverView = (x: number, z: number) => {
+      if (!river) return false;
+      if (z < river.zMin || z > river.zMax) return false;
+      return Math.abs(x - river.centreX(z)) < river.halfWidth + river.bankClear;
+    };
+
+    /** In the crossing band, push rows past the far bank so water stays visible. */
+    const minOutFromEdge = (z: number, sign: number, edge: number) => {
+      if (!river || z < river.zMin || z > river.zMax) return 0;
+      const cx = river.centreX(z);
+      const bankEdge = cx + sign * (river.halfWidth + river.bankClear);
+      const gap = sign > 0 ? bankEdge - edge : edge - bankEdge;
+      return Math.max(0, gap);
+    };
 
     /** How far the walkable area reaches sideways at this z, either way. */
     const reachAt = (z: number, sign: number) => {
@@ -2236,21 +2443,17 @@ export abstract class BaseLevelScene {
       for (const sign of [-1, 1]) {
         const edge = reachAt(z, sign);
         for (let row = 0; row < rows; row++) {
-          const out = 1.4 + row * 2.6 + Math.random() * 1.1;
-          const x = edge + sign * out;
           const jz = z + (Math.random() - 0.5) * step;
+          let out = 1.4 + row * 2.6 + Math.random() * 1.1;
+          out = Math.max(out, minOutFromEdge(jz, sign, edge));
+          const x = edge + sign * out;
           if (this.isReserved(x, jz, 0.8) || this.isInsidePlayArea(x, jz)) continue;
           // A wall of forest is still a wall of trees, and trees do not grow
           // in a river. Where the water reaches the treeline the water is the
           // wall instead.
-          if (this.isUnderwater(x, jz)) continue;
+          if (this.isUnderwater(x, jz) || blocksRiverView(x, jz)) continue;
           const names = row === 0 ? near : row === 1 ? mid : far;
-          const height = row === 0
-            ? 2.6 + Math.random() * 1.0
-            : row === 1
-              ? 5.4 + Math.random() * 1.6
-              : 8.5 + Math.random() * 3.0;
-          placements.push({ names, x, z: jz, height });
+          placements.push({ names, x, z: jz, height: forestRowHeight(row) });
         }
       }
     }
@@ -2266,11 +2469,12 @@ export abstract class BaseLevelScene {
         for (let row = 0; row < 3; row++) {
           const z = endZ + dir * (1.2 + row * 2.6 + Math.random());
           if (this.isReserved(x, z, 0.8) || this.isInsidePlayArea(x, z)) continue;
+          if (blocksRiverView(x, z)) continue;
           placements.push({
             names: row === 0 ? mid : far,
             x: x + (Math.random() - 0.5) * 1.6,
             z,
-            height: row === 0 ? 5.4 + Math.random() * 1.6 : 8.5 + Math.random() * 3,
+            height: forestRowHeight(row === 0 ? 1 : 2),
           });
         }
       }
@@ -2364,10 +2568,10 @@ export abstract class BaseLevelScene {
       const z = Math.sin(ang) * r + centerZ;
       if (this.isReserved(x, z, 1.6)) continue;
       const height = ring === 0
-        ? heightBase + 3.4 + Math.random() * 2.4
+        ? heightBase + TREE_RING.canopyAdd + Math.random() * TREE_RING.canopySpan
         : ring === 1
-          ? heightBase + Math.random() * 1.8
-          : heightBase * 0.45 + Math.random() * 1.0;
+          ? heightBase + Math.random() * TREE_RING.midSpan
+          : heightBase * TREE_RING.smallMul + Math.random() * TREE_RING.smallSpan;
       placements.push({ names, x, z, height });
     }
 
@@ -2671,10 +2875,18 @@ export abstract class BaseLevelScene {
     for (const p of this.platforms) {
       const o = p.obj;
       const top = o.position.y + p.top;
-      if (top <= h) continue;
-      if (fromY < top - 0.05) continue;
-      if (Math.hypot(x - o.position.x, z - o.position.z) > p.radius) continue;
-      h = top;
+      if (top <= h + 0.02) continue;
+      const dist = Math.hypot(x - o.position.x, z - o.position.z);
+      if (dist > p.radius) continue;
+      if (fromY >= top - 0.08) {
+        h = top;
+        continue;
+      }
+      // Over a pad but below its lip — snap up unless we're clearly under it
+      // (side-swim elevator). Stepping stones are tall cylinders; the hero was
+      // tracking the river bed and rendering halfway through the mesh.
+      const drop = top - fromY;
+      if (dist <= p.radius * 0.82 && drop <= 2 * p.top + 0.55) h = top;
     }
     return h;
   }
@@ -2768,6 +2980,10 @@ export abstract class BaseLevelScene {
         // Walked off a platform. Gravity owns it from here.
         this.airborne = true;
         this.jumpVelocity = 0;
+      } else if (onPlatform && stand > h.y + 0.02) {
+        // Step onto a pad immediately — easing through it reads as clipping.
+        h.y = stand;
+        this.lastGroundedAt = now;
       } else {
         h.y += (stand - h.y) * Math.min(1, dt * 12);
         this.lastGroundedAt = now;
@@ -2973,11 +3189,16 @@ export abstract class BaseLevelScene {
     if (show && obj) {
       const local = obj.clone().sub(this.hero.position);
       local.y = 0;
-      if (local.lengthSq() > 0.01) {
-        const ang = Math.atan2(local.x, local.z) - this.hero.rotation.y;
-        this.guideArrow.rotation.y = ang;
+      const dist = local.length();
+      // Уже у цели — стрелка не нужна (иначе крутится над головой «на себя»).
+      if (dist < 1.35) {
+        this.guideArrow.visible = false;
+        return;
       }
-      this.guideArrow.position.y = 2.55 + Math.sin(now * 0.006) * 0.12;
+      local.multiplyScalar(1 / dist);
+      const ang = Math.atan2(local.x, local.z) - this.hero.rotation.y;
+      this.guideArrow.rotation.y = ang;
+      this.guideArrow.position.y = 2.3 + Math.sin(now * 0.006) * 0.1;
     }
   }
 

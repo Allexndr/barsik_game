@@ -419,7 +419,7 @@ export class Level3Scene extends BaseLevelScene {
       { key: 'bench', opts: { x: 4, z: -5, maxSize: 1.3, rotY: 0.5 } },
       { key: 'flowers', opts: { x: -4.5, z: -10, maxSize: 0.7 } },
       { key: 'flowers_tall', opts: { x: 6, z: -22, maxSize: 0.9 } },
-      { key: 'lantern_wood', opts: { x: -9, z: -6, maxSize: 0.55 } },
+      { key: 'lantern_wood', opts: { x: -9, z: -6, height: 1.4 } },
     ]);
     await placeAmbientCritters(this.scene, loader, [
       { key: 'owl', x: 9, z: -12, rotY: -1.1, h: 0.75 },

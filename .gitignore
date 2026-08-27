@@ -43,3 +43,5 @@ AGENTS.md
 .swarm/
 ruvector.db
 ruvector.db-*
+.meshy-work/
+Meshy_AI_*.glb

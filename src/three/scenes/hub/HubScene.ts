@@ -302,50 +302,13 @@ export class HubScene extends BaseLevelScene {
     const at = arrivalPoint(place, cameFrom);
     this.hero.position.set(at.x, 0, at.z);
     this.scene.add(this.hero);
-    const loader = createGameGltfLoader();
-    await this.loadHero(loader);
-
-    // Soft-3D landmarks + street NPCs (skip silently until GLBs exist).
-    this.dressing = await loadHubDressing(
-      loader,
-      place.id,
-      this.scene,
-      this.colliders as Array<{ kind: 'circle'; x: number; z: number; r: number }>,
-    );
-
-    // Собранные друзья сезона живут на Арбате — это и есть «город друзей».
-    // На подлокациях (Панфилова / парк / КБТУ / ТЮЗ) их не дублируем.
-    if (place.id === 'arbat' && friends.length > 0) {
-      for (let i = 0; i < friends.length; i++) {
-        const f = friends[i];
-        const { x, z } = friendPlazaSpot(i, friends.length);
-        const file = CAST_CHAR_GLB[f.id as keyof typeof CAST_CHAR_GLB];
-        let npc: THREE.Object3D | null = null;
-        if (file) {
-          npc = await loadCharModel(loader, file, 1.25);
-        }
-        if (!npc) {
-          npc = makeFriendNpc(f.id, FRIEND_COLORS[i % FRIEND_COLORS.length]);
-        }
-        npc.position.set(x, 0, z);
-        if (file && npc) {
-          const box = new THREE.Box3().setFromObject(npc);
-          npc.position.y = -box.min.y;
-        }
-        npc.rotation.y = Math.atan2(-x, -4 - z);
-        const tag = makeLabel(f.name || f.id, 'rgba(24,30,38,0.78)', '#fff8ee', 360);
-        tag.position.set(0, 2.05, 0);
-        npc.add(tag);
-        this.friendNpcs.push(npc);
-        this.scene.add(npc);
-        this.colliders.push({ kind: 'circle', x, z, r: 0.55 });
-      }
-    }
 
     // Приходя из соседнего места, нельзя тут же провалиться обратно: портал
     // взводится, только когда ребёнок от неё отошёл.
     this.travelArmed = cameFrom === null;
 
+    // Улица и loop — сразу. Раньше ждали hero + десятки hub GLB подряд, и
+    // вкладка «Город» минутами показывала пустой #cfe3f2 («Арбат не грузит»).
     this.hub = connectHub(place.id, {
       id: this.playerId(),
       name: this.nick,
@@ -354,14 +317,66 @@ export class HubScene extends BaseLevelScene {
       hoodie: DEFAULT_LOOK.hoodie,
     }, () => this.pushHud());
 
-    this.activate(() => {
+    if (!this.activate(() => {
       this.setupQuality();
       this.bindKeys();
       this.resize();
       addEventListener('resize', this.resize);
       this.pushHud();
       this.loop();
-    });
+    })) {
+      return;
+    }
+
+    const loader = createGameGltfLoader();
+    const dressingPromise = loadHubDressing(
+      loader,
+      place.id,
+      this.scene,
+      this.colliders as Array<{ kind: 'circle'; x: number; z: number; r: number }>,
+    );
+    await this.loadHero(loader);
+    if (this.disposed) return;
+    this.dressing = await dressingPromise;
+    if (this.disposed) return;
+
+    // Собранные друзья сезона живут на Арбате — это и есть «город друзей».
+    // На подлокациях (Панфилова / парк / КБТУ / ТЮЗ) их не дублируем.
+    if (place.id === 'arbat' && friends.length > 0) {
+      await this.spawnFriendNpcs(loader, friends);
+    }
+  }
+
+  private async spawnFriendNpcs(
+    loader: ReturnType<typeof createGameGltfLoader>,
+    friends: Array<{ id: string; name: string }>,
+  ) {
+    for (let i = 0; i < friends.length; i++) {
+      if (this.disposed) return;
+      const f = friends[i];
+      const { x, z } = friendPlazaSpot(i, friends.length);
+      const file = CAST_CHAR_GLB[f.id as keyof typeof CAST_CHAR_GLB];
+      let npc: THREE.Object3D | null = null;
+      if (file) {
+        npc = await loadCharModel(loader, file, 1.25);
+      }
+      if (this.disposed) return;
+      if (!npc) {
+        npc = makeFriendNpc(f.id, FRIEND_COLORS[i % FRIEND_COLORS.length]);
+      }
+      npc.position.set(x, 0, z);
+      if (file && npc) {
+        const box = new THREE.Box3().setFromObject(npc);
+        npc.position.y = -box.min.y;
+      }
+      npc.rotation.y = Math.atan2(-x, -4 - z);
+      const tag = makeLabel(f.name || f.id, 'rgba(24,30,38,0.78)', '#fff8ee', 360);
+      tag.position.set(0, 2.05, 0);
+      npc.add(tag);
+      this.friendNpcs.push(npc);
+      this.scene.add(npc);
+      this.colliders.push({ kind: 'circle', x, z, r: 0.55 });
+    }
   }
 
   /**
@@ -394,15 +409,15 @@ export class HubScene extends BaseLevelScene {
       let r = this.remotes.get(peer.id);
       if (!r) {
         const avatar = createBarsikAvatar({
-          height: 1.45,
+          height: 1.1,
           look: { ...DEFAULT_LOOK, fur: peer.fur, spots: peer.spots, hoodie: peer.hoodie },
         });
-        dressAvatar(avatar, ['tubeteika_blue', 'glasses_yellow'], {
+        dressAvatar(avatar, ['hoodie_green', 'jeans_blue', 'tubeteika_blue', 'glasses_yellow'], {
           ...DEFAULT_LOOK, fur: peer.fur, spots: peer.spots, hoodie: peer.hoodie,
         });
         avatar.root.position.set(peer.x, 0, peer.z);
         const nameTag = makeLabel(peer.name, 'rgba(28,34,42,0.82)', '#ffffff', 340);
-        nameTag.position.set(0, 1.95, 0);
+        nameTag.position.set(0, 1.55, 0);
         avatar.root.add(nameTag);
         this.scene.add(avatar.root);
         r = {

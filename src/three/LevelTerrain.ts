@@ -235,22 +235,40 @@ export function createTerrainSampler(opts: LevelTerrainOptions = {}) {
       }
     }
 
-    // …and the water cuts the road. Last word, so a river bed stays a river
-    // bed where the path runs through it.
-    for (const f of features) {
-      if (f.kind !== 'trench') continue;
-      const dx = Math.abs(x - f.x) - f.halfW;
-      const dz = Math.abs(z - f.z) - f.halfD;
-      const outside = Math.max(dx, dz);
-      if (outside < 3) h -= f.depth * (1 - THREE.MathUtils.clamp(outside / 3, 0, 1));
-    }
-
     // Lift the rim so the level closes on hills instead of running to a
     // hard fog line — the classic "world ends here" tell.
     const edge = playHalfExtent - Math.max(Math.abs(x), Math.abs(z));
     if (edge < rimFalloff) {
       const t = THREE.MathUtils.clamp((rimFalloff - edge) / rimFalloff, 0, 1);
       h += t * t * rimHeight;
+    }
+
+    // Authored flats beat corridor carve and rim lift (L0 yurt terrace), but
+    // not water: a flatRect that covers a play strip must not refill a moat.
+    for (const f of features) {
+      if (f.kind === 'flat') {
+        const dist = Math.hypot(x - f.x, z - f.z);
+        if (dist >= f.r) continue;
+        const u = 1 - dist / f.r;
+        const k = u * u * (3 - 2 * u);
+        h *= 1 - k;
+      } else if (f.kind === 'flatRect') {
+        const fo = f.falloff ?? 6;
+        const dx = Math.abs(x - f.x) - f.halfW;
+        const dz = Math.abs(z - f.z) - f.halfD;
+        const t = THREE.MathUtils.clamp(Math.max(dx, dz) / fo, 0, 1);
+        const k = 1 - t * t * (3 - 2 * t);
+        h *= 1 - k;
+      }
+    }
+
+    // Water digs last so a river/moat stays cut even under a play-strip flat.
+    for (const f of features) {
+      if (f.kind !== 'trench') continue;
+      const dx = Math.abs(x - f.x) - f.halfW;
+      const dz = Math.abs(z - f.z) - f.halfD;
+      const outside = Math.max(dx, dz);
+      if (outside < 3) h -= f.depth * (1 - THREE.MathUtils.clamp(outside / 3, 0, 1));
     }
 
     return h;
