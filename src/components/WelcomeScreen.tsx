@@ -7,6 +7,27 @@ import { hasFinishedIntro } from '@/three/inventory';
 import { ResponsivePicture } from '@/components/ui/ResponsivePicture';
 import './WelcomeScreen.css';
 
+const CompassIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden>
+    <circle cx="12" cy="12" r="9" />
+    <path d="m15.8 8.2-2.1 5.5-5.5 2.1 2.1-5.5 5.5-2.1Z" />
+  </svg>
+);
+
+const FriendsIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden>
+    <circle cx="8" cy="8" r="3" />
+    <circle cx="17" cy="9" r="2.5" />
+    <path d="M2.8 19c.5-3.3 2.3-5 5.2-5s4.7 1.7 5.2 5M13.4 18.5c.4-2.5 1.7-3.8 3.8-3.8 2.2 0 3.4 1.3 3.8 3.8" />
+  </svg>
+);
+
+const StarIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden>
+    <path d="m12 2.8 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2-5.7-3-5.7 3 1.1-6.2-4.5-4.4 6.3-.9L12 2.8Z" />
+  </svg>
+);
+
 const ShieldIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden>
     <path d="M12 2.5 20 6v5.5c0 5.1-3.3 8.4-8 10-4.7-1.6-8-4.9-8-10V6l8-3.5Z" />
@@ -42,10 +63,7 @@ function useRevealOnScroll() {
   return rootRef;
 }
 
-/**
- * Marketing landing — photographic fold · Barsik Hum · anti-slop redesign.
- * Keeps AI hero + brand photos; drops indigo/violet, 3-card feature grid, emoji chrome.
- */
+/** Marketing landing — photographic fold · Barsik Hum · brand-first hero. */
 export function WelcomeScreen() {
   const setScreen = useUIStore((s) => s.setScreen);
   const lang = useUIStore((s) => s.lang);
@@ -72,95 +90,95 @@ export function WelcomeScreen() {
 
   const copy = lang === 'kk'
     ? {
+        navAbout: 'Ойын туралы',
+        navWorld: 'Әлемдер',
+        navFeatures: 'Мүмкіндіктер',
+        navParents: 'Ата-аналарға',
         brandSub: 'LAND',
+        eyebrow: 'Қазақстан бойынша саяхат',
         title: 'Жаңа әлемді аш',
-        lead: 'Достар тап, тапсырмаларды орында, туған өлкені зертте — Барсикпен.',
+        lead: 'Достар тап, тапсырмаларды орында және туған өлкені зертте — Барсикпен бірге.',
         play: 'Ойнау',
         continue: 'Жалғастыру',
         free: 'Тегін · Жарнамасыз · RU / ҚАЗ',
         scroll: 'Әрі қарай',
-        meetTitle: 'Бұл — Барсик',
-        meetText: 'Жұмсақ ирбис, жасыл худи, сары көзілдірік. Достық саяхаттың жүрегі.',
-        worldsTitle: 'Үш әлем',
+        aboutKicker: 'Сенің саяхатың',
+        aboutTitle: 'Әр қадам — жаңа оқиға',
+        aboutText: 'Жеміс орманынан Мұзды алқапқа. Әр деңгейде дос, механика және кішкентай жеңіс.',
         forest: 'Жеміс орманы',
-        forestText: 'Алма жина, кірпі мен тиінге көмектес.',
+        forestText: 'Алма жина, кірпі мен тиінге көмектес, көпірден өт.',
         ice: 'Мұзды алқап',
-        iceText: 'Қар ұста, жұмбақ шеш, тауға шық.',
+        iceText: 'Қар ұста, жұмбақ шеш және тауға көтеріл.',
         city: 'Достар қаласы',
-        cityText: 'Жұлдыздарды сыйлыққа айырбастап, Арбатты безендір.',
+        cityText: 'Жұлдыздарды сыйлыққа айырбастап, қаланы безендір.',
+        featureKicker: 'Ойында не бар',
+        featureTitle: 'Ойна, үйрен, достас',
+        feat1: '17 оқиғалы деңгей',
+        feat1Text: 'Іздеу, эскорт, тепе-теңдік және жұмбақтар — қысқа әрі әртүрлі.',
+        feat2: 'Нағыз достар',
+        feat2Text: 'Әр кейіпкердің өз мінезі мен оқиғасы бар.',
+        feat3: 'Жұлдыздар мен сыйлықтар',
+        feat3Text: 'Жетістіктерді жина және прогресті бақыла.',
+        parentKicker: 'Ата-аналар үшін',
+        parentTitle: 'Қауіпсіз және мейірімді',
+        parentText: 'Сыртқы жарнамасыз және ойыннан тыс сатып алусыз. Прогресс құрылғыда, тіл — кез келген уақытта.',
+        safe1: 'Жарнамасыз',
+        safe2: 'RU және ҚАЗ',
+        safe3: '3–15 жас',
         flowTitle: 'Қалай бастау',
         flow1: 'Тілді таңда',
         flow2: 'Атын жаз',
         flow3: 'Алғашқы оқиға',
-        parentTitle: 'Ата-аналарға',
-        parentText: 'Сыртқы жарнамасыз және ойыннан тыс сатып алусыз. Прогресс құрылғыда.',
-        safe1: 'Жарнамасыз',
-        safe2: 'RU және ҚАЗ',
-        safe3: '3–15 жас',
         cta: 'Саяхатқа дайынсың ба?',
         ctaText: 'Бірнеше секунд — және алғашқы оқиға басталады.',
         footer: 'Балаларға арналған мейірімді 3D-саяхат',
         settings: 'Баптаулар',
-        navWorld: 'Әлемдер',
-        navParents: 'Ата-аналар',
       }
     : {
+        navAbout: 'Об игре',
+        navWorld: 'Миры',
+        navFeatures: 'Возможности',
+        navParents: 'Родителям',
         brandSub: 'LAND',
+        eyebrow: 'Большое путешествие по Казахстану',
         title: 'Открывай мир вместе с Барсиком',
-        lead: 'Находи друзей, выполняй добрые задания и исследуй родной край.',
+        lead: 'Находи друзей, выполняй добрые задания и исследуй удивительные места родного края.',
         play: 'Играть',
         continue: 'Продолжить',
         free: 'Бесплатно · Без рекламы · RU / ҚАЗ',
         scroll: 'Дальше',
-        meetTitle: 'Это Барсик',
-        meetText: 'Мягкий ирбис в зелёном худи и жёлтых очках — сердце доброго путешествия.',
-        worldsTitle: 'Три мира',
+        aboutKicker: 'Твоё путешествие',
+        aboutTitle: 'Каждый шаг — новая история',
+        aboutText: 'От Фруктового леса до Ледяной долины. В каждом уровне — друг, механика и маленькая победа.',
         forest: 'Фруктовый лес',
-        forestText: 'Собирай яблоки, помогай ёжику и белочке.',
+        forestText: 'Собирай яблоки, помогай ёжику и белочке, переходи мост.',
         ice: 'Ледяная долина',
-        iceText: 'Лови снежинки, разгадывай загадки, поднимайся в горы.',
+        iceText: 'Лови снежинки, разгадывай загадки и поднимайся в горы.',
         city: 'Город друзей',
         cityText: 'Меняй звёзды на подарки и украшай Арбат с друзьями.',
+        featureKicker: 'Что ждёт в игре',
+        featureTitle: 'Играй, учись, дружи',
+        feat1: '17 сюжетных уровней',
+        feat1Text: 'Поиск, сопровождение, баланс и головоломки — коротко и по-разному.',
+        feat2: 'Настоящие друзья',
+        feat2Text: 'У каждого героя свой характер и своя история.',
+        feat3: 'Звёзды и награды',
+        feat3Text: 'Собирай достижения и следи за прогрессом.',
+        parentKicker: 'Для родителей',
+        parentTitle: 'Безопасная и добрая игра',
+        parentText: 'Без внешней рекламы и покупок вне игры. Прогресс на устройстве, язык — в любой момент.',
+        safe1: 'Без рекламы',
+        safe2: 'RU и ҚАЗ',
+        safe3: 'Для 3–15 лет',
         flowTitle: 'Как начать',
         flow1: 'Выбери язык',
         flow2: 'Напиши имя',
         flow3: 'Первая история',
-        parentTitle: 'Для родителей',
-        parentText: 'Без внешней рекламы и покупок вне игры. Прогресс остаётся на устройстве.',
-        safe1: 'Без рекламы',
-        safe2: 'RU и ҚАЗ',
-        safe3: 'Для 3–15 лет',
         cta: 'Готов к приключению?',
         ctaText: 'Через несколько секунд начнётся первая история.',
         footer: 'Доброе 3D-приключение для детей',
         settings: 'Настройки',
-        navWorld: 'Миры',
-        navParents: 'Родителям',
       };
-
-  const worlds = [
-    {
-      id: 'forest',
-      title: copy.forest,
-      text: copy.forestText,
-      img: '/assets/map/chapter1_fruit_forest_desktop.jpg?v=20260824',
-      tone: 'forest' as const,
-    },
-    {
-      id: 'ice',
-      title: copy.ice,
-      text: copy.iceText,
-      img: '/assets/map/chapter2_ice_valley.jpg?v=20260824',
-      tone: 'ice' as const,
-    },
-    {
-      id: 'city',
-      title: copy.city,
-      text: copy.cityText,
-      img: '/assets/map/chapter6_friends_city.jpg?v=20260824',
-      tone: 'city' as const,
-    },
-  ];
 
   return (
     <div className="welcome-screen" ref={rootRef}>
@@ -172,8 +190,9 @@ export function WelcomeScreen() {
         </a>
 
         <nav className="welcome-nav-links" aria-label={lang === 'kk' ? 'Негізгі навигация' : 'Основная навигация'}>
-          <a href="#meet">{copy.meetTitle}</a>
+          <a href="#about">{copy.navAbout}</a>
           <a href="#worlds">{copy.navWorld}</a>
+          <a href="#features">{copy.navFeatures}</a>
           <a href="#parents">{copy.navParents}</a>
         </nav>
 
@@ -201,10 +220,10 @@ export function WelcomeScreen() {
             className="welcome-hero-image"
             alt=""
             sources={[
-              { media: '(min-width: 760px)', src: '/assets/landing/landing_hero_desktop.webp?v=20260826' },
-              { media: '(orientation: landscape)', src: '/assets/landing/landing_hero_desktop.webp?v=20260826' },
+              { media: '(min-width: 760px)', src: '/assets/landing/landing_hero_desktop.webp?v=20260825' },
+              { media: '(orientation: landscape)', src: '/assets/landing/landing_hero_desktop.webp?v=20260825' },
             ]}
-            fallbackSrc="/assets/landing/landing_hero_mobile.webp?v=20260826"
+            fallbackSrc="/assets/landing/landing_hero_mobile.webp?v=20260825"
           />
           <div className="welcome-hero-sky" aria-hidden />
           <div className="welcome-hero-veil" aria-hidden />
@@ -214,6 +233,7 @@ export function WelcomeScreen() {
                 <span>BARSIK</span>
                 <span className="welcome-hero-brand-chip">{copy.brandSub}</span>
               </p>
+              <p className="welcome-hero-eyebrow">{copy.eyebrow}</p>
               <h1>{copy.title}</h1>
               <p className="welcome-hero-lead">{copy.lead}</p>
               <div className="welcome-hero-actions">
@@ -231,56 +251,10 @@ export function WelcomeScreen() {
               <p className="welcome-hero-note">{copy.free}</p>
             </div>
           </div>
-          <a className="welcome-scroll-cue" href="#meet">
+          <a className="welcome-scroll-cue" href="#flow">
             {copy.scroll}
             <span className="welcome-scroll-cue-chevron" aria-hidden />
           </a>
-        </section>
-
-        <section className="welcome-meet" id="meet" data-reveal>
-          <figure className="welcome-meet-figure">
-            <img
-              src="/assets/brand/barsik_trio_kazakh.jpg?v=20260826"
-              alt=""
-              width={1200}
-              height={900}
-              loading="lazy"
-              decoding="async"
-            />
-            <figcaption>
-              <h2>{copy.meetTitle}</h2>
-              <p>{copy.meetText}</p>
-            </figcaption>
-          </figure>
-          <div className="welcome-meet-strip" aria-hidden="true">
-            <img src="/assets/brand/barsik_mascot_sign.jpg?v=20260826" alt="" loading="lazy" decoding="async" />
-            <img src="/assets/brand/barsik_cap_sign.jpg?v=20260826" alt="" loading="lazy" decoding="async" />
-            <img src="/assets/brand/barsik_brand_extra.jpg?v=20260826" alt="" loading="lazy" decoding="async" />
-          </div>
-        </section>
-
-        <section className="welcome-worlds welcome-section" id="worlds" data-reveal>
-          <header className="welcome-section-heading">
-            <h2>{copy.worldsTitle}</h2>
-          </header>
-          <div className="welcome-world-stack">
-            {worlds.map((world, i) => (
-              <article
-                key={world.id}
-                className={`welcome-world-row welcome-world-row--${world.tone}${i % 2 === 1 ? ' is-flip' : ''}`}
-                data-reveal
-              >
-                <div className="welcome-world-media">
-                  <img src={world.img} alt="" loading="lazy" decoding="async" />
-                </div>
-                <div className="welcome-world-copy">
-                  <span className="welcome-world-index" aria-hidden>{String(i + 1).padStart(2, '0')}</span>
-                  <h3>{world.title}</h3>
-                  <p>{world.text}</p>
-                </div>
-              </article>
-            ))}
-          </div>
         </section>
 
         <section className="welcome-flow welcome-section" id="flow" data-reveal>
@@ -292,18 +266,67 @@ export function WelcomeScreen() {
           </ol>
         </section>
 
+        <section className="welcome-about welcome-section" id="about" data-reveal>
+          <div className="welcome-section-heading">
+            <p>{copy.aboutKicker}</p>
+            <h2>{copy.aboutTitle}</h2>
+            <span>{copy.aboutText}</span>
+          </div>
+
+          <div className="welcome-world-grid" id="worlds">
+            <article className="welcome-world-card welcome-world-card--forest" data-reveal>
+              <img src="/assets/map/chapter1_fruit_forest_desktop.jpg?v=20260824" alt="" />
+              <div><span>01</span><h3>{copy.forest}</h3><p>{copy.forestText}</p></div>
+            </article>
+            <article className="welcome-world-card welcome-world-card--ice" data-reveal>
+              <img src="/assets/map/chapter2_ice_valley.jpg?v=20260824" alt="" />
+              <div><span>02</span><h3>{copy.ice}</h3><p>{copy.iceText}</p></div>
+            </article>
+            <article className="welcome-world-card welcome-world-card--city" data-reveal>
+              <img src="/assets/map/chapter6_friends_city.jpg?v=20260824" alt="" />
+              <div><span>03</span><h3>{copy.city}</h3><p>{copy.cityText}</p></div>
+            </article>
+          </div>
+        </section>
+
+        <section className="welcome-features welcome-section" id="features" data-reveal>
+          <div className="welcome-section-heading welcome-section-heading-light">
+            <p>{copy.featureKicker}</p>
+            <h2>{copy.featureTitle}</h2>
+          </div>
+          <div className="welcome-feature-grid">
+            <article data-reveal>
+              <div className="welcome-feature-icon"><CompassIcon /></div>
+              <strong>17</strong>
+              <h3>{copy.feat1}</h3>
+              <p>{copy.feat1Text}</p>
+            </article>
+            <article data-reveal>
+              <div className="welcome-feature-icon"><FriendsIcon /></div>
+              <strong>12+</strong>
+              <h3>{copy.feat2}</h3>
+              <p>{copy.feat2Text}</p>
+            </article>
+            <article data-reveal>
+              <div className="welcome-feature-icon"><StarIcon /></div>
+              <strong>★</strong>
+              <h3>{copy.feat3}</h3>
+              <p>{copy.feat3Text}</p>
+            </article>
+          </div>
+        </section>
+
         <section className="welcome-parents welcome-section" id="parents" data-reveal>
-          <div className="welcome-parent-band">
-            <div className="welcome-parent-shield" aria-hidden>
-              <ShieldIcon />
-            </div>
+          <div className="welcome-parent-card">
+            <div className="welcome-parent-shield"><ShieldIcon /></div>
             <div className="welcome-parent-copy">
+              <p>{copy.parentKicker}</p>
               <h2>{copy.parentTitle}</h2>
-              <p>{copy.parentText}</p>
+              <span>{copy.parentText}</span>
               <ul>
-                <li>{copy.safe1}</li>
-                <li>{copy.safe2}</li>
-                <li>{copy.safe3}</li>
+                <li><b>✓</b>{copy.safe1}</li>
+                <li><b>✓</b>{copy.safe2}</li>
+                <li><b>✓</b>{copy.safe3}</li>
               </ul>
             </div>
           </div>
