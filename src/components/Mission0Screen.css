@@ -289,6 +289,13 @@
   transition: transform 0.05s linear;
 }
 
+/* Бег виден на самом стике: тот же порог 0.75, что и в коде уровня.
+   Без этого «иду» и «бегу» отличались только поведением NPC. */
+.m0-knob.is-running {
+  background: linear-gradient(180deg, #ffd166, #f0932b);
+  box-shadow: 0 0 0 4px rgba(240, 147, 43, 0.28), 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
 .m0-skip {
   position: absolute;
   right: max(12px, env(safe-area-inset-right));

@@ -18,9 +18,6 @@ export const NPC_ADULT_HEIGHT = 1.28;
 /** Child / peer NPCs (Aya and friends). */
 export const NPC_PEER_HEIGHT = 1.08;
 
-/** Small critters (hedgehog, squirrel, bird). */
-export const NPC_CRITTER_HEIGHT = 0.55;
-
 /** Apple the child can pick — fist-to-hand sized; 0.78 was torso-tall vs the cub. */
 export const APPLE_SIZE = 0.38;
 

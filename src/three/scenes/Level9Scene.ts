@@ -25,26 +25,25 @@ import { resolveKey } from '../inventory';
  * Inside: stars, rare friend "Ягодка", and map to Chapter 2.
  */
 
-// ── Layout ──────────────────────────────────────────────────────
-// The chest is the payoff of the whole Fruit Forest world, and it used to sit
-// eight metres from the spawn pad with all three seals inside a 24×20 box —
-// 480 m², the smallest level in the season, against a median of about 2500.
-// Everything was visible from the start, so the climax of world one was over
-// in well under a minute.
+// ── Планировка ──────────────────────────────────────────────────
+// Сундук — награда за весь Фруктовый лес, а стоял он в восьми метрах от точки
+// появления, и все три печати помещались в коробку 24×20 — 480 м², самый
+// маленький уровень сезона при медиане около 2500. Всё было видно с самого
+// начала, поэтому кульминация первого мира заканчивалась меньше чем за минуту.
 const SPAWN_Z = 8;
-/** Chest clearing, at the deep end of a forty-metre walk. */
+/** Поляна с сундуком — в дальнем конце сорокаметрового пути. */
 const CHEST_Z = -34;
 
-/** The mark on a seal, on its guardian's shrine, and on the chest's lock. */
+/** Знак на печати, на святилище её стража и на замке сундука. */
 type Sigil = 'sun' | 'leaf' | 'drop';
 
 /**
- * Each seal has a guardian, and each guardian lives somewhere different.
+ * У каждой печати свой страж, и каждый страж живёт в своём месте.
  *
- * The guardians were already modelled and already standing beside the shrines
- * doing nothing while the player picked the seal up off the plinth in front of
- * them. They now want something for it, which is where most of this level's
- * running time comes from — and it costs no new art.
+ * Стражи и раньше были смоделированы и стояли у святилищ, ничего не делая, пока
+ * игрок снимал печать с постамента прямо перед ними. Теперь они что-то просят
+ * взамен — отсюда и берётся большая часть длительности уровня, и это не стоило
+ * ни одной новой модели.
  */
 const SHRINES: Array<{
   x: number;
@@ -59,16 +58,16 @@ const SHRINES: Array<{
   { x: -9, z: -45, guard: 'deer', rotY: 0.3, sigil: 'drop', name: { ru: 'Оленёнок', kk: 'Бұғы' } },
 ];
 
-/** What each guardian asks for before it parts with its seal. */
+/** Что страж просит, прежде чем расстаться со своей печатью. */
 const BERRIES_PER_GUARD = 3;
 
 /**
- * Twelve berries for nine needed.
+ * Двенадцать ягод при нужных девяти.
  *
- * The slack is deliberate. With exactly nine, one berry that ends up inside a
- * rock or outside the walkable rim is a level that cannot be finished, and
- * that is the same soft-lock the acorn key just had. Three spare also means a
- * child who walks past a bush is not punished for it.
+ * Запас намеренный. Ровно с девятью одна ягода, оказавшаяся внутри камня или за
+ * границей проходимой зоны, делает уровень непроходимым — тот же тупик, что
+ * только что был с жёлудем-ключом. Три лишние ещё и означают, что ребёнок,
+ * прошедший мимо куста, за это не наказан.
  */
 const BERRY_SPOTS: Array<{ x: number; z: number }> = [
   { x: 7, z: -2 }, { x: -21, z: -3 }, { x: -12, z: -13 },
@@ -78,13 +77,13 @@ const BERRY_SPOTS: Array<{ x: number; z: number }> = [
 ];
 
 /**
- * The lock: three pillars in front of the chest, pressed in the order the
- * lock face shows rather than left to right.
+ * Замок: три столба перед сундуком, нажимать в том порядке, который показан на
+ * его лицевой панели, а не слева направо.
  *
- * A matching puzzle, not a memory one — the required order stays lit on the
- * chest the whole time. Five-year-olds are in this game's audience and asking
- * them to hold a sequence in their head would lock them out; asking them to
- * copy one they can see is exactly the right shape.
+ * Это задача на сопоставление, а не на память: нужный порядок всё время горит на
+ * сундуке. Пятилетние входят в аудиторию игры, и просить их удержать
+ * последовательность в голове значит закрыть им уровень; просить повторить то,
+ * что видно, — ровно та задача, которая им по силам.
  */
 const PILLARS: Array<{ x: number; z: number; sigil: Sigil }> = [
   { x: -2.6, z: CHEST_Z + 3.4, sigil: 'drop' },
@@ -92,14 +91,14 @@ const PILLARS: Array<{ x: number; z: number; sigil: Sigil }> = [
   { x: 2.6, z: CHEST_Z + 3.4, sigil: 'leaf' },
 ];
 
-/** Order the lock asks for — the order the shrines are met on the way down. */
+/** Порядок, который требует замок, — тот же, в каком святилища встречаются по пути. */
 const LOCK_ORDER: Sigil[] = ['sun', 'leaf', 'drop'];
 
 const SIGIL_COLOR: Record<Sigil, number> = { sun: 0xffc93c, leaf: 0x6ab04c, drop: 0x4aa3df };
 
 /**
- * A sigil as a small solid, not a texture: three silhouettes a child can tell
- * apart at a glance and from across a clearing.
+ * Знак сделан объёмной фигуркой, а не текстурой: три силуэта, которые ребёнок
+ * различает с одного взгляда и через всю поляну.
  */
 function makeSigil(kind: Sigil, size = 1): THREE.Mesh {
   const mat = new THREE.MeshStandardMaterial({
@@ -118,16 +117,16 @@ function makeSigil(kind: Sigil, size = 1): THREE.Mesh {
   return mesh;
 }
 
-/** Centre line of the walk from the forest edge to the chest clearing. */
+/** Осевая линия пути от кромки леса к поляне с сундуком. */
 function routeX(z: number) {
   return Math.sin((z - SPAWN_Z) * 0.07) * 3.6;
 }
 
 /**
- * `quest` is gathering and trading at once, on purpose. Splitting them would
- * mean "pick nine berries, then do three laps back" — the same ground walked
- * twice, which is padding. Trading whenever you happen to pass a guardian is
- * the same distance with a decision in it.
+ * В `quest` сбор и обмен идут одновременно, и это намеренно. Разделить их —
+ * значит получить «собери девять ягод, потом сделай три круга обратно», то есть
+ * дважды пройти ту же землю. Обмен по дороге, когда страж просто оказался рядом,
+ * — то же расстояние, но с выбором внутри.
  */
 export type L10Phase = 'intro' | 'quest' | 'lock' | 'unlock' | 'open' | 'outro';
 
@@ -143,9 +142,9 @@ export interface L10Hud extends BaseHud {
 function makeChest(x: number, z: number): THREE.Group {
   const g = new THREE.Group();
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.8, metalness: 0.1 });
-  // No environment map in this game, so a mostly-metal surface has nothing
-  // to reflect and reads as flat black instead of gold. Emissive carries
-  // the gold glow instead — same fix as L16's chest lock.
+  // Карты окружения в игре нет, поэтому почти металлической поверхности нечего
+  // отражать и она читается плоско-чёрной вместо золота. Золото даёт свечение
+  // emissive — та же правка, что у замка сундука на L16.
   const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.3, metalness: 0.12, emissive: 0xffd700, emissiveIntensity: 0.3 });
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 1.0), woodMat);
@@ -157,13 +156,13 @@ function makeChest(x: number, z: number): THREE.Group {
   lid.castShadow = true;
   lid.userData.isLid = true;
 
-  // Gold trim
+  // Золотая окантовка.
   const trim1 = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.05, 1.02), goldMat);
   trim1.position.y = 0.2;
   const trim2 = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.05, 1.02), goldMat);
   trim2.position.y = 0.7;
 
-  // Acorn-shaped lock
+  // Замок в форме жёлудя.
   const lockCap = new THREE.Mesh(
     new THREE.SphereGeometry(0.12, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2),
     goldMat,
@@ -172,7 +171,7 @@ function makeChest(x: number, z: number): THREE.Group {
   const lockBody = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), new THREE.MeshStandardMaterial({ color: 0xd4a574, roughness: 0.6, emissive: 0xf39c12, emissiveIntensity: 0.3 }));
   lockBody.position.set(0, 0.75, 0.52);
 
-  // Glow ring
+  // Светящееся кольцо.
   const glow = new THREE.Mesh(
     new THREE.RingGeometry(1.0, 1.5, 24),
     new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.4, side: THREE.DoubleSide }),
@@ -221,17 +220,17 @@ export class Level9Scene extends BaseLevelScene {
   private seals: THREE.Object3D[] = [];
   private sealsDone = 0;
   private readonly sealsTotal = 3;
-  /** Rest height of the floating key, so its bob rides the terrain. */
+  /** Высота покоя парящего ключа, чтобы покачивание шло по рельефу. */
   private keyBaseY = 2.5;
   private berries: THREE.Object3D[] = [];
-  /** Picked and not yet traded. Guardians only take whole sets of three. */
+  /** Собрано и ещё не обменяно. Стражи берут только полными тройками. */
   private berryCount = 0;
   private guardians: THREE.Object3D[] = [];
   private pillars: THREE.Group[] = [];
-  /** How much of LOCK_ORDER is already pressed. Reset by a wrong pillar. */
+  /** Сколько из LOCK_ORDER уже нажато. Неверный столб сбрасывает счёт. */
   private lockDone = 0;
   private lockWrongAt = 0;
-  /** Once they have got it wrong, the arrow starts pointing at the answer. */
+  /** После первой ошибки стрелка начинает показывать ответ. */
   private lockFailures = 0;
   private lockFace: THREE.Group | null = null;
   private chestMarker: THREE.Object3D | null = null;
@@ -262,9 +261,9 @@ export class Level9Scene extends BaseLevelScene {
       }
 
       if (t.userData.isSeal) {
-        // The guardian only trades a whole handful. Saying so and doing
-        // nothing is the correct answer to two berries — the alternative is
-        // taking them and leaving the child with a debt they cannot see.
+        // Страж меняет только полную горсть. Сказать это и ничего не взять —
+        // правильный ответ на две ягоды; иначе он их заберёт и оставит ребёнка
+        // с долгом, которого тот не видит.
         if (this.berryCount < BERRIES_PER_GUARD) {
           AudioManager.sfx('click');
           this.pushHud();
@@ -277,7 +276,7 @@ export class Level9Scene extends BaseLevelScene {
         if (beacon) beacon.visible = false;
         this.sealsDone += 1;
         this.stars += 3;
-        // The seal it just gave up now waits on its pillar by the chest.
+        // Отданная печать теперь ждёт на своём столбе у сундука.
         const sigil = t.userData.sigil as Sigil;
         const pillar = this.pillars.find((p) => p.userData.sigil === sigil);
         if (pillar) pillar.userData.armed = true;
@@ -304,10 +303,10 @@ export class Level9Scene extends BaseLevelScene {
         AudioManager.sfx('success');
         if (this.lockDone >= LOCK_ORDER.length) {
           if (!this.hasAcornKey) {
-            // Everything the level asked for is done and the chest still
-            // will not open. Not reachable from a normal save — L9 is behind
-            // L5 — but if it ever happens the player should be standing in
-            // front of a lock that is visibly complete, not stuck earlier.
+            // Всё, что уровень просил, сделано, а сундук всё равно не
+            // открывается. С нормальным сейвом сюда не попасть — L9 идёт после
+            // L5, — но если это всё же случится, игрок должен стоять перед
+            // видимо собранным замком, а не застревать раньше.
             this.pushHud();
             return;
           }
@@ -317,9 +316,9 @@ export class Level9Scene extends BaseLevelScene {
           this.nextAt = now + 1500;
         }
       } else {
-        // Wrong pillar: everything comes back out, nothing is taken away.
-        // Costing stars here would punish the five-year-olds this puzzle is
-        // shaped for and teach the eight-year-olds not to experiment.
+        // Не тот столб: всё выходит обратно, ничего не отнимается. Отнимать
+        // звёзды здесь значило бы наказывать пятилетних, под которых задача и
+        // сделана, и отучать восьмилетних пробовать.
         this.lockDone = 0;
         this.lockFailures += 1;
         this.lockWrongAt = now;
@@ -335,15 +334,15 @@ export class Level9Scene extends BaseLevelScene {
     this.lang = lang;
     this.onHud = onHud;
 
-    // Derived from the save, not from a loose flag. See src/three/inventory.ts:
-    // the flag lives outside `barsik_progress`, so it is neither migrated nor
-    // restored, and a save that lost it turned this chest into a dead end.
+    // Берётся из сейва, а не из отдельного флага. См. src/three/inventory.ts:
+    // флаг лежит вне `barsik_progress`, поэтому его не переносят и не
+    // восстанавливают, и сейв, потерявший его, превращал сундук в тупик.
     this.hasAcornKey = resolveKey(KEY_ACORN).has;
     if (!this.hasAcornKey && import.meta.env.DEV) {
-      // QA arrives through `?mission=9` with no progress at all, and without
-      // this the chest cannot be reached locally. Deliberately narrow: with a
-      // real save the line above is what decides, so the path that ships is
-      // the path being played.
+      // QA заходит через `?mission=9` вообще без прогресса, и без этого
+      // сундука локально не достать. Условие намеренно узкое: при настоящем
+      // сейве решает строка выше, значит, играется та ветка, которая уйдёт в
+      // сборку.
       console.warn('[L9] no acorn key and level 5 is not complete — granting for QA only');
       this.hasAcornKey = true;
     }
@@ -351,8 +350,18 @@ export class Level9Scene extends BaseLevelScene {
     const loader = createGameGltfLoader();
 
     this.camera.position.set(9, 8, 17);
-    this.pathCorridor = routeX;
-    this.pathCorridorHalf = 2.2;
+    // Арена, а не коридор.
+    //
+    // Уровень разбрасывает двенадцать ягодных кустов от x −22 до +22 и просит
+    // найти девять: собственный комментарий называет это «источником ходьбы на
+    // уровне». Коридор шириной 4.4 м посередине такого не вмещает, а
+    // `clampToPlayArea` пропускает коридор плюс зарезервированные комнаты и
+    // больше ничего — кусты ставили там, где хотел дизайн, и тут же отгораживали.
+    // Резервировать их поодиночке тоже мало: комнаты без маршрута между ними —
+    // острова, до которых не дойти.
+    //
+    // Честная форма уровня про поиск в лесу — открытое пространство.
+    this.playArena = { x: 0, z: -18, r: 33 };
     await this.setupForestEnvironment(loader, {
       flatRadius: 11,
       flatCenterZ: CHEST_Z,
@@ -368,10 +377,21 @@ export class Level9Scene extends BaseLevelScene {
       },
     });
 
-    // Reserve the gameplay before anything is scattered over it.
+    // Резервируем геймплей до того, как поверх него что-то разбросано.
     this.reserve(0, CHEST_Z, 9);
     this.reserve(0, SPAWN_Z, 5);
     for (const sh of SHRINES) this.reserve(sh.x, sh.z, 4);
+    // Ягоды тоже: это геймплей, а не декор.
+    //
+    // Резерв и делает точку проходимой: `clampToPlayArea` пропускает коридор
+    // плюс зарезервированные комнаты и больше ничего. Без него кусты стояли там,
+    // где их хотел уровень, и были отгорожены от игрока: полный перебор всех
+    // точек, где можно стоять, нашёл в пределах радиуса подбора 1.9 м только три
+    // куста из двенадцати — при девяти, которые в сумме просят три стража.
+    // Запасные ягоды, ради которых список и делали («двенадцать при нужных
+    // девяти»), такую нехватку не покрывали: уровень нельзя было пройти вообще,
+    // а стрелка указывала на (7, −2) — один из тех, до которых никто не мог дойти.
+    for (const spot of BERRY_SPOTS) this.reserve(spot.x, spot.z, 3);
 
     const pad = spawnPad(0, SPAWN_Z);
     pad.position.y = this.groundHeightAt(0, SPAWN_Z) + 0.01;
@@ -386,9 +406,9 @@ export class Level9Scene extends BaseLevelScene {
       { size: 1.3 },
     );
 
-    // Chest — Meshy Discover treasure_chest → Kenney kit → procedural.
-    // Lid animation stays procedural: GLB chests are single meshes, so we
-    // keep a thin gold lid overlay for the open sequence.
+    // Сундук: treasure_chest из Meshy Discover → набор Kenney → процедурный.
+    // Анимация крышки остаётся процедурной: сундуки в GLB — единый меш, поэтому
+    // для открытия держим отдельную тонкую золотую крышку поверх.
     this.chest = makeChest(0, CHEST_Z);
     const kit = this.assetKit(loader);
     const meshyChest = await loadPropModel(loader, 'treasure_chest.glb', { maxSize: 1.6 });
@@ -418,16 +438,16 @@ export class Level9Scene extends BaseLevelScene {
     this.snapToGround(this.chest);
     this.colliders.push({ kind: 'circle', x: 0, z: CHEST_Z, r: 1.2 });
 
-    // Three golden seals, each at its own shrine with its own guardian, spread
-    // across the map so finding them is the level rather than a lap of the
-    // spawn pad.
+    // Три золотые печати, каждая в своём святилище со своим стражем, разнесены
+    // по карте: их поиск и есть уровень, а не круг вокруг точки появления.
     for (const shrine of SHRINES) {
       const { x, z } = shrine;
       const seal = new THREE.Group();
       const disk = new THREE.Mesh(
         new THREE.CylinderGeometry(0.28, 0.28, 0.08, 16),
-        // Same no-envmap fix as the chest lock above: metal with nothing to
-        // reflect renders black, so this leans on emissive for the gold look.
+        // Та же правка из-за отсутствия карты окружения, что и у замка выше:
+        // металлу нечего отражать, и он рендерится чёрным, поэтому золото здесь
+        // держится на emissive.
         new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.12, roughness: 0.3, emissive: 0xffb300, emissiveIntensity: 0.45 }),
       );
       disk.position.y = 0.4;
@@ -437,17 +457,17 @@ export class Level9Scene extends BaseLevelScene {
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.03;
-      // Plinth, so a seal reads as something enshrined rather than a coin
-      // dropped in the grass — and so it is visible over the undergrowth from
-      // far enough away to walk toward.
+      // Постамент: печать читается как святыня, а не как монета, обронённая в
+      // траву, и видна поверх подлеска с такого расстояния, чтобы к ней можно
+      // было пойти.
       const base = new THREE.Mesh(
         new THREE.CylinderGeometry(0.45, 0.58, 0.34, 12),
         new THREE.MeshStandardMaterial({ color: 0x9e9384, roughness: 0.95 }),
       );
       base.position.y = 0.17;
       base.castShadow = true;
-      // The seal wears its guardian's mark, so the pillar it belongs on later
-      // is something the player has already seen rather than a fresh rule.
+      // На печати стоит знак её стража, поэтому столб, на который она потом
+      // встанет, игрок уже видел, — это не новое правило.
       const mark = makeSigil(shrine.sigil, 0.8);
       mark.position.y = 0.62;
       seal.add(base, disk, ring, mark);
@@ -460,48 +480,48 @@ export class Level9Scene extends BaseLevelScene {
       this.seals.push(seal);
       this.scene.add(seal);
       this.colliders.push({ kind: 'circle', x, z, r: 0.6 });
-      // A beam over each shrine. Three of them standing above the treeline is
-      // what turns "walk around until you find it" into "head for that one".
+      // Луч над каждым святилищем. Три таких столба света над кронами
+      // превращают «броди, пока не найдёшь» в «иди вон туда».
       const beacon = questMarker(0xffd700, 0xff9f43);
       beacon.position.set(x, this.groundHeightAt(x, z), z);
       seal.userData.beacon = beacon;
       this.scene.add(beacon);
     }
     for (const sh of SHRINES) {
-      // Placed one at a time rather than through `placeAmbientCritters`, which
-      // returns nothing: the guardians are no longer scenery and the level
-      // needs to be able to turn them to face the player it is talking to.
+      // Ставятся по одному, а не через `placeAmbientCritters`, который ничего не
+      // возвращает: стражи больше не декор, и уровню нужно уметь разворачивать
+      // их к тому, с кем они говорят.
       const guard = await placeS1Char(loader, sh.guard, {
         x: sh.x + 1.6, z: sh.z + 1.1, rotY: sh.rotY, height: 0.95,
       });
       if (guard) {
         this.guardians.push(guard);
         this.scene.add(guard);
-        // The chest, seals and pillars all got colliders — the three
-        // guardians a player actually walks up to trade with didn't.
+        // Коллайдеры получили и сундук, и печати, и столбы, а три стража, к
+        // которым игрок реально подходит меняться, — нет.
         this.colliders.push({ kind: 'circle', x: sh.x + 1.6, z: sh.z + 1.1, r: 0.45 });
       }
     }
 
-    // Twelve berries, in bushes, spread over the whole play area — this is
-    // where the level's walking comes from.
+    // Двенадцать ягод в кустах по всей игровой зоне — отсюда и берётся ходьба
+    // на этом уровне.
     for (const spot of BERRY_SPOTS) {
       const g = new THREE.Group();
-      // bush(x, z, scale) — the third argument is the scale, not a y. Passing
-      // 0 built twelve bushes scaled to nothing, which is why the first pass
-      // rendered a berry hovering over bare grass.
+      // bush(x, z, scale) — третий аргумент масштаб, а не y. Ноль давал
+      // двенадцать кустов нулевого размера, поэтому в первом варианте ягода
+      // висела над голой травой.
       const shrub = bush(0, 0, 1.1);
-      // bush() now grounds itself, but this one is a child of a group that is
-      // already at the berry's ground height — leaving it would add the
-      // terrain height at world (0, 0) on top.
+      // bush() теперь сажает себя на землю сам, но этот куст — потомок группы,
+      // уже поднятой на высоту земли под ягодой: если оставить, сверху
+      // прибавится ещё высота рельефа в мировой точке (0, 0).
       shrub.position.set(0, 0, 0);
       g.add(shrub);
-      // A ring on the ground under the bush. `bush()` is the same helper the
-      // environment scatters by the hundred, so without this a bush holding a
-      // berry looks exactly like the ninety that do not, and the guide arrow
-      // becomes the only way to find one — which is not finding it.
-      // Wider than the foliage: at 0.5–0.78 the ring was drawn underneath the
-      // bush and invisible from every angle a player stands at.
+      // Кольцо на земле под кустом. `bush()` — тот же помощник, которым
+      // окружение раскидывает кусты сотнями, поэтому без кольца куст с ягодой
+      // выглядит ровно как девяносто кустов без неё, и единственным способом
+      // найти ягоду становится стрелка — а это уже не поиск.
+      // Кольцо шире листвы: при 0.5–0.78 оно рисовалось под кустом и не было
+      // видно ни с одного угла, откуда игрок может смотреть.
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(1.02, 1.34, 22),
         new THREE.MeshBasicMaterial({ color: 0xe84393, transparent: true, opacity: 0.4, side: THREE.DoubleSide }),
@@ -515,13 +535,13 @@ export class Level9Scene extends BaseLevelScene {
           new THREE.SphereGeometry(0.22, 12, 10),
           new THREE.MeshStandardMaterial({ color: 0xe84393, roughness: 0.45, emissive: 0x8e2f5f, emissiveIntensity: 0.3 }),
         );
-      // `loadPropModel` writes its own grounding offset into position.y, so
-      // only x and z may be assigned here — setting y outright is what buried
-      // L2's apples.
+      // `loadPropModel` записывает собственное смещение посадки в position.y,
+      // поэтому здесь можно задавать только x и z: прямая запись в y как раз и
+      // закопала яблоки на L2.
       fruit.position.x = 0;
       fruit.position.z = 0;
-      // Clear of the foliage. `bush()` builds spheres of up to 0.7 radius
-      // centred at 0.385, so anything below about 1.1 is inside the bush.
+      // Выше листвы. `bush()` строит сферы радиусом до 0.7 с центром на 0.385,
+      // поэтому всё, что ниже примерно 1.1, оказывается внутри куста.
       fruit.position.y += 1.25;
       g.add(fruit);
       g.position.set(spot.x, this.groundHeightAt(spot.x, spot.z), spot.z);
@@ -533,7 +553,7 @@ export class Level9Scene extends BaseLevelScene {
       this.scene.add(g);
     }
 
-    // The lock: three pillars in front of the chest.
+    // Замок: три столба перед сундуком.
     for (const p of PILLARS) {
       const g = new THREE.Group();
       const shaft = new THREE.Mesh(
@@ -548,9 +568,8 @@ export class Level9Scene extends BaseLevelScene {
       );
       cup.position.y = 1.2;
       const mark = makeSigil(p.sigil);
-      // Just clear of the cup's rim. At 1.52 it hung with a visible gap under
-      // it and read as a mesh that had come loose rather than as a mark
-      // resting on a plinth.
+      // Чуть выше кромки чаши. На 1.52 под знаком был заметный зазор, и он
+      // читался как отвалившийся меш, а не как знак, лежащий на постаменте.
       mark.position.y = 1.38;
       const halo = new THREE.Mesh(
         new THREE.RingGeometry(0.36, 0.52, 20),
@@ -562,7 +581,7 @@ export class Level9Scene extends BaseLevelScene {
       g.position.set(p.x, this.groundHeightAt(p.x, p.z), p.z);
       g.userData.isPillar = true;
       g.userData.sigil = p.sigil;
-      /** Armed once its seal has been traded for; only then can it be pressed. */
+      /** Столб активен, когда его печать выменяна: только тогда его можно нажать. */
       g.userData.armed = false;
       g.userData.set = false;
       g.userData.mark = mark;
@@ -572,11 +591,11 @@ export class Level9Scene extends BaseLevelScene {
       this.colliders.push({ kind: 'circle', x: p.x, z: p.z, r: 0.45 });
     }
 
-    // The lock face: the order to press, lit on the chest for the whole
-    // puzzle. Reading it off the chest is the puzzle; remembering it is not.
+    // Лицевая панель замка: порядок нажатий горит на сундуке всю задачу.
+    // Задача — считать его с сундука, а не запомнить.
     const lockFace = new THREE.Group();
-    // A backing board first, so the row reads as one sign rather than three
-    // ornaments that happen to hang near the chest.
+    // Сначала подложка, чтобы ряд читался одним знаком, а не тремя украшениями,
+    // случайно висящими рядом с сундуком.
     const board = new THREE.Mesh(
       new THREE.BoxGeometry(1.9, 0.72, 0.1),
       new THREE.MeshStandardMaterial({ color: 0x4a3b2a, roughness: 0.9 }),
@@ -584,8 +603,8 @@ export class Level9Scene extends BaseLevelScene {
     board.position.z = -0.2;
     lockFace.add(board);
     LOCK_ORDER.forEach((sigil, i) => {
-      // Sigils are children 1, 3, 5 — the loop over LOCK_ORDER in `loop()`
-      // indexes them as `1 + i * 2`, so nothing may be inserted between them.
+      // Знаки — потомки 1, 3, 5: цикл по LOCK_ORDER в `loop()` адресует их как
+      // `1 + i * 2`, поэтому между ними ничего вставлять нельзя.
       const s = makeSigil(sigil, 0.9);
       s.position.set((i - 1) * 0.56, 0, 0.08);
       lockFace.add(s);
@@ -596,22 +615,22 @@ export class Level9Scene extends BaseLevelScene {
       plate.position.set((i - 1) * 0.56, 0, -0.1);
       lockFace.add(plate);
     });
-    // Above the chest rather than across it: at 1.6 the row sat on the lid and
-    // the two read as one cluttered object from the approach.
+    // Над сундуком, а не поперёк него: на 1.6 ряд лежал на крышке, и на подходе
+    // они читались одним захламлённым предметом.
     lockFace.position.set(0, this.groundHeightAt(0, CHEST_Z) + 2.15, CHEST_Z + 0.55);
     this.scene.add(lockFace);
     this.lockFace = lockFace;
 
-    // Quest marker above the chest. Hidden once the lock is the thing to
-    // read: the beam is vertical at x = 0 and goes straight through the middle
-    // of the board, which turns the one sign the puzzle depends on into
-    // clutter exactly when it starts to matter.
+    // Маркер квеста над сундуком. Прячется, как только читать надо замок: луч
+    // вертикален на x = 0 и проходит ровно через середину подложки, превращая
+    // единственный знак, на котором держится задача, в мусор именно тогда, когда
+    // он становится важен.
     const marker = questMarker(0xffd700, 0xff9f43);
     marker.position.set(0, this.groundHeightAt(0, CHEST_Z), CHEST_Z);
     this.scene.add(marker);
     this.chestMarker = marker;
 
-    // Acorn key — gen acorn → golden_key → Kenney → procedural
+    // Жёлудь-ключ: сгенерированный жёлудь → golden_key → Kenney → процедурный.
     const meshyKey =
       (await loadPropModel(loader, CAST_PROP_GLB.acorn_key, { maxSize: 0.55 })) ??
       (await loadPropModel(loader, 'golden_key.glb', { maxSize: 0.55 }));
@@ -629,14 +648,14 @@ export class Level9Scene extends BaseLevelScene {
     this.keyBaseY = this.groundHeightAt(0, CHEST_Z) + 2.5;
     this.scene.add(this.acornKey);
 
-    // Path arrows
+    // Стрелки вдоль тропы.
     for (let i = 0; i < 4; i++) {
       const a = pathArrow(0, 3 - i * 1.5, 0);
       this.pathArrows.push(a);
       this.scene.add(a);
     }
 
-    // Decorations
+    // Декор.
     for (let i = 0; i < 10; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = 2 - (i / 10) * 10;
@@ -648,7 +667,7 @@ export class Level9Scene extends BaseLevelScene {
       this.scene.add(tulip(side * 4, z, [0xe74c3c, 0xf1c40f, 0xfd79a8, 0xa29bfe][i % 4]));
     }
 
-    // Butterflies
+    // Бабочки.
     for (let i = 0; i < 4; i++) {
       const bf = butterfly((Math.random() - 0.5) * 12, -3 - Math.random() * 6, [0xff7675, 0x74b9ff, 0xfdcb6e][i % 3]);
       this.butterflies.push(bf);
@@ -664,9 +683,9 @@ export class Level9Scene extends BaseLevelScene {
       { key: 'pinecone', opts: { x: 2.2, z: SPAWN_Z - 2, maxSize: 0.3 } },
       { key: 'stump', opts: { x: -5.5, z: -14, maxSize: 1.1 } },
       { key: 'mushroom', opts: { x: 6.2, z: -9, maxSize: 0.5 } },
-      // A decorative berry used to stand at (-7.5, -26). Now that berries are
-      // the thing the level asks for, one that cannot be picked is a trap —
-      // the same defect as L7's twelve decorative photographs.
+      // На (-7.5, -26) стояла декоративная ягода. Раз ягоды — это то, что просит
+      // уровень, ягода, которую нельзя подобрать, становится ловушкой: тот же
+      // дефект, что и двенадцать декоративных снимков на L7.
       { key: 'flowers', opts: { x: 5.5, z: -30, maxSize: 0.7 } },
       { key: 'lantern_wood', opts: { x: -4.6, z: CHEST_Z + 5, height: 1.4 } },
       { key: 'lantern_wood', opts: { x: 4.6, z: CHEST_Z + 5, height: 1.4 } },
@@ -679,9 +698,11 @@ export class Level9Scene extends BaseLevelScene {
 
     const start = this.devStart() ?? { x: 0, z: SPAWN_Z };
     this.hero.position.set(start.x, this.groundHeightAt(start.x, start.z), start.z);
-    // The wall. Planted last, so it can read the corridor and every room the
-    // level reserved and hug the outside of both.
-    await this.encloseLevel(loader);
+    // Стена. Ставится последней, чтобы прочитать и коридор, и все комнаты,
+    // которые зарезервировал уровень, и обойти их снаружи.
+    // Здесь арена, а не тропа: `encloseLevel` выводит стену из коридора, а его у
+    // этого уровня больше нет.
+    await this.encloseArena(loader);
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
     this.activate(() => {
@@ -785,21 +806,23 @@ export class Level9Scene extends BaseLevelScene {
       lockDone: this.lockDone,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'quest'),
+      // Не 'intro': canMove исключает эту фазу.
+      showMoveHint: !this.hasTakenFirstStep && p === 'quest',
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
   }
 
   /**
-   * Distances here are measured on the ground plane, not in 3D.
+   * Расстояния здесь меряются по плоскости земли, а не в 3D.
    *
-   * A 3D `distanceTo` bills the player for the height difference between where
-   * they stand and where the target sits, and over sculpted terrain that is
-   * real: on L3 a marker two metres up made the last stop unreachable. Both
-   * targets here happen to sit within 12 cm of the hero's own ground height,
-   * so this is not a fix for a live bug — it is the same measurement the rest
-   * of the season now uses, so nobody has to re-check it after moving a prop.
+   * Трёхмерный `distanceTo` засчитывает игроку перепад высот между тем, где он
+   * стоит, и тем, где стоит цель, а на рельефе это реальная величина: на L3
+   * маркер, поднятый на два метра, сделал последнюю остановку недостижимой.
+   * Обе здешние цели случайно оказались в пределах 12 см от высоты земли под
+   * героем, так что это не починка живого бага — это тот же способ замера, что
+   * теперь во всём сезоне, чтобы после переноса реквизита никто не перепроверял
+   * заново.
    */
   private nearestInteract(): THREE.Object3D | null {
     const hp = this.hero.position;
@@ -813,8 +836,8 @@ export class Level9Scene extends BaseLevelScene {
         const d = flat(s);
         if (d < bestD) { bestD = d; best = s; }
       }
-      // Berries are picked from closer than a shrine is hailed, so standing
-      // between a bush and a guardian offers the guardian.
+      // Ягоду подбирают с более близкой дистанции, чем окликают святилище,
+      // поэтому стоя между кустом и стражем игрок получает стража.
       for (const b of this.berries) {
         if (b.userData.done) continue;
         const d = flat(b);
@@ -839,10 +862,9 @@ export class Level9Scene extends BaseLevelScene {
 
   private objectiveWorldPos(): THREE.Vector3 | null {
     if (this.phase === 'quest') {
-      // Enough berries in hand? Then the thing to walk to is a guardian.
-      // Otherwise it is the nearest bush — which keeps the arrow useful for
-      // the whole phase instead of pointing at a shrine you cannot yet trade
-      // with.
+      // Хватает ягод в лапах — идти надо к стражу. Не хватает — к ближайшему
+      // кусту: так стрелка полезна всю фазу, а не указывает на святилище, с
+      // которым пока нечего менять.
       if (this.berryCount >= BERRIES_PER_GUARD) {
         const seal = this.nearestOf(this.seals);
         if (seal) return seal.position.clone();
@@ -852,8 +874,8 @@ export class Level9Scene extends BaseLevelScene {
       return this.nearestOf(this.seals)?.position.clone() ?? null;
     }
     if (this.phase === 'lock') {
-      // Silent until they have got it wrong once: being shown the answer
-      // before trying is not a puzzle, and never being shown it is a wall.
+      // Молчит до первой ошибки: получить ответ, не попробовав, — не задача, а
+      // не получить его никогда — стена.
       if (this.lockFailures > 0) {
         const want = LOCK_ORDER[this.lockDone];
         const p = this.pillars.find((q) => q.userData.sigil === want && !q.userData.set);
@@ -884,14 +906,14 @@ export class Level9Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    // Intro progression
-    if (this.phase === 'intro' && now > this.nextAt) {
+    // Ход интро.
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) {
-        // Into the quest either way. Without the key the level is already
-        // broken — see `resolveKey`, which makes that essentially unreachable
-        // from a real save — and standing the player on the spawn pad with
-        // nothing to do would be a worse way to be broken.
+        // В квест в любом случае. Без ключа уровень и так сломан — см.
+        // `resolveKey`, из-за которого с настоящим сейвом это практически
+        // недостижимо, — а оставить игрока на площадке появления без единого
+        // дела было бы худшим способом сломаться.
         this.phase = 'quest';
         this.nextAt = now + 500;
         this.pushHud();
@@ -901,7 +923,7 @@ export class Level9Scene extends BaseLevelScene {
       }
     }
 
-    // Unlock → open transition
+    // Переход «замок открыт» → «сундук открывается».
     if (this.phase === 'unlock' && now > this.nextAt) {
       this.phase = 'open';
       this.chestOpen = true;
@@ -925,13 +947,13 @@ export class Level9Scene extends BaseLevelScene {
         });
       }
 
-      // Animate lid opening
+      // Анимация открывающейся крышки.
       if (this.chest) {
         const lid = this.chest.userData.lid as THREE.Mesh;
         lid.userData.opening = true;
-        // Hide acorn key (used)
+        // Прячем жёлудь-ключ: он использован.
         if (this.acornKey) this.acornKey.visible = false;
-        // Hide lock
+        // Прячем замок.
         const lockCap = this.chest.userData.lockCap as THREE.Mesh;
         const lockBody = this.chest.userData.lockBody as THREE.Mesh;
         lockCap.visible = false;
@@ -942,7 +964,7 @@ export class Level9Scene extends BaseLevelScene {
       this.pushHud();
     }
 
-    // Open → outro transition
+    // Переход «открыт» → финал.
     if (this.phase === 'open' && now > this.nextAt) {
       this.phase = 'outro';
       this.pushHud();
@@ -951,12 +973,12 @@ export class Level9Scene extends BaseLevelScene {
     const canMove = !['intro', 'outro'].includes(this.phase);
     this.updateMovement(dt, canMove, this.baseSpeed, -26, 26, CHEST_Z - 16, SPAWN_Z + 2);
 
-    // Chest glow pulse
+    // Пульсация свечения сундука.
     if (this.chest) {
       const glow = this.chest.userData.glow as THREE.Mesh;
       (glow.material as THREE.MeshBasicMaterial).opacity = 0.3 + Math.sin(now * 0.003) * 0.15;
 
-      // Lid opening animation
+      // Анимация открытия крышки.
       const lid = this.chest.userData.lid as THREE.Mesh;
       if (lid.userData.opening) {
         const elapsed = now - this.lidOpenTime;
@@ -970,14 +992,14 @@ export class Level9Scene extends BaseLevelScene {
       }
     }
 
-    // Acorn key bobbing
+    // Покачивание жёлудя-ключа.
     if (this.acornKey && this.acornKey.visible) {
       this.acornKey.position.y = this.keyBaseY + Math.sin(now * 0.003) * 0.15;
       this.acornKey.rotation.y += dt * 1.5;
     }
 
-    // Berries turn slowly so a bush with one in it catches the eye from a
-    // distance; a still berry inside a still bush is invisible in grass.
+    // Ягоды медленно поворачиваются, чтобы куст с ягодой цеплял взгляд издалека:
+    // неподвижная ягода в неподвижном кусте в траве не видна.
     for (const b of this.berries) {
       if (b.userData.done) continue;
       const fruit = b.userData.fruit as THREE.Object3D;
@@ -988,15 +1010,15 @@ export class Level9Scene extends BaseLevelScene {
         (b === this.interactTarget ? 0.62 : 0.34) + Math.sin(now * 0.003 + b.position.z) * 0.1;
     }
 
-    // Seal marks spin on their plinths, matching the berries' language.
+    // Знаки печатей крутятся на постаментах — тем же языком, что и ягоды.
     for (const s of this.seals) {
       if (s.userData.done) continue;
       (s.userData.mark as THREE.Object3D).rotation.y += dt * 0.9;
     }
 
-    // Pillars: dark until their seal has been earned, lit while pressable,
-    // and wearing the seal once set. The state of the puzzle is readable off
-    // the pillars alone, without the HUD.
+    // Столбы: тёмные, пока их печать не заработана, светятся, пока их можно
+    // нажать, и несут печать, когда она встала. Состояние задачи читается по
+    // одним столбам, без HUD.
     for (const p of this.pillars) {
       const mark = p.userData.mark as THREE.Mesh;
       const halo = p.userData.halo as THREE.Mesh;
@@ -1009,15 +1031,15 @@ export class Level9Scene extends BaseLevelScene {
       (halo.material as THREE.MeshBasicMaterial).opacity = set ? 0.5 : armed ? 0.28 : 0;
     }
 
-    // Lock face: the next mark to press breathes, and a wrong press shakes the
-    // whole row — the correction lands on the lock, which is where the answer
-    // is, rather than on the pillar that was wrong.
+    // Панель замка: следующий знак «дышит», а неверное нажатие встряхивает весь
+    // ряд — поправка приходит на замок, где и находится ответ, а не на тот столб,
+    // который нажали не вовремя.
     if (this.lockFace) {
       const shake = now - this.lockWrongAt < 600 ? Math.sin(now * 0.06) * 0.06 : 0;
       this.lockFace.position.x = shake;
       this.lockFace.visible = this.phase === 'lock' || this.phase === 'quest';
       if (this.chestMarker) this.chestMarker.visible = this.phase === 'intro' || this.phase === 'quest';
-      // children[0] is the board; the sigils are 1, 3, 5.
+      // children[0] — подложка, знаки идут под номерами 1, 3, 5.
       for (let i = 0; i < LOCK_ORDER.length; i++) {
         const child = this.lockFace.children[1 + i * 2] as THREE.Mesh;
         const mat = child.material as THREE.MeshStandardMaterial;
@@ -1028,7 +1050,7 @@ export class Level9Scene extends BaseLevelScene {
       }
     }
 
-    // Guardians look at whoever is close enough to trade with them.
+    // Стражи смотрят на того, кто подошёл достаточно близко для обмена.
     this.guardians.forEach((g, i) => {
       const shrine = SHRINES[i];
       if (!shrine) return;
@@ -1039,7 +1061,7 @@ export class Level9Scene extends BaseLevelScene {
       g.rotation.y += (want - g.rotation.y) * Math.min(1, dt * 3);
     });
 
-    // Butterflies
+    // Бабочки.
     for (const b of this.butterflies) {
       const ph = (b.userData.phase as number) + now * 0.001;
       b.position.x = (b.userData.ox as number) + Math.sin(ph) * 1.5;
@@ -1048,26 +1070,26 @@ export class Level9Scene extends BaseLevelScene {
       b.rotation.y = ph;
     }
 
-    // Guide arrow
+    // Стрелка-указатель.
     const obj = this.objectiveWorldPos();
     this.updateGuideArrow(now, obj, ['intro', 'outro', 'unlock', 'open']);
 
-    // Interaction detection
+    // Поиск объекта для взаимодействия.
     const prev = this.interactTarget;
     this.interactTarget = this.nearestInteract();
     if (prev !== this.interactTarget) this.pushHud();
 
     this.updateAmbient(dt, now);
 
-    // Camera
-    // Cinematic only until the first step, same fix as L2/L8/L16 — without
-    // the guard the camera stays locked to this fixed path for the whole
-    // intro timer even after the hero starts moving.
+    // Камера.
+    // Кинематографично только до первого шага — та же правка, что на L2, L8 и
+    // L16. Без этой проверки камера остаётся на фиксированном пути весь таймер
+    // интро, даже когда герой уже пошёл.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
-      // Open on the depth of the forest, then come down behind the hero. The
-      // old reveal looked at z = 0 to −4, which was the whole level when the
-      // level was twenty metres deep and is now the first two seconds of it.
+      // Открываемся на глубину леса, потом опускаемся за спину герою. Старый
+      // показ смотрел с z = 0 до −4 — это был весь уровень, пока он был глубиной
+      // в двадцать метров, а теперь это первые две секунды.
       const introPos = [
         new THREE.Vector3(9, 8, 17),
         new THREE.Vector3(3.5, 4.4, 13),
@@ -1082,20 +1104,20 @@ export class Level9Scene extends BaseLevelScene {
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(ease, dt));
       this.camera.lookAt(introLook[idx]);
     } else if (this.phase === 'unlock' || this.phase === 'open' || this.phase === 'outro') {
-      // Hold the opening on the chest, not on the hero's back.
+      // Первый кадр держим на сундуке, а не на спине героя.
       this.updateCamera(
-        // Off to the side, because the hero opens the chest from directly in
-        // front of it and a head-on shot puts his back across the payoff.
+        // Сбоку: герой открывает сундук стоя прямо перед ним, и фронтальный
+        // кадр закрывает его спиной всю награду.
         new THREE.Vector3(3.4, this.groundHeightAt(0, CHEST_Z) + 3.6, CHEST_Z + 6.2),
         new THREE.Vector3(0, this.groundHeightAt(0, CHEST_Z) + 1.2, CHEST_Z - 0.4),
         0.02,
         dt,
       );
     } else {
-      // Portrait and phone-landscape need a flatter, further-back camera:
-      // the desktop pitch puts the lower third of a tall frame into the
-      // ground right in front of the hero. cameraFraming() already existed
-      // and seven levels used it; this one did not.
+      // Портрету и телефону в ландшафте нужна камера положе и дальше:
+      // десктопный наклон отправляет нижнюю треть высокого кадра в землю прямо
+      // перед героем. cameraFraming() уже существовал, и его использовали семь
+      // уровней; этот — нет.
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
         this.cameraLateral(this.hero.position.x) + f.lateral,

@@ -156,6 +156,13 @@ const STONES: Array<{ x: number; z: number; sink?: boolean }> = [
   { x: 1.0, z: -30.6, sink: true },
   { x: 3.3, z: -33.3 },
   { x: 0.9, z: -35.8 },
+  // The exit used to be a single 3.53 m hop from here, against a walking
+  // jump of 2.83 m — `assertCrossingIsJumpable` warned "run-up required",
+  // but this level never passes `runSpeed` to `updateMovement`, so the run-up
+  // it assumed does not exist. Every other hop on the crossing is ≤ 2.70 m;
+  // this one stone splits the odd one out into 2.08 m and 1.37 m and leaves
+  // the final pad — and so the hop to the bank — exactly where it was.
+  { x: 3.2, z: -37.9 },
   { x: 1.6, z: -40.4, sink: true },
 ];
 
@@ -541,6 +548,10 @@ export class Level0Scene extends BaseLevelScene {
   private readonly lanternsTotal = 3;
 
   private stones: THREE.Object3D[] = [];
+  /** Highest stone index reached so far — see BUG-013: the guide arrow used
+   *  to always point at `stones[0]`, so it pointed backward for the entire
+   *  crossing once the player was past the first stone. */
+  private furthestStoneIdx = -1;
   /** Surface height of the river, derived from the banks the terrain built. */
   private waterY = 0;
   private river: RiverWater | null = null;
@@ -625,12 +636,20 @@ export class Level0Scene extends BaseLevelScene {
     const standing = this.stones.find((s) => this.isStandingOn(s));
     const sunkUnder = standing && (standing.userData.sunk as number) > 0.92;
     if (standing && !sunkUnder) return;
+    // A jump leaves `standing` the moment the hero's XZ clears the stone's
+    // radius — well before the arc's upward velocity has lifted `h.y` past
+    // the water line below. Without this, every jump between stones was
+    // ejected within a handful of frames of leaving the stone, never
+    // reaching the far side regardless of jump distance: confirmed live,
+    // stone 9→10 reset to the bank 5 frames after `jump()`, mid-ascent.
+    if (this.airborne) return;
 
     const bed = this.groundHeightAt(h.x, h.z);
     const inWater = bed < this.waterY + 0.06 || h.y < this.waterY + 0.1;
     if (!inWater || now <= this.wetUntil) return;
 
     this.wetUntil = now + 1500;
+    this.noteMistake();
     AudioManager.sfx('stumble');
     this.spawnSparks(h.clone(), 18, [0x2aa8d8, 0xffffff]);
     h.z = CROSSING_FROM + 2.6;
@@ -639,6 +658,10 @@ export class Level0Scene extends BaseLevelScene {
     this.jumpVelocity = 0;
     this.airborne = false;
     if (this.phase === 'crossing') {
+      // Hero is back at the start bank — the guide arrow must aim at
+      // stone 0 again, not stay pointed at wherever progress previously
+      // reached (that would just recreate BUG-013 the other way round).
+      this.furthestStoneIdx = -1;
       for (const s of this.stones) {
         s.userData.sunk = 0;
         s.position.y = s.userData.restY as number;
@@ -867,6 +890,7 @@ export class Level0Scene extends BaseLevelScene {
       }
     } else {
       // Wrong note: a soft "not that one", then the phrase again.
+      this.noteMistake();
       AudioManager.sfx('stumble');
       this.startKuiRound(now + 700);
     }
@@ -1567,7 +1591,9 @@ export class Level0Scene extends BaseLevelScene {
       kuiLength: this.kuiPhrase.length,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'follow'),
+      // Not 'intro' too: canMove excludes it (see above), so showing the
+      // move hint there told the child to move before input did anything.
+      showMoveHint: !this.hasTakenFirstStep && p === 'follow',
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
@@ -1622,7 +1648,9 @@ export class Level0Scene extends BaseLevelScene {
       return next?.position.clone() ?? null;
     }
     if (this.phase === 'crossing') {
-      const s = this.stones[0];
+      // Next stone past the furthest one actually reached, not always the
+      // first — see `furthestStoneIdx` (BUG-013).
+      const s = this.stones[this.furthestStoneIdx + 1];
       return s ? new THREE.Vector3(s.position.x, 0, s.position.z) : null;
     }
     if (this.phase === 'mend') {
@@ -1642,7 +1670,7 @@ export class Level0Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    if (this.phase === 'intro' && now > this.nextAt) {
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) {
         this.phase = 'follow';
@@ -1731,6 +1759,10 @@ export class Level0Scene extends BaseLevelScene {
     // the pad instead of one frame behind it.
     if (this.phase === 'crossing') {
       const standing = this.stones.find((s) => this.isStandingOn(s));
+      if (standing) {
+        const idx = this.stones.indexOf(standing);
+        if (idx > this.furthestStoneIdx) this.furthestStoneIdx = idx;
+      }
       for (const s of this.stones) {
         if (!s.userData.sink) continue;
         const loaded = s === standing && !this.airborne;

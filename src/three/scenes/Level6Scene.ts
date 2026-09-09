@@ -21,21 +21,21 @@ import { makePutalo } from './Level7Scene';
  * Walk to the correct tree and press E. Wrong = gentle shake, right = bloom + star.
  */
 
-// ── Layout ──────────────────────────────────────────────────────
-// The three magic trees stood five metres apart in one clearing, with their
-// three clues around them, inside a 28×26 box. Every answer was within a
-// couple of steps of every other, so a riddle could be brute-forced faster
-// than it could be read — and the whole level was one screen.
+// ── Планировка ──────────────────────────────────────────────────
+// Три волшебных дерева стояли в пяти метрах друг от друга на одной поляне, и
+// три улики лежали тут же, в коробке 28×26. Любой ответ был в паре шагов от
+// любого другого, поэтому загадку можно было перебрать быстрее, чем прочитать,
+// а весь уровень помещался в один экран.
 //
-// The trees are landmarks in a wide triangle now. Each clue lies at the foot
-// of the tree it describes, so touring the clues is what teaches the answers,
-// and answering wrongly costs a real walk instead of a shrug.
+// Теперь деревья — ориентиры в широком треугольнике. Каждая улика лежит под
+// тем деревом, о котором говорит, поэтому обход улик и есть обучение ответам,
+// а неверный ответ стоит настоящей ходьбы, а не пожатия плечами.
 const SPAWN_Z = 14;
-/** The stump asks from the middle, in sight of all three. */
+/** Пенёк спрашивает из центра, откуда видно все три дерева. */
 const STUMP = { x: 0, z: 2 };
-// Tall enough to clear the scattered canopy, which tops out around ten metres
-// — a riddle about which tree is tallest cannot be answered from behind other
-// trees that are taller than all three.
+// Выше окружающего леса, который заканчивается примерно на десяти метрах: на
+// загадку о самом высоком дереве нельзя ответить из-за деревьев, которые выше
+// всех трёх.
 /**
  * `nests` and `hedgehog` are the facts the riddles ask about, and both are
  * placed so that they cannot be seen from the stump.
@@ -50,13 +50,13 @@ const STUMP = { x: 0, z: 2 };
  */
 const TREES: Array<{
   x: number; z: number; color: number; label: string; height: number; bird: boolean;
-  /** How many nests, and how far round the trunk the far ones sit. */
+  /** Сколько гнёзд и насколько далеко за ствол уходят дальние. */
   nests: number;
   hedgehog: boolean;
 }> = [
-  // Each tree is the answer to exactly one riddle: green is tallest, yellow
-  // has the most nests, red hides the hedgehog. Two riddles sharing an answer
-  // would let a child repeat the last one that worked and be right.
+  // Каждое дерево — ответ ровно на одну загадку: зелёное самое высокое, у
+  // жёлтого больше всего гнёзд, красное прячет ёжика. Если бы два ответа
+  // совпадали, ребёнок повторял бы последний сработавший и оказывался прав.
   { x: -13, z: -7, color: 0xe74c3c, label: 'Красное', height: 8.5, bird: false, nests: 2, hedgehog: true },
   { x: 13, z: -10, color: 0xf1c40f, label: 'Жёлтое', height: 7.2, bird: true, nests: 4, hedgehog: false },
   { x: -1, z: -22, color: 0x27ae60, label: 'Зелёное', height: 11.5, bird: false, nests: 1, hedgehog: false },
@@ -64,6 +64,25 @@ const TREES: Array<{
 
 function routeX(z: number) {
   return Math.sin((z - SPAWN_Z) * 0.06) * 2.6;
+}
+
+/**
+ * Камера следования отстаёт от героя на +9 по z и из-за этого может встать
+ * прямо в кроне волшебного дерева, даже когда сам герой далеко от него
+ * (проверено: герой на x≈-13, z≈-17 — в десяти метрах от красного дерева на
+ * z=-7 — а камера уже внутри его кроны). И координаты дерева, и его высота
+ * кодируют ответ на загадку (см. комментарий к TREES выше), поэтому двигать
+ * нельзя ни то, ни другое: сдвигаем вбок камеру, и только в небольшом радиусе
+ * вокруг каждого дерева.
+ */
+function avoidTreeCanopies(x: number, z: number): number {
+  for (const t of TREES) {
+    const r = t.height * 0.4 + 2.2;
+    if (Math.abs(z - t.z) >= r) continue;
+    const dx = x - t.x;
+    if (Math.abs(dx) < r) return t.x + (dx >= 0 ? r : -r);
+  }
+  return x;
 }
 
 export type L7Phase = 'intro' | 'seek' | 'riddle1' | 'riddle2' | 'riddle3' | 'outro';
@@ -93,11 +112,11 @@ interface MagicTree {
 }
 
 /**
- * A nest: the countable thing the second riddle asks about.
+ * Гнездо: то, что считают во второй загадке.
  *
- * A torus reads as a nest from ten metres and does not need a texture, and
- * the eggs give it a light spot against dark foliage so it is countable
- * rather than merely present.
+ * Тор читается гнездом с десяти метров и не требует текстуры, а яйца дают
+ * светлое пятно на тёмной листве — гнездо становится не просто заметным, а
+ * пересчитываемым.
  */
 function makeNest(): THREE.Group {
   const g = new THREE.Group();
@@ -118,7 +137,7 @@ function makeNest(): THREE.Group {
   return g;
 }
 
-/** Fallback if hedgehog.glb is missing — the riddle must still be answerable. */
+/** Запасная модель, если нет hedgehog.glb: загадка должна остаться решаемой. */
 function makeSmallHedgehog(): THREE.Group {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
@@ -148,10 +167,10 @@ function makeSmallHedgehog(): THREE.Group {
 function makeMagicTree(x: number, z: number, color: number, label: string, height: number, hasBird: boolean, birdTailColor: number): MagicTree {
   const g = new THREE.Group();
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
-  // The canopy carries the tree's own colour. Every magic tree used to be the
-  // same dark green, with the colour only in a ring on the ground and five
-  // 12 cm fruits — so "walk to the red tree" was unanswerable by looking, and
-  // the riddles came down to trying all three.
+  // Крона несёт собственный цвет дерева. Раньше все волшебные деревья были
+  // одинаково тёмно-зелёными, а цвет жил только в кольце на земле и в пяти
+  // плодах по 12 см — «иди к красному дереву» нельзя было выполнить на глаз, и
+  // загадки сводились к перебору всех трёх.
   const tint = new THREE.Color(0x2d6a4f).lerp(new THREE.Color(color), 0.62);
   const canopyMat = new THREE.MeshStandardMaterial({ color: tint, roughness: 0.9, flatShading: true });
 
@@ -162,13 +181,13 @@ function makeMagicTree(x: number, z: number, color: number, label: string, heigh
   const canopy = new THREE.Mesh(new THREE.SphereGeometry(height * 0.4, 14, 12), canopyMat);
   canopy.position.y = height * 0.7;
   canopy.castShadow = true;
-  // A second, smaller lobe: three identical spheres on sticks read as one
-  // repeated prop, and these three are supposed to be told apart at a glance.
+  // Вторая доля кроны, поменьше: три одинаковых шара на палках читаются одним
+  // повторённым реквизитом, а эти три надо различать с одного взгляда.
   const crown = new THREE.Mesh(new THREE.SphereGeometry(height * 0.27, 12, 10), canopyMat);
   crown.position.set(height * 0.1, height * 0.95, -height * 0.05);
   crown.castShadow = true;
 
-  // Aura ring
+  // Кольцо ауры.
   const aura = new THREE.Mesh(
     new THREE.RingGeometry(height * 0.22, height * 0.28, 32),
     new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, side: THREE.DoubleSide }),
@@ -176,7 +195,7 @@ function makeMagicTree(x: number, z: number, color: number, label: string, heigh
   aura.rotation.x = -Math.PI / 2;
   aura.position.y = 0.03;
 
-  // Fruits
+  // Плоды.
   const fruits: THREE.Mesh[] = [];
   const fruitMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.2, roughness: 0.6 });
   for (let i = 0; i < 5; i++) {
@@ -192,7 +211,7 @@ function makeMagicTree(x: number, z: number, color: number, label: string, heigh
   g.add(trunk, canopy, crown, aura);
   g.position.set(x, 0, z);
 
-  // Bird
+  // Птица.
   if (hasBird) {
     const birdMat = new THREE.MeshStandardMaterial({ color: 0xfff, roughness: 0.8 });
     const bird = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 6), birdMat);
@@ -218,7 +237,7 @@ function makeTalkingStump(x: number, z: number): THREE.Group {
   stump.position.y = 0.5;
   stump.castShadow = true;
 
-  // Face
+  // Лицо.
   const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), faceMat);
   eyeL.position.set(0.15, 0.65, 0.6);
   const eyeR = eyeL.clone();
@@ -231,7 +250,7 @@ function makeTalkingStump(x: number, z: number): THREE.Group {
   mouth.position.set(0, 0.45, 0.6);
   mouth.rotation.x = Math.PI;
 
-  // Glow ring
+  // Светящееся кольцо.
   const glow = new THREE.Mesh(
     new THREE.RingGeometry(1.0, 1.4, 24),
     new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.4, side: THREE.DoubleSide }),
@@ -263,9 +282,9 @@ export class Level6Scene extends BaseLevelScene {
   private clues: THREE.Object3D[] = [];
   private cluesDone = 0;
   private readonly cluesTotal = 3;
-  /** Kept so he can breathe — a motionless animal reads as a prop. */
+  /** Нужно, чтобы он дышал: неподвижное животное читается как реквизит. */
   private hedgehog: THREE.Object3D | null = null;
-  /** Owed a trip back to the stump after a wrong answer. */
+  /** После неверного ответа нужно вернуться к пеньку. */
   private mustReturnToStump = false;
   /**
    * The outro line promises «там за поляной кто-то фотографирует» — Putalo,
@@ -278,12 +297,12 @@ export class Level6Scene extends BaseLevelScene {
   private putaloFlash: THREE.Mesh | null = null;
 
   /**
-   * Every answer is a thing seen in the world, never a word in the question.
+   * Ответ всегда есть в мире, а не в словах вопроса.
    *
-   * Ordered easiest first. The tallest tree can be judged from the stump —
-   * it is the one that teaches a five-year-old what kind of question this
-   * is. Counting nests needs a walk round each trunk, because some nests are
-   * on the far side. Finding the hedgehog needs the closest look of all.
+   * Загадки идут от простой к сложной. Самое высокое дерево видно прямо от
+   * пенька — эта загадка объясняет пятилетнему, о чём тут вообще спрашивают.
+   * Гнёзда надо считать, обойдя каждый ствол: часть гнёзд с обратной стороны.
+   * Ёжика надо разглядеть — это самый близкий взгляд из трёх.
    */
   private readonly CHOICES = [
     { label: 'Красное', color: 0xe74c3c },
@@ -316,7 +335,7 @@ export class Level6Scene extends BaseLevelScene {
   }
 
   tryInteract() {
-    // Seek clues before stump opens the riddles
+    // Улики собирают до того, как пенёк начнёт загадывать.
     if (this.phase === 'seek') {
       const t = this.interactTarget;
       if (!t || !t.userData.isClue || t.userData.done) return;
@@ -339,8 +358,8 @@ export class Level6Scene extends BaseLevelScene {
     const t = this.interactTarget;
     if (!t) return;
 
-    // Back at the stump after a wrong answer: it re-asks, and the trees
-    // become answerable again.
+    // Возвращение к пеньку после неверного ответа: он переспрашивает, и деревья
+    // снова принимают ответ.
     if (t === this.stump) {
       if (!this.mustReturnToStump) return;
       this.mustReturnToStump = false;
@@ -350,14 +369,14 @@ export class Level6Scene extends BaseLevelScene {
       return;
     }
 
-    // Find which tree
+    // Определить, какое дерево.
     const tree = this.trees.find(tr => tr.group === t);
     if (!tree) return;
     if (this.mustReturnToStump) return;
 
     const riddle = this.riddles[this.riddleIndex];
     if (tree.index === riddle.correct) {
-      // Correct — blossom bloom + falling star
+      // Верно: цветение и падающая звезда.
       this.selectedTree = tree;
       this.bloomTime = performance.now();
       this.stars += 5;
@@ -365,7 +384,7 @@ export class Level6Scene extends BaseLevelScene {
       this.spawnSparks(tree.group.position.clone().add(new THREE.Vector3(0, tree.height * 0.5, 0)), 14, [0xffd700, 0x55efc4]);
       tree.shakeTime = performance.now();
 
-      // Falling star
+      // Падающая звезда.
       this.fallingStar = new THREE.Mesh(
         new THREE.OctahedronGeometry(0.2),
         new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0xffd700, emissiveIntensity: 0.5 }),
@@ -374,7 +393,7 @@ export class Level6Scene extends BaseLevelScene {
       this.fallingStar.position.y = tree.height + 1;
       this.scene.add(this.fallingStar);
 
-      // Advance riddle
+      // Переход к следующей загадке.
       this.riddleIndex++;
       if (this.riddleIndex >= this.riddles.length) {
         this.phase = 'outro';
@@ -385,14 +404,15 @@ export class Level6Scene extends BaseLevelScene {
         this.nextAt = performance.now() + 2500;
       }
     } else {
-      // Wrong. No stars are taken — losing points is the wrong lesson for a
-      // five-year-old who was guessing bravely — but the stump calls you
-      // back, so the cost is the walk. With three choices and no cost at all,
-      // brute force was three taps and the riddle was a formality.
+      // Неверно. Звёзды не отнимаются: отбирать очки — плохой урок для
+      // пятилетнего, который смело угадывал, — но пенёк зовёт обратно, и ценой
+      // становится дорога. При трёх вариантах и нулевой цене перебор занимал три
+      // нажатия, и загадка была формальностью.
       tree.shakeTime = performance.now();
       this.wrongAttempts++;
       this.mustReturnToStump = true;
       this.spawnSparks(tree.group.position, 4, [0xb2bec3, 0x636e72]);
+      this.noteMistake();
       AudioManager.sfx('stumble');
     }
     this.pushHud();
@@ -423,10 +443,10 @@ export class Level6Scene extends BaseLevelScene {
     this.reserve(STUMP.x, STUMP.z, 6);
     for (const t of TREES) {
       this.reserve(t.x, t.z, 6);
-      // Keep the line from the stump to each tree clear. Spreading the trees
-      // out is worthless if the forest closes behind them: from the stump the
-      // player could see nothing but ordinary trees, and a riddle you cannot
-      // look at the answer to is a guess.
+      // Линия от пенька к каждому дереву держится чистой. Разносить деревья
+      // бессмысленно, если лес смыкается за ними: от пенька игрок видел одни
+      // обычные деревья, а загадка, ответ на которую нельзя разглядеть, —
+      // это угадайка.
       const steps = Math.ceil(Math.hypot(t.x - STUMP.x, t.z - STUMP.z) / 4);
       for (let i = 1; i < steps; i++) {
         const k = i / steps;
@@ -447,9 +467,9 @@ export class Level6Scene extends BaseLevelScene {
       { size: 1.2 },
     );
 
-    // Talking stump — moss Discover stump → Meshy stump → procedural
-    // A stump is a wide thing. Anything more than twice as tall as it is
-    // broad is not one, whatever the filename says — see loadPropModel.
+    // Говорящий пенёк: мшистый из Discover → пенёк из Meshy → процедурный.
+    // Пенёк — предмет широкий. Всё, что больше чем вдвое выше своей ширины, —
+    // не пенёк, как бы ни назывался файл (см. loadPropModel).
     const stumpGlb =
       (await loadPropModel(loader, 's1_stump_moss.glb', { height: 1.15, aspectMax: 2 })) ??
       (await loadPropModel(loader, 'stump.glb', { height: 1.15, aspectMax: 2 }));
@@ -472,26 +492,26 @@ export class Level6Scene extends BaseLevelScene {
     this.scene.add(this.stump);
     this.colliders.push({ kind: 'circle', x: STUMP.x, z: STUMP.z, r: 1.0 });
 
-    // Three magic trees, tall enough to be read against the sky from the other
-    // side of the map — they are the navigation, so they have to be landmarks.
+    // Три волшебных дерева, достаточно высоких, чтобы читаться на фоне неба с
+    // другого конца карты: они и есть навигация, поэтому обязаны быть
+    // ориентирами.
     for (const [i, spec] of TREES.entries()) {
       const tree = makeMagicTree(spec.x, spec.z, spec.color, spec.label, spec.height, spec.bird, spec.bird ? 0xf1c40f : 0);
       tree.index = i;
       tree.group.position.y = this.groundHeightAt(spec.x, spec.z);
 
-      // Nests, spread all the way round the trunk. The angles start from the
-      // side facing away from the stump on purpose: a count you can take
-      // standing at the stump is not a count, it is a glance, and the whole
-      // riddle is "go and look".
+      // Гнёзда распределены по всему стволу. Углы намеренно начинаются с той
+      // стороны, что отвёрнута от пенька: счёт, который можно взять стоя у
+      // пенька, — не счёт, а взгляд, а вся загадка в том, чтобы подойти и
+      // посмотреть.
       const away = Math.atan2(spec.x - STUMP.x, spec.z - STUMP.z);
       for (let k = 0; k < spec.nests; k++) {
         const a = away + (k / spec.nests) * Math.PI * 2;
         const nest = makeNest();
-        // On the trunk, below the canopy. The canopy is a sphere of radius
-        // 0.4·height centred at 0.7·height, so its underside is at
-        // 0.3·height — 2.16 m on the shortest tree. The first pass put nests
-        // at 0.45–0.73·height, which is inside the foliage: a riddle about
-        // counting things that cannot be seen.
+        // На стволе, ниже кроны. Крона — сфера радиуса 0.4·высоты с центром на
+        // 0.7·высоты, значит, её низ на 0.3·высоты — 2.16 м у самого низкого
+        // дерева. В первом варианте гнёзда стояли на 0.45–0.73·высоты, то есть
+        // внутри листвы: загадка про подсчёт того, чего не видно.
         nest.position.set(
           Math.sin(a) * 0.8,
           1.05 + (k % 4) * 0.3,
@@ -501,9 +521,9 @@ export class Level6Scene extends BaseLevelScene {
       }
 
       if (spec.hedgehog) {
-        // Tucked against the far side of the trunk, low down. Visible only
-        // once the player has walked round — which is the answer to the
-        // third riddle being earned rather than guessed.
+        // Прижат к дальней стороне ствола, у самой земли. Виден, только когда
+        // игрок обошёл дерево, — так ответ на третью загадку зарабатывается, а
+        // не угадывается.
         const hog = (await placeS1Char(loader, 'hedgehog', {
           x: spec.x - Math.sin(away) * 1.5,
           z: spec.z - Math.cos(away) * 1.5,
@@ -521,16 +541,15 @@ export class Level6Scene extends BaseLevelScene {
       this.colliders.push({ kind: 'circle', x: spec.x, z: spec.z, r: 1.5 });
     }
 
-    // Putalo, glimpsed at the treeline beyond the green tree — the same
-    // procedural figure the player meets properly next level. No collider:
-    // he is scenery here, not an interactable.
+    // Путало мелькает на опушке за зелёным деревом — та же процедурная фигура,
+    // с которой игрок как следует познакомится на следующем уровне. Без
+    // коллайдера: здесь он декорация, а не интерактивный объект.
     //
-    // Visible from the start, not gated to outro: the outro HUD flag makes
-    // MissionScreen mount a blurred level-complete card over the canvas in
-    // the same tick the riddle is solved, so a reveal gated to that phase
-    // would never actually be on screen. A background figure noticed while
-    // hunting clues, paid off by the outro line naming him, is the version
-    // of this that a player can actually see.
+    // Виден с самого начала, а не в outro: флаг outro заставляет MissionScreen
+    // в тот же такт положить поверх канваса размытую карточку «уровень пройден»,
+    // поэтому появление, привязанное к этой фазе, вообще не попало бы на экран.
+    // Фигура на фоне, замеченная во время поиска улик, и реплика в финале, где
+    // его называют, — это та версия, которую игрок действительно увидит.
     this.putaloGlimpse = makePutalo(this.putaloPos.x, this.putaloPos.z);
     this.putaloGlimpse.position.y = this.groundHeightAt(this.putaloPos.x, this.putaloPos.z);
     this.scene.add(this.putaloGlimpse);
@@ -545,9 +564,8 @@ export class Level6Scene extends BaseLevelScene {
     );
     this.scene.add(this.putaloFlash);
 
-    // A clue at the foot of each tree. Collecting them is the tour that
-    // teaches the answers: you cannot know which tree has the yellow-tailed
-    // bird without having stood under it.
+    // По улике под каждым деревом. Их сбор и есть обход, который учит ответам:
+    // нельзя знать, у какого дерева птица с жёлтым хвостом, не постояв под ним.
     const clueSpecs = TREES.map((t) => {
       const toward = new THREE.Vector3(STUMP.x - t.x, 0, STUMP.z - t.z).normalize().multiplyScalar(2.6);
       return { x: t.x + toward.x, z: t.z + toward.z, color: t.color };
@@ -574,7 +592,7 @@ export class Level6Scene extends BaseLevelScene {
       this.scene.add(g);
     }
 
-    // Decorative bushes and tulips
+    // Декоративные кусты и тюльпаны.
     for (let i = 0; i < 26; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = SPAWN_Z - (i / 26) * 44;
@@ -586,14 +604,14 @@ export class Level6Scene extends BaseLevelScene {
       this.scene.add(tulip(routeX(z) + side * 4, z, [0xe74c3c, 0xf1c40f, 0xfd79a8, 0xa29bfe][i % 4]));
     }
 
-    // Butterflies
+    // Бабочки.
     for (let i = 0; i < 8; i++) {
       const bf = butterfly((Math.random() - 0.5) * 30, 4 - Math.random() * 34, [0xff7675, 0x74b9ff, 0xfdcb6e][i % 3]);
       this.butterflies.push(bf);
       this.scene.add(bf);
     }
 
-    // Trees around
+    // Деревья вокруг.
     await this.loadTrees(loader, 30, 30, -14, 4.6);
     await this.loadProps(loader, 12, 7, 30, -12);
 
@@ -611,11 +629,11 @@ export class Level6Scene extends BaseLevelScene {
       { key: 'rabbit', x: TREES[2].x + 4, z: TREES[2].z + 4, rotY: 2.1, h: 0.5 },
     ]);
 
-    // Hero
+    // Герой.
     const start = this.devStart() ?? { x: 0, z: SPAWN_Z };
     this.hero.position.set(start.x, this.groundHeightAt(start.x, start.z), start.z);
-    // The wall. Planted last, so it can read the corridor and every room the
-    // level reserved and hug the outside of both.
+    // Стена. Ставится последней, чтобы прочитать и коридор, и все комнаты,
+    // которые зарезервировал уровень, и обойти их снаружи.
     await this.encloseLevel(loader);
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
@@ -689,7 +707,9 @@ export class Level6Scene extends BaseLevelScene {
       cluesTotal: this.cluesTotal,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'seek'),
+      // Не 'intro': canMove исключает эту фазу, и подсказка раньше появлялась,
+      // когда ввод ещё ничего не делал.
+      showMoveHint: !this.hasTakenFirstStep && p === 'seek',
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
@@ -709,8 +729,8 @@ export class Level6Scene extends BaseLevelScene {
       return best;
     }
 
-    // Owed a trip back to the stump: only the stump answers until it has
-    // re-asked, so walking up to a tree and pressing does nothing.
+    // Пока не вернулся к пеньку, отвечает только пенёк: подойти к дереву и
+    // нажать бесполезно.
     if (this.mustReturnToStump) {
       if (!this.stump) return null;
       const d = Math.hypot(hp.x - this.stump.position.x, hp.z - this.stump.position.z);
@@ -718,10 +738,10 @@ export class Level6Scene extends BaseLevelScene {
     }
 
     for (const tree of this.trees) {
-      // On the ground plane. The trees sit on flattened pads, but measuring
-      // in 3D against a group whose origin is at the foot would still charge
-      // the player for any slope between them — the same shape of bug that
-      // made L3's last stop unreachable.
+      // По плоскости земли. Деревья стоят на выровненных площадках, но замер в
+      // 3D до группы, начало координат которой у подножия, всё равно засчитывал
+      // бы игроку любой уклон между ними — та же ошибка, из-за которой последняя
+      // остановка на L3 была недостижима.
       const d = Math.hypot(hp.x - tree.group.position.x, hp.z - tree.group.position.z);
       if (d < bestD) { bestD = d; best = tree.group; }
     }
@@ -734,12 +754,12 @@ export class Level6Scene extends BaseLevelScene {
       const next = this.clues.find((c) => !c.userData.done);
       return next?.position.clone() ?? this.stump?.position.clone() ?? null;
     }
-    // After a wrong answer the arrow points back at the stump — the walk is
-    // the cost, but finding the stump again should not also be a puzzle.
+    // После неверного ответа стрелка ведёт обратно к пеньку: ценой должна быть
+    // дорога, а не поиск самого пенька.
     if (this.mustReturnToStump) return this.stump?.position.clone() ?? null;
-    // Deliberately nothing during a riddle. The arrow used to point straight
-    // at the correct tree, which answered the riddle before it was read — the
-    // thinking is the level, and an arrow to the answer deletes it.
+    // Во время загадки намеренно ничего. Раньше стрелка указывала прямо на
+    // верное дерево, то есть отвечала за игрока ещё до того, как он прочитает
+    // вопрос: думать — и есть весь уровень, а стрелка на ответ его стирает.
     return null;
   }
 
@@ -750,8 +770,8 @@ export class Level6Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    // Intro progression
-    if (this.phase === 'intro' && now > this.nextAt) {
+    // Ход интро.
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) {
         this.phase = 'seek';
@@ -763,7 +783,7 @@ export class Level6Scene extends BaseLevelScene {
       }
     }
 
-    // Riddle transition delay
+    // Пауза между загадками.
     if (this.phase.startsWith('riddle') && this.selectedTree && now > this.nextAt) {
       this.selectedTree = null;
       this.pushHud();
@@ -780,9 +800,9 @@ export class Level6Scene extends BaseLevelScene {
       gem.rotation.y += dt * 1.4;
     }
 
-    // Tree animations
+    // Анимации деревьев.
     for (const tree of this.trees) {
-      // Shake on wrong/right
+      // Дрожь при верном и неверном ответе.
       if (tree.shakeTime > 0) {
         const elapsed = now - tree.shakeTime;
         if (elapsed < 800) {
@@ -794,13 +814,13 @@ export class Level6Scene extends BaseLevelScene {
         }
       }
 
-      // Bloom on correct
+      // Цветение при верном ответе.
       if (this.selectedTree === tree) {
         const elapsed = now - this.bloomTime;
         if (elapsed < 1500) {
           tree.bloomScale = 1 + Math.sin(elapsed * 0.005) * 0.15 * (1 - elapsed / 1500);
           tree.group.scale.setScalar(tree.bloomScale);
-          // Aura flash
+          // Вспышка ауры.
           (tree.aura.material as THREE.MeshBasicMaterial).opacity = 0.3 + Math.sin(elapsed * 0.01) * 0.3;
         } else {
           tree.group.scale.setScalar(1);
@@ -808,20 +828,20 @@ export class Level6Scene extends BaseLevelScene {
         }
       }
 
-      // Aura pulse
+      // Пульсация ауры.
       const pulse = 0.3 + Math.sin(now * 0.002 + tree.index) * 0.1;
       if (this.selectedTree !== tree) {
         (tree.aura.material as THREE.MeshBasicMaterial).opacity = pulse;
       }
 
-      // Fruit bobbing
+      // Покачивание плодов.
       for (let i = 0; i < tree.fruits.length; i++) {
         const f = tree.fruits[i];
         f.position.y = Math.sin(now * 0.003 + i) * 0.05;
       }
     }
 
-    // Stump glow
+    // Свечение пенька.
     if (this.stump) {
       const glow = this.stump.userData.glow as THREE.Mesh | undefined;
       if (glow?.material) {
@@ -832,7 +852,7 @@ export class Level6Scene extends BaseLevelScene {
       for (const eye of eyes) eye.scale.y = blink;
     }
 
-    // Falling star
+    // Падающая звезда.
     if (this.fallingStar) {
       this.fallingStar.position.y -= dt * 3;
       this.fallingStar.rotation.x += dt * 3;
@@ -844,9 +864,9 @@ export class Level6Scene extends BaseLevelScene {
       }
     }
 
-    // Butterflies
-    // The hedgehog breathes and looks about. He is the answer to a riddle, so
-    // he has to read as an animal hiding rather than as a stone by the trunk.
+    // Бабочки.
+    // Ёжик дышит и оглядывается. Он — ответ на загадку, поэтому должен
+    // читаться прячущимся зверьком, а не камнем у ствола.
     if (this.hedgehog) {
       this.hedgehog.scale.y = 1 + Math.sin(now * 0.0028) * 0.035;
       this.hedgehog.rotation.y += Math.sin(now * 0.0006) * dt * 0.35;
@@ -871,22 +891,22 @@ export class Level6Scene extends BaseLevelScene {
       b.rotation.y = ph;
     }
 
-    // Guide arrow
+    // Стрелка-указатель.
     const obj = this.objectiveWorldPos();
     this.updateGuideArrow(now, obj, ['intro', 'outro']);
 
-    // Interaction detection
+    // Поиск объекта для взаимодействия.
     const prev = this.interactTarget;
     this.interactTarget = this.nearestInteract();
     if (prev !== this.interactTarget) this.pushHud();
 
-    // Ambient
+    // Окружение.
     this.updateAmbient(dt, now);
 
-    // Camera
-    // Cinematic only until the first step, same fix as L2/L8/L16 — without
-    // the guard the camera stays locked to this fixed path for the whole
-    // intro timer even after the hero starts moving.
+    // Камера.
+    // Кинематографично только до первого шага — та же правка, что на L2, L8 и
+    // L16. Без этой проверки камера остаётся на фиксированном пути весь таймер
+    // интро, даже когда герой уже пошёл.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [
@@ -902,15 +922,16 @@ export class Level6Scene extends BaseLevelScene {
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
       this.camera.lookAt(introLook[idx]);
     } else {
-      // Portrait and phone-landscape need a flatter, further-back camera:
-      // the desktop pitch puts the lower third of a tall frame into the
-      // ground right in front of the hero. cameraFraming() already existed
-      // and seven levels used it; this one did not.
+      // Портрету и телефону в ландшафте нужна камера положе и дальше:
+      // десктопный наклон отправляет нижнюю треть высокого кадра в землю прямо
+      // перед героем. cameraFraming() уже существовал, и его использовали семь
+      // уровней; этот — нет.
       const f = this.cameraFraming();
+      const camZ = this.hero.position.z + 9 + f.backAdd;
       const target = new THREE.Vector3(
-        this.cameraLateral(this.hero.position.x) + f.lateral,
+        avoidTreeCanopies(this.cameraLateral(this.hero.position.x) + f.lateral, camZ),
         5.5 * f.heightMul,
-        this.hero.position.z + 9 + f.backAdd,
+        camZ,
       );
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
       this.camera.lookAt(

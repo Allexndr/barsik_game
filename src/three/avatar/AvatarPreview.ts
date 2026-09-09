@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { createBarsikAvatar, type AvatarLook, type AvatarPose, type BarsikAvatar } from './BarsikAvatar';
 import { dressAvatar, undressAvatar } from './dressAvatar';
 import { getRenderQualityProfile, resolveRenderQualityTier } from '../renderQuality';
+import { createGameGltfLoader } from '../createGameGltfLoader';
+import { CHARS, loadCharModel } from '../scenes/BaseLevelScene';
+import { groundY } from '../modelUtils';
 
 /**
  * The dressing-room renderer.
@@ -15,6 +18,9 @@ import { getRenderQualityProfile, resolveRenderQualityTier } from '../renderQual
  * Deliberately its own tiny renderer rather than a level scene: it needs one
  * character, three lights and a turntable, and running a full quality pipeline
  * behind a shop list would cost a phone real battery for nothing.
+ *
+ * Evidence / QA: `?shopHero=meshy` mounts the Meshy GLB on the turntable
+ * instead of the procedural avatar (for settlement screenshots and review).
  */
 export interface AvatarPreview {
   avatar: BarsikAvatar;
@@ -28,11 +34,25 @@ export interface AvatarPreview {
   dispose(): void;
 }
 
+const MESHY_SHOP_CANDIDATES = [
+  'barsik_meshy_static.glb',
+  'barsik_quality.glb',
+  'barsik_cool_rigged.glb',
+  'barsik_rigged.glb',
+];
+
+function wantsMeshyShopHero(): boolean {
+  if (typeof location === 'undefined') return false;
+  const v = new URLSearchParams(location.search).get('shopHero');
+  return v === 'meshy' || v === 'glb' || v === '1';
+}
+
 export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
   const isMobile =
     typeof window !== 'undefined'
     && (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 760);
   const profile = getRenderQualityProfile(resolveRenderQualityTier(isMobile), isMobile);
+  const useMeshyGlb = wantsMeshyShopHero();
 
   const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -82,7 +102,9 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
   scene.add(turntable);
 
   const avatar = createBarsikAvatar({ height: 1.1 });
-  turntable.add(avatar.root);
+  if (!useMeshyGlb) {
+    turntable.add(avatar.root);
+  }
 
   const baseLook: AvatarLook = avatar.getLook();
   let raf = 0;
@@ -93,21 +115,63 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
   const clock = new THREE.Clock();
   /** Meshes built for the current outfit, disposed when it changes. */
   let worn: THREE.Object3D[] = [];
+  let meshyRoot: THREE.Object3D | null = null;
+  const mixers: THREE.AnimationMixer[] = [];
 
   function clearWorn() {
     undressAvatar(worn);
     worn = [];
   }
 
+  if (useMeshyGlb) {
+    const loader = createGameGltfLoader();
+    void (async () => {
+      for (const file of MESHY_SHOP_CANDIDATES) {
+        if (disposed) return;
+        // Static Meshy exports first — preferStatic avoids a missing *_rigged probe.
+        const preferStatic = /meshy_static|quality/i.test(file);
+        const model = await loadCharModel(loader, file, 1.05, { preferStatic });
+        if (!model) continue;
+        if (disposed) return;
+        groundY(model, 0);
+        turntable.add(model);
+        meshyRoot = model;
+        avatar.root.visible = false;
+        const hostMixer = model.userData.animMixer as THREE.AnimationMixer | undefined;
+        if (hostMixer) mixers.push(hostMixer);
+        const box = new THREE.Box3().setFromObject(model);
+        const size = new THREE.Vector3();
+        const center = new THREE.Vector3();
+        box.getSize(size);
+        box.getCenter(center);
+        const tall = Math.max(size.y, 0.8);
+        // Short shop panel: pull back and use a slightly wider FOV so head+feet fit.
+        camera.fov = 36;
+        camera.position.set(0, Math.max(0.85, center.y), Math.max(4.0, tall * 3.35));
+        camera.lookAt(0, Math.max(0.45, center.y * 0.65), 0);
+        camera.updateProjectionMatrix();
+        console.info(`[shop] Meshy hero GLB mounted: ${CHARS}${file}`);
+        return;
+      }
+      console.warn('[shop] Meshy GLB candidates failed; falling back to procedural avatar');
+      if (!disposed) {
+        turntable.add(avatar.root);
+        avatar.root.visible = true;
+      }
+    })();
+  }
+
   const preview: AvatarPreview = {
     avatar,
 
     setOutfit(itemIds) {
+      if (useMeshyGlb && meshyRoot) return;
       clearWorn();
       worn = dressAvatar(avatar, itemIds, baseLook);
     },
 
     setPose(pose) {
+      if (useMeshyGlb && meshyRoot) return;
       avatar.setPose(pose);
     },
 
@@ -134,7 +198,10 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
         const idleSpin = performance.now() - lastSpinAt > 1600 ? spin * dt : 0;
         turntable.rotation.y += idleSpin + manualSpin;
         manualSpin = 0;
-        avatar.update(dt, t);
+        if (!(useMeshyGlb && meshyRoot)) {
+          avatar.update(dt, t);
+        }
+        for (const m of mixers) m.update(dt);
         renderer.render(scene, camera);
       };
       clock.start();
@@ -145,6 +212,11 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
       disposed = true;
       cancelAnimationFrame(raf);
       clearWorn();
+      if (meshyRoot) {
+        turntable.remove(meshyRoot);
+        meshyRoot = null;
+      }
+      mixers.length = 0;
       avatar.dispose();
       floor.geometry.dispose();
       (floor.material as THREE.Material).dispose();

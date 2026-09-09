@@ -9,7 +9,12 @@
     radial-gradient(ellipse at 90% 100%, rgba(85, 239, 196, 0.18), transparent 48%),
     linear-gradient(145deg, #1a2a38 0%, #243d4a 55%, #1e3340 100%);
   z-index: 30;
-  pointer-events: none;
+  /* Everything interactive lives inside .loading-overlay__card, which
+     re-enables pointer-events for itself below — this stayed `none` on the
+     full-viewport wrapper for no element that needed it, and let a tap
+     anywhere outside the card (most of a phone screen) fall straight
+     through to the level's own HUD buttons rendering underneath during
+     load, invisibly to the child looking at an opaque "loading" screen. */
 }
 
 .loading-overlay__card {

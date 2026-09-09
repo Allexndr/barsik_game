@@ -140,6 +140,8 @@ export class HubScene extends BaseLevelScene {
   private ridingOn: Ride | null = null;
   private ridingSeat = -1;
   private seatPos = new THREE.Vector3();
+  private readonly beforePos = new THREE.Vector3();
+  private readonly cameraTarget = new THREE.Vector3();
   private dressing: THREE.Object3D[] = [];
 
   protected currentPhase() {
@@ -541,7 +543,7 @@ export class HubScene extends BaseLevelScene {
     for (const ride of this.rides) ride.update(dt, t);
     for (const f of this.fountains) f.update(dt, t);
 
-    const before = this.hero.position.clone();
+    this.beforePos.copy(this.hero.position);
     const riding = this.ridingOn;
     if (riding) {
       // Сидя ребёнок не ходит: его везёт аттракцион. Координаты при этом
@@ -553,7 +555,7 @@ export class HubScene extends BaseLevelScene {
     } else {
       this.updateMovement(dt, true, this.runSpeed, b.xMin, b.xMax, b.zMin, b.zMax);
     }
-    const moved = !riding && this.hero.position.distanceTo(before) > 0.004;
+    const moved = !riding && this.hero.position.distanceTo(this.beforePos) > 0.004;
 
     // Эмоция держится пару секунд и уступает ходьбе: ребёнок машет и идёт
     // дальше, а не залипает в позе до следующего нажатия.
@@ -561,9 +563,9 @@ export class HubScene extends BaseLevelScene {
     else if (moved && this.myPose !== 'wave') this.myPose = 'walk';
 
     this.hub?.move(
-      +this.hero.position.x.toFixed(2),
-      +this.hero.position.z.toFixed(2),
-      +this.hero.rotation.y.toFixed(2),
+      this.hero.position.x,
+      this.hero.position.z,
+      this.hero.rotation.y,
       this.myPose,
     );
 
@@ -588,12 +590,13 @@ export class HubScene extends BaseLevelScene {
     // не помещается в кадр и катание превращается в тряску экрана.
     const back = riding ? 12.5 : 9.0;
     const high = riding ? 7.6 : 6.4;
-    const target = new THREE.Vector3(
+    this.cameraTarget.set(
       this.cameraLateral(riding ? riding.x : this.hero.position.x) + f.lateral,
       high * f.heightMul,
       (riding ? riding.z : this.hero.position.z) + back + f.backAdd,
     );
-    this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
+    this.pullCameraClear(riding ? { x: riding.x, z: riding.z } : this.hero.position);
+    this.camera.position.lerp(this.cameraTarget, 1 - Math.pow(0.0015, dt));
     this.camera.lookAt(
       (riding ? riding.x : this.hero.position.x) - f.lateral * 0.28,
       1.5 + f.lookUp,
@@ -602,6 +605,47 @@ export class HubScene extends BaseLevelScene {
 
     this.renderFrame();
   };
+
+  /**
+   * Не дать камере встать внутри дерева или дома.
+   *
+   * Камера хаба висит в девяти метрах позади героя на высоте 6.4 — а деревья
+   * здесь метров восемь, дома тринадцать. На трёх локациях из пяти точка
+   * появления оказалась такой, что камера стартовала внутри геометрии: в
+   * КБТУ экран был чёрным почти целиком (камера внутри здания), в сквере
+   * Иманова кадр занимала крона, в парке 28 панфиловцев треть экрана уходила
+   * за край земли. Ребёнок открывал «Город» и видел стену.
+   *
+   * Двигать точки появления по одной — лечить симптом: следующая добавленная
+   * локация сломается так же. Луч от героя к камере и подтягивание до первого
+   * препятствия — то, что делает любая игра с камерой от третьего лица, и
+   * оно закрывает все локации разом, включая будущие.
+   */
+  private cameraRay = new THREE.Raycaster();
+
+  private pullCameraClear(focus: { x: number; z: number }) {
+    const from = new THREE.Vector3(focus.x, 1.5, focus.z);
+    const to = this.cameraTarget;
+    const dir = to.clone().sub(from);
+    const full = dir.length();
+    if (full < 0.2) return;
+    dir.divideScalar(full);
+
+    this.cameraRay.set(from, dir);
+    this.cameraRay.far = full;
+    const hits = this.cameraRay.intersectObjects(this.scene.children, true);
+    for (const hit of hits) {
+      const o = hit.object as THREE.Mesh;
+      // Небо, земля и всё прозрачное камеру не держат: сквозь них видно.
+      if (!o.visible || o.name === 'skyDome') continue;
+      const mat = o.material as THREE.Material | undefined;
+      if (mat && (mat.transparent || mat.opacity < 1)) continue;
+      // Полметра перед препятствием, чтобы не смотреть в его же плоскость.
+      const d = Math.max(2.2, hit.distance - 0.5);
+      if (d < full) to.copy(from).addScaledVector(dir, d);
+      return;
+    }
+  }
 
   /**
    * Окна и фонари зажигаются вместе с сумерками.

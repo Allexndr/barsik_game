@@ -1,5 +1,7 @@
 assets/brand/
 assets/downloads/
+archive/legacy-2d-art/assets/brand/
+archive/legacy-2d-art/assets/downloads/
 *.zip
 tools/
 .venv-bg/
@@ -45,3 +47,26 @@ ruvector.db
 ruvector.db-*
 .meshy-work/
 Meshy_AI_*.glb
+
+# Local workspace book symlinks (not for Vercel)
+book-1-guidebook
+book-2-ai-team
+
+# Playwright artifacts — 138 МБ трасс/скриншотов на прогон, воспроизводимо
+# из `npm run test:e2e`; в репозитории им делать нечего.
+test-results/
+playwright-report/
+
+# Рантайм hive-mind и локальный proven-config (P2-OPS-5 в S1_REMAINING_SPEC).
+.hive-mind/
+.claude/proven-config.json
+.claude/.proven-config-version
+
+# Черновики и прототипы, не входящие в игру.
+public/voxel-prototype/
+book-1-guidebook
+book-2-ai-team
+scripts/__pycache__/
+
+# резервные копии моделей
+*.prev.glb

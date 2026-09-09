@@ -18,11 +18,11 @@ import { placeAmbientCritters } from '../s1Place';
  * If you run, Putalo hides behind the rock. Two dialogue choices, both positive.
  */
 
-// ── Layout ──────────────────────────────────────────────────────
-// The stealth was one fourteen-metre walk with a binary run/walk check: get
-// within three metres without holding Shift and the level was over. Putalo now
-// photographs butterflies at three spots in turn, each deeper into the forest,
-// and earning his trust at one is what makes him lead you to the next.
+// ── Планировка ──────────────────────────────────────────────────
+// Скрытность была одной прогулкой на четырнадцать метров с двоичной проверкой
+// «бежит или идёт»: подошёл на три метра, не держа Shift, — уровень пройден.
+// Теперь Путало по очереди снимает бабочек в трёх местах, каждое глубже в лесу,
+// и заработанное доверие в одном месте — то, ради чего он ведёт тебя в следующее.
 const SPAWN_Z = 12;
 const HIDES: Array<{ x: number; z: number }> = [
   { x: -11, z: -2 },
@@ -30,9 +30,9 @@ const HIDES: Array<{ x: number; z: number }> = [
   { x: -8, z: -31 },
   { x: 10, z: -43 },
 ];
-/** He watches from here; run inside it and he ducks. */
+/** Отсюда он уже смотрит: побежишь внутри этого круга — спрячется. */
 const NOTICE = 10;
-/** Trust only builds this close — near enough that he can see you are calm. */
+/** Доверие растёт только на такой дистанции: он должен видеть, что ты спокоен. */
 const CLOSE = 4.5;
 
 /**
@@ -51,10 +51,10 @@ const CLOSE = 4.5;
  * approach into something you play rather than something you wait out.
  */
 const SHOOTING_MS: [number, number] = [2600, 4200];
-/** Camera coming down. The warning, so being caught is never a surprise. */
+/** Он опускает камеру. Предупреждение, чтобы попадаться не было неожиданностью. */
 const LIFTING_MS = 700;
 const WATCHING_MS: [number, number] = [1500, 2400];
-/** Below this the hero counts as standing still while he watches. */
+/** Ниже этой скорости герой считается стоящим на месте, пока Путало смотрит. */
 const STILL_SPEED = 0.35;
 
 function routeX(z: number) {
@@ -62,13 +62,14 @@ function routeX(z: number) {
 }
 
 /**
- * Where the wind takes his photographs.
+ * Куда ветер уносит его снимки.
  *
- * The level was one verb — approach — repeated four times, and even with the
- * look-up beat it ran about half its 300s budget. This is the second verb, and
- * it is the one the story has been setting up: he marks beautiful places and
- * is afraid of forgetting them, so losing three of those marks to the wind is
- * the thing he would actually mind. Now that he trusts you, you can run.
+ * Уровень состоял из одного глагола — «подойти», повторённого четыре раза, и
+ * даже с битом «он поднимает глаза» укладывался примерно в половину своих 300
+ * секунд. Это второй глагол, и именно его готовила история: Путало отмечает
+ * красивые места и боится их забыть, поэтому потерять три такие отметки —
+ * единственное, что его по-настоящему заденет. Он тебе доверяет, значит,
+ * теперь можно бежать.
  */
 const LOST_PHOTOS: Array<{ x: number; z: number }> = [
   { x: -6, z: -38 },
@@ -84,9 +85,9 @@ export interface L8Hud extends BaseHud {
   walkSpeed: 'slow' | 'fast';
   dialogueChoice: number;
   dialogueStep: number;
-  /** 0–1 for the current approach, so the HUD can show it filling. */
+  /** 0–1 для текущего подхода, чтобы HUD показывал, как шкала наполняется. */
   trust: number;
-  /** Where he is in the shoot / look-up cycle. */
+  /** На каком он шаге цикла «снимает / поднимает глаза». */
   watch: 'shooting' | 'lifting' | 'watching';
   approachesDone: number;
   approachesTotal: number;
@@ -106,20 +107,20 @@ export function makePutalo(x: number, z: number): THREE.Group {
   head.position.y = 1.4;
   head.castShadow = true;
 
-  // Eyes
+  // Глаза.
   const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), new THREE.MeshStandardMaterial({ color: 0xffe082, emissive: 0xffd54f, emissiveIntensity: 0.3 }));
   eyeL.position.set(0.12, 1.45, 0.25);
   const eyeR = eyeL.clone();
   eyeR.position.x = -0.12;
 
-  // Hat (like a leaf hat)
+  // Шляпа — вроде шапочки из листа.
   const hat = new THREE.Mesh(
     new THREE.ConeGeometry(0.35, 0.3, 8),
     new THREE.MeshStandardMaterial({ color: 0x558b2f, roughness: 1 }),
   );
   hat.position.y = 1.72;
 
-  // Camera in hand
+  // Фотоаппарат в лапе.
   const cam = new THREE.Mesh(
     new THREE.BoxGeometry(0.2, 0.15, 0.1),
     new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.6, metalness: 0.3 }),
@@ -195,15 +196,15 @@ export class Level7Scene extends BaseLevelScene {
   private trust = 0;
   private spookedUntil = 0;
   private readonly approachesTotal = HIDES.length;
-  /** Where he is in the shoot / look-up cycle, and when it next turns. */
+  /** На каком он шаге цикла «снимает / поднимает глаза» и когда шаг сменится. */
   private watch: 'shooting' | 'lifting' | 'watching' = 'shooting';
   private watchUntil = 0;
-  /** Hero speed in m/s, measured between frames — the joystick can be held
-   *  at any magnitude, so intent is not a reliable stand-in for movement. */
+  /** Скорость героя в м/с, замеренная между кадрами: стик можно держать с любым
+   *  отклонением, поэтому намерение — плохая замена реальному движению. */
   private heroSpeed = 0;
   private lastHeroPos = new THREE.Vector3();
   private caughtUntil = 0;
-  /** The three blown-away photographs, and how many are back in his hands. */
+  /** Три унесённых снимка и сколько из них уже вернулось к нему в лапы. */
   private lostPhotos: THREE.Group[] = [];
   private photosFound = 0;
   private readonly photosTotal = LOST_PHOTOS.length;
@@ -334,9 +335,8 @@ export class Level7Scene extends BaseLevelScene {
       { size: 1.2 },
     );
 
-    // A rock at every hide, because "he ducks behind the rock" needs a rock
-    // wherever he is standing — there used to be exactly one, at the only
-    // place he ever stood.
+    // Камень у каждого укрытия: «он прячется за камень» требует камня везде,
+    // где он стоит. Раньше камень был ровно один — там, где он стоял всегда.
     for (const h of HIDES) {
       const rock = makeRock(h.x, h.z - 1.8, 1.5);
       this.snapToGround(rock);
@@ -344,7 +344,7 @@ export class Level7Scene extends BaseLevelScene {
       this.colliders.push({ kind: 'circle', x: h.x, z: h.z - 1.8, r: 1.5 });
     }
 
-    // Putalo behind the first rock — Meshy GLB when present, procedural otherwise
+    // Путало за первым камнем: GLB из Meshy, если он есть, иначе процедурный.
     const putaloGlb = await loadCharModel(loader, 'putalo.glb', 1.35);
     this.putalo = putaloGlb ?? makePutalo(HIDES[0].x, HIDES[0].z);
     this.putalo.position.set(HIDES[0].x, this.groundHeightAt(HIDES[0].x, HIDES[0].z), HIDES[0].z);
@@ -352,7 +352,7 @@ export class Level7Scene extends BaseLevelScene {
     this.putaloTargetZ = HIDES[0].z;
     this.scene.add(this.putalo);
 
-    // Sticky strands (decorative)
+    // Липкие нити — декор.
     for (let i = 0; i < 18; i++) {
       const x = (Math.random() - 0.5) * 34;
       const z = 6 - Math.random() * 44;
@@ -362,8 +362,8 @@ export class Level7Scene extends BaseLevelScene {
       this.scene.add(s);
     }
 
-    // Photos on trees — his trail through the forest, so the route reads as
-    // somebody's territory rather than empty ground between two markers.
+    // Снимки на деревьях — его след в лесу: маршрут читается как чья-то
+    // территория, а не как пустая земля между двумя маркерами.
     for (let i = 0; i < 12; i++) {
       const x = (Math.random() - 0.5) * 28;
       const z = 4 - Math.random() * 42;
@@ -408,8 +408,8 @@ export class Level7Scene extends BaseLevelScene {
       }
     }
 
-    // The three the wind took. Built now and hidden, so the gather phase does
-    // not have to load anything at the moment it starts.
+    // Три снимка, унесённых ветром. Создаются сразу и прячутся, чтобы фаза
+    // сбора ничего не грузила в момент своего начала.
     for (const spot of LOST_PHOTOS) {
       const p = makePhoto(spot.x, this.groundHeightAt(spot.x, spot.z) + 0.55, spot.z, Math.random() * Math.PI * 2);
       p.visible = false;
@@ -418,16 +418,16 @@ export class Level7Scene extends BaseLevelScene {
       this.scene.add(p);
     }
 
-    // Bushes, thinned along the route so cover reads as cover
+    // Кусты, прорежены вдоль маршрута, чтобы укрытие читалось укрытием.
     for (let i = 0; i < 22; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = SPAWN_Z - (i / 22) * 58;
       this.scene.add(bush(routeX(z) + side * (5 + Math.random() * 4), z));
     }
 
-    // Butterflies (Putalo photographs them). Three per hide, and indexed off
-    // HIDES.length — at a hardcoded `% 3` the fourth hide had none, which is
-    // an odd place to find a butterfly photographer.
+    // Бабочки, которых снимает Путало. По три на укрытие, счёт от HIDES.length:
+    // при жёстком `% 3` у четвёртого укрытия их не было вовсе — странное место
+    // для фотографа бабочек.
     for (let i = 0; i < HIDES.length * 3; i++) {
       const hide = HIDES[i % HIDES.length];
       const bf = butterfly(
@@ -439,11 +439,11 @@ export class Level7Scene extends BaseLevelScene {
       this.scene.add(bf);
     }
 
-    // Trees (denser, darker area)
+    // Деревья — здесь гуще и темнее.
     await this.loadTrees(loader, 30, 18, -14, 4.4);
     await this.loadProps(loader, 12, 6, 32, -14);
 
-    // Putalo's photo kit + quiet forest extras
+    // Фотоснаряжение Путало и тихие лесные мелочи.
     await this.placeProps(loader, [
       { key: 'camera', opts: { x: 2.4, z: SPAWN_Z - 5, maxSize: 0.55, y: 0.05 } },
       { key: 'mushroom_cottage', opts: { x: -14, z: -22, maxSize: 2.2, rotY: 0.4 } },
@@ -459,15 +459,15 @@ export class Level7Scene extends BaseLevelScene {
     ]);
     this.colliders.push({ kind: 'circle', x: -9, z: -8, r: 1.5 });
 
-    // Hero
+    // Герой.
     this.hero.position.set(0, this.groundHeightAt(0, 6), 6);
-    // The wall. Planted last, so it can read the corridor and every room the
-    // level reserved and hug the outside of both.
+    // Стена. Ставится последней, чтобы прочитать и коридор, и все комнаты,
+    // которые зарезервировал уровень, и обойти их снаружи.
     await this.encloseLevel(loader);
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
     this.activate(() => {
-      // Photo flash overlay (camera-attached)
+      // Вспышка фотоаппарата — плоскость, привязанная к камере.
       this.flashMesh = new THREE.Mesh(
         new THREE.PlaneGeometry(4, 4),
         new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthTest: false, depthWrite: false }),
@@ -492,8 +492,8 @@ export class Level7Scene extends BaseLevelScene {
   }
 
   /**
-   * Step the shoot / look-up cycle. Returns true when the state changed, so
-   * the caller can push a HUD line only on the turn rather than every frame.
+   * Шаг цикла «снимает / поднимает глаза». Возвращает true при смене состояния,
+   * чтобы вызывающий обновлял строку HUD на переходе, а не каждый кадр.
    */
   private advanceWatch(now: number): boolean {
     if (now < this.watchUntil) return false;
@@ -512,12 +512,11 @@ export class Level7Scene extends BaseLevelScene {
   }
 
   /**
-   * Butterflies bolt when he is startled.
+   * Бабочки срываются, когда его спугнули.
    *
-   * The consequence has to be something a child can see. A trust bar dropping
-   * by a third is a number moving on a strip of text; twelve butterflies
-   * scattering off the flowers is the forest reacting, and it says "too fast"
-   * without any words at all.
+   * Последствие должно быть видно глазами. Шкала доверия, просевшая на треть, —
+   * это цифра в полоске текста; двенадцать бабочек, слетающих с цветов, — это
+   * реакция леса, и она говорит «слишком быстро» вообще без слов.
    */
   private scatterButterflies() {
     for (const bf of this.butterflies) {
@@ -528,7 +527,7 @@ export class Level7Scene extends BaseLevelScene {
     }
   }
 
-  /** Five blocks, because a number from 0 to 1 means nothing to a six-year-old. */
+  /** Пять делений: число от 0 до 1 шестилетнему не говорит ничего. */
   private trustBar() {
     const filled = Math.round(this.trust * 5);
     return '▰'.repeat(filled) + '▱'.repeat(5 - filled);
@@ -632,10 +631,31 @@ export class Level7Scene extends BaseLevelScene {
       objective = this.copy('🎉 Путало — новый друг!', '🎉 Путало — жаңа дос!');
     }
 
-    // Determine walk speed
+    // Определяем скорость ходьбы.
     const isRunningHud = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
       || (Math.abs(this.joy.x) > 0.75 || Math.abs(this.joy.y) > 0.75);
     const walkSpeed: 'slow' | 'fast' = isRunningHud ? 'fast' : 'slow';
+
+    // Предупредить до наказания, а не после.
+    //
+    // Весь уровень держится на пороге «стик отклонён больше чем на 0.75 —
+    // это бег», и раньше игра сообщала об этом единственным способом: Путало
+    // убегал. Ребёнок, который держит стик до упора — а это естественный жест,
+    // — терял доверие снова и снова, не понимая причины. Один тестировщик
+    // сказал прямо: «Павик как-то прошёл, но я не понял как он прошёл».
+    //
+    // Подсказка появляется, пока ещё не поздно: игрок бежит, Путало уже
+    // близко, но за границей NOTICE, где бег его пугает.
+    const approaching = p === 'approach' || p === 'slow' || p === 'hiding';
+    const hudDist = this.putalo ? this.hero.position.distanceTo(this.putalo.position) : 99;
+    if (approaching && isRunningHud && hudDist < NOTICE * 1.6 && hudDist >= NOTICE) {
+      speaker = this.copy('Барсик', 'Барсик');
+      line = this.copy(
+        'Он пугливый — дальше надо шагом. Отпусти стик наполовину.',
+        'Ол именшек — әрі қарай жай жүру керек. Тұтқаны жартылай жібер.',
+      );
+      objective = this.copy('🐾 Сбавь шаг — он рядом', '🐾 Жылдамдықты бәсеңдет — ол жақын');
+    }
 
     this.onHud?.({
       phase: p,
@@ -655,7 +675,11 @@ export class Level7Scene extends BaseLevelScene {
       stars: this.stars,
       canInteract: (this.phase === 'dialogue' && (this.dialogueStep === 0 || this.dialogueStep === 1))
         || (this.phase === 'gather' && Boolean(this.interactTarget)),
-      showMoveHint: !this.hasTakenFirstStep && p === 'intro',
+      // Было `p === 'intro'` — единственная фаза, которую canMove всегда
+      // исключает, поэтому подсказка висела ровно тогда, когда ввод ничего не
+      // делал, и пропадала в момент, когда двигаться наконец становилось можно.
+      // 'approach' — первая подвижная фаза после интро.
+      showMoveHint: !this.hasTakenFirstStep && p === 'approach',
       showActionHint: this.phase === 'dialogue' ? this.dialogueStep < 2 : Boolean(this.interactTarget),
       outro: p === 'outro',
     });
@@ -691,7 +715,8 @@ export class Level7Scene extends BaseLevelScene {
       return this.putalo.position.clone();
     }
     if (this.phase === 'gather') {
-      // Nearest photo still out there, then him. One arrow, one next thing.
+      // Сначала ближайший ненайденный снимок, потом он сам. Одна стрелка — одно
+      // следующее дело.
       let best: THREE.Object3D | null = null;
       let bestD = Infinity;
       for (const p of this.lostPhotos) {
@@ -706,40 +731,42 @@ export class Level7Scene extends BaseLevelScene {
   }
 
   /**
-   * The stealth rule, as a method rather than forty lines inside the loop.
+   * Правило скрытности вынесено в метод, а не сорок строк внутри цикла.
    *
-   * Extracted so it can be exercised directly: the loop only advances on a
-   * requestAnimationFrame, and a backgrounded tab never gets one, so anything
-   * that only happens in there cannot be checked at all.
+   * Вынесено, чтобы его можно было вызвать напрямую: цикл двигается только по
+   * requestAnimationFrame, а фоновая вкладка его не получает — всё, что живёт
+   * только там, проверить нельзя в принципе.
    */
   private updateStealth(dt: number, now: number) {
-    // Check running state
+    // Проверяем, бежит ли герой.
     const distToPutalo = this.putalo ? this.hero.position.distanceTo(this.putalo.position) : 99;
     const isRunningStealth = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
       || (Math.abs(this.joy.x) > 0.75 || Math.abs(this.joy.y) > 0.75);
 
-    // Stealth: trust, not a tripwire.
+    // Скрытность — это доверие, а не растяжка.
     //
-    // The old rule was one comparison — inside three metres without Shift and
-    // the level ended. Nothing accumulated, nothing was at stake on the way in,
-    // and it happened once. Trust has to be *earned* by staying calm near him,
-    // and it is spent instantly by bolting, so the approach is the gameplay.
+    // Старое правило было одним сравнением: подошёл ближе трёх метров без Shift —
+    // уровень кончился. Ничего не накапливалось, по дороге ничего не стояло на
+    // кону, и случалось это ровно один раз. Доверие надо *заработать*, оставаясь
+    // рядом спокойным, и оно мгновенно тратится рывком — поэтому подход и есть
+    // геймплей.
     const inApproach = this.phase === 'approach' || this.phase === 'slow' || this.phase === 'hiding';
     if (inApproach && this.putalo) {
       const spooked = now < this.spookedUntil;
       const hide = HIDES[this.hideIndex];
 
-      // Measured, not inferred. A joystick held at 0.3 is real movement and
-      // no key is down for it, so "is Shift pressed" cannot answer "is the
-      // child moving" — and the whole look-up beat rests on that question.
+      // Замеряется, а не выводится. Стик, отклонённый на 0.3, — это настоящее
+      // движение, и ни одна клавиша при этом не нажата, поэтому «зажат ли Shift»
+      // не отвечает на вопрос «двигается ли ребёнок», а весь бит с поднятыми
+      // глазами держится именно на нём.
       this.heroSpeed = this.lastHeroPos.distanceTo(this.hero.position) / Math.max(dt, 1e-4);
       this.lastHeroPos.copy(this.hero.position);
 
       if (this.advanceWatch(now) && this.watch === 'watching') this.pushHud();
 
-      // Caught moving while he is looking. Costs trust and a beat, but does
-      // not send him back to the rock — losing the whole approach to one
-      // half-step is the kind of thing that makes a child stop playing.
+      // Попался на движении, пока он смотрит. Стоит доверия и такта, но не
+      // отправляет его обратно за камень: потерять весь подход из-за одного
+      // полушага — ровно то, после чего ребёнок бросает игру.
       if (
         this.watch === 'watching'
         && !spooked
@@ -761,8 +788,8 @@ export class Level7Scene extends BaseLevelScene {
           this.spookedUntil = now + 1400;
           this.putaloState = 'hiding';
           this.phase = 'hiding';
-          // Ducks behind his rock rather than teleporting: the rock is at
-          // z − 1.8 of every hide, so this is the same move at all three.
+          // Прячется за свой камень, а не телепортируется: камень стоит на
+          // z − 1.8 от каждого укрытия, поэтому движение одинаково во всех трёх.
           this.putaloTargetX = hide.x;
           this.putaloTargetZ = hide.z - 1.3;
           AudioManager.sfx('whoosh');
@@ -770,9 +797,9 @@ export class Level7Scene extends BaseLevelScene {
         }
       } else if (!spooked) {
         if (distToPutalo < CLOSE) {
-          // Only while his eye is at the viewfinder, and about six seconds of
-          // it rather than two and a half. With the look-ups interrupting, a
-          // hide is now twenty-odd seconds of actual play instead of a wait.
+          // Только пока его глаз в видоискателе, и примерно шесть секунд, а не
+          // две с половиной. С перерывами на поднятые глаза укрытие стало
+          // двадцатью с лишним секундами игры вместо ожидания.
           const before = this.trust;
           if (this.watch === 'shooting') {
             this.trust = Math.min(1, this.trust + dt * 0.16);
@@ -789,12 +816,12 @@ export class Level7Scene extends BaseLevelScene {
             this.spawnSparks(this.putalo.position, 14, [0xfdcb6e, 0x74b9ff]);
             AudioManager.sfx('found');
             if (this.hideIndex < HIDES.length - 1) {
-              // He trusts you enough to show you the next spot.
+              // Доверия хватает, чтобы показать следующее место.
               this.hideIndex += 1;
               this.trust = 0;
-              // Fresh shooting window at the new spot: arriving into a
-              // look-up the child could not have seen coming is a loss they
-              // cannot read as their own doing.
+              // На новом месте окно съёмки начинается заново: прийти прямо в
+              // поднятые глаза, которых нельзя было предвидеть, — это проигрыш,
+              // который ребёнок не свяжет со своими действиями.
               this.watch = 'shooting';
               this.watchUntil = now + SHOOTING_MS[1];
               this.putaloState = 'peeking';
@@ -818,7 +845,7 @@ export class Level7Scene extends BaseLevelScene {
             this.pushHud();
           }
         } else if (this.trust > 0 && this.trust < 1) {
-          // Wandering off lets it ebb, but slowly — this is not a punishment.
+          // Если отойти, доверие убывает, но медленно: это не наказание.
           this.trust = Math.max(0, this.trust - dt * 0.12);
         }
       }
@@ -832,8 +859,8 @@ export class Level7Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    // Intro progression
-    if (this.phase === 'intro' && now > this.nextAt) {
+    // Ход интро.
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 4) {
         this.phase = 'approach';
@@ -847,7 +874,7 @@ export class Level7Scene extends BaseLevelScene {
 
     this.updateStealth(dt, now);
 
-    // Photo phase transition (from dialogue response or timed)
+    // Переход фазы съёмки — по ответу в диалоге или по таймеру.
     if (this.phase === 'dialogue' && this.dialogueStep === 2 && now > this.nextAt) {
       this.phase = 'photo';
       this.photoTime = now;
@@ -867,7 +894,7 @@ export class Level7Scene extends BaseLevelScene {
       this.pushHud();
     }
 
-    // Dialogue choice cycling (←→ / A D / joystick)
+    // Перебор вариантов ответа: ←→, A/D или стик.
     if (this.phase === 'dialogue' && this.dialogueStep === 1) {
       const prev = this.pendingChoice;
       if (this.keys.has('KeyA') || this.keys.has('ArrowLeft') || this.joy.x < -0.45) this.pendingChoice = 0;
@@ -882,16 +909,16 @@ export class Level7Scene extends BaseLevelScene {
     const moveSpeed = inStealth && !isRunning ? this.baseSpeed * 0.55 : (isRunning ? this.runSpeed : this.baseSpeed);
     this.updateMovement(dt, canMove, moveSpeed, -24, 24, -46, SPAWN_Z + 3);
 
-    // Putalo movement (smooth lerp to target)
+    // Движение Путало — плавная интерполяция к цели.
     if (this.putalo) {
-      // Faster when relocating between hides, so he does not drift across the
-      // forest at ducking speed.
+      // Между укрытиями быстрее, чтобы он не полз через лес со скоростью
+      // прячущегося.
       const rate = this.phase === 'approach' && this.putaloState === 'peeking' ? 1.1 : 2.4;
       this.putalo.position.x += (this.putaloTargetX - this.putalo.position.x) * dt * rate;
       this.putalo.position.z += (this.putaloTargetZ - this.putalo.position.z) * dt * rate;
       this.putalo.position.y = this.groundHeightAt(this.putalo.position.x, this.putalo.position.z);
 
-      // Putalo faces hero when out
+      // Когда Путало вышел, он повёрнут к герою.
       if (this.putaloState === 'out' || this.putaloState === 'talking') {
         const dx = this.hero.position.x - this.putalo.position.x;
         const dz = this.hero.position.z - this.putalo.position.z;
@@ -900,15 +927,15 @@ export class Level7Scene extends BaseLevelScene {
         this.putalo.rotation.y = 0;
       }
 
-      // Putalo bobbing
+      // Покачивание Путало.
       this.putalo.position.y = Math.sin(now * 0.002) * 0.03;
 
-      // Eyes visibility based on state (procedural Putalo only)
+      // Глаза. visibility based on state (procedural Putalo only)
       const eyes = this.putalo.userData.eyes as THREE.Mesh[] | undefined;
       const eyeVisible = this.putaloState === 'peeking' || this.putaloState === 'out' || this.putaloState === 'talking';
       if (eyes) for (const eye of eyes) eye.visible = eyeVisible;
 
-      // Putalo opacity when hiding
+      // Прозрачность Путало, когда он прячется.
       const body = this.putalo.userData.body as THREE.Mesh | undefined;
       const head = this.putalo.userData.head as THREE.Mesh | undefined;
       const targetOpacity = this.putaloState === 'hiding' ? 0.4 : 1.0;
@@ -920,7 +947,7 @@ export class Level7Scene extends BaseLevelScene {
         bodyMat.opacity += (targetOpacity - bodyMat.opacity) * dt * 3;
         headMat.opacity = bodyMat.opacity;
       } else {
-        // Meshy mesh: fade whole group via traverse
+        // Меш из Meshy: гасим всю группу обходом.
         this.putalo.traverse((obj) => {
           const mesh = obj as THREE.Mesh;
           if (!mesh.isMesh) return;
@@ -935,7 +962,7 @@ export class Level7Scene extends BaseLevelScene {
       }
     }
 
-    // Photo flash effect
+    // Эффект вспышки.
     if (this.flashMesh && this.phase === 'photo') {
       const elapsed = now - this.photoTime;
       if (elapsed < 350) {
@@ -945,8 +972,8 @@ export class Level7Scene extends BaseLevelScene {
       }
     }
 
-    // Butterflies. The flee offset decays back to zero over its window, so
-    // they burst outward when startled and drift home rather than snapping.
+    // Бабочки. Смещение от испуга гаснет до нуля за своё окно, поэтому они
+    // разлетаются и плавно возвращаются, а не щёлкают обратно.
     for (const b of this.butterflies) {
       const ph = (b.userData.phase as number) + now * 0.001;
       const fleeUntil = (b.userData.fleeUntil as number) ?? 0;
@@ -959,9 +986,9 @@ export class Level7Scene extends BaseLevelScene {
       b.rotation.y = ph;
     }
 
-    // The three lost photos bob and turn. Twelve of his old ones are pinned
-    // to trees as scenery and use the same mesh, so the pickups have to move
-    // to say "this one is for you" — the genre convention does the work.
+    // Три потерянных снимка покачиваются и поворачиваются. Двенадцать старых
+    // приколоты к деревьям как декор и используют тот же меш, поэтому подбираемые
+    // обязаны двигаться, чтобы сказать «этот — тебе»: работает жанровая условность.
     if (this.phase === 'gather') {
       for (let i = 0; i < this.lostPhotos.length; i++) {
         const p = this.lostPhotos[i];
@@ -972,27 +999,27 @@ export class Level7Scene extends BaseLevelScene {
       }
     }
 
-    // Strand shimmer
+    // Мерцание нитей.
     for (const s of this.strands) {
       (s.material as THREE.MeshStandardMaterial).opacity = 0.3 + Math.sin(now * 0.002 + s.position.x) * 0.2;
     }
 
-    // Guide arrow
+    // Стрелка-указатель.
     const obj = this.objectiveWorldPos();
     this.updateGuideArrow(now, obj, ['intro', 'outro', 'dialogue', 'photo']);
 
-    // Interaction detection
+    // Поиск объекта для взаимодействия.
     const prev = this.interactTarget;
     this.interactTarget = this.nearestInteract();
     if (prev !== this.interactTarget) this.pushHud();
 
-    // Ambient
+    // Окружение.
     this.updateAmbient(dt, now);
 
-    // Camera
-    // Cinematic only until the first step, same fix as L2/L8/L16 — without
-    // the guard the camera stays locked to this fixed path for the whole
-    // intro timer even after the hero starts moving.
+    // Камера.
+    // Кинематографично только до первого шага — та же правка, что на L2, L8 и
+    // L16. Без этой проверки камера остаётся на фиксированном пути весь таймер
+    // интро, даже когда герой уже пошёл.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [
@@ -1008,10 +1035,10 @@ export class Level7Scene extends BaseLevelScene {
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
       this.camera.lookAt(introLook[idx]);
     } else {
-      // Portrait and phone-landscape need a flatter, further-back camera:
-      // the desktop pitch puts the lower third of a tall frame into the
-      // ground right in front of the hero. cameraFraming() already existed
-      // and seven levels used it; this one did not.
+      // Портрету и телефону в ландшафте нужна камера положе и дальше:
+      // десктопный наклон отправляет нижнюю треть высокого кадра в землю прямо
+      // перед героем. cameraFraming() уже существовал, и его использовали семь
+      // уровней; этот — нет.
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
         this.cameraLateral(this.hero.position.x) + f.lateral,

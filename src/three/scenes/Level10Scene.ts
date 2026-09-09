@@ -105,7 +105,21 @@ export class Level10Scene extends BaseLevelScene {
   private giftsDone = 0;
   private readonly giftsTotal = 5;
   private carryingGift = false;
-  private carryingMesh: THREE.Mesh | null = null;
+  private carryingMesh: THREE.Object3D | null = null;
+  /** Ягоды в несомой корзинке — по одной на друга; тают на глазах. */
+  private carriedBerries: THREE.Mesh[] = [];
+  /** Ягоды в корзине на земле — гаснут, когда корзинку забрали. */
+  private pileBerries: THREE.Mesh[] = [];
+  /**
+   * Корзину берут один раз, а не по ягоде на каждого друга.
+   *
+   * Раньше цикл был «корзина → друг → корзина → друг»: пять возвратов к куче
+   * на (0, −4) к местам, разбросанным до 28 м от неё, — **216 м** ходьбы на
+   * уровне, который по замыслу тихое прощание, а не марафон. Теперь Барсик
+   * несёт корзину с собой и достаёт ягоду у каждого места: тот же жест,
+   * та же реплика, один обход вместо пяти.
+   */
+  private basketTaken = false;
   /**
    * Карта у выхода из леса.
    *
@@ -125,17 +139,15 @@ export class Level10Scene extends BaseLevelScene {
 
   tryInteract() {
     if (this.phase === 'gifts') {
-      if (this.interactTarget === this.giftPile && !this.carryingGift && this.giftsDone < this.giftsTotal) {
+      if (this.interactTarget === this.giftPile && !this.basketTaken) {
+        this.basketTaken = true;
         this.carryingGift = true;
-        this.giftsDone += 1;
-        const berry = new THREE.Mesh(
-          // Ягода в лапах — единственное, по чему видно, что подарок несут.
-          new THREE.SphereGeometry(0.26, 10, 10),
-          new THREE.MeshStandardMaterial({ color: 0xe84393, emissive: 0xad1457, emissiveIntensity: 0.45 }),
-        );
-        berry.position.set(0.25, 1.45, 0);
-        this.carryingMesh = berry;
-        this.hero.add(berry);
+        // Корзинка в лапах — и по числу ягод в ней видно, скольким друзьям
+        // ещё не подарили. Счётчик в HUD говорит то же самое словами, но
+        // ребёнку, который не читает, считает только эта горстка.
+        this.carryingMesh = this.makeCarriedBasket();
+        this.hero.add(this.carryingMesh);
+        for (const b of this.pileBerries) b.visible = false;
         this.spawnSparks(this.giftPile!.position, 8, [0xe84393, 0xffd700]);
         this.phase = 'farewell';
         this.pushHud();
@@ -176,18 +188,31 @@ export class Level10Scene extends BaseLevelScene {
         return;
       }
       spot.gifted = true;
-      this.carryingGift = false;
-      if (this.carryingMesh) {
+      this.giftsDone += 1;
+      // Корзинка остаётся в лапах, пока из неё не уйдёт последняя ягода.
+      this.carryingGift = this.giftsDone < this.giftsTotal;
+      const given = this.carriedBerries.pop();
+      if (given) {
+        given.removeFromParent();
+        given.geometry.dispose();
+        (given.material as THREE.Material).dispose();
+      }
+      if (!this.carryingGift && this.carryingMesh) {
         this.hero.remove(this.carryingMesh);
-        this.carryingMesh.geometry.dispose();
-        (this.carryingMesh.material as THREE.Material).dispose();
+        this.carryingMesh.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (!m.isMesh) return;
+          m.geometry.dispose();
+          (m.material as THREE.Material).dispose();
+        });
         this.carryingMesh = null;
+        this.carriedBerries.length = 0;
       }
       this.stars += 2;
       this.spawnSparks(spot.pos, 10, [0xe84393, 0xf1c40f]);
       this.activeFarewell = spot;
       this.farewellUntil = performance.now() + 1600;
-      // After gift, still need farewell hug on same spot
+      // Подарок отдан, но на этом же месте ещё осталось попрощаться.
       this.pushHud();
       return;
     }
@@ -205,10 +230,35 @@ export class Level10Scene extends BaseLevelScene {
       this.stars += 3;
       this.spawnSparks(new THREE.Vector3(0, 2, 0), 20, [0xffd700, 0x00cec9]);
       if (this.exitMarker) this.exitMarker.visible = true;
-    } else if (this.giftsDone < this.giftsTotal) {
-      this.phase = 'gifts';
     }
     this.pushHud();
+  }
+
+  /** Корзинка, которую Барсик несёт: та же, что стояла на земле, но поменьше. */
+  private makeCarriedBasket(): THREE.Object3D {
+    const group = new THREE.Group();
+    // Светлее куртки и заметно крупнее первого варианта: на игровом отдалении
+    // корзинка 0.3 м тёмного дерева сливалась с грудью, и «несу подарки»
+    // читалось только по счётчику в HUD.
+    const basket = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.34, 0.42, 0.3, 12),
+      new THREE.MeshStandardMaterial({ color: 0xe0a563, roughness: 0.85 }),
+    );
+    group.add(basket);
+    for (let i = 0; i < this.giftsTotal; i++) {
+      const berry = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15, 10, 10),
+        new THREE.MeshStandardMaterial({ color: 0xe84393, emissive: 0xad1457, emissiveIntensity: 0.6 }),
+      );
+      const a = (i / this.giftsTotal) * Math.PI * 2;
+      berry.position.set(Math.cos(a) * 0.2, 0.2, Math.sin(a) * 0.2);
+      group.add(berry);
+      this.carriedBerries.push(berry);
+    }
+    // Сбоку у бедра, а не на груди: модель героя без скелета (0 анимаций,
+    // 0 skins), руки к корзинке не привязать, и на груди она входила в плечо.
+    group.position.set(0.52, 1.0, 0.18);
+    return group;
   }
 
   /**
@@ -259,7 +309,7 @@ export class Level10Scene extends BaseLevelScene {
     this.scene.add(spawnPadObj);
     this.scene.add(await placeWoodSign(loader, -2.5, 4, 0.3, 0x81c784));
 
-    // Berry gift basket in the center — pick one gift before each farewell
+    // Корзинка с ягодами в центре: её берут один раз на весь обход.
     this.giftPile = new THREE.Group();
     const basket = new THREE.Mesh(
       new THREE.CylinderGeometry(0.55, 0.65, 0.45, 12),
@@ -276,21 +326,21 @@ export class Level10Scene extends BaseLevelScene {
       const a = (i / this.giftsTotal) * Math.PI * 2;
       berry.position.set(Math.cos(a) * 0.25, 0.5, Math.sin(a) * 0.25);
       this.giftPile.add(berry);
+      this.pileBerries.push(berry);
     }
     this.giftPile.position.set(0, this.groundHeightAt(0, -4), -4);
     this.giftPile.userData.isGiftPile = true;
     this.scene.add(this.giftPile);
     this.scene.add(zoneDisc(0, -4, 2.5, 0xe84393, this.groundHeightAt(0, -4) + 0.03));
 
-    // Four farewell spots, spread across the forest rather than huddled.
+    // Места прощания разнесены по лесу, а не собраны в кучу.
     //
-    // They used to sit inside a 12x10 box with the gift pile in the middle,
-    // so all four were visible from spawn and the "tour" was over in twenty
-    // seconds. The spec calls this a lap of the places the player has been —
-    // that beat only lands if you actually walk the world one last time, so
-    // each spot now sits where its level was: the gardener by the house, the
-    // stump on its riddle clearing, the hedgehog at the old oak, the squirrel
-    // out by her burrow on the way to the mountains.
+    // Раньше все четыре стояли в коробке 12×10 с корзиной посередине: их было
+    // видно прямо со старта, и «обход» кончался за двадцать секунд. По спеке
+    // это круг по местам, где игрок уже был, — а такой бит работает, только
+    // если мир и правда пройти ещё раз. Поэтому каждое место теперь там, где
+    // был его уровень: садовник у дома, пенёк на своей поляне с загадками,
+    // ёжик под старым дубом, белочка у норки по дороге в горы.
     const spotConfigs: [
       number, number, string, string, string, string, string, string, string | null,
     ][] = [
@@ -376,7 +426,7 @@ export class Level10Scene extends BaseLevelScene {
       this.scene.add(npc);
     }
 
-    // Glowing trail between spots (circular revisit path)
+    // Светящаяся тропа между местами — замкнутый круг обхода.
     for (let i = 0; i < this.spots.length; i++) {
       const a = this.spots[i].pos;
       const b = this.spots[(i + 1) % this.spots.length].pos;
@@ -396,7 +446,7 @@ export class Level10Scene extends BaseLevelScene {
       }
     }
 
-    // Snowman near exit (foreshadowing winter)
+    // Снеговик у выхода — намёк на зимнюю главу.
     const snowGlb = await loadPropModel(loader, 'snowman.glb', { height: 1.5 });
     if (snowGlb) {
       snowGlb.position.set(0, 0, -14);
@@ -406,7 +456,7 @@ export class Level10Scene extends BaseLevelScene {
       this.scene.add(makeSnowman(0, -14));
     }
 
-    // Decorations
+    // Декор.
     for (let i = 0; i < 12; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = 4 - (i / 12) * 16;
@@ -424,8 +474,7 @@ export class Level10Scene extends BaseLevelScene {
       this.scene.add(bf);
     }
 
-    // The literal oak from L3, not a stand-in: the place has to be the one
-    // the player remembers.
+    // Тот самый дуб из L3, а не похожий: место должно быть узнаваемым.
     const oak = makeOldOak(-15.5, -23);
     oak.scale.setScalar(0.72);
     this.snapToGround(oak);
@@ -438,23 +487,23 @@ export class Level10Scene extends BaseLevelScene {
     await this.loadTrees(loader, 26, 26, -16, 4.0);
     await this.loadProps(loader, 9, 6, 30, -18);
 
-    // A landmark at each farewell spot, so the place is recognisable as the
-    // one from its own level rather than an NPC standing on blank grass.
+    // У каждого места прощания свой ориентир, иначе это просто NPC на пустой
+    // траве, а не то место, где что-то было.
     const exitProps = await this.placeProps(loader, [
-      // Gardener — the house and its garden fence (L0).
+      // Садовник — дом и садовая ограда (L0).
       { key: 'cabin', opts: { x: -19, z: 7, maxSize: 3.4, rotY: 0.5 } },
       { key: 'fence', opts: { x: -13, z: 5, maxSize: 1.6, rotY: 0.2 } },
       { key: 'basket_red', opts: { x: -14.5, z: 3, maxSize: 0.7 } },
-      // Stump — the riddle clearing (L6).
+      // Пенёк — поляна с загадками (L6).
       { key: 'stump', opts: { x: 15, z: -9, maxSize: 1.4 } },
       { key: 'mushroom', opts: { x: 16.4, z: -7.8, maxSize: 0.45 } },
       { key: 'mushroom', opts: { x: 13.6, z: -10.4, maxSize: 0.4 } },
-      // Hedgehog — the old oak he was found under (L3).
+      // Ёжик — старый дуб, под которым его нашли (L3).
       { key: 'berry', opts: { x: -11.5, z: -20, maxSize: 0.35 } },
-      // Squirrel — her burrow on the road out (L5).
+      // Белочка — норка по дороге из леса (L5).
       { key: 'treehouse', opts: { x: 14.5, z: -32, maxSize: 3.0, rotY: -0.4 } },
       { key: 'acorn_key', opts: { x: 10.5, z: -29, maxSize: 0.5 } },
-      // The map that sends everyone to the mountains sits at the exit.
+      // Карта, которая отправляет всех в горы, лежит у выхода.
       { key: 'map_scroll', opts: { x: 0, z: -35, maxSize: 0.6, y: 0.12 } },
       { key: 'wood_sign', opts: { x: 2.5, z: -34, maxSize: 1.3, rotY: 0.3 } },
     ]);
@@ -478,9 +527,9 @@ export class Level10Scene extends BaseLevelScene {
     ]);
 
     this.hero.position.set(0, this.groundHeightAt(0, 6), 6);
-    // This level is a serpentine, not a field: its beats sit alternately left
-    // and right going down. Drawing that as an actual route, then walling it,
-    // is what stops it reading as a clearing with things scattered in it.
+    // Уровень — серпантин, а не поле: биты идут вниз попеременно слева и
+    // справа. Если проложить это настоящим маршрутом и обнести стенами, он
+    // перестаёт читаться как поляна с разбросанными предметами.
     this.derivePathFromRooms({ x: 0, z: 6 });
     await this.enclosePath(loader);
 
@@ -511,18 +560,18 @@ export class Level10Scene extends BaseLevelScene {
     if (p === 'intro') {
       const lines = [
         this.copy('Пора прощаться с лесом...', 'Орманмен қоштасу уақыты...'),
-        this.copy(`Сначала возьми ягодный подарок из корзины, ${n}.`, `Алдымен себеттен жидектік сыйлық ал, ${n}.`),
-        this.copy('Каждому другу — подарок, потом тёплое прощание!', 'Әр досқа — сыйлық, сосын жылы қоштасу!'),
+        this.copy(`Возьми корзинку с ягодами, ${n} — она одна на всех.`, `Жидегі бар себетті ал, ${n} — ол бәріне ортақ.`),
+        this.copy('Каждому другу — ягода, потом тёплое прощание!', 'Әр досқа — жидек, сосын жылы қоштасу!'),
       ];
       line = lines[Math.min(this.introI, lines.length - 1)];
-      objective = this.copy('🎁 Возьми подарок из корзины', '🎁 Себеттен сыйлық ал');
+      objective = this.copy('🎁 Возьми корзинку с ягодами', '🎁 Жидегі бар себетті ал');
     } else if (p === 'gifts') {
       line = this.carryingGift
         ? this.copy('Отнеси ягоду другу со звёздочкой!', 'Жидекті жұлдызды досқа апар!')
-        : this.copy('Подойди к корзине и возьми ягодный подарок.', 'Себетке жақындап, жидектік сыйлық ал.');
+        : this.copy('Возьми корзинку — ягод хватит на всех.', 'Себетті ал — жидек бәріне жетеді.');
       objective = this.copy(
-        `🎁 Подарки: ${this.giftsDone}/${this.giftsTotal}${this.carryingGift ? ' · несёшь' : ''}`,
-        `🎁 Сыйлық: ${this.giftsDone}/${this.giftsTotal}${this.carryingGift ? ' · көтеріп келесің' : ''}`,
+        `🎁 Подарки: ${this.giftsDone}/${this.giftsTotal}${this.carryingGift ? ' · корзинка в лапах' : ''}`,
+        `🎁 Сыйлық: ${this.giftsDone}/${this.giftsTotal}${this.carryingGift ? ' · себет қолында' : ''}`,
       );
     } else if (p === 'farewell') {
       if (this.activeFarewell && performance.now() < this.farewellUntil) {
@@ -577,7 +626,8 @@ export class Level10Scene extends BaseLevelScene {
       carryingGift: this.carryingGift,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'gifts'),
+      // Не 'intro': эта фаза исключена из canMove.
+      showMoveHint: !this.hasTakenFirstStep && p === 'gifts',
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
@@ -588,7 +638,7 @@ export class Level10Scene extends BaseLevelScene {
     let best: THREE.Object3D | null = null;
     let bestD = 2.5;
 
-    if ((this.phase === 'gifts' || this.phase === 'farewell') && !this.carryingGift && this.giftPile && this.giftsDone < this.giftsTotal) {
+    if ((this.phase === 'gifts' || this.phase === 'farewell') && !this.basketTaken && this.giftPile) {
       const d = hp.distanceTo(this.giftPile.position);
       if (d < bestD) { bestD = d; best = this.giftPile; }
     }
@@ -602,9 +652,13 @@ export class Level10Scene extends BaseLevelScene {
       // ребёнок, пришедший к месту с пустыми руками, не может даже узнать его.
       if (!spot.remembered) {
         bestD = d; best = spot.marker;
-      } else if (this.carryingGift && !spot.gifted) {
+      } else if (spot.gifted) {
+        // Прощальное объятие — независимо от того, что в лапах. Пока корзину
+        // отдавали по ягоде, «пустые лапы» и «пора прощаться» совпадали; с
+        // корзиной, которая остаётся до последнего друга, это условие делало
+        // прощание недоступным, и уровень вставал на 0/5.
         bestD = d; best = spot.marker;
-      } else if (!this.carryingGift && spot.gifted) {
+      } else if (this.carryingGift) {
         bestD = d; best = spot.marker;
       }
     }
@@ -618,7 +672,7 @@ export class Level10Scene extends BaseLevelScene {
   }
 
   private objectiveWorldPos(): THREE.Vector3 | null {
-    if (this.phase === 'gifts' && !this.carryingGift && this.giftPile) {
+    if (this.phase === 'gifts' && !this.basketTaken && this.giftPile) {
       return this.giftPile.position.clone();
     }
     if (this.phase === 'gifts' || this.phase === 'farewell') {
@@ -634,10 +688,18 @@ export class Level10Scene extends BaseLevelScene {
           if (dm < bestD) { bestD = dm; best = spot.pos.clone(); }
           continue;
         }
-        if (this.carryingGift && spot.gifted) continue;
-        if (!this.carryingGift && !spot.gifted && this.phase === 'farewell') continue;
         const d = hp.distanceTo(spot.pos);
         if (d < bestD) { bestD = d; best = spot.pos.clone(); }
+      }
+      // Empty-handed with gifts still to give: the pile is the answer.
+      //
+      // Every branch above skips a spot that needs a gift the player is not
+      // carrying, so once the last one was handed over the arrow went out
+      // entirely — in the middle of a level still asking for «Прощание: 2/5».
+      // A blank arrow is the one thing this level cannot afford: its five
+      // stops are scattered over thirty metres and the pile is behind you.
+      if (!best && !this.basketTaken && this.giftPile) {
+        return this.giftPile.position.clone();
       }
       return best;
     }
@@ -652,7 +714,7 @@ export class Level10Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    if (this.phase === 'intro' && now > this.nextAt) {
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) {
         this.phase = 'gifts';
@@ -714,9 +776,9 @@ export class Level10Scene extends BaseLevelScene {
 
     this.updateAmbient(dt, now);
 
-    // Cinematic only until the first step, same fix as L2/L8/L16 — without
-    // the guard the camera stays locked to this fixed path for the whole
-    // intro timer even after the hero starts moving.
+    // Кинематографично только до первого шага — та же правка, что на L2, L8
+    // и L16. Без этой проверки камера остаётся на фиксированном пути весь
+    // таймер интро, даже когда герой уже пошёл.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [new THREE.Vector3(0, 8, 18), new THREE.Vector3(0, 7, 15), new THREE.Vector3(0, 6, 12)];
@@ -724,9 +786,9 @@ export class Level10Scene extends BaseLevelScene {
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
       this.camera.lookAt(introLook[idx]);
     } else {
-      // Same framing as the rest of the season: a tall or short frame needs a
-      // flatter, further-back camera, or the desktop pitch spends the lower
-      // third of the screen on ground directly in front of the hero.
+      // Кадрирование как во всём сезоне: узкому или низкому экрану нужна
+      // камера положе и дальше, иначе десктопный наклон тратит нижнюю треть
+      // экрана на землю прямо перед героем.
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
         this.cameraLateral(this.hero.position.x) + f.lateral,

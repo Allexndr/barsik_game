@@ -34,14 +34,14 @@ export interface L14Hud extends BaseHud {
   logsTotal: number;
 }
 
-/** Campfires double as the route: each one is a safe island. */
+/** Костры и есть маршрут: каждый — островок тепла. */
 const CAMPFIRES: Array<[x: number, z: number]> = [
   [7, -3],
   [-13, -15],
   [12, -25],
 ];
 
-/** The scarf is deliberately in the farthest drift, not the nearest. */
+/** Шарф намеренно в самом дальнем сугробе, а не в ближнем. */
 const DRIFTS: Array<[x: number, z: number, hasScarf: boolean]> = [
   [-7, -3, false],
   [8, -9, false],
@@ -53,7 +53,7 @@ const DRIFTS: Array<[x: number, z: number, hasScarf: boolean]> = [
   [14, -31, true],
 ];
 
-/** Firewood for Aya's own fire, gathered in the last act. */
+/** Дрова для костра Айи — их собирают в последнем акте. */
 const LOGS: Array<[x: number, z: number]> = [
   [-11, -6],
   [10, -13],
@@ -100,7 +100,7 @@ export class Level14Scene extends BaseLevelScene {
     this.beatUntil = performance.now() + 5000;
   }
 
-  /** Distance to the nearest lit fire, used for the warmth meter. */
+  /** Расстояние до ближайшего горящего костра — по нему считается шкала тепла. */
   private nearestFireDistance() {
     let best = Infinity;
     for (const f of this.campfires) best = Math.min(best, this.hero.position.distanceTo(f.pos));
@@ -113,7 +113,7 @@ export class Level14Scene extends BaseLevelScene {
     const t = this.interactTarget;
     if (!t) return;
 
-    // ── Firewood act ───────────────────────────────────────────
+    // ── Акт с дровами ──────────────────────────────────────────
     if (this.phase === 'firewood') {
       if (!this.carryingLog) {
         const log = this.logs.find((l) => l.mesh === t && !l.taken);
@@ -143,7 +143,7 @@ export class Level14Scene extends BaseLevelScene {
       return;
     }
 
-    // ── Searching drifts ───────────────────────────────────────
+    // ── Поиск в сугробах ───────────────────────────────────────
     const drift = this.drifts.find((d) => d === t);
     if (drift && !this.hasScarf) {
       if (drift.userData.searched) return;
@@ -168,7 +168,7 @@ export class Level14Scene extends BaseLevelScene {
       return;
     }
 
-    // ── Handing the scarf over ─────────────────────────────────
+    // ── Передача шарфа ─────────────────────────────────────────
     if (this.hasScarf && t === this.ayaMarker && this.phase === 'search') {
       this.stars += 8;
       this.spawnSparks(AYA_POS, 20, [0xff6b6b, 0xffd700]);
@@ -185,7 +185,7 @@ export class Level14Scene extends BaseLevelScene {
       return;
     }
 
-    // ── First act: reach Aya, learn the meter ──────────────────
+    // ── Первый акт: дойти до Айи, освоить шкалу тепла ──────────
     if (this.phase === 'warm' && t === this.ayaMarker) {
       this.phase = 'search';
       this.stars += 3;
@@ -240,7 +240,7 @@ export class Level14Scene extends BaseLevelScene {
     this.scene.add(pad);
     this.scene.add(await placeWoodSign(loader, -3, 3.5, 0.3, 0xe1f5fe));
 
-    // ── Aya ──────────────────────────────────────────────────────
+    // ── Айя ──────────────────────────────────────────────────────
     const ayaGlb = await loadCharModel(loader, 'aya.glb', 1.3);
     this.ayaGroup = ayaGlb ?? createPlushCharacter(AYA_LOOK);
     this.ayaGroup.position.copy(AYA_POS);
@@ -268,7 +268,7 @@ export class Level14Scene extends BaseLevelScene {
     this.scene.add(this.ayaMarker);
     this.colliders.push({ kind: 'circle', x: AYA_POS.x, z: AYA_POS.z, r: 1.0 });
 
-    // Aya's own fire, built in the last act.
+    // Костёр самой Айи — его складывают в последнем акте.
     this.ayaFire = new THREE.Group();
     const ayaFlame = new THREE.Mesh(
       new THREE.ConeGeometry(0.42, 0.9, 7),
@@ -282,7 +282,7 @@ export class Level14Scene extends BaseLevelScene {
     this.ayaFire.visible = false;
     this.scene.add(this.ayaFire);
 
-    // ── Campfires as safe islands ────────────────────────────────
+    // ── Костры как островки тепла ────────────────────────────────
     for (const [x, z] of CAMPFIRES) {
       const y = this.groundHeightAt(x, z);
       const camp = await placeS1Prop(loader, 'campfire', { x, z, maxSize: 1.3 });
@@ -298,7 +298,7 @@ export class Level14Scene extends BaseLevelScene {
       this.campfires.push({ pos: new THREE.Vector3(x, y, z), flame });
     }
 
-    // ── Drifts ───────────────────────────────────────────────────
+    // ── Сугробы ──────────────────────────────────────────────────
     const snowPileTpl = await loadPropModel(loader, CAST_PROP_GLB.snow_pile, { maxSize: 1.5 });
     for (const [x, z, hasScarf] of DRIFTS) {
       const y = this.groundHeightAt(x, z);
@@ -319,7 +319,7 @@ export class Level14Scene extends BaseLevelScene {
       drift.userData.hasScarf = hasScarf;
       drift.userData.searched = false;
 
-      // A "?" over an unsearched drift; hidden until the search act begins.
+      // «?» над необысканным сугробом; до начала поиска скрыт.
       const q = new THREE.Mesh(
         new THREE.SphereGeometry(0.16, 8, 8),
         new THREE.MeshStandardMaterial({ color: 0xffeaa7, emissive: 0xfdcb6e, emissiveIntensity: 0.7 }),
@@ -331,7 +331,7 @@ export class Level14Scene extends BaseLevelScene {
       this.scene.add(drift, q);
     }
 
-    // ── Firewood ─────────────────────────────────────────────────
+    // ── Дрова ────────────────────────────────────────────────────
     const logMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.95 });
     for (const [x, z] of LOGS) {
       const y = this.groundHeightAt(x, z);
@@ -369,9 +369,9 @@ export class Level14Scene extends BaseLevelScene {
     ]);
 
     this.hero.position.set(0, this.groundHeightAt(0, 5), 5);
-    // This level is a serpentine, not a field: its beats sit alternately left
-    // and right going down. Drawing that as an actual route, then walling it,
-    // is what stops it reading as a clearing with things scattered in it.
+    // Уровень — серпантин, а не поле: биты идут вниз попеременно слева и
+    // справа. Если проложить это настоящим маршрутом и обнести стенами, он
+    // перестаёт читаться как поляна с разбросанными предметами.
     this.derivePathFromRooms({ x: 0, z: 5 });
     await this.enclosePath(loader);
 
@@ -460,7 +460,8 @@ export class Level14Scene extends BaseLevelScene {
       logsTotal: this.logsTotal,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'warm'),
+      // Не 'intro': ворота canMove — это `isActive` (warm/search/firewood).
+      showMoveHint: !this.hasTakenFirstStep && p === 'warm',
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
@@ -522,14 +523,14 @@ export class Level14Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    if (this.phase === 'intro' && now > this.nextAt) {
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) this.phase = 'warm';
       else this.nextAt = now + 2600;
       this.pushHud();
     }
 
-    // Warmth is slowed, not stopped, while cold — never a fail state.
+    // На холоде тепло убывает медленнее, но не обнуляет игру: проигрыша нет.
     const chilled = this.warmth < 25;
     this.updateMovement(
       dt,
@@ -547,10 +548,11 @@ export class Level14Scene extends BaseLevelScene {
       }
 
       if (this.warmth <= 0 && !this.sneezing) {
-        // Spec: warmth zero is a sneeze, not a death.
+        // По спеке ноль тепла — это чих, а не смерть.
         this.sneezing = true;
         this.sneezeUntil = now + 1800;
         this.warmth = 28;
+        this.noteMistake();
         AudioManager.sfx('stumble');
         this.spawnSparks(this.hero.position, 8, [0xe1f5fe, 0xb3e5fc]);
         this.pushHud();
@@ -565,7 +567,7 @@ export class Level14Scene extends BaseLevelScene {
       }
     }
 
-    // Aya shivers until she has both scarf and fire.
+    // Айя дрожит, пока у неё нет и шарфа, и костра.
     if (this.ayaGroup) {
       const settled = this.phase === 'outro';
       const shiver = settled ? 0 : this.hasScarf ? 0.008 : 0.02;
@@ -577,9 +579,9 @@ export class Level14Scene extends BaseLevelScene {
     if (this.ayaFire?.visible) {
       this.ayaFire.rotation.y += dt * 0.4;
     }
-    // Only the drift the player is being sent to is beaconed — all eight
-    // lit at once turns the search into a field of lollipops that points
-    // nowhere (see BaseLevelScene.questMarker).
+    // Маяк горит только над тем сугробом, к которому ведут сейчас: все восемь
+    // разом превращают поиск в поле леденцов, которое не указывает никуда
+    // (см. BaseLevelScene.questMarker).
     const searchObjective = this.phase === 'search' && !this.hasScarf ? this.objectiveWorldPos() : null;
     for (const d of this.drifts) {
       const m = d.userData.marker as THREE.Object3D | undefined;
@@ -614,9 +616,9 @@ export class Level14Scene extends BaseLevelScene {
 
     this.updateAmbient(dt, now);
 
-    // Cinematic only until the first step, same fix as L2/L8/L16 — without
-    // the guard the camera stays locked to this fixed path for the whole
-    // intro timer even after the hero starts moving.
+    // Кинематографично только до первого шага — та же правка, что на L2, L8
+    // и L16. Без этой проверки камера остаётся на фиксированном пути весь
+    // таймер интро, даже когда герой уже пошёл.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [

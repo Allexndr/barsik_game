@@ -176,20 +176,3 @@ export function t(lang: Lang, key: string, vars?: Record<string, string | number
     return s.split(`{${k}}`).join(val).split(`#{${k}}`).join(val);
   }, raw);
 }
-
-/**
- * Language-aware asset path.
- * Convention:
- * - RU default: `/assets/foo/bar.png`
- * - KK:         `/assets/foo/bar_kk.png`
- * Falls back to RU path if KK file missing (caller may onError swap).
- */
-export function localizedAsset(path: string, lang: Lang): string {
-  if (lang === 'ru') return path;
-  const q = path.indexOf('?');
-  const base = q >= 0 ? path.slice(0, q) : path;
-  const query = q >= 0 ? path.slice(q) : '';
-  const dot = base.lastIndexOf('.');
-  if (dot < 0) return `${base}_kk${query}`;
-  return `${base.slice(0, dot)}_kk${base.slice(dot)}${query}`;
-}

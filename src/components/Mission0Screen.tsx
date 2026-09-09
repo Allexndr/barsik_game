@@ -16,6 +16,7 @@ import { AudioManager } from '@/audio/AudioManager';
 import { shouldNarrateHudLine } from '@/audio/narration';
 import { SettingsPanel } from '@/components/ui/SettingsPanel';
 import './Mission0Screen.css';
+import { syncCompletedLevel } from '@/net/progression';
 
 /** Level 1 is the first of 5 story chapters shown as journey dots on the outro card. */
 const JOURNEY_TOTAL_CHAPTERS = 5;
@@ -57,6 +58,7 @@ export function Mission0Screen() {
   const muted = useUIStore((s) => s.muted);
   const volume = useUIStore((s) => s.volume);
   const ttsEnabled = useUIStore((s) => s.ttsEnabled);
+  const voiceGender = useUIStore((s) => s.voiceGender);
   const paused = useUIStore((s) => s.paused);
   const setPaused = useUIStore((s) => s.setPaused);
   const setShowSettings = useUIStore((s) => s.setShowSettings);
@@ -81,6 +83,7 @@ export function Mission0Screen() {
     });
     const earnedStars = Math.max(hud.stars, 10);
     completeLevel(0, { stars: earnedStars, friendId: 'gardener' });
+    void syncCompletedLevel(0, earnedStars, 'gardener');
   };
 
   const finishToMap = () => {
@@ -98,6 +101,9 @@ export function Mission0Screen() {
   }, [hud.outro]);
 
   const handlePlayFromLoading = () => {
+    AudioManager.init();
+    AudioManager.unlockFromGesture();
+    AudioManager.playMusic('forest');
     AudioManager.sfx('click');
     setLoading(false);
   };
@@ -107,6 +113,7 @@ export function Mission0Screen() {
     if (!canvas) return;
     const initAudio = () => {
       AudioManager.init();
+      AudioManager.unlockFromGesture();
       AudioManager.playMusic('forest');
     };
     window.addEventListener('pointerdown', initAudio, { once: true });
@@ -116,7 +123,11 @@ export function Mission0Screen() {
     setLoading(true);
     setAssetsReady(false);
     let active = true;
-    void scene.init(player?.nick || '', lang, setHud).then(() => {
+    // The store may hydrate just after this screen mounts. Do not restart the
+    // live scene when that happens: it can race the loading CTA and resurrect
+    // the overlay after the player already pressed "Играть".
+    const nickAtStart = useGameStore.getState().player?.nick || '';
+    void scene.init(nickAtStart, lang, setHud).then(() => {
       if (!active) return;
       if (useUIStore.getState().paused) scene.setPaused(true);
       // The level does not actually start until the loading screen's own
@@ -134,7 +145,16 @@ export function Mission0Screen() {
       window.removeEventListener('pointerdown', initAudio);
       window.removeEventListener('keydown', initAudio);
     };
-  }, [lang, player?.nick]);
+  // `lang` is intentionally excluded: changing language must update the
+  // live scene, not tear it down and restart the mission from spawn.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Language changes are presentation-only while a mission is running. Keep
+  // the current phase/position instead of reloading the scene from spawn.
+  useEffect(() => {
+    sceneRef.current?.setLanguage(lang);
+  }, [lang]);
 
   useEffect(() => {
     const el = stickRef.current;
@@ -192,6 +212,10 @@ export function Mission0Screen() {
   useEffect(() => {
     AudioManager.setTtsEnabled(ttsEnabled);
   }, [ttsEnabled]);
+
+  useEffect(() => {
+    AudioManager.setVoiceGender(voiceGender);
+  }, [voiceGender]);
 
   useEffect(() => {
     if (paused) AudioManager.stopTts();
@@ -405,7 +429,7 @@ export function Mission0Screen() {
         <div className="m0-blackout" style={{ opacity: hud.fade }} aria-hidden />
       ) : null}
 
-      <SettingsPanel />
+      <SettingsPanel onRestart={() => useUIStore.getState().startEpisode(0)} />
     </div>
   );
 }

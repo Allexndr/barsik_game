@@ -45,5 +45,3 @@ export interface LevelConfig {
     kk: string;
   };
 }
-
-export type SoftGateKind = 'phone_1min' | 'phone_5levels' | 'email' | null;

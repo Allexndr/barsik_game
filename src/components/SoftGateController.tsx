@@ -43,9 +43,11 @@ export function SoftGateController() {
       return;
     }
 
-    // Gate 2: after 5 levels, if still no phone (even if skipped before)
-    if (!hasPhone && levels >= 5 && !phone5Shown.current) {
-      // Don't spam if we just asked in last 30s of session — still show once per session after 5
+    // Gate 2: after 5 levels, if still no phone (even if skipped before).
+    // Same PHONE_MS session-time floor as Gate 1 — without it, a returning
+    // player who already has 5+ levels unlocked from a past session sees
+    // this the instant the game loads, 0 seconds into the current session.
+    if (!hasPhone && levels >= 5 && sessionPlayMs >= PHONE_MS && !phone5Shown.current) {
       phone5Shown.current = true;
       openSoftGate('phone_5levels');
       return;

@@ -7,6 +7,7 @@ import { Chip } from '@/components/ui/Chip';
 import { ConfettiBurst } from '@/components/ui/ConfettiBurst';
 import { IconChevronLeft, IconFriends, IconPaw, IconStar } from '@/components/ui/icons';
 import './EpisodeScreen.css';
+import { syncCompletedLevel } from '@/net/progression';
 
 /**
  * Экран эпизода — хаб, куда ребёнок возвращается после каждого уровня, — был
@@ -66,6 +67,7 @@ export function EpisodeScreen() {
       stars: levelConfig.reward.stars,
       friendId: levelConfig.reward.friend ?? undefined,
     });
+    void syncCompletedLevel(episodeId, levelConfig.reward.stars, levelConfig.reward.friend ?? undefined);
     endEpisode();
   };
 

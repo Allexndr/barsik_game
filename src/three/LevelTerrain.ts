@@ -3,7 +3,7 @@ import * as THREE from 'three';
 /**
  * Configurable sculpted ground for every level.
  *
- * Mission 0 owns a bespoke valley in Terrain.ts whose basins and plateaus are
+ * Mission 0 once used a bespoke valley terrain helper; levels now share this
  * hard-coded to that one layout, so levels 2-16 could not reuse it and fell
  * back to a flat PlaneGeometry. A flat plane is the single loudest "cheap"
  * signal in the game: no horizon shaping, no depth cues, props sitting on a
