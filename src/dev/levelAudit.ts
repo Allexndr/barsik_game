@@ -144,6 +144,21 @@ export async function auditLevel(opts: { grid?: number } = {}): Promise<AuditRep
   );
   if (unsupported) {
     findings.push({ kind: 'no-sweep', severity: 'low', detail: 'scene has no nearestInteract()' });
+  } else if (reachable.size === 0 && declared.length > 0) {
+    // `missed` filters by `liveKinds`, which comes from `reachable` — so an
+    // empty `reachable` silently makes `missed` empty too, reporting a clean
+    // "0 unreachable" that actually means "checked nothing meaningful in
+    // this phase." BUG-001 (L1's unreachable trail fruit) went unnoticed
+    // this way: it lived in the 'trail' phase, and every audit call ran
+    // during 'intro', where nothing was live yet. This can't force other
+    // phases generically (level-specific phase names aren't known here),
+    // but it can stop the report from reading as clean when it isn't.
+    findings.push({
+      kind: 'phase-scoped-sweep', severity: 'low',
+      detail: `${declared.length} is*-flagged object(s) exist in the scene but none were ` +
+        `reachable in the current phase ('${L.currentPhase()}') — re-run after advancing ` +
+        `phase to actually check reachability`,
+    });
   } else if (missed.length) {
     findings.push({
       kind: 'unreachable',
@@ -184,9 +199,16 @@ export async function auditLevel(opts: { grid?: number } = {}): Promise<AuditRep
       // Any metal at all, not just the loader's default: there is no
       // environment map in this game, so a metallic surface has nothing to
       // reflect and renders black. Every CC0 model ships metallicFactor 1.
+      // Except: a non-black emissive is the established fix for exactly
+      // this (L4/L9/L16 this season) — carries the surface's colour without
+      // needing a reflection. Without this exclusion, every fixed instance
+      // re-triggers the same finding forever.
       const std = mat as THREE.MeshStandardMaterial;
+      const emissiveCompensated = !!std?.emissive
+        && (std.emissive.r > 0 || std.emissive.g > 0 || std.emissive.b > 0)
+        && std.emissiveIntensity > 0;
       if (std?.isMeshStandardMaterial && std.metalness > 0.5
-          && !std.metalnessMap && !std.envMap) black++;
+          && !std.metalnessMap && !std.envMap && !emissiveCompensated) black++;
     }
   });
   if (black) findings.push({ kind: 'black-material', severity: 'high', detail: `${black} mesh(es)` });
@@ -211,7 +233,15 @@ export async function auditLevel(opts: { grid?: number } = {}): Promise<AuditRep
     }
   }
   L.clock.getDelta = realDelta;
-  if (worst > 0.85) {
+  // `worst > 0.85` is false for NaN, same trap as everywhere else in JS —
+  // a degenerate camera projection (e.g. a zero-length look direction)
+  // would silently report a clean level instead of a failed measurement.
+  // Confirmed live: one run hit exactly this after an unrelated mid-escort
+  // teleport left the camera in a degenerate state.
+  if (Number.isNaN(worst)) {
+    findings.push({ kind: 'audit-error', severity: 'block',
+      detail: 'hero-off-frame measurement produced NaN — camera projection failed, not a clean result' });
+  } else if (worst > 0.85) {
     findings.push({ kind: 'hero-off-frame', severity: worst > 1 ? 'block' : 'high',
       detail: `worst |x| ${worst.toFixed(2)} of 1.0 at the play area corners` });
   }
@@ -225,6 +255,6 @@ export async function auditLevel(opts: { grid?: number } = {}): Promise<AuditRep
   };
 }
 
-if (import.meta.env.DEV) {
+if (import.meta.env.DEV && typeof window !== 'undefined') {
   (window as unknown as { __audit?: typeof auditLevel }).__audit = auditLevel;
 }

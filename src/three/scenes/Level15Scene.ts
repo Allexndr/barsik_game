@@ -43,10 +43,16 @@ const FEATURES: Array<{
 }> = [
   // Размеры подняты в ~1.4 раза: с игровой камеры прежние 34–55 см
   // не читались как предметы, которые надо найти и принести.
-  { key: 'carrot', id: 'nose', x: -17, z: -6, size: 0.6, slot: [0, 2.05, 0.5] },
-  { key: 'winter_hat', id: 'hat', x: 16, z: -22, size: 0.72, slot: [0, 2.72, 0] },
-  { key: 'scarf', id: 'scarf', x: -14, z: -27, size: 0.78, slot: [0, 1.62, 0.08] },
-  { key: 'pinecone', id: 'buttons', x: 19, z: -9, size: 0.5, slot: [0, 1.2, 0.55] },
+  //
+  // Расстояния сокращены с 18–20 м до 11–12 м от снеговика на (0, −12).
+  // Замерено на полном прохождении: фаза `features` занимала **76 с из 129 с**
+  // уровня — по 19 с на предмет, четыре одинаковых рейса туда-обратно, дольше
+  // двух первых актов вместе. Четыре стороны света сохранены: за каждым
+  // предметом всё равно надо развернуться, но снеговик не уходит из виду.
+  { key: 'carrot', id: 'nose', x: -9.5, z: -6.5, size: 0.6, slot: [0, 2.05, 0.5] },
+  { key: 'winter_hat', id: 'hat', x: 9.5, z: -20, size: 0.72, slot: [0, 2.72, 0] },
+  { key: 'scarf', id: 'scarf', x: -9.5, z: -19.5, size: 0.78, slot: [0, 1.62, 0.08] },
+  { key: 'pinecone', id: 'buttons', x: 10.5, z: -7.5, size: 0.5, slot: [0, 1.2, 0.55] },
 ];
 
 /** Drifts: the first sits close, the rest are a real walk away. */
@@ -422,7 +428,8 @@ export class Level15Scene extends BaseLevelScene {
       timerSec: Math.ceil(this.chunkTimer),
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'first'),
+      // Not 'intro': `isCarryPhase` (first/pressure/features) is canMove's gate.
+      showMoveHint: !this.hasTakenFirstStep && p === 'first',
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
@@ -467,7 +474,7 @@ export class Level15Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    if (this.phase === 'intro' && now > this.nextAt) {
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) this.phase = 'first';
       else this.nextAt = now + 2600;
@@ -499,6 +506,7 @@ export class Level15Scene extends BaseLevelScene {
           if (dropped.marker) dropped.marker.visible = true;
           this.meltLevel = Math.min(0.8, this.meltLevel + 0.15);
           this.spawnSparks(this.hero.position, 10, [0x81d4fa, 0xe1f5fe]);
+          this.noteMistake();
           AudioManager.sfx('stumble');
           this.setBeat('Снег растаял в лапках! Возьми ещё — ничего страшного.', 'Қар алақанда еріп кетті! Тағы ал — ештеңе етпейді.');
           this.pushHud();

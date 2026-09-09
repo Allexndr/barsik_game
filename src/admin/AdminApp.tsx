@@ -13,10 +13,8 @@ import './admin.css';
  * Живёт отдельным входом (`?admin=1`) и грузится лениво, поэтому в детский
  * бандл не попадает ни байта, пока панель не открыли.
  *
- * Пропуск — токен из `ADMIN_TOKEN` окружения Vercel. Проверяет его сервер, а
- * не браузер: пароль, сверяемый в клиентском коде, не защищает ничего, потому
- * что и код, и пароль лежат в публичном бандле. Здесь браузер токен только
- * пересылает.
+ * Вход — access token Supabase Auth. Сервер проверяет identity и admin claim;
+ * браузер только пересылает токен и не принимает решение о правах.
  */
 
 type Tab = 'overview' | 'players' | 'board' | 'content' | 'audit';
@@ -84,7 +82,7 @@ export function AdminApp() {
               <div style={{ marginTop: 8 }}>
                 <b>Что настроено:</b>{' '}
                 SUPABASE_URL — {config.supabaseUrl ? 'да' : 'нет'}, SUPABASE_SERVICE_ROLE_KEY —{' '}
-                {config.serviceKey ? 'да' : 'нет'}, ADMIN_TOKEN — {config.adminToken ? 'да' : 'нет'}.
+                {config.serviceKey ? 'да' : 'нет'}, identity auth — {config.identityAuth ? 'да' : 'нет'}.
                 Переменные задаются в настройках проекта Vercel и применяются после передеплоя.
               </div>
             ) : null}
@@ -126,7 +124,7 @@ function Login({ onDone }: { onDone: () => void }) {
             value={actor}
             onChange={(e) => setActor(e.target.value)}
           />
-          <label htmlFor="adm-token">Токен</label>
+          <label htmlFor="adm-token">Access token Supabase</label>
           <input
             id="adm-token"
             className="adm-input"
@@ -139,9 +137,8 @@ function Login({ onDone }: { onDone: () => void }) {
             <button className="adm-btn go" type="submit">Войти</button>
           </div>
           <p className="adm-note" style={{ marginTop: 16 }}>
-            Токен задаётся переменной <code>ADMIN_TOKEN</code> в настройках проекта Vercel.
-            Проверяет его сервер: в браузере он только пересылается заголовком и хранится до
-            закрытия вкладки.
+            Вставьте access token пользователя Supabase Auth с правами администратора.
+            Сервер проверит сессию и admin claim; токен хранится только до закрытия вкладки.
           </p>
         </form>
       </div>

@@ -86,7 +86,7 @@ export function WelcomeScreen() {
         featureTitle: 'Ойна, үйрен, достас',
         feat1: '17 оқиғалы деңгей',
         feat1Text: 'Қысқа әрі әртүрлі тапсырмалар: іздеу, эскорт, тепе-теңдік және жұмбақтар.',
-        feat2: 'Нағыз достар',
+        feat2: '9 шынайы дос',
         feat2Text: 'Барсик жалғыз емес — әр кейіпкердің өз мінезі мен оқиғасы бар.',
         feat3: 'Жұлдыздар мен сыйлықтар',
         feat3Text: 'Жетістіктерді жина, жаңа заттарды аш және прогресті бақыла.',
@@ -127,7 +127,7 @@ export function WelcomeScreen() {
         featureTitle: 'Играй, учись, дружи',
         feat1: '17 сюжетных уровней',
         feat1Text: 'Короткие и разные задания: поиск, сопровождение, баланс и головоломки.',
-        feat2: 'Настоящие друзья',
+        feat2: '9 настоящих друзей',
         feat2Text: 'Барсик путешествует не один — у каждого героя есть характер и история.',
         feat3: 'Звёзды и награды',
         feat3Text: 'Собирай достижения, открывай новые предметы и следи за прогрессом.',
@@ -239,7 +239,7 @@ export function WelcomeScreen() {
           </div>
           <div className="welcome-feature-grid">
             <article><div className="welcome-feature-icon"><CompassIcon /></div><strong>17</strong><h3>{copy.feat1}</h3><p>{copy.feat1Text}</p></article>
-            <article><div className="welcome-feature-icon"><FriendsIcon /></div><strong>12+</strong><h3>{copy.feat2}</h3><p>{copy.feat2Text}</p></article>
+            <article><div className="welcome-feature-icon"><FriendsIcon /></div><strong>9</strong><h3>{copy.feat2}</h3><p>{copy.feat2Text}</p></article>
             <article><div className="welcome-feature-icon"><StarIcon /></div><strong>★</strong><h3>{copy.feat3}</h3><p>{copy.feat3Text}</p></article>
           </div>
         </section>

@@ -39,10 +39,3 @@ export function isUsableHeroGlb(gltf: GLTF): boolean {
   // Prefer textured; allow skinned+animated MCP exports even if texture flags lag.
   return hasTexturedMat || hasSkin;
 }
-
-/** TRELLIS / SF3D static mesh — textured but no skeleton. */
-export function isTexturedStaticHeroGlb(gltf: GLTF): boolean {
-  if (gltf.animations.length) return false;
-  const { verts, hasTexturedMat } = heroMeshStats(gltf);
-  return hasTexturedMat && verts > 200 && verts < MAX_HERO_VERTS;
-}

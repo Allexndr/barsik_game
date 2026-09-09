@@ -28,15 +28,3 @@ export const ZHULDYZ_LOOK: PlushCharacterOptions = {
   hairStyle: 'bun',
   height: 1.28,
 };
-
-/** Айбек — the boy from the village fair. */
-export const AIBEK_LOOK: PlushCharacterOptions = {
-  skin: 0xf2c096,
-  hair: 0x1f1712,
-  top: 0x0984e3,
-  bottom: 0x2d3436,
-  accent: 0xe17055,
-  eye: 0x34495e,
-  hairStyle: 'cap',
-  height: 1.12,
-};

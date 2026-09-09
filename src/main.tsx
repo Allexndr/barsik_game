@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import { installQaConsoleCollector } from './dev/qaConsole';
+import { AppErrorBoundary } from './components/ui/AppErrorBoundary';
 import './index.css';
 
 installQaConsoleCollector();
@@ -26,12 +27,14 @@ const isAdminEntry =
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {isAdminEntry ? (
-      <Suspense fallback={null}>
-        <AdminApp />
-      </Suspense>
-    ) : (
-      <App />
-    )}
+    <AppErrorBoundary>
+      {isAdminEntry ? (
+        <Suspense fallback={<div role="status">Загрузка…</div>}>
+          <AdminApp />
+        </Suspense>
+      ) : (
+        <App />
+      )}
+    </AppErrorBoundary>
   </React.StrictMode>,
 );

@@ -104,7 +104,7 @@ function addPatternBands(parent: THREE.Object3D, color: 'red' | 'yellow' | 'gree
   }
 }
 
-/** Tint a Kenney food-kit apple without mutating the shared template materials. */
+/** Перекрасить яблоко из набора Kenney, не трогая общие материалы шаблона. */
 function tintAppleRoot(root: THREE.Object3D, hex: number, emissiveIntensity: number) {
   root.traverse((object) => {
     const mesh = object as THREE.Mesh;
@@ -125,11 +125,11 @@ function tintAppleRoot(root: THREE.Object3D, hex: number, emissiveIntensity: num
 }
 
 /**
- * The ring on the ground and the beam over it that say "an apple is here".
+ * Кольцо на земле и луч над ним — то, что говорит «здесь яблоко».
  *
- * `ground` is the terrain height under (x, z). Both used to be pinned to
- * absolute world y — 0.04 and 1.0 — which put the ring underground wherever
- * the orchard rises and left the beam floating short of the apple.
+ * `ground` — высота рельефа под (x, z). Раньше оба крепились к абсолютной
+ * мировой высоте (0.04 и 1.0), из-за чего кольцо уходило под землю везде, где
+ * сад поднимается, а луч не доставал до яблока.
  */
 function appleIndicators(
   x: number,
@@ -245,7 +245,7 @@ async function makeKitApple(
     : color === 'red'
       ? CAST_PROP_GLB.apple
       : CAST_PROP_GLB.apple_discover;
-  // Cub-scale fruit: maxSize 0.78 was nearly Barsik's torso height.
+  // Фрукт под размер котёнка: при maxSize 0.78 яблоко было почти с торс Барсика.
   const meshyApple = await loadPropModel(loader, meshyFile, { maxSize: bonus ? APPLE_SIZE * 1.15 : APPLE_SIZE });
   if (meshyApple) {
     if (!bonus && color !== 'red') tintAppleRoot(meshyApple, displayColor, 0.22);
@@ -786,7 +786,7 @@ export class Level2Scene extends BaseLevelScene {
     const t = this.interactTarget;
     if (!t) return;
 
-    // Pick up apple
+    // Подобрать яблоко.
     if (this.phase === 'collect' || this.phase === 'sort') {
       const apple = this.apples.find((a) => a.alive && a.mesh === t);
       if (apple) {
@@ -795,7 +795,7 @@ export class Level2Scene extends BaseLevelScene {
       }
     }
 
-    // Sort: put apple in basket
+    // Сортировка: положить яблоко в корзину.
     if (this.phase === 'sort' && this.carryingColor) {
       const basket = this.baskets.find((b) => b.group === t);
       if (basket) {
@@ -804,7 +804,7 @@ export class Level2Scene extends BaseLevelScene {
       }
     }
 
-    // Demo: gardener shows how
+    // Показ: садовник объясняет, как надо.
     if (this.phase === 'demo' && t === this.gardener && !this.demoDone) {
       this.demoDone = true;
       this.runDemo();
@@ -812,7 +812,7 @@ export class Level2Scene extends BaseLevelScene {
       return;
     }
 
-    // Second act: the head gate, then the three blockages, then the gift.
+    // Второй акт: сначала ворота, потом три завала, потом подарок.
     if (this.phase === 'aryk' && this.sluice && t === this.sluice.group) {
       this.openSluice();
       return;
@@ -903,6 +903,7 @@ export class Level2Scene extends BaseLevelScene {
       blockage.z = blockage.group.position.z;
       blockage.group.rotation.z += 0.28;
       this.spawnSparks(blockage.group.position, 6, [0xd7ccc8, 0xa1887f]);
+      this.noteMistake();
       AudioManager.sfx('stumble');
       this.say(
         `${blockage.strainRu} (${blockage.pushed} из ${blockage.pushes})`,
@@ -1012,7 +1013,7 @@ export class Level2Scene extends BaseLevelScene {
     this.carryingColor = apple.color;
     this.bag += 1;
 
-    // Show carrying apple above hero
+    // Показать несомое яблоко над героем.
     this.clearCarryingMesh();
     const m = new THREE.Mesh(
       sharedAppleGeo,
@@ -1035,7 +1036,7 @@ export class Level2Scene extends BaseLevelScene {
 
   private sortApple(basket: Basket) {
     if (basket.color === this.carryingColor) {
-      // Correct!
+      // Верно!
       this.sorted += 1;
       this.bag = Math.max(0, this.bag - 1);
       basket.count += 1;
@@ -1045,7 +1046,7 @@ export class Level2Scene extends BaseLevelScene {
       this.praiseUntil = performance.now() + 800;
       AudioManager.sfx('success');
 
-      // Bounce basket
+      // Подпрыгивание корзины.
       basket.group.userData.bounceUntil = performance.now() + 220;
 
       if (this.sorted >= this.sortNeed) {
@@ -1057,10 +1058,11 @@ export class Level2Scene extends BaseLevelScene {
         this.moveTaskMarker(this.sluice?.group.position ?? null);
       }
     } else {
-      // Wrong basket — retain the carried apple and teach the matching pattern.
+      // Не та корзина: яблоко остаётся в лапах, а подсказка учит правилу подбора.
       this.spawnSparks(basket.group.position, 4, [0xff6b6b, 0xff6b6b]);
       this.mistakeUntil = performance.now() + 1200;
       basket.group.userData.shakeUntil = performance.now() + 450;
+      this.noteMistake();
       AudioManager.sfx('stumble');
     }
     this.pushHud();
@@ -1183,7 +1185,7 @@ export class Level2Scene extends BaseLevelScene {
     }
   }
 
-  /** Garden comes alive on clear — brighter baskets + orchard-wide sparks. */
+  /** Сад оживает после расчистки: корзины ярче, искры по всему саду. */
   private reviveOrchard() {
     for (const b of this.baskets) {
       b.group.traverse((o) => {
@@ -1196,21 +1198,21 @@ export class Level2Scene extends BaseLevelScene {
       });
       this.spawnSparks(b.group.position, 8, [APPLE_COLORS[b.color], 0xf1c40f]);
     }
-    // Soft sky/fog warm-up so the orchard "wakes"
+    // Небо и туман мягко теплеют — сад «просыпается».
     this.scene.fog = new THREE.Fog(0xb8e986, 55, 200);
     this.scene.background = new THREE.Color(0x9dd66c);
   }
 
   private runDemo() {
     if (!this.demoApple || !this.demoBasket) return;
-    // Gardener picks the demo apple
+    // Садовник срывает показательное яблоко.
     this.demoApple.alive = false;
     this.demoApple.mesh.visible = false;
     this.demoApple.ring.visible = false;
     this.demoApple.beam.visible = false;
     this.spawnSparks(this.demoApple.mesh.position, 8);
 
-    // Apple flies to basket
+    // Яблоко летит в корзину.
     const apple = new THREE.Mesh(
       sharedAppleGeo,
       new THREE.MeshStandardMaterial({ color: APPLE_COLORS[this.demoApple.color], emissive: APPLE_COLORS[this.demoApple.color], emissiveIntensity: 0.5 }),
@@ -1475,13 +1477,13 @@ export class Level2Scene extends BaseLevelScene {
     this.onHud = onHud;
     const loader = createGameGltfLoader();
 
-    // Setup
+    // Подготовка сцены.
     this.camera.position.set(-10, 7, 16);
     await this.setupForestEnvironment(loader, { fogColor: 0x8fd8f5, flatRadius: 21, flatCenterZ: -14 });
     this.setupSky();
     this.setupClouds(6, 26, 60);
 
-    // Hills
+    // Холмы.
     for (const [hx, hz, hr, hh] of [
       [-24, -8, 14, 1.5],
       [26, -28, 16, 1.8],
@@ -1490,7 +1492,7 @@ export class Level2Scene extends BaseLevelScene {
       this.scene.add(hill(hx, hz, hr, hh));
     }
 
-    // Mountains
+    // Горы.
     for (const [x, z, h, w] of [
       [-48, -70, 22, 16],
       [0, -82, 30, 20],
@@ -1499,14 +1501,14 @@ export class Level2Scene extends BaseLevelScene {
       this.scene.add(mountain(x, z, h, w));
     }
 
-    // Zone discs
+    // Диски зон.
     this.scene.add(zoneDisc(0, 4, 7, 0x66bb6a, 0.025)); // start
     this.scene.add(zoneDisc(0, -12, 12, 0xffeaa7, 0.02)); // orchard center
 
-    // Spawn pad
+    // Площадка появления.
     this.scene.add(spawnPad(0, 4));
 
-    // Dirt path
+    // Грунтовая тропа.
     for (let i = 0; i < 20; i++) {
       const dirt = new THREE.Mesh(
         new THREE.PlaneGeometry(2.2, 1.0),
@@ -1517,7 +1519,7 @@ export class Level2Scene extends BaseLevelScene {
       this.scene.add(dirt);
     }
 
-    // Path arrows
+    // Стрелки вдоль тропы.
     for (let i = 0; i < 6; i++) {
       const a = pathArrow(0, 2.5 - i * 2.4, 0);
       a.scale.setScalar(0.74);
@@ -1525,7 +1527,8 @@ export class Level2Scene extends BaseLevelScene {
       this.scene.add(a);
     }
 
-    // Apple archway entrance — posts tall enough that a 1.1 m cub walks under.
+    // Яблоневая арка на входе: стойки достаточно высоки, чтобы котёнок ростом
+    // 1.1 м прошёл под ней.
     this.archway = new THREE.Group();
     const archMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
     const archH = ARCH_POST_HEIGHT;
@@ -1538,12 +1541,12 @@ export class Level2Scene extends BaseLevelScene {
     archTop.position.set(0, archH, -4);
     archTop.castShadow = true;
     this.archway.add(postL, postR, archTop);
-    // Only the two posts are solid — the gap between them is the entrance.
+    // Твёрдые только две стойки: просвет между ними и есть вход.
     this.colliders.push(
       { kind: 'circle', x: -1.5, z: -4, r: 0.3 },
       { kind: 'circle', x: 1.5, z: -4, r: 0.3 },
     );
-    // Decorative apples on arch
+    // Декоративные яблоки на арке.
     for (let i = -1; i <= 1; i++) {
       const a = new THREE.Mesh(
         sharedAppleGeo,
@@ -1554,7 +1557,7 @@ export class Level2Scene extends BaseLevelScene {
     }
     this.scene.add(this.archway);
 
-    // Sign at entrance
+    // Указатель у входа.
     this.scene.add(await placeWoodSign(loader, -2.5, 0, 0.3, 0xffeaa7));
 
     // Second threshold: the garden gate, between meeting the gardener and
@@ -1581,7 +1584,7 @@ export class Level2Scene extends BaseLevelScene {
         gateGroup.add(rail);
       }
     }
-    // Gate posts either side of the path gap (x ±1.5..3.2 stays open).
+    // Столбы ворот по обе стороны от прохода: x ±1.5…3.2 остаётся открытым.
     const gateH = GATE_POST_HEIGHT;
     for (const gx of [-3.2, 3.2] as const) {
       const gatePost = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, gateH, 6), fenceMat);
@@ -1599,11 +1602,11 @@ export class Level2Scene extends BaseLevelScene {
     for (const [cx, cz] of DRY_TREES) this.reserve(cx, cz, 2.0);
     this.reserve(BIG_TREE[0], BIG_TREE[1], 3.2);
 
-    // Trees (orchard)
+    // Деревья сада.
     await this.loadTrees(loader, 30, 22, -14, 4.5);
     await this.loadProps(loader, 8, 6, 30, -16);
 
-    // Baskets — Meshy colored baskets when present, else procedural
+    // Корзины: цветные из Meshy, если есть, иначе процедурные.
     this.baskets = [
       await makeBasketAsync(loader, -3, -12, 'red'),
       await makeBasketAsync(loader, 0, -12, 'yellow'),
@@ -1615,23 +1618,22 @@ export class Level2Scene extends BaseLevelScene {
     }
     this.demoBasket = this.baskets.find((basket) => basket.color === 'red') ?? null;
 
-    // Apples — mix of on-tree and on-ground.
+    // Яблоки — часть на деревьях, часть на земле.
     //
-    // `y` is height ABOVE the terrain, the same convention placeS1Prop uses.
-    // It used to be an absolute world height authored for flat ground, and the
-    // orchard is not flat: measured in play, the six ground apples sat between
-    // 7cm and 37cm below the surface, and the one on the highest ground was
-    // completely buried — a collect-the-apples level with an apple that cannot
-    // be seen.
+    // `y` — высота НАД рельефом, то же соглашение, что у placeS1Prop. Раньше
+    // здесь стояла абсолютная мировая высота, рассчитанная на ровную землю, а
+    // сад не ровный: в замере шесть наземных яблок оказались на 7–37 см ниже
+    // поверхности, а лежавшее на самом высоком месте было закопано целиком —
+    // уровень про сбор яблок с яблоком, которого не видно.
     const applePositions: { x: number; z: number; y: number; color: 'red' | 'yellow' | 'green'; onGround: boolean; bonus?: boolean }[] = [
-      // Ground apples (easy to pick up)
+      // Яблоки на земле — их легко подобрать.
       { x: -2, z: -8, y: 0.22, color: 'red', onGround: true },
       { x: 2.5, z: -10, y: 0.22, color: 'yellow', onGround: true },
       { x: -1, z: -14, y: 0.22, color: 'green', onGround: true },
       { x: 3, z: -16, y: 0.22, color: 'red', onGround: true },
       { x: -3.5, z: -18, y: 0.22, color: 'yellow', onGround: true },
       { x: 1.5, z: -20, y: 0.22, color: 'green', onGround: true },
-      // Tree apples — low hanging at cub shoulder (~1.0–1.15 m above ground).
+      // Яблоки на дереве — низко, на уровне плеча котёнка (1.0–1.15 м от земли).
       { x: -5, z: -10, y: 1.05, color: 'red', onGround: false, bonus: true },
       { x: 5, z: -14, y: 1.05, color: 'yellow', onGround: false, bonus: true },
       { x: -4, z: -18, y: 1.0, color: 'green', onGround: false, bonus: true },
@@ -1656,7 +1658,7 @@ export class Level2Scene extends BaseLevelScene {
       this.scene.add(apple.mesh, apple.ring, apple.beam);
     }
 
-    // Demo apple + basket (gardener shows how)
+    // Показательное яблоко и корзина — на них садовник объясняет.
     const demoGround = this.groundHeightAt(-1.5, -6);
     this.demoApple = await makeKitApple(
       kit, loader, -1.5, -6, demoGround + 0.22, 'red', true, false, demoGround,
@@ -1666,15 +1668,15 @@ export class Level2Scene extends BaseLevelScene {
     this.apples.push(this.demoApple);
     this.scene.add(this.demoApple.mesh, this.demoApple.ring, this.demoApple.beam);
 
-    // Gardener NPC — adult vs cub (HERO_HEIGHT), not another giant.
+    // Садовник — взрослый рядом с котёнком (HERO_HEIGHT), а не очередной великан.
     const zhuldyzGlb = await loadCharModel(loader, 'zhuldyz.glb', NPC_ADULT_HEIGHT);
     const gardener = zhuldyzGlb ?? createPlushCharacter({ ...ZHULDYZ_LOOK, height: NPC_ADULT_HEIGHT });
     gardener.position.set(-2.5, 0, -6);
     groundY(gardener);
     this.gardener = gardener;
     this.scene.add(gardener);
-    // The one standing character in the whole orchard had no collider —
-    // everything else in reach (archway posts, baskets) already did.
+    // Единственный стоящий персонаж во всём саду был без коллайдера, хотя у
+    // всего остального в пределах досягаемости — стоек арки, корзин — он был.
     this.colliders.push({ kind: 'circle', x: gardener.position.x, z: gardener.position.z, r: 0.55 });
     this.gardenerMarker = questMarker(0xa8e6cf, 0x55a630);
     this.gardenerMarker.position.copy(this.gardener.position);
@@ -1683,13 +1685,13 @@ export class Level2Scene extends BaseLevelScene {
     await this.buildOrchardRows(kit);
     await this.buildAryk(loader, kit);
 
-    // Butterflies
+    // Бабочки.
     for (let i = 0; i < 6; i++) {
       const bf = butterfly((Math.random() - 0.5) * 16, -8 - Math.random() * 16, [0xff7675, 0x74b9ff, 0xfdcb6e, 0xfd79a8][i % 4]);
       this.scene.add(bf);
     }
 
-    // Tulips along path
+    // Тюльпаны вдоль тропы.
     for (let i = 0; i < 20; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = 3 - (i / 20) * 14;
@@ -1714,13 +1716,14 @@ export class Level2Scene extends BaseLevelScene {
     this.scene.add(oak);
     this.scene.add(tulip(0.2, -28.5, 0xf1c40f), tulip(2.8, -29.5, 0xe74c3c));
 
-    // Hero
+    // Герой.
     this.hero.position.set(0, this.groundHeightAt(0, 4), 4);
-    // One room, not one road. A corridor here would put a wall through the
-    // middle of the only space the level has.
-    // Taken from the movement bounds the level already declares: x ±20, z −25..8 — the radius is that rectangle's half-diagonal, so the
-    // ring is a wall you can see rather than a second bound that cuts corners
-    // off the level. A guessed r = 15 fenced off 29 of its 32 objects.
+    // Одна комната, а не дорога. Коридор здесь провёл бы стену через середину
+    // единственного пространства уровня.
+    // Размеры взяты из границ движения, которые уровень и так объявляет:
+    // x ±20, z −25…8. Радиус — половина диагонали этого прямоугольника, поэтому
+    // кольцо работает видимой стеной, а не вторым ограничением, срезающим углы
+    // уровня. Наугад взятый r = 15 отгораживал 29 объектов из 32.
     this.playArena = { x: 0, z: -8.5, r: 26 };
     await this.encloseArena(loader);
 
@@ -1835,7 +1838,7 @@ export class Level2Scene extends BaseLevelScene {
     if (performance.now() < this.mistakeUntil && p === 'sort') {
       line = this.copy('Почти! Сравни число светлых полосок на яблоке и корзине.', 'Жақын қалдың! Алма мен себеттегі ашық жолақтарды сана.');
     } else if (performance.now() < this.praiseUntil && p !== 'intro' && p !== 'outro') {
-      line = this.copy('Так держать!', 'Жарайсың!');
+      line = this.praise();
     }
 
     this.onHud?.({
@@ -1869,7 +1872,7 @@ export class Level2Scene extends BaseLevelScene {
       if (!this.carryingColor) {
         for (const a of this.apples) {
           if (!a.alive) continue;
-          // Horizontal distance — tree apples sit higher than hero origin
+          // По горизонтали: яблоки на дереве выше начала координат героя.
           const dx = hp.x - a.mesh.position.x;
           const dz = hp.z - a.mesh.position.z;
           const d = Math.hypot(dx, dz);
@@ -1880,9 +1883,9 @@ export class Level2Scene extends BaseLevelScene {
         }
       } else if (this.phase === 'sort') {
         for (const b of this.baskets) {
-          // Ground plane, like the apples two branches up. A 3D distance to a
-          // point pinned at y = 0 charges the player for standing on a rise,
-          // so a basket on high ground needs to be walked into to be reached.
+          // По плоскости земли — как и у яблок парой веток выше. Трёхмерное
+          // расстояние до точки, прибитой к y = 0, засчитывает игроку подъём, и
+          // до корзины на возвышении приходится доходить вплотную.
           const d = Math.hypot(hp.x - b.x, hp.z - b.z);
           if (d < bestD) {
             bestD = d;
@@ -1953,8 +1956,8 @@ export class Level2Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    // Intro progression
-    if (this.phase === 'intro' && now > this.nextAt) {
+    // Ход интро.
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) {
         this.phase = 'demo';
@@ -1966,9 +1969,9 @@ export class Level2Scene extends BaseLevelScene {
       }
     }
 
-    // Auto-progress from demo to collect after demo animation
+    // Автопереход от показа к сбору, когда анимация показа закончилась.
     if (this.phase === 'demo' && this.demoDone && now > this.nextAt) {
-      // runDemo handles the transition
+      // Переход делает runDemo.
     }
 
     const canMove = !['intro', 'outro'].includes(this.phase) && !(this.phase === 'demo' && this.demoDone);
@@ -1981,14 +1984,14 @@ export class Level2Scene extends BaseLevelScene {
 
     if (this.gardener) updatePlushCharacter(this.gardener, now * 0.001, false);
 
-    // Bob apples
+    // Покачивание яблок.
     for (const a of this.apples) {
       if (!a.alive) continue;
       a.mesh.position.y += Math.sin(now * 0.003 + a.mesh.position.x) * 0.002;
       a.ring.rotation.z += dt * 0.5;
     }
 
-    // Bob carrying apple
+    // Покачивание несомого яблока.
     if (this.carryingMesh) {
       this.carryingMesh.position.y = 1.6 + Math.sin(now * 0.006) * 0.05;
       this.carryingMesh.rotation.y += dt * 2;
@@ -1998,11 +2001,11 @@ export class Level2Scene extends BaseLevelScene {
       this.giftMesh.rotation.y += dt * 2;
     }
 
-    // Guide arrow
+    // Стрелка-указатель.
     const obj = this.objectiveWorldPos();
     this.updateGuideArrow(now, obj, ['intro']);
 
-    // Gardener marker — stay visible through demo until player finishes watching
+    // Маркер садовника держится весь показ, пока игрок не досмотрит.
     if (this.gardenerMarker) {
       const bang = this.gardenerMarker.userData.bang as THREE.Object3D;
       bang.position.y = 4.2 + Math.sin(now * 0.006) * 0.15;
@@ -2011,7 +2014,7 @@ export class Level2Scene extends BaseLevelScene {
         this.phase === 'intro' || (this.phase === 'demo' && !this.demoDone) || this.phase === 'deliver';
     }
 
-    // Basket beams pulse
+    // Пульсация лучей над корзинами.
     for (const b of this.baskets) {
       ((b.beam as THREE.Mesh).material as THREE.Material).opacity = 0.15 + Math.sin(now * 0.003 + b.x) * 0.1;
       const bounceUntil = (b.group.userData.bounceUntil as number | undefined) ?? 0;
@@ -2020,16 +2023,16 @@ export class Level2Scene extends BaseLevelScene {
       b.group.rotation.z = now < shakeUntil ? Math.sin(now * 0.06) * 0.08 : 0;
     }
 
-    // Interaction detection
+    // Поиск объекта для взаимодействия.
     const prev = this.interactTarget;
     this.interactTarget = this.nearestInteract();
     if (prev !== this.interactTarget) this.pushHud();
 
-    // Ambient updates
+    // Обновление окружения.
     this.updateAmbient(dt, now);
 
-    // Cinematic only until the first step — locked intro frustum caused
-    // `hero-off-frame` when the hero (or QA teleport) left spawn.
+    // Кинематографично только до первого шага: запертый кадр интро давал
+    // `hero-off-frame`, когда герой (или телепорт QA) уходил с точки появления.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [

@@ -63,13 +63,12 @@ export interface L6Hud extends BaseHud {
 }
 
 /**
- * Centre line of the forest path: x for a given z.
+ * Осевая линия лесной тропы: x для заданного z.
  *
- * Every part of the route reads this one function. It used to be four
- * different sine expressions — one for the stepping stones, one for the path
- * arrows, one for the nut trail and one for the squirrel's waypoints — with
- * different periods and amplitudes, so the path a child could see and the
- * path the squirrel actually walked were different curves.
+ * Все части маршрута читают одну эту функцию. Раньше синусов было четыре — для
+ * камней, для стрелок, для орехового следа и для путевых точек белочки, — с
+ * разными периодами и амплитудами. Из-за этого тропа, которую видел ребёнок, и
+ * тропа, по которой шла белочка, были разными кривыми.
  */
 function routeX(z: number) {
   return Math.sin((z - 4) * 0.085) * 4.6 + Math.sin((z - 4) * 0.031) * 3.0;
@@ -86,7 +85,7 @@ const ROUTE_START_Z = 4;
  * белочка, впервые за уровень налегке, убегает вперёд и ждёт.
  */
 const ROUTE_END_Z = -68;
-/** Where the burrow sits, a little past the end of the walked route. */
+/** Где стоит норка: чуть дальше конца пройденного маршрута. */
 const HOME_Z = -71;
 
 /** Где белочка спотыкается и рассыпает орехи. */
@@ -119,10 +118,10 @@ const STORY_STOPS: ReadonlyArray<{ z: number; ru: string; kk: string }> = [
 ];
 
 interface Obstacle {
-  /** Object the child taps. */
+  /** Предмет, по которому нажимает ребёнок. */
   mesh: THREE.Object3D;
   cleared: boolean;
-  /** Where it slides to once shifted. */
+  /** Куда он отъезжает, когда его сдвинули. */
   awayX: number;
   awayZ: number;
   clearedAt: number;
@@ -135,7 +134,7 @@ interface Blockage {
   marker: THREE.Group;
 }
 
-/** The heavy basket. Built free-standing so it can change hands. */
+/** Тяжёлая корзина. Сделана отдельным объектом, чтобы менять хозяина. */
 function makeNutBasket(): THREE.Group {
   const g = new THREE.Group();
   const weave = new THREE.MeshStandardMaterial({ color: 0xb98a52, roughness: 0.95 });
@@ -198,7 +197,7 @@ async function buildSquirrelHome(kit: import('../AssetKit').AssetKit, x: number,
     door.position.y = 0.15;
     g.add(door);
   }
-  // Soft landing pad so the hollow reads as a home, not just a tree.
+  // Мягкая подстилка, чтобы дупло читалось домом, а не просто деревом.
   const pad = new THREE.Mesh(
     new THREE.CircleGeometry(1.1, 20),
     new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 1 }),
@@ -221,7 +220,7 @@ function makeHeart(x: number, y: number, z: number): THREE.Mesh {
   return m;
 }
 
-/** A low root arch — too low for somebody carrying a basket to duck under. */
+/** Низкая арка из корней: с корзиной под ней не пролезть. */
 function makeRootArch(x: number, z: number, rotY: number): THREE.Group {
   const g = new THREE.Group();
   const bark = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 1 });
@@ -246,7 +245,7 @@ export class Level5Scene extends BaseLevelScene {
 
   private squirrel: THREE.Object3D | null = null;
   private squirrelPos = new THREE.Vector3(routeX(1.6), 0, 1.6);
-  /** Laden. She is faster once the basket changes hands. */
+  /** С грузом. Без корзины она идёт быстрее. */
   private squirrelSpeed = 2.2;
   private escortRadius = 3.0;
   private escortRing: THREE.Mesh | null = null;
@@ -286,7 +285,7 @@ export class Level5Scene extends BaseLevelScene {
     this.pushHud();
   }
 
-  // ── Interaction ──────────────────────────────────────────────
+  // ── Взаимодействие ───────────────────────────────────────────
   tryInteract() {
     const t = this.interactTarget;
     if (!t) return;
@@ -345,7 +344,7 @@ export class Level5Scene extends BaseLevelScene {
       try {
         writeFlag(KEY_ACORN, true);
       } catch {
-        /* ignore */
+        /* не важно */
       }
       this.phase = 'outro';
       this.pushHud();
@@ -353,9 +352,9 @@ export class Level5Scene extends BaseLevelScene {
   }
 
   /**
-   * The moment the level is named after. The basket moves from her back to
-   * his paws, and with it the constraint the level has been about: she can
-   * keep up with him now, so the escort radius stops mattering.
+   * Момент, ради которого уровень так назван. Корзина переходит с её спины в
+   * его лапы, а вместе с ней — и ограничение, на котором держался уровень:
+   * теперь она поспевает, и радиус сопровождения перестаёт что-либо значить.
    */
   private takeBasket(now: number) {
     if (!this.basket || !this.squirrel) return;
@@ -371,7 +370,7 @@ export class Level5Scene extends BaseLevelScene {
     this.pushHud();
   }
 
-  // ── Build ────────────────────────────────────────────────────
+  // ── Сборка сцены ─────────────────────────────────────────────
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: L6Hud) => void) {
     this.nick = nick || this.defaultNick(lang);
     this.lang = lang;
@@ -379,18 +378,17 @@ export class Level5Scene extends BaseLevelScene {
     const loader = createGameGltfLoader();
 
     this.camera.position.set(-6, 6, 12);
-    // Decoration keeps out of the walked route rather than out of a straight
-    // band down the middle, now that the route actually bends.
+    // Декор держится в стороне от пройденного маршрута, а не от прямой полосы
+    // посередине: маршрут теперь и правда изгибается.
     this.pathCorridor = routeX;
     this.pathCorridorHalf = 2.6;
     await this.setupForestEnvironment(loader, {
       flatRadius: 30,
       flatCenterZ: -22,
-      // The route is fifty metres long, and the default play extent of 34 put
-      // the rim lift — a 3.2 m wall of hillside — squarely across the last
-      // third of it, burrow included. Pushed out so the ground only starts to
-      // rise as the walk ends, which is where the spec wants the burrow
-      // visible from a distance anyway.
+      // Маршрут длиной пятьдесят метров, а при стандартном радиусе зоны 34
+      // подъём края — стена склона 3.2 м — ложился ровно на его последнюю
+      // треть вместе с норкой. Радиус увеличен, чтобы земля начинала подниматься
+      // только к концу пути: по спеке норку и так надо видеть издалека.
       terrain: { playHalfExtent: 78, rimFalloff: 16 },
       // Площадь выросла с 4624 до 6120 м² вместе с третьим актом. Счётчик по
       // умолчанию задан на уровень, а не на метр, поэтому та же трава на
@@ -402,8 +400,8 @@ export class Level5Scene extends BaseLevelScene {
         area: { xMin: -34, xMax: 34, zMin: -76, zMax: 14 },
       },
     });
-    // setupForestEnvironment already puts up the sky, the clouds and the ridge
-    // backdrop; the level used to add a second set of each on top.
+    // setupForestEnvironment уже ставит небо, облака и гряду на заднем плане;
+    // раньше уровень добавлял поверх второй такой же комплект.
 
     for (const [hx, hz, hr, hh] of [
       [-26, -12, 11, 1.2],
@@ -417,7 +415,7 @@ export class Level5Scene extends BaseLevelScene {
       this.scene.add(hill(hx, hz, hr, hh));
     }
 
-    // ── Route ─────────────────────────────────────────────────
+    // ── Маршрут ───────────────────────────────────────────────
     const trail: Array<{ x: number; z: number }> = [];
     for (let z = ROUTE_START_Z; z >= ROUTE_END_Z; z -= 1.25) {
       trail.push({ x: routeX(z), z });
@@ -425,8 +423,8 @@ export class Level5Scene extends BaseLevelScene {
     await this.layTrail(loader, trail, { size: 1.7 });
 
     for (let z = ROUTE_START_Z - 1; z >= ROUTE_END_Z; z -= 2.6) {
-      // Aimed along the path rather than straight down it, so a bend reads
-      // before the child walks into the trees on the outside of it.
+      // Стрелки смотрят вдоль тропы, а не строго вниз по ней: поворот читается
+      // до того, как ребёнок упрётся в деревья на его внешней стороне.
       const ahead = routeX(z - 1.5) - routeX(z + 1.5);
       const a = pathArrow(routeX(z), z, Math.atan2(ahead, -3));
       this.pathArrows.push(a);
@@ -451,11 +449,10 @@ export class Level5Scene extends BaseLevelScene {
     this.scene.add(spawnPad(routeX(4), 4));
     this.scene.add(await placeWoodSign(loader, routeX(2) - 2.6, 2, 0.3, 0xffcc80));
 
-    // ── Act II: the blockages ─────────────────────────────────
-    // These sit *on* the route and are wide enough that the path is genuinely
-    // shut. The originals were half-metre rocks a metre off to one side, which
-    // a child walked past without ever noticing they were meant to be in
-    // the way.
+    // ── Акт II: завалы ────────────────────────────────────────
+    // Они стоят *на* маршруте и достаточно широки, чтобы тропа была закрыта
+    // по-настоящему. Прежние были полуметровыми камнями в метре сбоку, и
+    // ребёнок проходил мимо, не догадываясь, что это преграда.
     const kit = this.assetKit(loader);
     for (const [kind, z] of [['stones', -16], ['roots', -29]] as const) {
       const items: Obstacle[] = [];
@@ -478,8 +475,8 @@ export class Level5Scene extends BaseLevelScene {
             mesh,
             cleared: false,
             clearedAt: 0,
-            // Rolled off the path, not deleted: a child should see where the
-            // stone went, or clearing it reads as the stone vanishing.
+            // Камень откатывается с тропы, а не исчезает: ребёнок должен
+            // видеть, куда он делся, иначе расчистка читается как пропажа.
             awayX: cx + offset * 2.6 + (offset === 0 ? -3.4 : offset * 1.8),
             awayZ: z + 2.2,
           });
@@ -554,7 +551,7 @@ export class Level5Scene extends BaseLevelScene {
       this.scene.add(shroom);
     }
 
-    // ── The burrow ────────────────────────────────────────────
+    // ── Норка ─────────────────────────────────────────────────
     const homeX = routeX(HOME_Z);
     const home = await buildSquirrelHome(kit, homeX, HOME_Z);
     this.scene.add(home);
@@ -570,16 +567,16 @@ export class Level5Scene extends BaseLevelScene {
     this.squirrel.position.copy(this.squirrelPos);
     this.scene.add(this.squirrel);
 
-    // Kept in the scene and driven onto whoever is carrying it, rather than
-    // parented to them. A GLB is scaled to fit its target height, so anything
-    // added as its child inherits that scale — and since the fit factor
-    // depends entirely on what units the model happens to be authored in, the
-    // basket came out at an arbitrary size with no way to predict it.
+    // Корзина остаётся в сцене и просто ставится на того, кто её несёт, а не
+    // делается его потомком. GLB масштабируется под нужную высоту, и всё, что
+    // добавлено ему в дети, наследует этот масштаб; коэффициент зависит от того,
+    // в каких единицах вообще сделана модель, поэтому корзина получалась
+    // произвольного размера, который нельзя предсказать.
     //
-    // The cast model rather than the procedural one, and at 0.6 m: this is the
-    // object the level is named after and the thing the child carries, and the
-    // hand-built version was a 32 cm shape that disappeared behind the
-    // squirrel from any normal camera distance.
+    // Модель из общего набора, а не процедурная, и 0.6 м: это предмет, по
+    // которому назван уровень, и то, что ребёнок несёт в лапах. Самодельная
+    // версия была фигуркой в 32 см и с обычной дистанции камеры пропадала за
+    // белочкой.
     this.basket = (await placeS1Prop(loader, 'basket_red', { x: 0, z: 0, maxSize: 0.6 }))
       ?? makeNutBasket();
     this.scene.add(this.basket);
@@ -654,8 +651,24 @@ export class Level5Scene extends BaseLevelScene {
     }
 
     this.hero.position.set(routeX(4), this.groundHeightAt(routeX(4), 4), 4);
-    // The wall. Planted last, so it can read the corridor and every room the
-    // level reserved and hug the outside of both.
+
+    // Резервируется каждый бит пути, а не только его конец.
+    //
+    // `encloseLevel` выводит проходимый диапазон z из объединения зарезервированных
+    // комнат, а единственной комнатой уровня была норка на HOME_Z (-71). Диапазон
+    // получался [-85, -57] при появлении героя на z = +4 — в 61 метре снаружи, —
+    // и `clampToPlayArea` первым же шагом утаскивал его через весь уровень,
+    // оставляя белочку позади навсегда. Сопровождение не могло начаться, уровень
+    // был непроходим.
+    //
+    // Резервирование битов, которые путь реально проходит, чинит диапазон и
+    // заодно делает то, для чего `reserve` и нужен: убирает с них декор.
+    this.reserve(routeX(ROUTE_START_Z), ROUTE_START_Z, 6);
+    this.reserve(routeX(SPILL_Z), SPILL_Z, 5);
+    for (const stop of STORY_STOPS) this.reserve(routeX(stop.z), stop.z, 4);
+
+    // Стена. Ставится последней, чтобы прочитать и коридор, и все комнаты,
+    // которые зарезервировал уровень, и обойти их снаружи.
     await this.encloseLevel(loader);
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
@@ -670,8 +683,9 @@ export class Level5Scene extends BaseLevelScene {
       if (start) {
         this.hero.position.set(start.x, this.groundHeightAt(start.x, start.z), start.z);
         this.phase = 'escort';
-        // Advance her to just behind wherever we were dropped, and open every
-        // blockage already passed, so the level is consistent from any point.
+        // Белочка переставляется чуть позади точки, куда нас забросили, и все
+        // пройденные завалы открываются: уровень остаётся согласованным из
+        // любой точки.
         while (
           this.currentWaypoint < this.waypoints.length - 1
           && this.waypoints[this.currentWaypoint].z > start.z + 2
@@ -681,9 +695,9 @@ export class Level5Scene extends BaseLevelScene {
         }
         this.squirrel?.position.set(routeX(start.z + 2), 0, start.z + 2);
 
-        // Drop into the act that owns this spot, the same rule level 4 uses.
-        // Standing next to a blockage means the blockage is the thing you came
-        // to look at, so the squirrel is already at it rather than a walk away.
+        // Входим в тот акт, которому принадлежит точка, — то же правило, что на
+        // четвёртом уровне. Если стоишь у завала, значит, пришёл смотреть именно
+        // на него, поэтому белочка уже там, а не в переходе к нему.
         const wall = this.blockages.find(
           (b) => !b.items.every((o) => o.cleared) && Math.abs(b.z - start.z) < 4,
         );
@@ -860,7 +874,7 @@ export class Level5Scene extends BaseLevelScene {
     return null;
   }
 
-  // ── Loop ─────────────────────────────────────────────────────
+  // ── Игровой цикл ─────────────────────────────────────────────
   protected loop = () => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
@@ -868,7 +882,7 @@ export class Level5Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    if (this.phase === 'intro' && now > this.nextAt) {
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) {
         this.phase = 'escort';
@@ -944,9 +958,9 @@ export class Level5Scene extends BaseLevelScene {
     const isNearby = distToHero <= this.escortRadius;
 
     if (this.escortRing) {
-      // Only while the radius is the rule. Once Barsik takes the basket she
-      // follows him, and a ring telling the child to stay inside something
-      // that no longer constrains anything is just noise.
+      // Только пока радиус — это правило. Как только Барсик берёт корзину, она
+      // идёт за ним, и кольцо, требующее держаться внутри того, что уже ничего
+      // не ограничивает, становится шумом.
       this.escortRing.visible = this.phase === 'escort' || this.phase === 'blocked';
       this.escortRing.position.set(s.position.x, 0.04, s.position.z);
       const mat = this.escortRing.material as THREE.MeshBasicMaterial;
@@ -966,6 +980,7 @@ export class Level5Scene extends BaseLevelScene {
       this.phase = 'spilled';
       for (const nut of this.spilledNuts) nut.mesh.visible = true;
       this.spawnSparks(s.position, 14, [0xd7a86e, 0xb98a52]);
+      this.noteMistake();
       AudioManager.sfx('stumble');
       this.pushHud();
       return;
@@ -1006,9 +1021,8 @@ export class Level5Scene extends BaseLevelScene {
     if (walking && (isNearby || this.carrying) && this.currentWaypoint < this.waypoints.length) {
       const wp = this.waypoints[this.currentWaypoint];
 
-      // Stop short of a blockage that has not been cleared. This is the whole
-      // of act II: she physically cannot get past, so the escort turns into a
-      // job rather than a stroll.
+      // Останавливается перед нерасчищенным завалом. В этом весь второй акт:
+      // она физически не может пройти, и прогулка превращается в дело.
       const wall = this.blockages.find((b) => !b.items.every((o) => o.cleared) && b.z > wp.z - 0.1);
       if (wall && s.position.z <= wall.z + 2.4) {
         this.squirrelMoving = false;
@@ -1036,8 +1050,8 @@ export class Level5Scene extends BaseLevelScene {
       this.squirrelMoving = false;
     }
 
-    // She runs out of strength two thirds of the way along, which is where the
-    // level's title finally happens.
+    // Силы кончаются у неё на двух третях пути — там и происходит то, по чему
+    // назван уровень.
     if (this.phase === 'escort' && !this.carrying && s.position.z < -34) {
       this.squirrelMoving = false;
       this.phase = 'handover';
@@ -1053,8 +1067,8 @@ export class Level5Scene extends BaseLevelScene {
 
     if (this.waitMarker) {
       this.waitMarker.position.set(s.position.x, 0, s.position.z);
-      // Held back until the player has actually walked, or it fires on the
-      // first frame of the level and reads as a telling-off for nothing.
+      // Придерживается, пока игрок реально не пошёл: иначе срабатывает на первом
+      // же кадре уровня и читается как выговор ни за что.
       this.waitMarker.visible = this.phase === 'escort' && !isNearby && this.hasTakenFirstStep;
     }
 
@@ -1069,16 +1083,16 @@ export class Level5Scene extends BaseLevelScene {
       this.scene.add(heart);
     }
 
-    // The lag warning and the distance readout both change continuously, so
-    // the HUD is refreshed on a timer rather than on `now % 500`, which skips
-    // or repeats depending on the frame rate.
+    // Предупреждение об отставании и расстояние меняются непрерывно, поэтому HUD
+    // обновляется по таймеру, а не по `now % 500`: при разной частоте кадров тот
+    // либо пропускает такт, либо повторяет его.
     if ((this.phase === 'escort' || this.phase === 'carry') && now > this.hudAt) {
       this.hudAt = now + 500;
       this.pushHud();
     }
   }
 
-  /** Rides on whoever is carrying it, just behind their shoulders. */
+  /** Едет на том, кто её несёт, чуть позади плеч. */
   private updateBasket(now: number) {
     const b = this.basket;
     if (!b) return;
@@ -1092,7 +1106,7 @@ export class Level5Scene extends BaseLevelScene {
       carrier.position.z - Math.cos(yaw) * back,
     );
     b.rotation.y = yaw;
-    // A weight, not an ornament: it swings a little with the walk.
+    // Это груз, а не украшение: корзина слегка раскачивается на ходу.
     b.rotation.z = Math.sin(now * 0.006) * 0.09;
   }
 
@@ -1105,7 +1119,7 @@ export class Level5Scene extends BaseLevelScene {
     this.pushHud();
   }
 
-  /** Stones roll and root arches lift, over about a second each. */
+  /** Камни откатываются, арки поднимаются — примерно по секунде на каждую. */
   private updateClearedObstacles(dt: number) {
     for (const b of this.blockages) {
       for (const o of b.items) {
@@ -1120,9 +1134,9 @@ export class Level5Scene extends BaseLevelScene {
   }
 
   private updateCameraForPhase(dt: number) {
-    // Cinematic only until the first step, same fix as L2/L8/L16 — without
-    // the guard the camera stays locked to this fixed path for the whole
-    // intro timer even after the hero starts moving.
+    // Кинематографично только до первого шага — та же правка, что на L2, L8
+    // и L16. Без этой проверки камера остаётся на фиксированном пути весь
+    // таймер интро, даже когда герой уже пошёл.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [
@@ -1140,8 +1154,8 @@ export class Level5Scene extends BaseLevelScene {
       return;
     }
 
-    // Frame both of them: an escort camera that only follows the player loses
-    // the companion behind the shoulder exactly when the point is to watch her.
+    // В кадре оба: камера сопровождения, следящая только за игроком, теряет
+    // спутницу за плечом ровно тогда, когда смотреть надо на неё.
     const f = this.cameraFraming();
     const focus = this.squirrel && this.phase !== 'carry' ? this.squirrel.position : this.hero.position;
     const mid = new THREE.Vector3(

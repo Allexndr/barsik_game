@@ -14,14 +14,18 @@ import { AudioManager } from '@/audio/AudioManager';
 import { shouldNarrateHudLine } from '@/audio/narration';
 import { SEASON1_FRIENDS } from '@/utils/season1Friends';
 import { SettingsPanel } from '@/components/ui/SettingsPanel';
+import { syncCompletedLevel } from '@/net/progression';
 import './Mission0Screen.css';
 
 export interface ILevelScene {
   init(nick: string, lang: 'ru' | 'kk', onHud: (h: any) => void): Promise<void>;
+  setLanguage(lang: 'ru' | 'kk'): void;
   setJoystick(x: number, y: number): void;
   setPaused(value: boolean): void;
   tryInteract(): void;
   dispose(): void;
+  /** How many times the level forgave the player. See BaseLevelScene.mistakes. */
+  readonly mistakeCount?: number;
 }
 
 const emptyHud: BaseHud = {
@@ -60,6 +64,7 @@ export function MissionScreen({
   const [hud, setHud] = useState<BaseHud>(emptyHud);
   const [loading, setLoading] = useState(true);
   const [assetsReady, setAssetsReady] = useState(false);
+  const [initError, setInitError] = useState(false);
   const savedOutroRef = useRef(false);
   const lang = useUIStore((s) => s.lang);
   const setScreen = useUIStore((s) => s.setScreen);
@@ -84,14 +89,19 @@ export function MissionScreen({
       });
     }
     const earnedStars = rewardStars + hud.stars;
-    completeLevel(levelId, { stars: earnedStars, friendId: rewardFriendId });
+    // A clean run is the level's second thing to say besides "passed". The
+    // canon keeps no fail state, so a stumble still costs nothing — it just
+    // does not earn this.
+    const clean = (sceneRef.current?.mistakeCount ?? 0) === 0;
+    completeLevel(levelId, { stars: earnedStars, friendId: rewardFriendId, clean });
+    void syncCompletedLevel(levelId, earnedStars, rewardFriendId);
   };
 
   const finishToMap = () => {
     AudioManager.sfx('click');
     AudioManager.stopTts();
     AudioManager.stopMusic();
-    persistWin();
+    if (!initError) persistWin();
     useUIStore.setState({ activeTab: 'travel' });
     setScreen('game');
   };
@@ -106,6 +116,9 @@ export function MissionScreen({
   }, [levelId]);
 
   const handlePlayFromLoading = () => {
+    AudioManager.init();
+    AudioManager.unlockFromGesture();
+    AudioManager.playMusic(AudioManager.musicForLevel(levelId));
     AudioManager.sfx('click');
     setLoading(false);
   };
@@ -116,6 +129,7 @@ export function MissionScreen({
     // Init audio on first user interaction (autoplay policy)
     const initAudio = () => {
       AudioManager.init();
+      AudioManager.unlockFromGesture();
       AudioManager.playMusic(AudioManager.musicForLevel(levelId));
     };
     window.addEventListener('pointerdown', initAudio, { once: true });
@@ -124,14 +138,32 @@ export function MissionScreen({
     sceneRef.current = scene;
     setLoading(true);
     setAssetsReady(false);
+    setInitError(false);
     let active = true;
-    void scene.init(player?.nick || '', lang, setHud).then(() => {
-      if (!active) return;
-      if (useUIStore.getState().paused) scene.setPaused(true);
-      // The level does not start until "Играть" is pressed on the loading
-      // screen itself — see handlePlayFromLoading.
-      setAssetsReady(true);
-    });
+    // Read the nickname at mount time, but do not make scene lifetime depend
+    // on a late player-store hydration. If the store fills after the mission
+    // mounted, re-running this effect can dispose a scene after its loading
+    // button was pressed and bring the loading overlay back mid-level.
+    const nickAtStart = useGameStore.getState().player?.nick || '';
+    void scene.init(nickAtStart, lang, setHud)
+      .then(() => {
+        if (!active) return;
+        if (useUIStore.getState().paused) scene.setPaused(true);
+        setAssetsReady(true);
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.error('[level] init_failed', { levelId, error });
+        setInitError(true);
+        setAssetsReady(false);
+        setLoading(false);
+        setHud((current) => ({
+          ...current,
+          phase: 'outro',
+          line: lang === 'kk' ? 'Деңгейді жүктеу мүмкін болмады.' : 'Не удалось загрузить уровень.',
+          objective: lang === 'kk' ? 'Қайта кіріп көр.' : 'Попробуй войти ещё раз.',
+        }));
+      });
     return () => {
       active = false;
       scene.dispose();
@@ -142,7 +174,13 @@ export function MissionScreen({
       window.removeEventListener('keydown', initAudio);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang, player?.nick, levelId]);
+  }, [levelId]);
+
+  // Settings must not recreate a live 3D scene. The scene keeps its current
+  // phase and position while future HUD lines use the selected language.
+  useEffect(() => {
+    sceneRef.current?.setLanguage(lang);
+  }, [lang]);
 
   /**
    * Плавающий джойстик.
@@ -172,6 +210,14 @@ export function MissionScreen({
       if (knob) {
         const travel = radius * 0.55;
         knob.style.transform = `translate(${x * travel}px, ${y * travel}px)`;
+        // Бег включается отклонением стика больше 0.75 — и до сих пор об этом
+        // нигде не говорилось. На уровне с Путало на этом пороге держится вся
+        // механика: ребёнок жмёт стик до упора (естественный жест), Путало
+        // считает это бегом и убегает, а почему — не сказано ни разу.
+        // «Прошёл, но не понял как» — это отсюда.
+        //
+        // Порог тот же, что в Level7Scene: `|x| > 0.75 || |y| > 0.75`.
+        knob.classList.toggle('is-running', Math.abs(x) > 0.75 || Math.abs(y) > 0.75);
       }
     };
 
@@ -232,6 +278,7 @@ export function MissionScreen({
   const muted = useUIStore((s) => s.muted);
   const volume = useUIStore((s) => s.volume);
   const ttsEnabled = useUIStore((s) => s.ttsEnabled);
+  const voiceGender = useUIStore((s) => s.voiceGender);
   const setShowSettings = useUIStore((s) => s.setShowSettings);
   const paused = useUIStore((s) => s.paused);
   const setPaused = useUIStore((s) => s.setPaused);
@@ -247,6 +294,10 @@ export function MissionScreen({
   useEffect(() => {
     AudioManager.setTtsEnabled(ttsEnabled);
   }, [ttsEnabled]);
+
+  useEffect(() => {
+    AudioManager.setVoiceGender(voiceGender);
+  }, [voiceGender]);
 
   // Pause: stop TTS when paused
   useEffect(() => {
@@ -393,7 +444,21 @@ export function MissionScreen({
         </div>
       )}
 
-      {hud.outro ? (
+      {initError ? (
+        <div className="m0-outro">
+          <div className="m0-outro-card reward-pop">
+            <h2 className="m0-outro-title">
+              {lang === 'kk' ? 'Жүктеу сәтсіз аяқталды' : 'Не удалось загрузить уровень'}
+            </h2>
+            <p className="m0-outro-line">
+              {lang === 'kk' ? 'Қайта кіріп көр.' : 'Попробуй открыть уровень ещё раз.'}
+            </p>
+            <PlushButton variant="primary" size="lg" className="m0-continue" onClick={() => setScreen('game')}>
+              {lang === 'kk' ? 'Картаға оралу' : 'Вернуться на карту'}
+            </PlushButton>
+          </div>
+        </div>
+      ) : hud.outro ? (
         <div className="m0-outro">
           <ConfettiBurst active count={36} />
           <div className="m0-outro-card reward-pop">
@@ -452,7 +517,7 @@ export function MissionScreen({
         </button>
       )}
 
-      <SettingsPanel />
+      <SettingsPanel onRestart={() => useUIStore.getState().startEpisode(levelId)} />
     </div>
   );
 }

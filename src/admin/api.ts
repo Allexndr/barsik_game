@@ -66,6 +66,7 @@ async function call<T>(
     method: init.method ?? 'GET',
     headers: {
       'x-admin-token': token,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       // Заголовки HTTP допускают только ISO-8859-1: имя «Александр» роняет
       // сам `fetch` ещё до отправки. Кодируем — сервер раскодирует.
       'x-admin-actor': encodeURIComponent(getActor() || 'admin'),

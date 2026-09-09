@@ -94,10 +94,23 @@ const AYA_Z = -26;
  * railing, one thrown back into the trees — that one is what makes a child
  * turn around and discover the bank behind them has anything on it.
  */
+/**
+ * Перегоны 12–18 м, а не 32.
+ *
+ * До моста — того, ради чего уровень назван, — надо было пройти 71 метр за
+ * тремя досками, из них один перегон в тридцать два. Двадцать две секунды
+ * чистой ходьбы по пустому берегу перед механикой, которая сама занимает
+ * двенадцать секунд: первый акт был длиннее главного. Тот же перекос, что
+ * сделал уровень с ёжиком «слишком тяжёлым» на плейтесте.
+ *
+ * Замысел сохранён: доска у ручья слева, унесённая ветром справа, третья за
+ * спиной в деревьях — она и заставляет обернуться и увидеть, что позади тоже
+ * есть берег.
+ */
 const PLANK_SPOTS: Array<{ x: number; z: number; kind: 'stream' | 'wind' | 'forest' }> = [
-  { x: -16.5, z: 5.6, kind: 'stream' },
-  { x: 15.5, z: 6.4, kind: 'wind' },
-  { x: -3.5, z: 19.0, kind: 'forest' },
+  { x: -9.5, z: 7.0, kind: 'stream' },
+  { x: 9.0, z: 7.5, kind: 'wind' },
+  { x: -2.0, z: 13.5, kind: 'forest' },
 ];
 
 interface BridgeSection {
@@ -240,7 +253,13 @@ function makeBridgeRigging(spans: Array<[number, number]>, tile: number): THREE.
 function makeWinch(): { group: THREE.Group; crank: THREE.Group; drum: THREE.Mesh } {
   const group = new THREE.Group();
   const wood = new THREE.MeshStandardMaterial({ color: 0x8a6a4f, roughness: 0.9 });
-  const iron = new THREE.MeshStandardMaterial({ color: 0x5a5f66, roughness: 0.45, metalness: 0.55 });
+  // No envmap in this game, so metalness alone reflects nothing and renders
+  // flat black — same fix as L9's gold: emissive carries the metal's own
+  // colour instead of relying on a reflection that doesn't exist.
+  const iron = new THREE.MeshStandardMaterial({
+    color: 0x5a5f66, roughness: 0.45, metalness: 0.55,
+    emissive: 0x5a5f66, emissiveIntensity: 0.3,
+  });
 
   const base = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.22, 1.0), wood);
   base.position.y = 0.11;
@@ -1168,7 +1187,7 @@ export class Level4Scene extends BaseLevelScene {
     const now = performance.now();
     this.stream?.update(now * 0.001);
 
-    if (this.phase === 'intro' && now > this.nextAt) {
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) {
         this.phase = 'edge';
@@ -1386,6 +1405,7 @@ export class Level4Scene extends BaseLevelScene {
             this.stumbleUntil = now + 800;
             this.hero.position.set(0, this.hero.position.y, currentSection.z + 1.35);
             this.spawnSparks(this.hero.position, 4, [0xe74c3c, 0xff7675]);
+            this.noteMistake();
             AudioManager.sfx('stumble');
             stumbledThisFrame = true;
             this.pushHud();

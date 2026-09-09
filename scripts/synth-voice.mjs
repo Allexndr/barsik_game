@@ -9,32 +9,27 @@
  * is missing. Rendering once means one known voice per language on every
  * device, offline, with no per-utterance latency.
  *
- * Backends, in the order they are worth using:
+ * Backends:
  *
- *   edge   (default)  Microsoft Edge neural voices via `edge-tts`.
- *          Real RU + KK: ru-RU-SvetlanaNeural, kk-KZ-AigulNeural.
- *          Free CLI, no API key. Best quality available without a paid
- *          cloud account. Needs network while rendering; runtime stays
- *          offline (clips ship in public/assets/voice/).
- *   apple  macOS `say` with Milena (ru) and Aru (kk). Offline, quick
- *          smoke builds. Robotic vs Edge neural — keep as fallback.
- *   piper  Offline neural TTS. Better Russian than Apple's. GPL-3.0
- *          on the maintained fork — check before redistributing.
- *          https://github.com/rhasspy/piper
- *   issai  KazakhTTS2 from Nazarbayev University: 270 hours, five voices,
- *          commercial use permitted. Needs Python + model download.
- *          https://arxiv.org/pdf/2201.05771
+ *   edge     (default)  Microsoft Edge neural via `edge-tts`.
+ *            Real RU + KK male/female (Svetlana/Dmitry, Aigul/Daulet).
+ *   together Together AI `/v1/audio/speech` (needs TOGETHER_API_KEY).
+ *            Good for warm RU (Orpheus/Kokoro). KK is not native — prefer
+ *            Edge for Kazakh, or `--backend hybrid`.
+ *   hybrid   RU → Together, KK → Edge. Best of both for bilingual packs.
+ *   apple    macOS `say` (smoke).
+ *   piper    Offline neural TTS.
  *
- * The manifest is the contract, so switching backends re-renders the same
- * ids and the game needs no change.
+ * Personas (`--persona f|m`) pick male/female voices and write into:
+ *   f → public/assets/voice/{lang}/{id}.mp3   (default, existing layout)
+ *   m → public/assets/voice/m/{lang}/{id}.mp3
  *
  * Usage:
- *   node scripts/synth-voice.mjs                 # everything missing (edge)
- *   node scripts/synth-voice.mjs --force         # re-render all
- *   node scripts/synth-voice.mjs --lang kk       # one language
- *   node scripts/synth-voice.mjs --backend apple
- *   node scripts/synth-voice.mjs --backend piper --piper-ru <model.onnx>
- *   node scripts/synth-voice.mjs --concurrency 6
+ *   node scripts/synth-voice.mjs
+ *   node scripts/synth-voice.mjs --persona m --force
+ *   node scripts/synth-voice.mjs --backend hybrid --persona f --lang ru
+ *   node scripts/synth-voice.mjs --backend together --persona m --lang ru
+ *   TOGETHER_API_KEY=… node scripts/synth-voice.mjs --backend hybrid --persona f
  */
 import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync, statSync, renameSync } from 'node:fs';
 import { execFile } from 'node:child_process';
@@ -56,23 +51,45 @@ function arg(name, fallback = null) {
 }
 const has = (name) => process.argv.includes(`--${name}`);
 
-/**
- * Apple's voices. Milena reads Russian naturally at a slightly slowed rate;
- * children's dialogue at the default 180 wpm is too fast to follow at five.
- */
-const APPLE_VOICE = { ru: arg('apple-ru', 'Milena'), kk: arg('apple-kk', 'Aru') };
+const PERSONA = arg('persona', 'f'); // f | m
+if (PERSONA !== 'f' && PERSONA !== 'm') {
+  console.error(`--persona must be f or m (got ${PERSONA})`);
+  process.exit(1);
+}
+
+const APPLE_VOICE = {
+  f: { ru: arg('apple-ru', 'Milena'), kk: arg('apple-kk', 'Aru') },
+  m: { ru: arg('apple-ru', 'Yuri'), kk: arg('apple-kk', 'Aru') },
+}[PERSONA];
 const RATE = Number(arg('rate', '165'));
 
-/** Edge neural — kid-friendly female voices for both languages. */
 const EDGE_VOICE = {
-  ru: arg('edge-ru', 'ru-RU-SvetlanaNeural'),
-  kk: arg('edge-kk', 'kk-KZ-AigulNeural'),
-};
+  f: {
+    ru: arg('edge-ru', 'ru-RU-SvetlanaNeural'),
+    kk: arg('edge-kk', 'kk-KZ-AigulNeural'),
+  },
+  m: {
+    ru: arg('edge-ru', 'ru-RU-DmitryNeural'),
+    kk: arg('edge-kk', 'kk-KZ-DauletNeural'),
+  },
+}[PERSONA];
+
+/** Together Orpheus — expressive EN-trained voices; OK-ish on Russian Cyrillic. */
+const TOGETHER_VOICE = {
+  f: arg('together-voice-f', 'tara'),
+  m: arg('together-voice-m', 'dan'),
+}[PERSONA];
+const TOGETHER_MODEL = arg('together-model', 'canopylabs/orpheus-3b-0.1-ft');
+
+function packDir(lang) {
+  return PERSONA === 'm' ? join(VOICE, 'm', lang) : join(VOICE, lang);
+}
+
+function clipPath(lang, id) {
+  return join(packDir(lang), `${id}.mp3`);
+}
 
 async function synthApple(text, lang, aiff) {
-  // No --data-format: `say` rejects it here with "Opening output file failed:
-  // fmt?" and writes a zero-byte file. ffmpeg resamples on the next step
-  // anyway, so the flag bought nothing.
   await run('say', ['-v', APPLE_VOICE[lang], '-r', String(RATE), '-o', aiff, text]);
 }
 
@@ -82,11 +99,6 @@ async function synthPiper(text, lang, wav) {
   await run('sh', ['-c', `printf %s ${JSON.stringify(text)} | piper --model ${JSON.stringify(model)} --output_file ${JSON.stringify(wav)}`]);
 }
 
-/**
- * Edge neural TTS. Writes mp3 directly; we still pass through ffmpeg for
- * silence trim + bitrate so the pack stays uniform with other backends.
- * Retries with backoff — Microsoft throttles bursty free-tier traffic.
- */
 async function synthEdge(text, lang, mp3) {
   const attempts = Math.max(1, Number(arg('retries', '5')));
   let lastErr;
@@ -100,24 +112,57 @@ async function synthEdge(text, lang, mp3) {
       return;
     } catch (e) {
       lastErr = e;
-      const wait = 1500 * (i + 1) * (i + 1); // 1.5s, 6s, 13.5s, …
+      const wait = 1500 * (i + 1) * (i + 1);
       await new Promise((r) => setTimeout(r, wait));
     }
   }
   throw lastErr;
 }
 
+/**
+ * Together AI TTS. Uses curl (Python urllib often gets CF 1010 from this host).
+ * Key from env only — never commit.
+ */
+async function synthTogether(text, lang, mp3) {
+  const key = process.env.TOGETHER_API_KEY;
+  if (!key) throw new Error('TOGETHER_API_KEY is not set');
+  const body = JSON.stringify({
+    model: TOGETHER_MODEL,
+    input: text,
+    voice: TOGETHER_VOICE,
+    response_format: 'mp3',
+    language: lang,
+  });
+  const attempts = Math.max(1, Number(arg('retries', '4')));
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await run('curl', [
+        '-sS', '-f',
+        '-X', 'POST', 'https://api.together.ai/v1/audio/speech',
+        '-H', `Authorization: Bearer ${key}`,
+        '-H', 'Content-Type: application/json',
+        '-H', 'User-Agent: barsik-synth/1.0',
+        '-d', body,
+        '-o', mp3,
+      ], { timeout: 120_000, maxBuffer: 8 * 1024 * 1024 });
+      if (!existsSync(mp3) || statSync(mp3).size < 200) {
+        throw new Error('Together returned empty/tiny audio');
+      }
+      return;
+    } catch (e) {
+      lastErr = e;
+      await new Promise((r) => setTimeout(r, 1200 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 async function encodeClip(raw, out) {
-  // Sibling temp must keep a real audio extension — ffmpeg refuses
-  // `.mp3.partial` ("Unable to choose an output format").
   const tmpOut = `${out}.part.mp3`;
-  // 48 kbps mono is plenty for a single voice and keeps the whole pack
-  // small enough to ship with the app rather than stream.
   await run('ffmpeg', [
     '-y', '-loglevel', 'error', '-i', raw,
     '-ac', '1', '-ar', '22050', '-b:a', '48k',
-    // Trim leading/trailing silence so six hundred clips don't each start
-    // with a pause that makes the game feel sluggish.
     '-af', 'silenceremove=start_periods=1:start_silence=0.05:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_silence=0.05:start_threshold=-45dB,areverse',
     tmpOut,
   ]);
@@ -144,9 +189,9 @@ async function main() {
   const backend = arg('backend', 'edge');
   const onlyLang = arg('lang', null);
   const force = has('force');
-  const concurrency = Math.max(1, Number(arg('concurrency', backend === 'edge' ? '2' : '1')));
+  const defaultConc = backend === 'edge' ? '2' : backend === 'together' || backend === 'hybrid' ? '3' : '1';
+  const concurrency = Math.max(1, Number(arg('concurrency', defaultConc)));
 
-  // Fail before rendering six hundred clips, not after the first one.
   try {
     await run('ffmpeg', ['-version']);
   } catch {
@@ -158,46 +203,58 @@ async function main() {
     for (const lang of onlyLang ? [onlyLang] : ['ru', 'kk']) {
       if (!stdout.includes(APPLE_VOICE[lang])) {
         console.error(`Voice "${APPLE_VOICE[lang]}" is not installed.`);
-        console.error('System Settings → Accessibility → Spoken Content → System Voice → Manage Voices.');
         process.exit(1);
       }
     }
   }
-  if (backend === 'edge') {
+  if (backend === 'edge' || backend === 'hybrid') {
     try {
       await run('edge-tts', ['--version']);
     } catch {
       console.error('edge-tts not found. Install: pipx install edge-tts  (or brew/pip)');
       process.exit(1);
     }
-    console.log(`Edge voices: ru=${EDGE_VOICE.ru}  kk=${EDGE_VOICE.kk}`);
+    console.log(`Edge voices (${PERSONA}): ru=${EDGE_VOICE.ru}  kk=${EDGE_VOICE.kk}`);
+  }
+  if (backend === 'together' || backend === 'hybrid') {
+    if (!process.env.TOGETHER_API_KEY) {
+      console.error('TOGETHER_API_KEY required for together/hybrid backend');
+      process.exit(1);
+    }
+    console.log(`Together (${PERSONA}): model=${TOGETHER_MODEL} voice=${TOGETHER_VOICE}`);
   }
 
   mkdirSync(join(VOICE, 'ru'), { recursive: true });
   mkdirSync(join(VOICE, 'kk'), { recursive: true });
+  mkdirSync(join(VOICE, 'm', 'ru'), { recursive: true });
+  mkdirSync(join(VOICE, 'm', 'kk'), { recursive: true });
 
   const entries = Object.entries(manifest.lines).filter(
     ([, l]) => !onlyLang || l.lang === onlyLang,
   );
 
-  console.log(`Backend=${backend}  clips=${entries.length}  concurrency=${concurrency}  force=${force}`);
+  console.log(`Backend=${backend} persona=${PERSONA} clips=${entries.length} concurrency=${concurrency} force=${force}`);
 
   let done = 0, skipped = 0, failed = 0, bytes = 0;
   const failures = [];
 
   await mapPool(entries, concurrency, async ([id, line]) => {
-    const out = join(VOICE, line.lang, `${id}.mp3`);
+    const out = clipPath(line.lang, id);
     if (!force && existsSync(out)) {
       skipped++;
       bytes += statSync(out).size;
       return;
     }
+    mkdirSync(packDir(line.lang), { recursive: true });
+    const useTogether = backend === 'together' || (backend === 'hybrid' && line.lang === 'ru');
+    const useEdge = backend === 'edge' || (backend === 'hybrid' && line.lang === 'kk');
     const ext = backend === 'apple' ? 'aiff' : backend === 'piper' ? 'wav' : 'mp3';
-    const raw = join(tmpdir(), `barsik-${process.pid}-${id}.${ext}`);
+    const raw = join(tmpdir(), `barsik-${process.pid}-${PERSONA}-${id}.${ext}`);
     try {
       if (backend === 'apple') await synthApple(line.text, line.lang, raw);
       else if (backend === 'piper') await synthPiper(line.text, line.lang, raw);
-      else if (backend === 'edge') await synthEdge(line.text, line.lang, raw);
+      else if (useTogether) await synthTogether(line.text, line.lang, raw);
+      else if (useEdge) await synthEdge(line.text, line.lang, raw);
       else throw new Error(`unknown backend: ${backend}`);
 
       await encodeClip(raw, out);
@@ -227,18 +284,22 @@ async function main() {
     process.exit(1);
   }
 
-  // A marker the runtime can fetch to know a pack was built, without probing
-  // six hundred URLs.
+  const markerName = PERSONA === 'm' ? 'built-m.json' : 'built.json';
   writeFileSync(
-    join(VOICE, 'built.json'),
+    join(VOICE, markerName),
     JSON.stringify({
       at: new Date().toISOString(),
       backend,
-      voices: backend === 'edge' ? EDGE_VOICE : backend === 'apple' ? APPLE_VOICE : undefined,
-      clips: entries.length,
+      persona: PERSONA,
+      voices: backend === 'edge' || backend === 'hybrid'
+        ? { edge: EDGE_VOICE, together: backend === 'hybrid' ? { model: TOGETHER_MODEL, voice: TOGETHER_VOICE } : undefined }
+        : backend === 'together'
+          ? { model: TOGETHER_MODEL, voice: TOGETHER_VOICE }
+          : backend === 'apple' ? APPLE_VOICE : undefined,
+      clips: Object.keys(manifest.lines).length,
     }, null, 1),
   );
-  console.log(`Wrote ${relative(ROOT, join(VOICE, 'built.json'))}`);
+  console.log(`Wrote ${relative(ROOT, join(VOICE, markerName))}`);
 }
 
 main().catch((e) => {

@@ -361,7 +361,8 @@ export class Level11Scene extends BaseLevelScene {
       goldenTarget: this.goldenTarget,
       stars: this.stars,
       canInteract: p === 'finish' && this.hero.position.distanceTo(this.snowmanPos) < 3,
-      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'first'),
+      // Not 'intro': updateMovement gates it out (phase !== 'intro' check above).
+      showMoveHint: !this.hasTakenFirstStep && p === 'first',
       showActionHint: p === 'finish',
       outro: p === 'outro',
     });
@@ -386,7 +387,7 @@ export class Level11Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    if (this.phase === 'intro' && now > this.nextAt) {
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) {
         this.phase = 'first';
@@ -440,6 +441,7 @@ export class Level11Scene extends BaseLevelScene {
           if (sf.gold) {
             sf.caught = true;
             this.scene.remove(sf.mesh);
+            this.noteMistake();
             AudioManager.sfx('stumble');
           }
         }

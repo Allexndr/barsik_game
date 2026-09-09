@@ -31,16 +31,23 @@ export const LEVEL_CONFIGS: LevelConfig[] = [
   {
     id: 0,
     chapter: 1,
-    title: 'Первое утро',
-    titleKk: 'Алғашқы таң',
-    description: 'Проснись, научись ходить и помоги садовнику во Фруктовом лесу',
-    descriptionKk: 'Оян, жүруді үйрен және Жеміс орманында бағбанға көмектес',
+    // Название и описание — те же, что в самом уровне.
+    //
+    // Здесь стояло «Первое утро»: «проснись, научись ходить и помоги садовнику
+    // собрать фрукты и покормить птичку». Такого уровня в игре нет — он был
+    // заменён «Тропой домбры» целиком (см. решение `s1-code-over-gdd-l0` в
+    // product-state.md), но карта, экран эпизода и экран друзей продолжали
+    // обещать фрукты и птичку. Ребёнок нажимал одно, а попадал в другое.
+    title: 'Тропа домбры',
+    titleKk: 'Домбыра соқпағы',
+    description: 'Иди на звук домбры, подними упавшие фонари и помоги починить юрту',
+    descriptionKk: 'Домбыра үніне қарай жүр, құлаған шамдарды көтер және киіз үйді жөндеуге көмектес',
     duration: 300,
     interactivity: 'explore',
     reward: { stars: 10, friend: 'gardener' },
     narrative: {
-      ru: 'Барсик просыпается в своём домике. Садовник просит помочь собрать фрукты и покормить птичку.',
-      kk: 'Барсик өз үйінде оянады. Бағбан жеміс жинап, торғайды тамақтандыруға көмектесуді сұрайды.',
+      ru: 'Ночью по лесу прошёл ветер. Барсик идёт на звук домбры: поднимает упавшие фонари, переходит реку по камням и помогает садовнику починить юрту.',
+      kk: 'Түнде орманды жел шарлады. Барсик домбыра үніне қарай жүреді: құлаған шамдарды көтереді, өзеннен тастар арқылы өтеді және бағбанға киіз үйді жөндеуге көмектеседі.',
     },
   },
   {
@@ -293,16 +300,4 @@ export function getLevelConfig(levelId: number): LevelConfig | undefined {
 
 export function getLevelsByChapter(chapter: 1 | 2) {
   return LEVEL_CONFIGS.filter((l) => l.chapter === chapter);
-}
-
-export function getChapterProgress(chapter: 1 | 2, completedLevels: number[]) {
-  const chapterLevels = getLevelsByChapter(chapter);
-  const completed = chapterLevels.filter((l) => completedLevels.includes(l.id)).length;
-  return {
-    total: chapterLevels.length,
-    completed,
-    percentage: chapterLevels.length
-      ? Math.round((completed / chapterLevels.length) * 100)
-      : 0,
-  };
 }
