@@ -5,10 +5,8 @@
 
 ```yaml
 product_id: barsik-game
-updated_at: "2026-08-25"
-playbook_version: "book-2-ai-team@workspace"
-source_mode: playbook
-stage: implementation   # S1 polish/QA; ближайший непройденный гейт ≈ quality_security для релиза «идеал»
+updated_at: "2026-08-31"
+stage: quality_security   # код S1 в репо зелёный; гейт релиза = deploy + device QA + KK + ops
 
 problem: >
   Детям 3–7 (KZ/RU) нужно спокойное приключение без проигрыша,
@@ -49,9 +47,10 @@ decisions:
     summary: Prod https://barsik-game-xi.vercel.app (murdasoft); legacy allexndrs был 402
 
 open_questions:
-  - Когда писать в barsik_leaderboard (сейчас read-only)?
-  - Финальный rigged barsik.glb от артиста?
-  - Screenshot matrix L0/L1/L8/L16 desktop+mobile × RU/KK?
+  - Когда писать в barsik_leaderboard (сейчас read-only)? → S1_REMAINING_SPEC P1-OPS-3
+  - Финальный rigged barsik.glb от артиста? → EXT-1
+  - city_chat.sql + Realtime RLS подтверждены? → P0-OPS-2
+  - Cloud save reconciliation политика? → P1-OPS-4
 
 assumptions:
   - Soft-lock grid §32 = 0/17; browser screenshot matrix ещё руками
@@ -71,6 +70,8 @@ paths:
   memory: "../docs/PROJECT_MEMORY.md"
   overlay: "docs/playbook-overlay.md"
   board: "docs/S1_BOARD.md"
+  remaining_spec: "docs/S1_REMAINING_SPEC.md"
+  readiness: "docs/S1_READINESS_STATUS.md"
   completion: "docs/S1_COMPLETION_PLAN.md"
   code_map: "docs/code-map.md"
   prod: "https://barsik-game-xi.vercel.app"

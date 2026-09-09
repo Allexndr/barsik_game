@@ -159,7 +159,7 @@ soft-3D plush toy стиль. Раздел 10 выше отменяется дл
 
 ### Единый дизайн-код (эталон)
 
-Референс всей стилистики — существующий спрайт `assets/barsik_run.png`
+Референс всей стилистики — существующий спрайт `archive/legacy-2d-art/assets/barsik_run.png`
 (детёныш снежного барса, плюшевый soft-3D рендер). Каждая партия генераций
 персонажей/предметов передаёт этот файл как reference image, чтобы держать
 единый визуальный язык.
@@ -194,17 +194,17 @@ high quality game asset.
    - flood-fill фона от углов → альфа (внутренние белые части сохраняются);
    - trim прозрачных полей;
    - resize до целевого размера (персонажи ~512, иконки ~256, фоны без ресайза);
-   - запись в `assets/<группа>/<slug>.png`.
+   - запись в `archive/legacy-2d-art/assets/<группа>/<slug>.png`.
 3. Пути прописываются в `js/data.js`; рендер (`game.js` / `ui.js`) читает PNG,
    с graceful-fallback на старый SVG/emoji, если файл не загрузился.
 
 ### Структура папок ассетов
 
-`assets/{chars, friends, obstacles, items, worlds, bg, map, city, ui, audio}`
+`archive/legacy-2d-art/assets/{chars, friends, obstacles, items, worlds, bg, map, city, ui, audio}`
 
 ### Что оставляем как есть (уже на стиле)
 
-- `assets/barsik_*.png` — поза-спрайты Барсика (это и есть эталон стиля).
-- `assets/bg_*.png` + parallax-слои `_sky/_far/_mid/_near` — качественные
+- `archive/legacy-2d-art/assets/barsik_*.png` — поза-спрайты Барсика (это и есть эталон стиля).
+- `archive/legacy-2d-art/assets/bg_*.png` + parallax-слои `_sky/_far/_mid/_near` — качественные
   painted-фоны; их не регенерируем, а ПОДКЛЮЧАЕМ в рендер.
-- `assets/map.png` — painted travel-карта; показываем как фон хаба.
+- `archive/legacy-2d-art/assets/map.png` — painted travel-карта; показываем как фон хаба.

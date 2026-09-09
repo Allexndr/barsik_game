@@ -36,6 +36,8 @@ export interface AdminResponse {
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN ?? '';
+const ADMIN_ALLOW_LEGACY_TOKEN = process.env.ADMIN_ALLOW_LEGACY_TOKEN === 'true';
+const ADMIN_EMAILS = new Set((process.env.SUPABASE_ADMIN_EMAILS ?? '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean));
 
 /** Что настроено, а что нет — чтобы интерфейс мог сказать это внятно. */
 export function configState() {
@@ -43,6 +45,7 @@ export function configState() {
     supabaseUrl: Boolean(SUPABASE_URL),
     serviceKey: Boolean(SERVICE_KEY),
     adminToken: Boolean(ADMIN_TOKEN),
+    identityAuth: Boolean(SUPABASE_URL && SERVICE_KEY),
   };
 }
 
@@ -74,12 +77,36 @@ export type Guard = { ok: true; actor: string } | { ok: false; status: number; e
  * задан, функция отвечает отказом, а не пускает всех: незаданный секрет — это
  * не «режим разработки», это открытая дверь в детские сейвы.
  */
-export function guard(req: AdminRequest): Guard {
-  if (!ADMIN_TOKEN) {
-    return { ok: false, status: 503, error: 'ADMIN_TOKEN не задан в окружении' };
-  }
+export async function guard(req: AdminRequest): Promise<Guard> {
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return { ok: false, status: 503, error: 'SUPABASE_URL или SUPABASE_SERVICE_ROLE_KEY не заданы' };
+  }
+  const bearer = headerValue(req, 'authorization').match(/^Bearer\s+(.+)$/i)?.[1] ?? '';
+  if (bearer) {
+    try {
+      const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${bearer}` },
+      });
+      if (!userRes.ok) {
+        // Temporary migration path, disabled unless explicitly enabled.
+        if (ADMIN_ALLOW_LEGACY_TOKEN && ADMIN_TOKEN
+          && safeEqual(headerValue(req, 'x-admin-token'), ADMIN_TOKEN)) {
+          return { ok: true, actor: 'legacy-admin' };
+        }
+        return { ok: false, status: 401, error: 'Недействительная сессия' };
+      }
+      const user = await userRes.json() as { id?: string; email?: string; role?: string; app_metadata?: { role?: string; admin?: boolean } };
+      const email = (user.email ?? '').toLowerCase();
+      const isAdmin = user.app_metadata?.admin === true || user.app_metadata?.role === 'admin'
+        || user.role === 'service_role' || ADMIN_EMAILS.has(email);
+      if (!isAdmin) return { ok: false, status: 403, error: 'Недостаточно прав' };
+      return { ok: true, actor: email || user.id || 'supabase-admin' };
+    } catch {
+      return { ok: false, status: 503, error: 'Сервис авторизации недоступен' };
+    }
+  }
+  if (!ADMIN_ALLOW_LEGACY_TOKEN || !ADMIN_TOKEN) {
+    return { ok: false, status: 401, error: 'Требуется авторизация администратора' };
   }
   const token = headerValue(req, 'x-admin-token');
   if (!token || !safeEqual(token, ADMIN_TOKEN)) {
@@ -118,7 +145,11 @@ export async function db<T = unknown>(
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`supabase_${res.status}: ${text.slice(0, 300)}`);
+    console.error('[admin] db_request_failed', {
+      status: res.status,
+      path: path.split('?')[0],
+    });
+    throw new Error(`supabase_${res.status}`);
   }
   return (text ? JSON.parse(text) : null) as T;
 }
@@ -153,12 +184,21 @@ export function send(res: AdminResponse, status: number, body: unknown) {
   res.status(status).json(body);
 }
 
+function requestId(req: AdminRequest): string {
+  const incoming = headerValue(req, 'x-request-id').trim();
+  return incoming && /^[A-Za-z0-9._:-]{1,100}$/.test(incoming)
+    ? incoming
+    : crypto.randomUUID();
+}
+
 /** Обёртка: авторизация, единый формат ошибки, никаких стектрейсов наружу. */
 export function handler(
   fn: (req: AdminRequest, res: AdminResponse, ctx: { actor: string }) => Promise<void>,
 ) {
   return async (req: AdminRequest, res: AdminResponse) => {
-    const pass = guard(req);
+    const id = requestId(req);
+    res.setHeader('X-Request-Id', id);
+    const pass = await guard(req);
     if (!pass.ok) {
       send(res, pass.status, { error: pass.error, config: configState() });
       return;
@@ -166,9 +206,11 @@ export function handler(
     try {
       await fn(req, res, { actor: pass.actor });
     } catch (e) {
-      // Наружу — короткое сообщение; подробности остаются в логе Vercel.
-      console.error('[admin]', e);
-      send(res, 500, { error: (e as Error).message.slice(0, 200) });
+      console.error('[admin] request_failed', {
+        requestId: id,
+        error: e instanceof Error ? e.message : 'unknown_error',
+      });
+      send(res, 500, { error: 'internal_error', requestId: id });
     }
   };
 }
