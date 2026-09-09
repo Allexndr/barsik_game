@@ -9,7 +9,7 @@ import { dressAvatar } from '../avatar/dressAvatar';
 import { WARDROBE_BY_ID } from '../avatar/wardrobe';
 import { useGameStore } from '@/store/useGameStore';
 
-/** Packaging / cool canon: green hoodie, blue tubeteika, yellow glasses. */
+/** Канон упаковки: зелёное худи, синяя тюбетейка, жёлтые очки. */
 function outfitWithBrandCanon(outfit: string[]): string[] {
   let ids = outfit.filter((id) => WARDROBE_BY_ID.has(id));
   if (!ids.some((id) => WARDROBE_BY_ID.get(id)?.bodyWear?.hoodie)) {
@@ -40,7 +40,7 @@ import { placeMany, placementGround, setPlacementGround } from '../s1Place';
 import { disposeObject3DResources, fitHeight, fitMaxSize, groundY, measurePlinthFraction, repairDefaultMaterial } from '../modelUtils';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { createFpsSampler } from '@/dev/fpsSampler';
-// Registers window.__audit under import.meta.env.DEV; absent from a build.
+// Регистрирует window.__audit при import.meta.env.DEV; в сборку не попадает.
 import '@/dev/levelAudit';
 import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
 import { HERO_HEIGHT, TREE_RING, forestRowHeight } from '../worldScale';
@@ -50,10 +50,10 @@ import { aimObjectiveBeacon, createObjectiveBeacon } from '../objectiveBeacon';
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
 /**
- * Default hero = Meshy full-body look (clothes baked in the GLB).
- * Canon likeness = green-hoodie Barsik (`cool` / `barsik_rigged`), like 2D.
- * Wardrobe layering is only for `?hero=avatar` procedural path.
- * `?look=cool|nude|astronaut|…` swaps the whole skin.
+ * Герой по умолчанию — цельный образ из Meshy: одежда запечена в GLB.
+ * Канонический облик — Барсик в зелёном худи (`cool` / `barsik_rigged`), как в 2D.
+ * Послойный гардероб работает только на процедурном пути `?hero=avatar`.
+ * `?look=cool|nude|astronaut|…` меняет облик целиком.
  */
 function heroGlbCandidates(): string[] {
   if (typeof location === 'undefined') {
@@ -208,9 +208,9 @@ export function zoneDisc(x: number, z: number, r: number, color: number, y = 0.0
 }
 
 /**
- * A single chevron marking the route. Kept deliberately dim and ring-less:
- * bright emissive arrows with glow discs merged into one continuous lit ribbon
- * down the middle of every level and bloomed into a blob at the horizon.
+ * Одна «галочка», отмечающая маршрут. Намеренно тусклая и без кольца: яркие
+ * светящиеся стрелки со свечением сливались в сплошную светлую ленту по
+ * середине каждого уровня и на горизонте расплывались пятном.
  */
 export function pathArrow(x: number, z: number, rotY: number) {
   const g = new THREE.Group();
@@ -281,23 +281,22 @@ export function questMarker(color = 0xffeaa7, emissive = 0xfdcb6e) {
 }
 
 /**
- * Butterfly. Two flat discs used to be the whole thing — no body, no
- * antennae, and wings that never moved, so what drifted through the meadow
- * was a pair of coloured coins.
+ * Бабочка. Раньше это были два плоских диска — ни тела, ни усиков, и крылья не
+ * двигались: по лугу летела пара цветных монет.
  *
- * The wings are now hinged: each is a Group at the spine with the wing mesh
- * offset inside it, so `rotation.y` folds it about the body the way a wing
- * folds, instead of sliding it sideways. `updateAmbient` drives the flap.
+ * Теперь крылья на шарнире: каждое — Group у хребта со смещённым внутри мешем,
+ * поэтому `rotation.y` складывает его вокруг тела так, как складывается крыло, а
+ * не сдвигает вбок. Взмах ведёт `updateAmbient`.
  */
 /**
- * Shared across every butterfly in a level.
+ * Общее для всех бабочек уровня.
  *
- * The first version built two circle geometries, a capsule, two cylinders and
- * a fresh pair of materials per butterfly — eight meshes each. A meadow of
- * twenty-six of them is 208 draw calls where the flat two-disc version was 52,
- * and the game started dropping frames on the levels with the most of them.
- * One wing geometry and one body geometry, shared, and a material cached per
- * colour: three meshes each.
+ * Первая версия строила на каждую бабочку две окружности, капсулу, два цилиндра
+ * и свежую пару материалов — восемь мешей. Луг из двадцати шести бабочек — это
+ * 208 вызовов отрисовки против 52 у плоского варианта из двух дисков, и на
+ * уровнях, где их больше всего, игра начала терять кадры. Теперь одна геометрия
+ * крыла и одна геометрия тела на всех, материал кешируется по цвету: три меша на
+ * бабочку.
  */
 const WING_GEO = new THREE.PlaneGeometry(0.3, 0.34);
 const BODY_GEO = new THREE.CapsuleGeometry(0.022, 0.15, 3, 6);
@@ -346,8 +345,9 @@ export function butterfly(x: number, z: number, color: number) {
 }
 
 /**
- * Split a quality butterfly GLB into left/right wing hinges so ambient flap
- * still works without Meshy insect bones (auto-rig on bugs is unreliable).
+ * Разбирает качественный GLB бабочки на левый и правый шарниры крыльев, чтобы
+ * взмах работал без костей насекомого из Meshy: автоматический риг на насекомых
+ * ненадёжен.
  */
 function hingeButterflyWings(root: THREE.Object3D): THREE.Group[] {
   const meshes: THREE.Mesh[] = [];
@@ -412,15 +412,15 @@ function hingeButterflyWings(root: THREE.Object3D): THREE.Group[] {
 }
 
 /**
- * Scatter bush. The third argument is a **scale**, not a height — passing a y
- * there builds a bush of that size, and passing 0 builds nothing at all.
+ * Куст для разброса. Третий аргумент — **масштаб**, а не высота: передав туда y,
+ * получишь куст такого размера, а передав 0 — не получишь ничего.
  *
- * Rides the terrain. It used to end at absolute world zero, which was correct
- * only while levels sat on a plane: on L7, 21 of 22 bushes were off the
- * ground and the worst was 1.49 m under it, which for a bush 1 m tall means
- * buried outright.
+ * Садится на рельеф. Раньше он заканчивался на абсолютном нуле мира, что было
+ * верно, только пока уровни лежали на плоскости: на L7 из двадцати двух кустов
+ * двадцать один оказался не на земле, а худший — на 1.49 м под ней, что для
+ * куста высотой в метр означает закопан целиком.
  */
-/** Shared by every bush in the level — one material, so they can batch. */
+/** Общий для всех кустов уровня: один материал, чтобы они группировались в один вызов. */
 const BUSH_MAT = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
 
 export function bush(x: number, z: number, scale = 1) {
@@ -450,24 +450,25 @@ export function bush(x: number, z: number, scale = 1) {
 }
 
 /**
- * Garden flower: petal ring, centre and leaves. A single stretched sphere on a
- * stalk reads as a lollipop, which made every meadow in the game look like candy.
+ * Садовый цветок: венчик лепестков, сердцевина и листья. Одна растянутая сфера
+ * на стебле читается леденцом — из-за этого все луга в игре выглядели
+ * карамельными.
  */
 /**
- * One material for every flower in the game, of every colour.
+ * Один материал на все цветы игры, любого цвета.
  *
- * Colour lives in the vertices instead of the material, which is what lets a
- * red tulip and a yellow one share a draw call. Each flower used to build
- * three fresh `MeshStandardMaterial`s and nine meshes; level 1 measured 344
- * loose petal spheres carrying 129 distinct materials for eight distinct
- * colours, and that was the single largest source of its 534 draw calls.
+ * Цвет живёт в вершинах, а не в материале, — именно это позволяет красному и
+ * жёлтому тюльпану делить один вызов отрисовки. Раньше каждый цветок создавал
+ * три новых `MeshStandardMaterial` и девять мешей; на первом уровне замерено 344
+ * отдельные сферы-лепестка со 129 разными материалами на восемь разных цветов, и
+ * это был крупнейший источник его 534 вызовов отрисовки.
  */
 const FLOWER_MAT = new THREE.MeshStandardMaterial({
   vertexColors: true,
   roughness: 0.78,
 });
 
-/** Paint every vertex of a geometry one colour, so it can be merged with others. */
+/** Закрасить все вершины геометрии одним цветом, чтобы её можно было слить с другими. */
 function paintGeometry(geo: THREE.BufferGeometry, hex: number) {
   const c = new THREE.Color(hex);
   const n = geo.attributes.position.count;
@@ -530,8 +531,8 @@ export function tulip(x: number, z: number, color: number) {
   return g;
 }
 
-/** Rounded knoll. Colour must match the biome — a green dome on snow reads
- *  as a hole in the world, which is what the Ice Valley levels were showing. */
+/** Округлый холмик. Цвет обязан совпадать с биомом: зелёный купол на снегу
+ *  читается дырой в мире — именно это и показывали уровни Ледяной долины. */
 export function hill(x: number, z: number, r: number, h: number, color = 0x43a047) {
   const geo = new THREE.SphereGeometry(r, 20, 16, 0, Math.PI * 2, 0, Math.PI / 2);
   const mat = new THREE.MeshStandardMaterial({ color, roughness: 1, flatShading: true });
@@ -675,7 +676,7 @@ export function makeSnowTexture() {
   return tex;
 }
 
-/** Cooler ice-trail ground (L12). */
+/** Более холодная земля ледяной тропы (L12). */
 export function makeIceTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
@@ -738,21 +739,20 @@ export interface HeroRig {
   mixer: THREE.AnimationMixer | null;
   walkAction: THREE.AnimationAction | null;
   idleAction: THREE.AnimationAction | null;
-  /** Present in 'avatar' mode: the jointed rig, driven per frame. */
+  /** Есть в режиме 'avatar': суставной скелет, ведётся покадрово. */
   avatar: BarsikAvatar | null;
 }
 
 // Prefer bipedal Meshy barsik.glb. Quad Meshy/TRELLIS reads as a cat on
 // all fours — skip until we have an upright hero. Missing → procedural plush.
 /**
- * Rigged first, then the statue.
+ * Сначала со скелетом, потом статуя.
  *
- * `barsik_rigged.glb` does not exist yet — `scripts/rig-barsik.mjs` produces
- * it. It is listed first so that the day it lands, the hero switches to it
- * with no other change: `isUsableHeroGlb` already asks for exactly what a
- * rigged model has, and that branch has never once run because no model in
- * the project satisfied it. (`hero_placeholder.glb` does — skin 1, three
- * clips — which is how the branch was tested.)
+ * `barsik_rigged.glb` тогда ещё не существовал — его делает
+ * `scripts/rig-barsik.mjs`. Он стоит первым, чтобы в день появления герой
+ * переключился на него без единой другой правки: `isUsableHeroGlb` спрашивает
+ * ровно то, что есть у модели со скелетом. (Проверялась эта ветка на
+ * `hero_placeholder.glb`: skin 1, три клипа.)
  */
 const HERO_CANDIDATES = [
   'barsik_cool_rigged.glb',
@@ -760,9 +760,9 @@ const HERO_CANDIDATES = [
   'barsik.glb',
 ] as const;
 
-/** Load a named character GLB from /chars, sized to `height`. Null if missing.
- * Prefers `*_rigged.glb` when the caller passes a plain `name.glb`, unless
- * `preferStatic` is set for non-interactive scenery.
+/** Загружает именованный GLB персонажа из /chars и подгоняет под `height`.
+ * Null, если файла нет. При простом `name.glb` предпочитает `*_rigged.glb`,
+ * кроме случая, когда для неинтерактивного декора задан `preferStatic`.
  */
 export async function loadCharModel(
   loader: GLTFLoader,
@@ -851,23 +851,23 @@ export async function loadCharModel(
   return gltf.scene;
 }
 
-/** Load a prop GLB from /props. Prefer maxSize for wide props (signs, chests). */
+/** Загружает GLB реквизита из /props. Для широких предметов — вывесок, сундуков — лучше maxSize. */
 /**
- * Load a prop, and refuse one that is not the shape a prop should be.
+ * Загружает реквизит и отказывается от того, чья форма реквизиту не
+ * соответствует.
  *
- * `s1_stump_moss.glb` is a tree stump by its filename and a **vertical
- * sliver** by its geometry: 0.32 × 1.88 × 0.18 in its own units, which
- * `fitHeight(1.15)` turns into something 20 cm wide and 1.15 m tall. Standing
- * in the gold glow ring the level draws around its talking stump, dark
- * because its metallic-roughness texture made it metal, it read to the person
- * playing as a thin black figure watching them from the grass. In a game for
- * five-year-olds.
+ * `s1_stump_moss.glb` по имени файла — пенёк, а по геометрии — **вертикальная
+ * щепка**: 0.32 × 1.88 × 0.18 в собственных единицах, что после `fitHeight(1.15)`
+ * даёт нечто шириной 20 см и высотой 1.15 м. Стоя в золотом кольце, которое
+ * уровень рисует вокруг говорящего пенька, и будучи тёмным из-за
+ * metallic-roughness текстуры, сделавшей его металлом, для играющего он читался
+ * тонкой чёрной фигурой, наблюдающей из травы. В игре для пятилетних.
  *
- * The level already has `makeTalkingStump()` for when the GLB is missing. The
- * GLB was not missing — it loaded fine and was wrong — so nothing fell back.
- * `aspectMax` closes that: a caller that knows roughly how chunky its prop
- * should be can say so, and a generation that came out as a splinter is
- * treated the same as one that failed to download.
+ * На случай отсутствия GLB у уровня уже есть `makeTalkingStump()`. Но GLB не
+ * отсутствовал — он прекрасно загружался и был неправильным, поэтому запасной
+ * вариант не срабатывал. `aspectMax` это закрывает: вызывающий, знающий, насколько
+ * коренастым должен быть его предмет, может это сказать, и генерация, вышедшая
+ * щепкой, обрабатывается так же, как несостоявшаяся загрузка.
  */
 export async function loadPropModel(
   loader: GLTFLoader,
@@ -910,7 +910,7 @@ export async function loadPropModel(
   return gltf.scene;
 }
 
-/** Trail sign: Discover cartoon → Meshy wood_sign → procedural board. */
+/** Указатель на тропе: мультяшный из Discover → wood_sign из Meshy → процедурная доска. */
 export async function placeWoodSign(
   loader: GLTFLoader,
   x: number,
@@ -988,18 +988,18 @@ export abstract class BaseLevelScene {
   protected idleAction: THREE.AnimationAction | null = null;
   protected keys = new Set<string>();
   protected joy = { x: 0, y: 0 };
-  /** Vertical velocity, metres/sec. Zero while grounded. */
+  /** Вертикальная скорость, м/с. На земле — ноль. */
   protected jumpVelocity = 0;
   protected airborne = false;
-  /** Spec metric: 1.2m jump height (BARSIK_S1_PRODUCTION performance budgets). */
+  /** Показатель из спеки: высота прыжка 1.2 м (бюджеты BARSIK_S1_PRODUCTION). */
   protected readonly jumpSpeed = 5.4;
   protected readonly gravity = 12.2;
-  /** Player camera orbit around the hero, radians. */
+  /** Орбита камеры игрока вокруг героя, в радианах. */
   protected camYaw = 0;
-  /** Where the orbit is heading; camYaw eases toward it. */
+  /** Куда орбита едет; camYaw плавно догоняет это значение. */
   protected camYawTarget = 0;
   protected orbitDragging = false;
-  /** The pointer that owns camera look; a second finger may still use controls. */
+  /** Указатель, который управляет обзором; второй палец при этом свободен для управления. */
   private orbitPointerId: number | null = null;
   private orbitCleanup: (() => void) | null = null;
   private orientationCleanup: (() => void) | null = null;
@@ -1009,36 +1009,36 @@ export abstract class BaseLevelScene {
   protected walking = false;
   protected heroAnimMode: HeroAnimMode = 'plush';
   protected heroAvatar: BarsikAvatar | null = null;
-  /** True while the movement speed is the run speed, so the rig can pick a gait. */
+  /** Истина, пока скорость движения равна беговой: по ней скелет выбирает походку. */
   protected running = false;
   protected stars = 0;
 
   /**
-   * How many times the level had to forgive the player.
+   * Сколько раз уровню пришлось простить игрока.
    *
-   * The canon has no fail state, and that stays: a mistake costs nothing but
-   * the retry. But with nothing at stake at all there is also nothing to be
-   * good at, and the older testers — the 10–14s who lost interest fastest —
-   * said so in their own words. Counting the stumbles gives the level a second
-   * thing to say at the end besides "passed": *passed cleanly*.
+   * Проигрыша по канону нет, и так и остаётся: ошибка стоит только повтора. Но
+   * когда на кону нет вообще ничего, то и быть хорошим не в чем — старшие
+   * тестировщики, те самые 10–14 лет, терявшие интерес быстрее всех, сказали это
+   * своими словами. Счёт оступаний даёт уровню вторую фразу в финале помимо
+   * «пройден»: *пройден чисто*.
    *
-   * Deliberately counted where the game already plays its stumble sound, so
-   * this measures the moments the level itself calls mistakes rather than a
-   * new idea of what one is.
+   * Считается намеренно там, где игра и так проигрывает звук спотыкания: так
+   * измеряются те моменты, которые уровень сам называет ошибками, а не новое
+   * представление о том, что такое ошибка.
    */
   protected mistakes = 0;
 
-  /** A stumble, a slip, a soak — anything the level already forgives. */
+  /** Спотыкание, скольжение, падение в воду — всё, что уровень и так прощает. */
   protected noteMistake() {
     this.mistakes += 1;
   }
 
   /**
-   * Read by the mission screen when the level ends.
+   * Читается экраном миссии в конце уровня.
    *
-   * A getter rather than a field on `BaseHud`, so this costs one line here
-   * instead of an edit to all seventeen `pushHud` implementations for a value
-   * only the outro card ever looks at.
+   * Геттер, а не поле в `BaseHud`: так это стоит одной строки здесь вместо правки
+   * всех семнадцати реализаций `pushHud` ради значения, на которое смотрит только
+   * финальная карточка.
    */
   get mistakeCount(): number {
     return this.mistakes;
@@ -1047,7 +1047,7 @@ export abstract class BaseLevelScene {
   protected sparks: THREE.Mesh[] = [];
   protected clouds: THREE.Group[] = [];
   protected pathArrows: THREE.Group[] = [];
-  /** Filled on the first ambient frame; butterflies are never added later. */
+  /** Заполняется на первом кадре окружения; позже бабочки не добавляются. */
   private butterflyCache: THREE.Group[] | null = null;
   private butterfliesQualityTried = false;
   private npcMixerCache: THREE.AnimationMixer[] | null = null;
@@ -1062,7 +1062,7 @@ export abstract class BaseLevelScene {
   protected praiseUntil = 0;
   protected lastStepAt = 0;
   protected footstepSurface: 'grass' | 'snow' | 'stone' = 'grass';
-  /** Paw prints left behind on soft ground. Built on the first step taken. */
+  /** Следы лап на мягкой земле. Создаются с первым сделанным шагом. */
   private footprints: THREE.InstancedMesh | null = null;
   private footprintAge: Float32Array | null = null;
   private footprintPose: Float32Array | null = null;
@@ -1092,24 +1092,24 @@ export abstract class BaseLevelScene {
   private dayScratchB = new THREE.Color();
   protected windGrass: WindGrass[] = [];
   /**
-   * Key lights, kept so a level can move its own time of day.
+   * Основные источники света: сохраняются, чтобы уровень мог двигать собственное
+   * время суток.
    *
-   * setupLighting used to build these and drop every reference, which meant
-   * the only way to change the light after setup was to walk the scene graph
-   * guessing at types. A level that wants dusk to fall now interpolates these
-   * directly.
+   * Раньше setupLighting создавал их и терял все ссылки, и единственным способом
+   * поменять свет после настройки было обойти граф сцены, угадывая типы. Уровень,
+   * которому нужны сумерки, теперь интерполирует их напрямую.
    */
   protected sunLight: THREE.DirectionalLight | null = null;
   protected hemiLight: THREE.HemisphereLight | null = null;
   protected ambientLight: THREE.AmbientLight | null = null;
   /**
-   * Grass options staged by setupForestEnvironment and built in activate(),
-   * once the level has reserved its gameplay zones.
+   * Параметры травы, подготовленные setupForestEnvironment и собираемые в
+   * activate(), — после того как уровень зарезервировал свои игровые зоны.
    */
   private pendingGrass: Parameters<BaseLevelScene['setupWindGrass']>[0] | null = null;
   /**
-   * Ground height at a world point. Flat until a scene calls
-   * setupSculptedGround, so levels that have not been converted keep working.
+   * Высота земли в мировой точке. Плоская, пока сцена не вызовет
+   * setupSculptedGround, — непереведённые уровни продолжают работать.
    */
   protected groundHeightAt: (x: number, z: number) => number = () => 0;
   protected reserved: Array<{ x: number; z: number; r: number }> = [];
@@ -1134,17 +1134,18 @@ export abstract class BaseLevelScene {
     }
   };
   /**
-   * Centre line of the walkable route, as x for a given z. Scenes that have a
-   * winding trail set this so decoration keeps out of the corridor instead of
-   * each scene re-checking placement by hand.
+   * Осевая линия проходимого маршрута: x для заданного z. Сцены с извилистой
+   * тропой задают её, чтобы декор держался вне коридора, — вместо того чтобы
+   * каждая сцена перепроверяла расстановку вручную.
    */
   protected pathCorridor: ((z: number) => number) | null = null;
   protected pathCorridorHalf = 1.8;
   /**
-   * Where the corridor's own reach along z stops, set by `encloseLevel`.
-   * Without this, `clampToPlayArea`'s pathCorridor branch only ever bounds x
-   * — a periodic corridor function like `sin(z)` re-enters its valid x range
-   * forever, so a level using it alone has no back or forward wall at all.
+   * Где заканчивается собственная протяжённость коридора по z; задаётся
+   * `encloseLevel`. Без этого ветка pathCorridor в `clampToPlayArea` ограничивает
+   * только x: периодическая функция коридора вроде `sin(z)` бесконечно
+   * возвращается в допустимый диапазон x, и у уровня, полагающегося лишь на неё,
+   * нет ни задней, ни передней стены.
    */
   protected corridorZMin: number | null = null;
   protected corridorZMax: number | null = null;
@@ -1170,14 +1171,14 @@ export abstract class BaseLevelScene {
 
   // ── Setup helpers ────────────────────────────────────────────
   /**
-   * Key / fill / rim at a proper contrast ratio.
+   * Ключевой, заполняющий и контровой свет в правильном соотношении.
    *
-   * The previous rig ran a 1.35 hemisphere plus 0.14 ambient against a 1.35
-   * sun — roughly 1.9:1 lit-to-shadow, which is why every level read as flat
-   * and washed out no matter how good the geometry was. Stylised 3D wants
-   * closer to 4:1: a strong warm key, a dim sky-coloured fill that keeps
-   * shadows blue rather than black, and a cool rim so plush silhouettes
-   * separate from the background.
+   * Прежняя схема давала полусферу 1.35 плюс заливку 0.14 против солнца 1.35 —
+   * примерно 1.9:1 между светом и тенью, из-за чего любой уровень читался плоским
+   * и засвеченным, какой бы хорошей ни была геометрия. Стилизованному 3D нужно
+   * ближе к 4:1: сильный тёплый ключ, слабая заливка цвета неба, оставляющая тени
+   * синими, а не чёрными, и холодный контровой, чтобы плюшевые силуэты
+   * отделялись от фона.
    */
   protected setupLighting(fogColor: number, sunColor: number, sunIntensity = 2.35, hemiSky = 0xfff6e0, hemiGround = 0x3d8b40) {
     this.scene.background = new THREE.Color(fogColor);
@@ -1306,9 +1307,9 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Sculpted ground. Prefer this over setupGround: a flat plane gives the
-   * scene no horizon shaping and no depth cues, and every prop reads as
-   * standing on a table. Sets `heightAt` for everything placed afterwards.
+   * Скульптурная земля. Предпочитать её вместо setupGround: плоскость не даёт
+   * сцене ни формы горизонта, ни ощущения глубины, и любой предмет читается
+   * стоящим на столе. Задаёт `heightAt` для всего, что ставится дальше.
    */
   protected setupSculptedGround(opts: LevelTerrainOptions = {}) {
     const corridor = opts.corridor ?? this.pathCorridor ?? undefined;
@@ -1376,13 +1377,14 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Wind-reactive grass over the play area, keeping clear of the corridor and
-   * any reserved gameplay zones. One instanced draw call.
+   * Трава, реагирующая на ветер, по всей игровой зоне; держится в стороне от
+   * коридора и зарезервированных игровых зон. Один инстансированный вызов
+   * отрисовки.
    */
   /**
-   * Scale instanced grass density by render tier. Call sites that pass an
-   * explicit `count` should wrap it with this so a `low` phone is not handed
-   * the same thousands of blades as a mid-tier mobile.
+   * Масштабирует плотность инстансированной травы по уровню качества. Вызовы,
+   * передающие явный `count`, должны оборачивать его этим, иначе слабый телефон
+   * получит те же тысячи травинок, что и средний.
    */
   protected grassCountForTier(base: number): number {
     const tier = this.renderQuality?.tier ?? 'high';
@@ -1400,10 +1402,10 @@ export abstract class BaseLevelScene {
       tipWarmColor?: number;
       bladeHeight?: [number, number];
       /**
-       * Extra keep-out on top of reserved rooms and water. Levels that draw
-       * their own road as flat decals need it: reserved rooms cover the quest
-       * clearings, not the route between them, so blades came up through the
-       * dirt tiles.
+       * Дополнительная запретная зона поверх зарезервированных комнат и воды.
+       * Нужна уровням, которые рисуют свою дорогу плоскими наклейками:
+       * зарезервированные комнаты покрывают игровые поляны, но не маршрут между
+       * ними, и травинки прорастали сквозь грунтовые плиты.
        */
       exclude?: (x: number, z: number) => boolean;
     } = {},
@@ -1451,11 +1453,11 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Derive a blocking circle from each object's own bounds.
+   * Выводит окружность-препятствие из собственных габаритов объекта.
    *
-   * Short things are skipped deliberately: a child walking over a mushroom or
-   * a fallen snowflake should not be stopped by it, and collectibles must stay
-   * reachable.
+   * Низкие предметы пропускаются намеренно: ребёнка, идущего по грибу или
+   * упавшей снежинке, они останавливать не должны, а до подбираемых вещей нужно
+   * доходить.
    */
   protected blockProps(objects: THREE.Object3D[], minHeight = 0.55) {
     const size = new THREE.Vector3();
@@ -1471,12 +1473,12 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * The level's water line, if it has one. Set it before the scatter runs and
-   * grass, flowers and critters stop growing on the river bed.
+   * Уровень воды, если он у сцены есть. Задать его до разброса — и трава, цветы
+   * и зверьки перестанут расти на дне реки.
    *
-   * Reserved rooms used to be the only exclusion, which was enough while the
-   * water was a narrow ribbon inside them. A river that reaches the treeline
-   * is mostly *outside* every room, so tufts of grass came up through it.
+   * Раньше единственным исключением были зарезервированные комнаты, и этого
+   * хватало, пока вода была узкой лентой внутри них. Река, доходящая до кромки
+   * леса, по большей части лежит *вне* всех комнат, и трава лезла прямо сквозь неё.
    */
   protected waterLineY: number | null = null;
 
@@ -1496,7 +1498,7 @@ export abstract class BaseLevelScene {
     return lang === 'kk' ? 'дос' : 'друг';
   }
 
-  /** Sit an object on the sculpted ground rather than on y=0. */
+  /** Посадить объект на скульптурную землю, а не на y = 0. */
   protected snapToGround(obj: THREE.Object3D) {
     const box = new THREE.Box3().setFromObject(obj);
     obj.position.y += this.groundHeightAt(obj.position.x, obj.position.z) - box.min.y;
@@ -1513,7 +1515,7 @@ export abstract class BaseLevelScene {
     void this.upgradeCloudsToQualityGlb();
   }
 
-  /** Soft-3D cloud GLB when present; procedural spheres stay as fallback. */
+  /** Мягкое облако из GLB, если оно есть; процедурные сферы остаются запасным вариантом. */
   private async upgradeCloudsToQualityGlb() {
     const loader = createGameGltfLoader();
     const gltf = await loadGlb(loader, '/assets/models/props/s1_quality_cloud.glb');
@@ -1531,9 +1533,10 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Soft-3D butterfly GLB when present. Procedural hinged wings stay as
-   * fallback. Meshy insect rigs are unreliable, so flap is code-driven:
-   * left/right wing meshes (split by local X) rotate about the spine.
+   * Мягкая бабочка из GLB, если она есть. Процедурные крылья на шарнирах
+   * остаются запасным вариантом. Риги насекомых из Meshy ненадёжны, поэтому взмах
+   * ведёт код: меши левого и правого крыла, разделённые по локальному X,
+   * поворачиваются вокруг хребта.
    */
   protected async upgradeButterfliesToQualityGlb() {
     const files = [
@@ -1594,8 +1597,8 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Ice Valley depth from the CC0 holiday kit: snow-laden firs in layered
-   * rings, snow drifts and rocks. Replaces the instanced cone stand-ins.
+   * Глубина Ледяной долины из праздничного набора CC0: заснеженные ели
+   * послойными кольцами, сугробы и камни. Заменяет инстансированные конусы-заглушки.
    */
   protected async loadWinterDecor(loader: GLTFLoader, count = 22, centerZ = -20) {
     const kit = this.assetKit(loader);
@@ -1645,7 +1648,7 @@ export abstract class BaseLevelScene {
     }
   }
 
-  /** One draw call snowfall. Mobile gets fewer particles. */
+  /** Снегопад в один вызов отрисовки. На телефоне частиц меньше. */
   protected setupSnowfall(count = this.isMobile ? 90 : 180) {
     const positions = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
@@ -1669,8 +1672,8 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Shared Ice Valley look: lighting, snow/ice ground, sky, clouds,
-   * holiday decor, snowfall, optional hills/mountains.
+   * Общий облик Ледяной долины: свет, снежная и ледяная земля, небо, облака,
+   * праздничный декор, снегопад и, по желанию, холмы с горами.
    */
   protected async setupWinterEnvironment(
     loader: GLTFLoader,
@@ -1683,7 +1686,7 @@ export abstract class BaseLevelScene {
       decorCenterZ?: number;
       clouds?: number;
       backdrop?: 'valley' | 'finale' | 'none';
-      /** Sculpted relief. Pass `false` only for levels on a built ice surface. */
+      /** Скульптурный рельеф. `false` — только для уровней на построенной ледяной поверхности. */
       terrain?: LevelTerrainOptions | false;
     } = {},
   ) {
@@ -1730,14 +1733,14 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Shared Fruit Forest look: lighting, sculpted ground, sky, clouds, ridge
-   * backdrop and wind grass.
+   * Общий облик Фруктового леса: свет, скульптурная земля, небо, облака, гряда на
+   * заднем плане и ветреная трава.
    *
-   * The play area is kept flat (`flatRadius`) so hand-placed props, NPCs and
-   * quest markers keep the positions their levels were authored with; the
-   * relief lives outside it, where it does the work of shaping the horizon.
-   * Grass is deferred to `activate()` so it can exclude every zone the level
-   * reserves after this call.
+   * Игровая зона остаётся плоской (`flatRadius`), чтобы расставленные вручную
+   * предметы, персонажи и маркеры квестов сохранили те координаты, с которыми
+   * писались уровни; рельеф живёт снаружи неё и там формирует горизонт. Трава
+   * откладывается до `activate()`, чтобы исключить все зоны, которые уровень
+   * зарезервирует после этого вызова.
    */
   protected async setupForestEnvironment(
     loader: GLTFLoader,
@@ -1749,7 +1752,7 @@ export abstract class BaseLevelScene {
       hemiGround?: number;
       sky?: [string, string, string];
       clouds?: number;
-      /** Radius of the flat gameplay area. */
+      /** Радиус плоской игровой зоны. */
       flatRadius?: number;
       flatCenterZ?: number;
       terrain?: LevelTerrainOptions;
@@ -1807,7 +1810,7 @@ export abstract class BaseLevelScene {
     this.scene.add(this.fireflies.points);
   }
 
-  /** ACES + bloom + FXAA — same premium frame as Mission 0. */
+  /** ACES, свечение и FXAA — тот же кадр, что и на нулевой миссии. */
   protected setupQuality() {
     this.quality = new QualityPipeline(this.renderer, this.scene, this.camera, {
       mobile: !this.renderQuality.useComposer,
@@ -1876,13 +1879,13 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Last chance for a level to constrain the camera pose that will actually
-   * be rendered. The default is intentionally empty: wide outdoor levels
-   * retain their existing free orbit behaviour.
+   * Последняя возможность уровня ограничить то положение камеры, которое реально
+   * пойдёт в отрисовку. По умолчанию пусто: открытые уличные уровни сохраняют
+   * свободную орбиту.
    */
   protected beforeRenderCamera() {}
 
-  /** Pointer drag; yaw is intentionally unbounded for a true 360° orbit. */
+  /** Перетаскивание указателем; поворот намеренно не ограничен ради полной орбиты 360°. */
   protected updateCameraOrbit(dt: number) {
     // No auto-recenter: the camera is free, and stays wherever the player
     // left it. It used to ease back to behind-the-hero the moment a key or
@@ -1983,7 +1986,7 @@ export abstract class BaseLevelScene {
     this.clock.getDelta();
   }
 
-  /** Change copy language without destroying a live level or its progress. */
+  /** Сменить язык текстов, не разрушая живой уровень и его прогресс. */
   setLanguage(lang: 'ru' | 'kk') {
     this.lang = lang;
   }
@@ -1995,7 +1998,7 @@ export abstract class BaseLevelScene {
     return true;
   }
 
-  /** Override to refresh HUD when movement hint should hide. */
+  /** Переопределить, чтобы обновить HUD, когда подсказку о движении пора прятать. */
   protected onMovementHintDismiss() {}
 
   protected setupGuideArrow() {
@@ -2005,10 +2008,10 @@ export abstract class BaseLevelScene {
     this.scene.add(this.objectiveBeacon);
   }
 
-  /** Light column standing on the current objective. See objectiveBeacon.ts. */
+  /** Световой столб над текущей целью. См. objectiveBeacon.ts. */
   protected objectiveBeacon: THREE.Group | null = null;
 
-  /** Textured static hero with procedural locomotion; plush fallback if loading fails. */
+  /** Текстурированный статичный герой с процедурной походкой; при сбое загрузки — плюшевый запасной. */
   protected async loadHero(loader: GLTFLoader, height = HERO_HEIGHT) {
     const rig = await loadBarsikHeroRig(loader, height);
     if (this.disposed) {
@@ -2027,9 +2030,9 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Lay a walking trail from CC0 stepping-stone models along the given points.
-   * Flat coloured quads made every trail look like a painted runway; real
-   * stones sitting in the grass read as a path through a forest.
+   * Выкладывает тропу из моделей плит набора CC0 по заданным точкам. Плоские
+   * крашеные квадраты превращали любую тропу в размеченную взлётную полосу;
+   * настоящие камни, лежащие в траве, читаются дорожкой через лес.
    */
   protected async layTrail(
     loader: GLTFLoader,
@@ -2059,35 +2062,35 @@ export abstract class BaseLevelScene {
     }
   }
 
-  /** Kit-backed model loading, shared across every level. */
+  /** Загрузка моделей из наборов, общая для всех уровней. */
   protected assetKit(loader: GLTFLoader) {
     if (!this.kit) this.kit = new AssetKit(loader);
     return this.kit;
   }
 
   /**
-   * Areas gameplay needs to stay clear: objectives, NPCs, paths.
-   * Scenes register these before scattering decoration so random props
-   * can never block an interaction or hide a quest target.
+   * Места, которые геймплей требует держать свободными: цели, персонажи, тропы.
+   * Сцены объявляют их до разброса декора, чтобы случайный предмет не мог
+   * перекрыть взаимодействие или спрятать цель квеста.
    */
   /**
-   * A room: somewhere the player goes, and therefore somewhere nothing is
-   * planted. Widens the play area.
+   * Комната: место, куда игрок ходит, а значит, место, где ничего не сажают.
+   * Расширяет игровую зону.
    */
   protected reserve(x: number, z: number, r: number) {
     this.reserved.push({ x, z, r });
   }
 
   /**
-   * Somewhere nothing is planted, that the player does *not* go: the inside
-   * of a gorge, the surface of a lake, the footprint of a building.
+   * Место, где ничего не сажают и куда игрок при этом *не* ходит: нутро ущелья,
+   * поверхность озера, пятно застройки.
    *
-   * `reserve` was carrying both meanings, and the enclosure work made that
-   * ambiguity expensive. Level 4 keeps decoration out of its ravine with two
-   * rows of ten-metre circles spanning x −44..44 — twenty-four of them — and
-   * read as walkable, that turned a level about crossing a bridge into an
-   * eighty-eight-metre-wide field. The gorge is the one place in that level
-   * the player must not be.
+   * Раньше оба смысла нёс `reserve`, и работа над оградой сделала эту
+   * двусмысленность дорогой. Четвёртый уровень держит декор вне оврага двумя
+   * рядами десятиметровых кругов от x −44 до 44 — их двадцать четыре, — и, будучи
+   * прочитанными как проходимые, они превращали уровень про переход по мосту в
+   * поле шириной восемьдесят восемь метров. Ущелье — единственное место того
+   * уровня, где игрока быть не должно.
    */
   protected keepClear(x: number, z: number, r: number) {
     this.noPlant.push({ x, z, r });
@@ -2096,14 +2099,14 @@ export abstract class BaseLevelScene {
   private noPlant: Array<{ x: number; z: number; r: number }> = [];
 
   /**
-   * True where the player may actually stand.
+   * Истина там, где игрок действительно может стоять.
    *
-   * Not the same question as `isReserved`, and the treeline needs this one.
-   * `isReserved` tests the corridor at `pathCorridorHalf`, while the movement
-   * clamp allows a further `corridorSlack` on top — so a tree could pass the
-   * reserved test and still be standing in the walkable strip. Measured: 16
-   * such trees on level 0, 15 on level 6. They carry no collider, so the
-   * player walks straight through the trunk.
+   * Это не тот же вопрос, что `isReserved`, и кромке леса нужен именно этот.
+   * `isReserved` проверяет коридор по `pathCorridorHalf`, а ограничение движения
+   * разрешает сверху ещё `corridorSlack` — дерево могло пройти проверку на резерв
+   * и всё равно стоять в проходимой полосе. Замерено: 16 таких деревьев на
+   * нулевом уровне, 15 на шестом. Коллайдера у них нет, и игрок проходит прямо
+   * сквозь ствол.
    */
   protected isInsidePlayArea(x: number, z: number) {
     const held = this.clampToPlayArea(x, z);
@@ -2132,46 +2135,44 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Layered forest: tall canopy at the back, mid trees at the sides,
-   * saplings and stumps close to the path. Depth comes from the layering,
-   * not from raw tree count.
+   * Послойный лес: высокие кроны сзади, средние деревья по бокам, подрост и пеньки
+   * у самой тропы. Глубину даёт послойность, а не количество деревьев.
    */
   /**
-   * Wall the level in with forest, hugging the walkable edge.
+   * Обносит уровень лесом по самой границе проходимого.
    *
-   * `loadTrees` scatters a ring around a centre point, which is what an open
-   * field looks like: trees somewhere out there, grass to the horizon between
-   * you and them. This plants a band that follows `clampToPlayArea`'s own
-   * boundary, so wherever a child can walk to, there is a treeline a couple of
-   * metres past it and nothing visible beyond.
+   * `loadTrees` разбрасывает кольцо вокруг центра — так выглядит открытое поле:
+   * деревья где-то там, а между вами и ними трава до горизонта. Здесь сажается
+   * полоса, идущая по собственной границе `clampToPlayArea`: куда бы ребёнок ни
+   * дошёл, в паре метров за этим местом стоит кромка леса, и дальше ничего не
+   * видно.
    *
-   * Rows go outward and upward: short at the edge so the eye reads a hedge to
-   * step around, tall behind so nothing shows over the top. The result is a
-   * corridor that opens into clearings — a linear level, not a plain.
+   * Ряды идут наружу и вверх: низкие у края, чтобы глаз читал живую изгородь,
+   * которую надо обойти, высокие позади, чтобы поверх ничего не торчало.
+   * Получается коридор, открывающийся полянами, — линейный уровень, а не равнина.
    */
   /**
-   * A level that is one room rather than one road.
+   * Уровень, который является одной комнатой, а не одной дорогой.
    *
-   * Not every level is a walk. Some are a clearing you do a thing in, and for
-   * those a corridor is the wrong shape — there is no route to hug, and
-   * forcing one would put a wall through the middle of the arena.
+   * Не всякий уровень — прогулка. Некоторые — поляна, на которой что-то делают, и
+   * коридор для них неверная форма: маршрута, вдоль которого идти, нет, а
+   * навязанный провёл бы стену через середину арены.
    */
   protected playArena: { x: number; z: number; r: number } | null = null;
 
   /**
-   * Build a route out of the beats the level already declares.
+   * Строит маршрут из тех битов, которые уровень уже объявил.
    *
-   * Nine levels had no `pathCorridor` at all, and their reserved rooms are not
-   * connected to each other — level 3 is five rooms in five islands, level 13
-   * six in five — so clamping to the rooms alone would leave the player stuck
-   * at the edge of one with no way to the next. Threading a path through them
-   * in z order fixes that by construction: every room is on the route, so the
-   * union of route and rooms is one connected shape.
+   * У девяти уровней `pathCorridor` не было вовсе, а их зарезервированные комнаты
+   * между собой не связаны: третий — это пять комнат пятью островами,
+   * тринадцатый — шесть на пяти, — и ограничение одними комнатами оставило бы
+   * игрока у края одной из них без пути к следующей. Протягивание тропы через них
+   * по порядку z решает это по построению: каждая комната лежит на маршруте, и
+   * объединение маршрута с комнатами — одна связная фигура.
    *
-   * It also happens to be the honest shape of these levels. Level 3's beats
-   * sit at x −17, +18, −14, +12, −3 going down; the level *is* a serpentine,
-   * and drawing it as one is what stops it reading as a field with things
-   * scattered in it.
+   * Заодно это честная форма таких уровней. Биты третьего идут вниз по x −17,
+   * +18, −14, +12, −3: уровень *и есть* серпантин, и нарисованный серпантином он
+   * перестаёт читаться полем с разбросанными предметами.
    */
   protected derivePathFromRooms(spawn: { x: number; z: number }, half = 4.2) {
     if (this.reserved.length === 0) return;
@@ -2187,23 +2188,23 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * The walkable route, as a polyline with a width.
+   * Проходимый маршрут как ломаная с шириной.
    *
-   * `pathCorridor` is `x = f(z)`, which works for the levels it was written
-   * for — they all run north to south. It cannot express a route that goes
-   * sideways or doubles back, and half the game does: level 3's beats sit at
-   * x −17, +18, −14, +12 while z moves only eight metres between the first
-   * two, so the route there is nearly horizontal. Clamped by horizontal
-   * distance, that leaves a window on x that slides four metres for every
-   * metre of z, and a player walking at it is dragged along a boundary they
-   * cannot see. Measured: four of level 3's five rooms became unreachable.
+   * `pathCorridor` — это `x = f(z)`, и для тех уровней, под которые он писался,
+   * этого хватает: все они идут с севера на юг. Он не умеет выразить маршрут,
+   * уходящий вбок или разворачивающийся назад, а половина игры именно такая: биты
+   * третьего уровня стоят на x −17, +18, −14, +12, тогда как z между первыми двумя
+   * меняется всего на восемь метров, — маршрут там почти горизонтальный.
+   * Ограничение по горизонтали оставляет окно по x, съезжающее на четыре метра за
+   * каждый метр z, и игрока, идущего поперёк, тащит вдоль невидимой границы.
+   * Замерено: четыре из пяти комнат третьего уровня стали недостижимы.
    *
-   * A polyline has no preferred axis, so it holds for any shape.
+   * У ломаной нет предпочтительной оси, поэтому она держит любую форму.
    */
   protected playPath: Array<{ x: number; z: number }> | null = null;
   protected playPathHalf = 4.2;
 
-  /** Nearest point on the play path, and how far off it we are. */
+  /** Ближайшая точка на игровой ломаной и насколько мы от неё отклонились. */
   private nearestOnPath(x: number, z: number) {
     const pts = this.playPath!;
     let best = { x: pts[0].x, z: pts[0].z, d: Infinity };
@@ -2225,7 +2226,7 @@ export abstract class BaseLevelScene {
     return best;
   }
 
-  /** @deprecated superseded by {@link derivePathFromRooms}; kept for the z-monotone levels. */
+  /** @deprecated заменён на {@link derivePathFromRooms}; оставлен для уровней, монотонных по z. */
   protected deriveCorridorFromRooms(spawn: { x: number; z: number }, half = 3.4) {
     if (this.reserved.length === 0) return;
     const byZ = [...this.reserved].sort((a, b) => b.z - a.z);
@@ -2256,11 +2257,11 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Wall a polyline route on both sides, with caps at each end.
+   * Обносит ломаный маршрут стеной с обеих сторон и закрывает торцы.
    *
-   * Walks the path by arc length and plants perpendicular to it, so a route
-   * that runs sideways or doubles back is still walled along its actual
-   * direction rather than along z.
+   * Идёт по тропе по длине дуги и сажает перпендикулярно ей, поэтому маршрут,
+   * уходящий вбок или разворачивающийся назад, всё равно обносится вдоль своего
+   * настоящего направления, а не вдоль z.
    */
   protected async enclosePath(loader: GLTFLoader, rows = 4, step = 3.0) {
     if (!this.playPath || this.playPath.length < 2 || this.disposed) return;
@@ -2342,10 +2343,10 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Ring a one-room level with trees.
+   * Окружает деревьями уровень-комнату.
    *
-   * The corridor version cannot do this job: it walks a z range planting down
-   * two sides, and an arena has no sides.
+   * Коридорная версия для этого не годится: она идёт по диапазону z и сажает по
+   * двум сторонам, а у арены сторон нет.
    */
   protected async encloseArena(loader: GLTFLoader, rows = 4) {
     if (!this.playArena || this.disposed) return;
@@ -2376,14 +2377,14 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Close a level in without having to say where it ends.
+   * Закрывает уровень, не требуя указывать, где он кончается.
    *
-   * The z range is taken from the rooms the level already reserved, which is
-   * by definition everything it has anything in. Levels differ enough that
-   * hand-writing a range in each one means eight slightly different ranges
-   * that drift the moment a beat moves; this one cannot go stale.
+   * Диапазон z берётся из комнат, которые уровень уже зарезервировал, — а это по
+   * определению всё, где у него что-то есть. Уровни различаются достаточно, чтобы
+   * прописанный вручную диапазон означал восемь слегка разных чисел, разъезжающихся
+   * при первом же переносе бита; это устареть не может.
    *
-   * Call it last, after the corridor and every `reserve`.
+   * Вызывать последним, после коридора и всех `reserve`.
    */
   protected async encloseLevel(loader: GLTFLoader, pad = 8) {
     // Planting five hundred trees for a level React discarded two seconds ago
@@ -2430,7 +2431,7 @@ export abstract class BaseLevelScene {
       zTo: number;
       rows?: number;
       step?: number;
-      /** Keep the river channel open: forest starts beyond both banks. */
+      /** Русло реки держим открытым: лес начинается за обоими берегами. */
       river?: {
         centreX: (z: number) => number;
         halfWidth: number;
@@ -2453,7 +2454,7 @@ export abstract class BaseLevelScene {
       return Math.abs(x - river.centreX(z)) < river.halfWidth + river.bankClear;
     };
 
-    /** In the crossing band, push rows past the far bank so water stays visible. */
+    /** В полосе переправы ряды отодвигаются за дальний берег, чтобы вода оставалась видна. */
     const minOutFromEdge = (z: number, sign: number, edge: number) => {
       if (!river || z < river.zMin || z > river.zMax) return 0;
       const cx = river.centreX(z);
@@ -2462,7 +2463,7 @@ export abstract class BaseLevelScene {
       return Math.max(0, gap);
     };
 
-    /** How far the walkable area reaches sideways at this z, either way. */
+    /** Насколько далеко проходимая зона простирается вбок на этой z, в обе стороны. */
     const reachAt = (z: number, sign: number) => {
       const cx = this.pathCorridor!(z);
       let edge = cx + sign * (this.pathCorridorHalf + this.corridorSlack);
@@ -2526,16 +2527,16 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Turn a list of placements into instanced trees.
+   * Превращает список расстановок в инстансированные деревья.
    *
-   * Shared by the corridor wall and the arena ring: whatever shape the level
-   * is, the trees are drawn the same way.
+   * Общее для коридорной стены и кольца арены: какой бы формы ни был уровень,
+   * деревья рисуются одинаково.
    *
-   * Instancing is not an optimisation here, it is the difference between the
-   * feature existing and not. The first version used `kit.scatter`, which
-   * returns a separate object per tree, and a wall dense enough to see
-   * nothing through took level 0 from 96 draw calls to 811 — the stutter that
-   * made the level unplayable. The same wall instanced costs twenty-three.
+   * Инстансинг здесь не оптимизация, а разница между «функция есть» и «её нет».
+   * Первая версия использовала `kit.scatter`, который возвращает отдельный объект
+   * на дерево, и стена, достаточно плотная, чтобы сквозь неё ничего не было видно,
+   * подняла нулевой уровень с 96 вызовов отрисовки до 811 — те самые рывки, из-за
+   * которых в него нельзя было играть. Та же стена в инстансах стоит двадцати трёх.
    */
   private async plantTreeline(
     kit: ReturnType<BaseLevelScene['assetKit']>,
@@ -2654,14 +2655,14 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Ground-level detail, composed as themed patches on a graded depth ramp.
+   * Мелочь у земли, собранная тематическими пятнами по градиенту глубины.
    *
-   * Scattering every family independently across the whole area gives each
-   * square metre the same average density and the same mix of objects, which
-   * reads as an asset dump rather than a place. Undergrowth instead grows in
-   * patches, and the mix changes with distance: soft low cover near the
-   * player, shrubs at mid depth, forest floor and boulders at the treeline.
-   * One patch per anchor, one theme per patch.
+   * Если разбрасывать каждое семейство независимо по всей площади, у каждого
+   * квадратного метра будет одинаковая средняя плотность и одинаковый набор
+   * объектов, а это читается свалкой ассетов, а не местом. Подлесок вместо этого
+   * растёт пятнами, и состав меняется с расстоянием: мягкий низкий покров рядом с
+   * игроком, кустарник на средней глубине, лесная подстилка и валуны у кромки.
+   * Одно пятно на якорь, одна тема на пятно.
    */
   protected async loadProps(
     loader: GLTFLoader,
@@ -2715,12 +2716,12 @@ export abstract class BaseLevelScene {
 
   // ── Spark/particle effects ───────────────────────────────────
   /**
-   * Peak opacity for a full-screen camera flash.
+   * Пиковая непрозрачность полноэкранной вспышки.
    *
-   * A white frame at full opacity is the textbook photosensitivity trigger,
-   * and the plan asks for reduced-motion to cover flash and confetti. Dimmed
-   * rather than removed: the flash is how the player knows the photograph was
-   * taken, so the beat still has to land.
+   * Белый кадр на полной непрозрачности — хрестоматийный триггер
+   * светочувствительности, и по плану режим уменьшенного движения должен
+   * покрывать вспышку и конфетти. Приглушено, а не убрано: именно вспышкой игрок
+   * понимает, что снимок сделан, и бит обязан сработать.
    */
   protected get flashPeak() {
     return this.prefersReducedMotion ? 0.28 : 1;
@@ -2813,13 +2814,14 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Convert local stick/WASD input into the horizontal direction in view.
+   * Переводит локальный ввод стика или WASD в горизонтальное направление в кадре.
    *
-   * `dir()` deliberately stays local: x is strafe and y is forward/back.
-   * Orbit is a render transform around world-up, so applying the same yaw to
-   * that vector makes W follow the visible camera heading at 0°, 90°, 180°
-   * and every angle between. Collision and level bounds continue to receive a
-   * normal world-space candidate; only the player's intent changes basis.
+   * `dir()` намеренно остаётся локальным: x — это шаг вбок, y — вперёд и назад.
+   * Орбита — это преобразование отрисовки вокруг мировой вертикали, поэтому тот же
+   * поворот, применённый к этому вектору, заставляет W следовать видимому
+   * направлению камеры на 0°, 90°, 180° и любом угле между ними. Столкновения и
+   * границы уровня по-прежнему получают обычного кандидата в мировых координатах;
+   * базис меняется только у намерения игрока.
    */
   protected cameraRelativeDirection(local: THREE.Vector2) {
     const sin = Math.sin(this.camYaw);
@@ -2832,28 +2834,28 @@ export abstract class BaseLevelScene {
 
   // ── Movement ─────────────────────────────────────────────────
   /**
-   * Keep the hero inside the level, where "the level" is a path with rooms
-   * along it rather than a rectangle.
+   * Удерживает героя внутри уровня, где «уровень» — это тропа с комнатами вдоль
+   * неё, а не прямоугольник.
    *
-   * The old clamp was `x ∈ [-45, 45]`, which is not a level — it is a field
-   * with a fence somewhere over the horizon. A child could walk twenty metres
-   * off the path into empty grass, see the edge of the world, and never find
-   * their way back to the thing they were told to do. The brief is a linear,
-   * enclosed level: you cannot leave, and you cannot see past the sides.
+   * Прежнее ограничение было `x ∈ [−45, 45]`, а это не уровень, а поле с забором
+   * где-то за горизонтом. Ребёнок мог уйти на двадцать метров с тропы в пустую
+   * траву, увидеть край мира и не найти дороги обратно к тому, что его просили
+   * сделать. По заданию уровень линейный и закрытый: выйти нельзя и за края не
+   * видно.
    *
-   * The walkable region is the union of
-   *   * the path corridor — `pathCorridor(z) ± pathCorridorHalf`, which every
-   *     scene that has a path already declares; and
-   *   * the rooms, which open the corridor out where the gameplay is.
+   * Проходимая область — это объединение
+   *   * коридора тропы — `pathCorridor(z) ± pathCorridorHalf`, который объявляет
+   *     любая сцена с тропой, и
+   *   * комнат, расширяющих коридор там, где происходит геймплей.
    *
-   * The rooms come free: every scene already calls `reserve(x, z, r)` around
-   * each objective, NPC and landmark so that scattered decoration cannot bury
-   * them. That list is, by construction, exactly "the places this level needs
-   * the player to reach" — so using it as the walkable set cannot lock anyone
-   * out of anything the level asks for.
+   * Комнаты достаются бесплатно: каждая сцена и так зовёт `reserve(x, z, r)`
+   * вокруг каждой цели, персонажа и ориентира, чтобы разбросанный декор их не
+   * завалил. Этот список по построению и есть «места, куда уровню нужно, чтобы
+   * игрок дошёл», — поэтому взять его за проходимое множество нельзя так, чтобы
+   * закрыть игроку что-то, о чём уровень просит.
    *
-   * A scene with no `pathCorridor` is unaffected, so this is inert until a
-   * level opts in by having a path.
+   * Сцены без `pathCorridor` это не затрагивает: механизм спит, пока уровень не
+   * подключится к нему, объявив тропу.
    */
   protected clampToPlayArea(x: number, z: number): { x: number; z: number } {
     if (this.playPath) {
@@ -2918,46 +2920,46 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Breathing room on top of the declared corridor and rooms.
+   * Запас поверх объявленного коридора и комнат.
    *
-   * `reserve()` radii were written to keep decoration out, not to be walls, so
-   * hugging them exactly would feel tight. A couple of metres makes the edge
-   * feel like undergrowth you choose not to push into rather than glass.
+   * Радиусы `reserve()` писались, чтобы не пускать декор, а не чтобы быть
+   * стенами, поэтому идти строго по ним было бы тесно. Пара метров превращает
+   * край в подлесок, в который ты сам решил не лезть, а не в стекло.
    */
   protected corridorSlack = 2.4;
 
   /**
-   * A surface you can stand on that is not the terrain.
+   * Поверхность, на которой можно стоять и которая не является рельефом.
    *
-   * The height system knew about exactly one thing: `groundHeightAt`, the
-   * sculpted terrain. Everything else in the world — stepping stones, logs,
-   * ledges — was scenery you walked through. That is survivable in a level
-   * where the ground is the floor, and fatal the moment a level asks you to
-   * jump *onto* something: the crossing's stones stood in a dug channel, so
-   * the hero's feet tracked the riverbed and sank straight through them.
+   * Система высот знала ровно об одном: о `groundHeightAt`, скульптурном рельефе.
+   * Всё остальное в мире — камни переправы, брёвна, уступы — было декорацией, через
+   * которую проходишь насквозь. С этим можно жить на уровне, где земля и есть пол,
+   * и это смертельно в тот момент, когда уровень просит запрыгнуть *на* что-то:
+   * камни переправы стояли в вырытом русле, лапы героя шли по дну реки, и он
+   * проваливался сквозь них.
    *
-   * `obj` is read live rather than copied, so a platform that moves carries
-   * whatever is standing on it. That is what makes the sinking stones work at
-   * all — the hero rides them down instead of hovering where they used to be.
+   * `obj` читается вживую, а не копируется, поэтому движущаяся платформа везёт на
+   * себе то, что на ней стоит. Именно это заставляет тонущие камни работать: герой
+   * уходит вниз вместе с ними, а не зависает там, где они были.
    */
   protected platforms: Array<{ obj: THREE.Object3D; radius: number; top: number }> = [];
 
-  /** Register a standable surface. `top` is the surface height above obj.position.y. */
+  /** Зарегистрировать поверхность, на которой можно стоять. `top` — её высота над obj.position.y. */
   protected addPlatform(obj: THREE.Object3D, radius: number, top: number) {
     this.platforms.push({ obj, radius, top });
   }
 
   /**
-   * What the hero can stand on at (x, z), coming from height `fromY`.
+   * На что герой может встать в точке (x, z), приходя с высоты `fromY`.
    *
-   * `fromY` is the sweep: a platform only counts if the hero is at or above
-   * its top. Without that you could be lifted onto a stone by swimming into
-   * its side, and — worse — a stone would act as a ceiling-less elevator for
-   * anything walking past below it.
+   * `fromY` и есть проверка: платформа засчитывается, только если герой на уровне
+   * её верха или выше. Без этого можно было бы забраться на камень, вплыв в него
+   * сбоку, — и, что хуже, камень работал бы лифтом без потолка для всего, что
+   * проходит под ним.
    *
-   * Callers pass the height *before* this frame's fall, not after, so a
-   * platform is still caught when a slow frame drops the hero clean past it.
-   * A 30 m/s frame spike is the difference between landing and drowning.
+   * Вызывающие передают высоту *до* падения этого кадра, а не после, чтобы
+   * платформа ловилась и тогда, когда медленный кадр проносит героя мимо неё. Скачок
+   * в 30 м/с — это разница между приземлением и падением в воду.
    */
   protected standHeightAt(x: number, z: number, fromY: number): number {
     let h = this.groundHeightAt(x, z);
@@ -2980,7 +2982,7 @@ export abstract class BaseLevelScene {
     return h;
   }
 
-  /** True when the hero is standing on `obj` rather than beside or under it. */
+  /** Истина, когда герой стоит на `obj`, а не рядом с ним и не под ним. */
   protected isStandingOn(obj: THREE.Object3D): boolean {
     const p = this.platforms.find((q) => q.obj === obj);
     if (!p) return false;
@@ -2990,13 +2992,12 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * A drop this deep is a fall, not a slope.
+   * Такой перепад — это падение, а не склон.
    *
-   * Walking off a stone used to ease the hero down at dt*12, which floats you
-   * gently into the water like a balloon. Handing the height back to gravity
-   * costs nothing on terrain — the sculpted basins and mounds never fall this
-   * fast across one frame of travel — and makes stepping off an edge read as
-   * stepping off an edge.
+   * Сход с камня раньше плавно опускал героя со скоростью dt*12, и он спускался в
+   * воду как воздушный шарик. Возврат высоты гравитации на рельефе не стоит ничего —
+   * скульптурные впадины и холмы никогда не падают так быстро за один кадр
+   * перемещения — и превращает шаг с края в шаг с края.
    */
   protected readonly ledgeFallDrop = 0.55;
 
@@ -3082,34 +3083,33 @@ export abstract class BaseLevelScene {
     return { moving, d };
   }
 
-  /** Whether the hero's last grounded frame was on a platform rather than terrain. */
+  /** Был ли последний кадр с опорой на платформе, а не на рельефе. */
   private groundedOnPlatform = false;
 
   /**
-   * Public jump, for an on-screen button. Space reaches `tryJump` through the
-   * key handler; a phone has no Space, and the crossing is unplayable without
-   * one.
+   * Публичный прыжок для экранной кнопки. С клавиатуры до `tryJump` доходит
+   * пробел; у телефона пробела нет, а без прыжка переправа непроходима.
    */
   jump() {
     this.jumpRequestedAt = performance.now();
     this.tryJump();
   }
 
-  /** When the hero was last on something solid — the coyote-time reference. */
+  /** Когда герой в последний раз стоял на твёрдом — точка отсчёта для «койот-тайма». */
   private lastGroundedAt = 0;
   private jumpRequestedAt = -1e9;
   /**
-   * Grace either side of a jump, both in milliseconds.
+   * Поблажки по обе стороны прыжка, обе в миллисекундах.
    *
-   * `coyoteMs` keeps the jump alive for a moment after walking off an edge,
-   * and `bufferMs` remembers a press made just before landing. Neither makes
-   * the jump longer; they forgive the two mistakes a child actually makes,
-   * which is pressing slightly late and pressing slightly early.
+   * `coyoteMs` оставляет прыжок доступным ещё мгновение после схода с края, а
+   * `bufferMs` запоминает нажатие, сделанное перед самым приземлением. Ни то, ни
+   * другое не удлиняет прыжок: они прощают две ошибки, которые ребёнок реально
+   * делает, — нажать чуть позже и нажать чуть раньше.
    */
   protected readonly coyoteMs = 190;
   protected readonly bufferMs = 220;
 
-  /** Hop. Ignored in the air, so holding the key cannot climb. */
+  /** Прыжок. В воздухе игнорируется, поэтому зажатой клавишей не взлететь. */
   protected tryJump() {
     if (this.paused) return;
     if (this.airborne) {
@@ -3126,10 +3126,10 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Ballistic arc, landing back on whatever ground is under the hero.
+   * Баллистическая дуга с приземлением на ту землю, что окажется под героем.
    *
-   * Called from updateAmbient so every level gets it without touching their
-   * loops — the same route the camera orbit takes.
+   * Вызывается из updateAmbient, поэтому достаётся каждому уровню без правки его
+   * цикла — тем же путём, что и орбита камеры.
    */
   protected updateJump(dt: number) {
     if (!this.airborne) return;
@@ -3307,54 +3307,52 @@ export abstract class BaseLevelScene {
     if (this.objectiveBeacon) this.objectiveBeacon.visible = false;
   }
 
-  /** Smoothed aim point. Null until the first frame, then it trails `look`. */
+  /** Сглаженная точка прицела. До первого кадра null, потом тянется за `look`. */
   private camLook: THREE.Vector3 | null = null;
 
   /**
-   * Forget where the camera was aiming, so the next frame snaps instead of
-   * sweeping. Needed after a teleport: the aim point eases, and easing it
-   * across two hundred metres would be a long, very visible pan from one
-   * location to the other.
+   * Забыть, куда целилась камера, чтобы следующий кадр встал мгновенно, а не
+   * проехал. Нужно после телепорта: точка прицела движется плавно, и плавность на
+   * двести метров дала бы долгую, очень заметную панораму из одной локации в
+   * другую.
    */
   protected resetCameraAim() {
     this.camLook = null;
   }
 
   /**
-   * Where the camera should sit sideways, given where the hero is.
+   * Где камере стоять по горизонтали при данном положении героя.
    *
-   * Fifteen scenes used to write `hero.position.x * 0.3` — follow only thirty
-   * per cent of the hero's sideways movement, so the frame drifts back toward
-   * the middle of the level. That reads well while a level is a corridor a few
-   * metres either side of x = 0, which is what these levels were. They are not
-   * any more: L6's trees stand at x = ±13 and L9's berries reach x = ±22, and
-   * at x = 13 a camera obeying that rule sits at 3.9 with the hero nine metres
-   * outside the frame. The complaint that the camera "wanders off" is this:
-   * it is not wandering, it is refusing to come along.
+   * Пятнадцать сцен писали `hero.position.x * 0.3` — следовать лишь за тридцатью
+   * процентами бокового смещения героя, чтобы кадр тянуло к середине уровня. Это
+   * хорошо читается, пока уровень — коридор в паре метров по обе стороны от x = 0,
+   * какими эти уровни и были. Больше не так: деревья на L6 стоят на x = ±13, а
+   * ягоды на L9 доходят до x = ±22, и при x = 13 камера, подчиняющаяся тому
+   * правилу, стоит на 3.9, а герой — в девяти метрах за кадром. Жалоба на то, что
+   * камера «уезжает», именно об этом: она не уезжает, она отказывается идти следом.
    *
-   * The pull toward the centre was worth keeping — it is what stops every shot
-   * being dead-centred — so it stays, as a **bounded** offset rather than a
-   * fraction. The hero is always within `max` metres of the middle, however
-   * wide the level grows.
+   * Притяжение к центру стоило сохранить — благодаря ему не каждый кадр строго
+   * центрирован, — поэтому оно осталось, но **ограниченным** смещением, а не долей.
+   * Герой всегда в пределах `max` метров от середины, насколько бы широким ни стал
+   * уровень.
    */
   protected cameraLateral(x: number, pull = 0.28, max = 1.5) {
     return x + Math.max(-max, Math.min(max, -x * pull));
   }
 
   /**
-   * Follow camera.
+   * Камера следования.
    *
-   * The aim point is smoothed as well as the position, and that is the whole
-   * point of this function. Before, the position lerped toward the target
-   * while `lookAt` snapped to the exact look point every frame — so the moment
-   * the hero walked onto a slope, the aim point dropped or rose instantly
-   * while the camera was still catching up, and the pitch swung. Walking
-   * downhill tipped the whole frame forward; cresting a rise threw it back.
-   * Two smoothings at the same rate keep the angle between them steady, so the
-   * horizon stays where the player put it.
+   * Сглаживается не только положение, но и точка прицела, и в этом весь смысл
+   * функции. Раньше положение плавно шло к цели, а `lookAt` каждый кадр
+   * перескакивал точно в точку взгляда — и стоило герою выйти на склон, как точка
+   * прицела мгновенно падала или поднималась, пока камера ещё догоняла, и наклон
+   * качало. Спуск заваливал весь кадр вперёд, подъём — назад. Два сглаживания с
+   * одной скоростью держат угол между ними постоянным, и горизонт остаётся там,
+   * куда его поставил игрок.
    *
-   * The aim point is smoothed slightly faster than the position, or the camera
-   * arrives before its own gaze and briefly looks past the hero.
+   * Прицел сглаживается чуть быстрее положения, иначе камера приезжает раньше
+   * собственного взгляда и на мгновение смотрит мимо героя.
    */
   protected updateCamera(target: THREE.Vector3, look: THREE.Vector3, lerp = 0.0015, dt = 0.016) {
     this.camera.position.lerp(target, 1 - Math.pow(lerp, dt));
@@ -3375,13 +3373,14 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Dev-only start override: `?at=x,z` drops the hero somewhere other than the
-   * spawn pad, and the level picks the phase that belongs to that spot.
+   * Отладочное переопределение старта: `?at=x,z` ставит героя не на площадку
+   * появления, а куда указано, и уровень сам выбирает фазу, которой принадлежит
+   * это место.
    *
-   * Season 1 levels run three to six minutes each, so checking the last act of
-   * one otherwise means replaying the first two every single time — which in
-   * practice means it does not get checked. Guarded by import.meta.env.DEV, so
-   * it is dead code in a production build.
+   * Уровни первого сезона идут по три-шесть минут, и проверка последнего акта иначе
+   * означала бы переигрывание первых двух каждый раз, — а на практике это значит,
+   * что его не проверяют. Закрыто import.meta.env.DEV, поэтому в production-сборке
+   * этого кода нет.
    */
   protected devStart(): { x: number; z: number } | null {
     if (!import.meta.env.DEV || typeof location === 'undefined') return null;
@@ -3395,18 +3394,18 @@ export abstract class BaseLevelScene {
     return this.viewport === 'portrait';
   }
 
-  /** True when held sideways on a phone: short, wide, thumbs at the edges. */
+  /** Истина, когда телефон держат боком: низкий широкий кадр, большие пальцы по краям. */
   protected isPhoneLandscape() {
     return this.viewport === 'phone-landscape';
   }
 
   /**
-   * Follow-camera tuning for the current viewport.
+   * Настройка камеры следования под текущий экран.
    *
-   * Levels each hand-rolled `isPortraitViewport() ? a : b`, which left a
-   * sideways phone taking the desktop branch: desktop pitch into a frame
-   * barely 380px tall, so the lower third was foreground ground. Returning
-   * one set of offsets keeps the three modes consistent across levels.
+   * Каждый уровень писал своё `isPortraitViewport() ? a : b`, и телефон, лежащий
+   * боком, попадал в десктопную ветку: десктопный наклон в кадр высотой едва 380
+   * пикселей, и нижняя треть уходила в землю на переднем плане. Один набор
+   * смещений держит все три режима согласованными между уровнями.
    */
   protected cameraFraming() {
     switch (this.viewport) {
@@ -3422,9 +3421,8 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Small rightward camera bias for narrow portrait screens. This keeps more
-   * forward route visible and prevents the hero from sitting exactly centered
-   * under HUD controls.
+   * Небольшой сдвиг камеры вправо для узких вертикальных экранов: так видно больше
+   * маршрута впереди, и герой не оказывается ровно по центру под элементами HUD.
    */
   protected portraitCameraOffset(amount = 0.9) {
     return this.isPortraitViewport() ? amount : 0;
@@ -3436,7 +3434,7 @@ export abstract class BaseLevelScene {
   abstract init(nick: string, lang: 'ru' | 'kk', onHud: (h: BaseHud) => void): Promise<void>;
   protected abstract loop(): void;
 
-  /** Complete async init only while the scene is still owned by React. */
+  /** Доводить асинхронную инициализацию до конца только пока сцена ещё принадлежит React. */
   protected activate(start: () => void) {
     if (this.disposed) {
       this.disposeSceneResources();
@@ -3460,16 +3458,16 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Teleport for QA: moves the hero and sits them on the ground properly,
-   * which `hero.position.set` from a console does not.
+   * Телепорт для QA: переносит героя и корректно сажает его на землю, чего
+   * `hero.position.set` из консоли не делает.
    *
-   * Also counts as the player's first step. Without this, `__audit()`'s
-   * camera sweep and `?at=` mid-level drops both left `hasTakenFirstStep`
-   * false, so any level gating its intro cinematic on that flag (L2, L8,
-   * L16) kept the camera locked to a fixed reveal shot no matter where the
-   * QA teleport sent the hero — every corner of the play area read as
-   * `hero-off-frame`, which was the sweep failing to reach the real follow
-   * camera at all, not the follow camera losing the hero.
+   * Заодно засчитывается как первый шаг игрока. Без этого и обход камерой в
+   * `__audit()`, и заброс через `?at=` в середину уровня оставляли
+   * `hasTakenFirstStep` ложным, и любой уровень, у которого интро-камера завязана
+   * на этот флаг (L2, L8, L16), держал её на фиксированном кадре, куда бы
+   * телепорт ни отправил героя. Каждый угол игровой зоны читался как
+   * `hero-off-frame` — то есть обход вовсе не доходил до настоящей камеры
+   * следования, а не камера теряла героя.
    */
   devTeleport(x: number, z: number) {
     this.hero.position.set(x, this.groundHeightAt(x, z), z);
@@ -3478,11 +3476,11 @@ export abstract class BaseLevelScene {
 
   // ── Resize ───────────────────────────────────────────────────
   /**
-   * Viewport shape the scene is currently rendering into.
+   * Форма экрана, в который сейчас рисует сцена.
    *
-   * The game is played mainly on phones, where turning the device sideways
-   * is the cheapest way to see more of the world — so landscape has to be a
-   * first-class mode rather than "not portrait".
+   * Играют в основном с телефона, где повернуть устройство боком — самый дешёвый
+   * способ увидеть больше мира, поэтому ландшафт обязан быть полноценным режимом,
+   * а не «не портретом».
    */
   protected viewport: 'portrait' | 'phone-landscape' | 'wide' = 'wide';
 
@@ -3516,8 +3514,8 @@ export abstract class BaseLevelScene {
   };
 
   /**
-   * Some mobile browsers fire `orientationchange` without a usable resize,
-   * and report stale dimensions for a frame or two afterwards.
+   * Некоторые мобильные браузеры шлют `orientationchange` без пригодного resize и
+   * ещё кадр-другой сообщают устаревшие размеры.
    */
   protected bindOrientationChange() {
     const handler = () => {
@@ -3554,20 +3552,20 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Stop tiny props from casting shadows.
+   * Запретить мелкому реквизиту отбрасывать тень.
    *
-   * The shadow pass re-draws every caster into the depth map, and on L6 it
-   * measured at 104 of 219 draw calls and 70 000 of 157 000 triangles — 47%
-   * of the frame, for 164 casters. A pinecone's shadow is a couple of pixels
-   * from the game's camera; it costs the same draw call as an oak's.
+   * Теневой проход перерисовывает каждый источник тени в карту глубины, и на L6 это
+   * замерено как 104 вызова отрисовки из 219 и 70 000 треугольников из 157 000 —
+   * 47% кадра ради 164 объектов. Тень шишки с игровой камеры занимает пару
+   * пикселей, а вызов отрисовки стоит столько же, сколько у дуба.
    *
-   * Measured in world space, after the level is built. The first attempt
-   * tested the model's own bounding box inside `loadGlb` and changed nothing,
-   * because a prop's size on screen comes from the scale applied when it is
-   * placed — a pinecone can be two units tall in its own file.
+   * Меряется в мировых координатах, после сборки уровня. Первая попытка проверяла
+   * габариты самой модели внутри `loadGlb` и не изменила ничего, потому что размер
+   * предмета на экране задаётся масштабом, применённым при расстановке: шишка в
+   * собственном файле может быть высотой в две единицы.
    *
-   * The hero and anything skinned are exempt whatever their size: a character
-   * without a contact shadow reads as floating.
+   * Герой и всё скиннованное исключаются независимо от размера: персонаж без тени
+   * касания читается парящим.
    */
   private demoteSmallShadowCasters() {
     const box = new THREE.Box3();
@@ -3592,18 +3590,18 @@ export abstract class BaseLevelScene {
   private swayCache: THREE.Object3D[] | null = null;
 
   /**
-   * Tag something to lean in the wind.
+   * Пометить объект как качающийся на ветру.
    *
-   * On the CPU, not in a shader. The trees are GLB kit models sharing
-   * materials, so a vertex-shader bend means patching `onBeforeCompile`
-   * against three's own chunks — the same route that silently produced an
-   * invisible material for the footprints. A few dozen objects setting one
-   * euler each per frame does not register against a scene that is already
-   * issuing 253–634 draw calls.
+   * На процессоре, а не в шейдере. Деревья — модели из наборов GLB с общими
+   * материалами, поэтому изгиб в вершинном шейдере означал бы патч
+   * `onBeforeCompile` поверх собственных чанков three — тот самый путь, который
+   * молча дал невидимый материал для следов лап. Несколько десятков объектов,
+   * задающих по одному эйлеру за кадр, ничего не значат на фоне сцены, которая и
+   * так выдаёт 253–634 вызова отрисовки.
    *
-   * Rotating about the object's own origin works because every caller has
-   * run `snapToGround` first, which puts that origin at the foot — so the
-   * tree pivots where it meets the earth rather than about its middle.
+   * Поворот вокруг собственного начала координат работает потому, что каждый
+   * вызывающий сначала прогнал `snapToGround`, а тот ставит это начало у подножия:
+   * дерево вращается там, где встречается с землёй, а не вокруг своей середины.
    */
   protected markSwaying(object: THREE.Object3D, strength = 1) {
     object.userData.sway = {
@@ -3639,10 +3637,10 @@ export abstract class BaseLevelScene {
 
   // ── Footprints ───────────────────────────────────────────────
   /**
-   * A paw: one pad and three toes, flat on the ground.
+   * Лапа: подушечка и три пальца, плашмя на земле.
    *
-   * Built as a single BufferGeometry rather than four meshes, because every
-   * print is one instance of this and an instance cannot be a Group.
+   * Собрана одной BufferGeometry, а не четырьмя мешами: каждый след — это один
+   * инстанс, а инстанс не может быть группой.
    */
   private static pawGeometry(): THREE.BufferGeometry {
     const pos: number[] = [];
@@ -3699,8 +3697,8 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Leave one print. Called from the footstep beat in `updateMovement`, so
-   * prints land in step with the sound instead of on a timer of their own.
+   * Оставить один след. Вызывается из бита шага в `updateMovement`, поэтому следы
+   * ложатся в такт звуку, а не по собственному таймеру.
    */
   protected dropFootprint() {
     if (this.footstepSurface === 'stone') return;
@@ -3743,13 +3741,13 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Age the prints. Driven from `updateAmbient`, which every level calls.
+   * Старение следов. Ведётся из `updateAmbient`, который зовёт каждый уровень.
    *
-   * Fades by shrinking rather than by per-instance alpha. Alpha would need a
-   * custom attribute and an `onBeforeCompile` patch against three's own
-   * shader chunks — which was the first attempt, and it silently produced a
-   * material that drew nothing at all. Scale needs no shader internals and
-   * cannot break on a three.js upgrade.
+   * Гаснут уменьшением, а не прозрачностью по инстансам. Прозрачность потребовала
+   * бы собственного атрибута и патча `onBeforeCompile` поверх шейдерных чанков
+   * three — так и была сделана первая попытка, и она молча дала материал, который
+   * не рисовал вообще ничего. Масштабу внутренности шейдера не нужны, и он не
+   * сломается при обновлении three.js.
    */
   private updateFootprints(dt: number) {
     const age = this.footprintAge;
