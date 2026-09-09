@@ -74,77 +74,76 @@ import {
  * the base class now, like the other sixteen.
  */
 
-// ── Layout ────────────────────────────────────────────────────────────────
-// A single walk from the forest edge to the yurt, bending twice so the
-// destination is never visible from the start — the dombra has to be worth
-// following. Roughly 150 m of path with the beats spaced along it.
+// ── Планировка ────────────────────────────────────────────────────────────
+// Одна прогулка от кромки леса до юрты с двумя изгибами: цель не видна со
+// старта, иначе за домброй не стоило бы идти. Примерно 150 м тропы с битами,
+// расставленными вдоль неё.
 const SPAWN_Z = 20;
 const YURT = { x: 2, z: -46 };
 /**
- * How far back toward the mountains the player may walk. The story has
- * Barsik coming down from the peaks, so the corridor does not just fade out
- * behind the spawn point — it runs into the range he climbed down from.
- * Twelve metres past spawn is enough room to turn around and look up at it.
+ * Насколько далеко назад, к горам, можно уйти. По сюжету Барсик спустился с
+ * вершин, поэтому коридор не растворяется за точкой появления, а упирается в
+ * тот самый хребет. Двенадцати метров за спавном хватает, чтобы обернуться и
+ * посмотреть вверх.
  */
 const BACK_WALL_Z = SPAWN_Z + 12;
-/** The path's centre line. Two gentle bends, no switchbacks a child can lose. */
+/** Осевая линия тропы: два мягких изгиба, без петель, в которых ребёнок потеряется. */
 function routeX(z: number) {
   return Math.sin((z - SPAWN_Z) * 0.045) * 5.2;
 }
 
 /**
- * The three fallen lanterns, each a little further off the path than the
- * last so that the second and third are found by looking rather than by
- * walking in a straight line.
+ * Три упавших фонаря, каждый чуть дальше от тропы, чем предыдущий: второй и
+ * третий находят взглядом, а не движением по прямой.
  */
 const LANTERNS: Array<{ x: number; z: number; rotZ: number }> = [
   { x: routeX(8) + 2.2, z: 8, rotZ: 1.35 },
   { x: routeX(-2) - 3.4, z: -2, rotZ: -1.5 },
-  // Before the crossing (CROSSING_FROM −14). At z −13 the third lantern sat on
-  // the near bank slope and read as half in the water.
+  // До переправы (CROSSING_FROM −14). На z −13 третий фонарь стоял на склоне
+  // ближнего берега и читался наполовину в воде.
   { x: routeX(-7) + 3.8, z: -7, rotZ: 1.2 },
 ];
 
 /**
- * Everything about the crossing is placed relative to `routeX(z)`.
+ * Всё, что относится к переправе, ставится относительно `routeX(z)`.
  *
- * An earlier version centred the bed, the water and the reserve on x = 0 while
- * the path at that z is at −4.9, so the river ran alongside the road instead
- * of across it and the walk had no crossing in it at all.
+ * В раннем варианте русло, вода и резерв центрировались на x = 0, а тропа на
+ * той же z проходит по −4.9: река шла вдоль дороги, а не поперёк, и переправы
+ * в прогулке не было вовсе.
  */
 
 /**
- * The crossing, as an actual platforming section.
+ * Переправа как настоящий платформенный участок.
  *
- * The first version was four stones over seven metres — three hops and it was
- * behind you. The brief is a real bit of difficulty you spend half a minute
- * on, so the stream is a long bend rather than a strip: twelve stones over
- * thirty metres of water, with the gaps growing, a couple of stones that sink
- * under you if you dawdle, and a checkpoint on the near bank.
+ * В первом варианте это были четыре камня на семь метров — три прыжка, и она
+ * позади. По заданию нужен настоящий кусок сложности на полминуты, поэтому
+ * ручей стал длинной излучиной, а не полоской: двенадцать камней на тридцать
+ * метров воды, с растущими промежутками, парой камней, тонущих под тобой, если
+ * медлить, и контрольной точкой на ближнем берегу.
  *
- * `sink` marks a stone that starts dropping the moment it takes weight. It is
- * the only pressure in the level and it is gentle: you get about a second and
- * a half, and it floats back up once you are off it, so a child who freezes
- * loses nothing but the hop.
+ * `sink` помечает камень, который начинает уходить под воду, едва примет вес.
+ * Это единственное давление на уровне, и оно мягкое: даётся примерно полторы
+ * секунды, а сойдёшь — камень всплывает обратно. Ребёнок, который замер, теряет
+ * только сам прыжок.
  */
 const CROSSING_FROM = -14;
-// Ends well short of the yurt. At -44 the far shore came out a metre from the
-// door, so there was no bank to land on — you crossed a river straight into a
-// wall of felt. The beach between is where the level lets you breathe.
+// Заканчивается заметно раньше юрты. На −44 дальний берег выходил в метре от
+// двери, и приземляться было некуда: реку переходили прямо в войлочную стену.
+// Полоса пляжа между ними — то место, где уровень даёт выдохнуть.
 const CROSSING_TO = -40;
-/** Water mesh half-width; treeline and pushback use the same number. */
+/** Половина ширины водной поверхности; кромка леса и отталкивание берут то же число. */
 const RIVER_HALF_WIDTH = 26;
-/** Clear band beyond the water edge before the forest wall starts. */
+/** Чистая полоса за кромкой воды до начала лесной стены. */
 const RIVER_BANK_CLEAR = 4;
 
-/** Pad radius. Wide on purpose: a five-year-old aims for the stone, not for a point. */
+/** Радиус площадки. Намеренно широкий: пятилетний целится в камень, а не в точку. */
 const STONE_R = 1.35;
 
 /**
- * Stepping stones zig-zagging across a wider bed. Centre-to-centre hops are
- * ~3.7 m with ~1 m of open water between pads (was ~0.4 m — read as a walkway).
- * The exit hop is longer and expects a running jump; everything else fits at
- * walk speed — see `assertCrossingIsJumpable`.
+ * Камни зигзагом по расширенному руслу. Прыжки от центра к центру около 3.7 м,
+ * между площадками примерно метр открытой воды (было 0.4 м — читалось мостками).
+ * Последний прыжок длиннее и рассчитан на разбег, остальные проходятся шагом —
+ * см. `assertCrossingIsJumpable`.
  */
 const STONES: Array<{ x: number; z: number; sink?: boolean }> = [
   { x: 1.5, z: -15.0 },
@@ -156,26 +155,27 @@ const STONES: Array<{ x: number; z: number; sink?: boolean }> = [
   { x: 1.0, z: -30.6, sink: true },
   { x: 3.3, z: -33.3 },
   { x: 0.9, z: -35.8 },
-  // The exit used to be a single 3.53 m hop from here, against a walking
-  // jump of 2.83 m — `assertCrossingIsJumpable` warned "run-up required",
-  // but this level never passes `runSpeed` to `updateMovement`, so the run-up
-  // it assumed does not exist. Every other hop on the crossing is ≤ 2.70 m;
-  // this one stone splits the odd one out into 2.08 m and 1.37 m and leaves
-  // the final pad — and so the hop to the bank — exactly where it was.
+  // Выход отсюда был одним прыжком на 3.53 м при шаговом прыжке 2.83 м.
+  // `assertCrossingIsJumpable` предупреждал «нужен разбег», но этот уровень
+  // никогда не передаёт `runSpeed` в `updateMovement`, то есть разбега, на
+  // который он рассчитывал, не существует. Все остальные прыжки переправы
+  // ≤ 2.70 м; этот камень делит выпадающий прыжок на 2.08 м и 1.37 м и
+  // оставляет последнюю площадку — а значит, и прыжок на берег — там же, где
+  // она была.
   { x: 3.2, z: -37.9 },
   { x: 1.6, z: -40.4, sink: true },
 ];
 
-/** Loose felt panels round the yurt. Three, spread so mending is a lap.
- *  Kept clear of the door mat (porch at z ≈ YURT.z+3.1) so pegs are not
- *  hidden behind the red circle. */
+/** Отошедшие войлочные полотнища вокруг юрты. Три штуки, разнесены так, чтобы
+ *  починка была кругом. Держатся в стороне от коврика у двери (порог на
+ *  z ≈ YURT.z+3.1), иначе колышки прячутся за красным кругом. */
 const PEGS: Array<{ x: number; z: number }> = [
   { x: YURT.x - 3.4, z: YURT.z + 0.4 },
   { x: YURT.x + 3.4, z: YURT.z + 0.6 },
   { x: YURT.x + 0.2, z: YURT.z - 3.5 },
 ];
 
-/** Decorative guy-rope stakes around the skirt — always visible from the door. */
+/** Декоративные колья растяжек по низу юрты — видны от двери всегда. */
 const YURT_STAKES: Array<{ angle: number }> = [
   { angle: 0.35 },
   { angle: 1.05 },
@@ -193,9 +193,9 @@ export type L0Phase =
   | 'lanterns'
   | 'crossing'
   | 'mend'
-  /** Walk to the door. The last beat outdoors. */
+  /** Дойти до двери. Последний бит под открытым небом. */
   | 'enter'
-  /** The second location: inside the yurt, playing the kui back. */
+  /** Вторая локация: внутри юрты, повторяем кюй. */
   | 'inside'
   | 'song'
   | 'outro';
@@ -205,28 +205,27 @@ export interface L0Hud extends BaseHud {
   lanternsTotal: number;
   pegsDone: number;
   pegsTotal: number;
-  /** 0…1, how close the dombra sounds. Drives the HUD's listening meter. */
+  /** 0…1 — насколько близко звучит домбра. Питает шкалу слуха в HUD. */
   nearness: number;
   wet: boolean;
-  /** 0…1 blackout, driven by the scene so the two locations never cross-fade. */
+  /** 0…1 затемнение, ведёт сама сцена: две локации никогда не смешиваются перекрёстно. */
   fade: number;
-  /** Which round of the kui, and how many there are. */
+  /** Какой сейчас круг кюя и сколько их всего. */
   kuiRound: number;
   kuiTotal: number;
-  /** True while the dombra is playing the phrase — the player should listen, not press. */
+  /** Истина, пока домбра играет фразу: нужно слушать, а не нажимать. */
   kuiListening: boolean;
-  /** How much of the current phrase has been echoed back correctly. */
+  /** Сколько текущей фразы уже повторено верно. */
   kuiEchoed: number;
   kuiLength: number;
 }
 
 /**
- * A dombra: pear body, long neck, two strings.
+ * Домбра: грушевидный корпус, длинный гриф, две струны.
  *
- * Built rather than loaded because there is no dombra in the asset library
- * and it is the one object in the level that has to be recognisable to a
- * child in Kazakhstan. Two strings, not six — that is what makes it a dombra
- * and not a generic guitar.
+ * Собрана, а не загружена: домбры в библиотеке ассетов нет, а это тот самый
+ * объект уровня, который ребёнок в Казахстане обязан узнать. Две струны, а не
+ * шесть, — именно это делает её домброй, а не абстрактной гитарой.
  */
 function makeDombra(): THREE.Group {
   const g = new THREE.Group();
@@ -259,8 +258,9 @@ function makeDombra(): THREE.Group {
 }
 
 /**
- * Cheap deterministic value noise — enough to break a flat felt colour into
- * something hand-dyed, not a real Perlin field and not worth one.
+ * Дешёвый детерминированный шум: его хватает, чтобы разбить плоский цвет
+ * войлока и сделать его похожим на крашенный вручную. Это не настоящий Перлин,
+ * и он здесь не нужен.
  */
 function feltHash(x: number, y: number) {
   const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
@@ -268,10 +268,10 @@ function feltHash(x: number, y: number) {
 }
 
 /**
- * Bakes mottled vertex colour onto felt geometry — the same "paint the
- * geometry, don't texture it" idiom the flowers use, aimed at a different
- * problem: the yurt read as a flat-shaded cylinder because it *was* one
- * colour, not because it was low-poly.
+ * Запекает пятнистый вершинный цвет в геометрию войлока — тот же приём «крась
+ * геометрию, а не текстурируй», что и у цветов, но против другой беды: юрта
+ * читалась плоско закрашенным цилиндром, потому что была *одного* цвета, а не
+ * потому что низкополигональна.
  */
 function paintFelt(geo: THREE.BufferGeometry, base: THREE.Color, vary: THREE.Color, freq: number) {
   const pos = geo.attributes.position;
@@ -292,16 +292,16 @@ function paintFelt(geo: THREE.BufferGeometry, base: THREE.Color, vary: THREE.Col
 }
 
 /**
- * A yurt, in the game's plush idiom: a felt drum with a domed roof, a red
- * door frame and a shanyrak — the wheel at the crown, which is the shape on
- * the flag and the one detail that must not be got wrong.
+ * Юрта в плюшевом языке игры: войлочный барабан с купольной крышей, красной
+ * дверной рамой и шаныраком — тем самым кругом на макушке, который изображён на
+ * флаге и который нельзя сделать неправильно.
  *
- * The first version was a cylinder, a cone and a black box for the door —
- * correct silhouette, nothing a child would call a home. This pass does not
- * change that silhouette; it adds the things that make felt read as felt
- * (mottled colour, not flat), a structure read at the door (posts, not a
- * frame floating on the wall), and the one cue that was actively wrong: the
- * doorway was a hole, and a lived-in yurt is warm inside before you reach it.
+ * Первый вариант был цилиндром, конусом и чёрным ящиком вместо двери: силуэт
+ * верный, но домом это ребёнок не назовёт. Этот проход силуэт не меняет — он
+ * добавляет то, из-за чего войлок читается войлоком (пятнистый цвет вместо
+ * плоского), конструкцию у двери (стойки, а не рама, висящая на стене) и
+ * единственную деталь, которая была прямо неверной: дверной проём был дырой, а
+ * жилая юрта тёплая внутри ещё до того, как ты до неё дошёл.
  */
 function makeYurt(): THREE.Group {
   const g = new THREE.Group();
@@ -323,9 +323,9 @@ function makeYurt(): THREE.Group {
   roof.position.y = 2.72;
   roof.castShadow = true;
 
-  // A reinforced base course — every real yurt has one, and it is what was
-  // missing from the ground contact: without it the wall looked pinned to
-  // the grass rather than standing on it.
+  // Усиленный нижний пояс: он есть у любой настоящей юрты, и именно его не
+  // хватало в месте касания с землёй — без него стена выглядела приколотой к
+  // траве, а не стоящей на ней.
   const baseBand = new THREE.Mesh(
     new THREE.CylinderGeometry(3.03, 3.1, 0.34, 22),
     new THREE.MeshStandardMaterial({ color: 0x8a6a3e, roughness: 0.95 }),
@@ -333,9 +333,9 @@ function makeYurt(): THREE.Group {
   baseBand.position.y = 0.17;
   baseBand.castShadow = true;
 
-  // Panel seams. Felt yurts are built from tied sections, not poured as one
-  // shell — a handful of vertical rope-lines is what tells a child that,
-  // without needing a tutorial popup to say so.
+  // Швы между полотнищами. Войлочная юрта собирается из связанных частей, а не
+  // отливается одной оболочкой; несколько вертикальных верёвочных линий говорят
+  // об этом ребёнку без всплывающей подсказки.
   const seamMat = new THREE.MeshStandardMaterial({ color: 0xb98f52, roughness: 0.9 });
   const seamCount = 9;
   for (let i = 0; i < seamCount; i++) {
@@ -347,9 +347,9 @@ function makeYurt(): THREE.Group {
     g.add(seam);
   }
 
-  // A mended patch, off to one side. Quiet continuity with the level's own
-  // beat — the gardener fixes torn felt for a living, so his own home
-  // should show one repair, not just be the place repairs happen.
+  // Заплатка сбоку. Тихая связка с собственным битом уровня: садовник чинит
+  // порванный войлок, значит, на его доме должна быть видна хотя бы одна
+  // починка, а не только происходить чужие.
   const patch = new THREE.Mesh(
     new THREE.PlaneGeometry(0.52, 0.4, 2, 2),
     new THREE.MeshStandardMaterial({ color: 0xe9dfc8, roughness: 0.95, side: THREE.DoubleSide }),
@@ -369,9 +369,9 @@ function makeYurt(): THREE.Group {
     g.add(spoke);
   }
 
-  // A soft, static smoke wisp over the shanyrak — three stretched, fading
-  // blobs rather than a particle system, because a lived-in home has a fire
-  // in it and a silhouette-only hearth does not say so from outside.
+  // Мягкая неподвижная струйка дыма над шаныраком — три вытянутых затухающих
+  // пятна вместо системы частиц: в жилом доме горит огонь, а очаг, существующий
+  // только силуэтом, снаружи об этом не сообщает.
   const smokeMat = new THREE.MeshBasicMaterial({
     color: 0xf3f0ea, transparent: true, opacity: 0.32, depthWrite: false,
   });
@@ -382,8 +382,8 @@ function makeYurt(): THREE.Group {
     g.add(puff);
   }
 
-  // A band of ornament at the eaves. Kept to a simple repeating diamond —
-  // the brief asks for Kazakh pattern used delicately, not a museum piece.
+  // Полоса орнамента по карнизу. Оставлен простой повторяющийся ромб: по
+  // заданию казахский узор нужен деликатно, а не музейным экспонатом.
   for (let i = 0; i < 22; i++) {
     const a = (i / 22) * Math.PI * 2;
     const d = new THREE.Mesh(new THREE.OctahedronGeometry(0.13), trim);
@@ -396,9 +396,9 @@ function makeYurt(): THREE.Group {
   const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.25, 1.65, 0.16), trim);
   doorFrame.position.set(0, 0.82, 2.94);
 
-  // Wood corner posts, so the frame reads as built rather than painted onto
-  // the wall. Real ones carry the door's weight; these just need to look
-  // like they could.
+  // Деревянные угловые стойки, чтобы рама читалась построенной, а не
+  // нарисованной на стене. Настоящие держат вес двери; этим достаточно выглядеть
+  // так, будто могли бы.
   const postGeo = new THREE.CylinderGeometry(0.075, 0.09, 1.72, 6);
   for (const side of [-1, 1]) {
     const post = new THREE.Mesh(postGeo, wood);
@@ -406,9 +406,9 @@ function makeYurt(): THREE.Group {
     g.add(post);
   }
 
-  // The one thing that was actively wrong, not just plain: a black hole
-  // read as broken, not as an unlit room. Warm and emissive, the same
-  // "lit from within" trick the lanterns use once struck.
+  // Единственное, что было прямо неверным, а не просто бедным: чёрная дыра
+  // читалась поломкой, а не неосвещённой комнатой. Тёплый цвет и свечение — тот
+  // же приём «светится изнутри», что у зажжённых фонарей.
   const doorway = new THREE.Mesh(
     new THREE.BoxGeometry(0.95, 1.35, 0.1),
     new THREE.MeshStandardMaterial({
@@ -422,10 +422,10 @@ function makeYurt(): THREE.Group {
 }
 
 /**
- * A fallen boulder at the foot of the mountains behind spawn — the close-up
- * read that says "rock", where `mountain()` is deliberately a distant-ridge
- * silhouette. Built from two offset lumps rather than one dodecahedron so
- * three or four in a cluster do not read as the same die at different sizes.
+ * Упавший валун у подножия гор за спавном — ближний план, который говорит
+ * «камень», тогда как `mountain()` намеренно остаётся силуэтом дальнего хребта.
+ * Собран из двух смещённых глыб, а не одного додекаэдра, чтобы три-четыре штуки
+ * рядом не читались одной костью разного размера.
  */
 function boulder(x: number, z: number, scale: number, groundY: number): THREE.Group {
   const g = new THREE.Group();
@@ -444,10 +444,10 @@ function boulder(x: number, z: number, scale: number, groundY: number): THREE.Gr
 }
 
 /**
- * A wooden tent peg: tapered shaft driven in at a slight angle, a rounded
- * head standing proud of the felt. The single 6-sided cone this replaced
- * read as a flat sliver at gameplay camera distance — barely a peg at all,
- * just a dark triangle on the panel.
+ * Деревянный колышек: сужающийся стержень, вбитый под небольшим углом, и
+ * скруглённая шляпка, выступающая над войлоком. Шестигранный конус, который он
+ * заменил, с игровой дистанции читался плоской щепкой — почти не колышком, а
+ * тёмным треугольником на полотнище.
  */
 function makePeg(template: THREE.Object3D | null = null): THREE.Group {
   if (template) {
@@ -487,9 +487,9 @@ function makePeg(template: THREE.Object3D | null = null): THREE.Group {
 }
 
 /**
- * One loose felt panel with its peg. Flapping while loose, still once pegged
- * — the animation is the whole read: a child sees which ones still need
- * doing without being told a number.
+ * Одно отошедшее полотнище со своим колышком. Пока не закреплено — хлопает,
+ * закрепили — замирает. Вся считываемость в этой анимации: ребёнок видит, где
+ * ещё не сделано, без всяких чисел.
  */
 function makeFeltPanel(pegTemplate: THREE.Object3D | null = null): THREE.Group {
   const g = new THREE.Group();
@@ -515,8 +515,8 @@ function makeFeltPanel(pegTemplate: THREE.Object3D | null = null): THREE.Group {
   strap.position.set(0, 0.3, -0.1);
   strap.rotation.x = -0.62;
 
-  // Peg sits on the grass in front of the flap — proud of the panel, not
-  // tucked under it where the camera loses it against the felt.
+  // Колышек стоит на траве перед полотнищем, выступая над ним, а не спрятан
+  // под ним, где камера теряет его на фоне войлока.
   const peg = makePeg(pegTemplate);
   peg.position.set(0.85, 0.02, 0.55);
   peg.rotation.set(0.05, 0.35, Math.PI / 2 - 0.05);
@@ -548,38 +548,37 @@ export class Level0Scene extends BaseLevelScene {
   private readonly lanternsTotal = 3;
 
   private stones: THREE.Object3D[] = [];
-  /** Highest stone index reached so far — see BUG-013: the guide arrow used
-   *  to always point at `stones[0]`, so it pointed backward for the entire
-   *  crossing once the player was past the first stone. */
+  /** Самый дальний достигнутый камень — см. BUG-013: стрелка всегда указывала на
+   *  `stones[0]`, то есть всю переправу смотрела назад, стоило пройти первый
+   *  камень. */
   private furthestStoneIdx = -1;
-  /** Surface height of the river, derived from the banks the terrain built. */
+  /** Уровень воды, выводится из берегов, которые построил рельеф. */
   private waterY = 0;
   private river: RiverWater | null = null;
 
-  // ── The second location ──────────────────────────────────────
+  // ── Вторая локация ───────────────────────────────────────────
   private interior: YurtInterior | null = null;
   private pads: THREE.Group[] = [];
-  /** True once the hero has been moved into the yurt. Switches ground, bounds and camera. */
+  /** Истина, когда герой перенесён в юрту. Переключает землю, границы и камеру. */
   private insideYurt = false;
-  /** 0 clear, 1 black. The transition is a blackout, never a cross-fade. */
+  /** 0 — прозрачно, 1 — чёрное. Переход — затемнение, а не перекрёстный наплыв. */
   private fade = 0;
   private fadeTo = 0;
-  /** Set while the blackout is deep enough to move the hero without it being seen. */
+  /** Взводится, пока затемнение достаточно плотное, чтобы перенести героя незаметно. */
   private pendingTeleport: (() => void) | null = null;
 
   /**
-   * The kui, as call and response.
+   * Кюй как перекличка.
    *
-   * Three rounds of two, three and four notes. The dombra plays the phrase,
-   * the strings light in order, and the player answers on the three pads. A
-   * wrong pad is not a failure — the phrase is simply played again from the
-   * start, which is what a teacher does.
+   * Три круга по две, три и четыре ноты. Домбра играет фразу, струны загораются
+   * по порядку, игрок отвечает на трёх площадках. Неверная площадка — не
+   * проигрыш: фраза просто играется заново с начала, как это делает учитель.
    */
   private kuiRounds = [2, 3, 4];
   private kuiRound = 0;
   private kuiPhrase: number[] = [];
   private kuiEchoed = 0;
-  /** Index into the phrase while the dombra is playing it; -1 when listening is over. */
+  /** Позиция во фразе, пока домбра её играет; −1, когда слушать больше нечего. */
   private kuiPlayI = -1;
   private kuiNextNoteAt = 0;
   private kuiListening = true;
@@ -593,11 +592,11 @@ export class Level0Scene extends BaseLevelScene {
   private yurt: THREE.Group | null = null;
   private gardener: THREE.Object3D | null = null;
   private dombra: THREE.Group | null = null;
-  /** Ground ring at the door, lit only once there is somewhere to walk in. */
+  /** Кольцо на земле у двери, горит только когда внутрь уже можно войти. */
   private doorMarker: THREE.Mesh | null = null;
   private butterflies: THREE.Group[] = [];
 
-  /** 0…1 by distance to the yurt. The dombra is the level's compass. */
+  /** 0…1 по расстоянию до юрты. Домбра — компас этого уровня. */
   private nearness = 0;
   private lastChime = 0;
 
@@ -618,15 +617,15 @@ export class Level0Scene extends BaseLevelScene {
     return super.isUnderwater(x, z);
   }
 
-  /** True in the z band where the stream runs. */
+  /** Истина в полосе z, где течёт ручей. */
   private isInRiverChannel(z: number) {
     return z < CROSSING_FROM + 1.5 && z > CROSSING_TO - 1.5;
   }
 
   /**
-   * Fall into the water → stumble sfx and back to the near bank. Works in
-   * every outdoor beat, not only during `crossing`: before the lanterns are
-   * done children still wander to the stream edge.
+   * Упал в воду — звук спотыкания и обратно на ближний берег. Работает во всех
+   * уличных битах, а не только в `crossing`: дети выходят к кромке ручья ещё до
+   * того, как закончат с фонарями.
    */
   private ejectFromRiver(now: number) {
     if (this.insideYurt || this.phase === 'intro' || this.phase === 'song' || this.phase === 'outro') return;
@@ -636,12 +635,12 @@ export class Level0Scene extends BaseLevelScene {
     const standing = this.stones.find((s) => this.isStandingOn(s));
     const sunkUnder = standing && (standing.userData.sunk as number) > 0.92;
     if (standing && !sunkUnder) return;
-    // A jump leaves `standing` the moment the hero's XZ clears the stone's
-    // radius — well before the arc's upward velocity has lifted `h.y` past
-    // the water line below. Without this, every jump between stones was
-    // ejected within a handful of frames of leaving the stone, never
-    // reaching the far side regardless of jump distance: confirmed live,
-    // stone 9→10 reset to the bank 5 frames after `jump()`, mid-ascent.
+    // Прыжок покидает `standing` в тот момент, когда XZ героя выходит за радиус
+    // камня, — задолго до того, как восходящая скорость поднимет `h.y` выше
+    // уровня воды под ним. Без этой поправки каждый прыжок между камнями
+    // выбрасывало через несколько кадров после отрыва, и до другой стороны он не
+    // долетал независимо от дальности: проверено вживую, прыжок с камня 9 на 10
+    // сбрасывал на берег через 5 кадров после `jump()`, на подъёме.
     if (this.airborne) return;
 
     const bed = this.groundHeightAt(h.x, h.z);
@@ -658,9 +657,9 @@ export class Level0Scene extends BaseLevelScene {
     this.jumpVelocity = 0;
     this.airborne = false;
     if (this.phase === 'crossing') {
-      // Hero is back at the start bank — the guide arrow must aim at
-      // stone 0 again, not stay pointed at wherever progress previously
-      // reached (that would just recreate BUG-013 the other way round).
+      // Герой снова на стартовом берегу: стрелка обязана указывать на камень 0,
+      // а не оставаться там, куда дошли раньше, — иначе это тот же BUG-013,
+      // только наоборот.
       this.furthestStoneIdx = -1;
       for (const s of this.stones) {
         s.userData.sunk = 0;
@@ -673,23 +672,22 @@ export class Level0Scene extends BaseLevelScene {
   protected currentPhase() { return this.phase; }
 
   protected onMovementHintDismiss() {
-    // First step taken: that is the whole of beat one's teaching, so the
-    // level moves on the moment it happens rather than after a timer.
+    // Сделан первый шаг — в этом всё обучение первого бита, поэтому уровень
+    // движется дальше сразу, а не по таймеру.
     if (this.phase === 'follow') this.pushHud();
   }
 
   /**
-   * Inside, the room is the boundary — a circle, not a corridor with rooms
-   * along it. Overridden rather than reserved so the outdoor play area is
-   * untouched and cannot leak a path two hundred metres north.
+   * Внутри границей служит сама комната — круг, а не коридор с комнатами вдоль
+   * него. Переопределяется, а не резервируется, чтобы уличная игровая зона
+   * осталась нетронутой и из неё не протянулась тропа на двести метров к северу.
    */
   protected clampToPlayArea(x: number, z: number): { x: number; z: number } {
-    // Outdoors, the corridor itself has no far end — `pathCorridor` only ever
-    // bounds x. Capping z here, rather than teaching the base clamp about a
-    // wall it would need for exactly one level, holds the player at the
-    // mountains behind spawn without touching the camera: the camera only
-    // ever follows the hero's position, so it stays free to look past the
-    // line even though the hero cannot cross it.
+    // На улице у коридора нет дальнего конца: `pathCorridor` ограничивает только
+    // x. Ограничение z здесь — вместо того чтобы учить базовый клэмп стене,
+    // нужной ровно одному уровню, — удерживает игрока у гор за спавном и не
+    // трогает камеру: камера следует только за позицией героя и остаётся вольна
+    // смотреть за эту линию, хотя герой её не перейдёт.
     if (!this.insideYurt) return super.clampToPlayArea(x, Math.min(z, BACK_WALL_Z));
     const dx = x - YURT_INSIDE.x;
     const dz = z - YURT_INSIDE.z;
@@ -700,26 +698,25 @@ export class Level0Scene extends BaseLevelScene {
   }
 
   /**
-   * Hold the camera inside the felt and under the roof.
+   * Держать камеру внутри войлока и под крышей.
    *
-   * Both bounds are needed and the second one is the one that bites. Pulling
-   * the camera inside the wall is obvious; what is not is that the roof poles
-   * slope down to meet that wall, so the closer to the wall the camera is
-   * pushed, the lower it has to be. Getting only the first right put a roof
-   * pole directly across the lens and filled the screen with brown.
+   * Нужны обе границы, и кусается вторая. Затащить камеру внутрь стены
+   * очевидно; неочевидно, что жерди крыши сходятся к этой стене, и чем ближе к
+   * ней камера, тем ниже она должна быть. Если сделать только первое, поперёк
+   * объектива встаёт жердь и заливает экран коричневым.
    */
   /**
-   * Show one location and hide the other.
+   * Показать одну локацию и спрятать другую.
    *
-   * Distance alone was not enough. Frustum culling does drop the interior for
-   * free while you are outdoors — measured at two draw calls of difference
-   * across a hundred and sixty-nine meshes — but it does nothing in the other
-   * direction, because the treeline that encloses every level is instanced
-   * with `frustumCulled = false`. Standing inside a yurt two hundred metres
-   * away, the whole forest was still being submitted every frame.
+   * Одного расстояния не хватило. Отсечение по пирамиде видимости и так убирает
+   * интерьер, пока ты снаружи, — замерено: разница в два вызова отрисовки на сто
+   * шестьдесят девять мешей, — но в обратную сторону оно не работает, потому что
+   * кромка леса, окружающая каждый уровень, инстансится с `frustumCulled = false`.
+   * Стоя в юрте в двухстах метрах, весь лес всё равно отправлялся на отрисовку
+   * каждый кадр.
    *
-   * The sky is kept in both places: the room has a smoke hole in the roof and
-   * you can see up through it.
+   * Небо остаётся в обеих локациях: в крыше есть дымовое отверстие, и сквозь
+   * него видно вверх.
    */
   private showOnly(inside: boolean) {
     const keep = new Set<THREE.Object3D>([this.hero]);
@@ -742,13 +739,12 @@ export class Level0Scene extends BaseLevelScene {
     const dx = p.x - YURT_INSIDE.x;
     const dz = p.z - YURT_INSIDE.z;
     let d = Math.hypot(dx, dz);
-    // The physical felt wall is at R + .5, but putting a 54° phone lens only
-    // .9 units below its low eave still lets the *top of the frame* look past
-    // the roof on a hard orbit. Keep a meaningful roof-volume buffer rather
-    // than merely preventing the camera origin itself from crossing a wall.
-    // This is deliberately a little closer to the child when they stand near
-    // the perimeter; a tight but fully interior shot is always better than a
-    // view of the hidden outdoor world.
+    // Физическая войлочная стена стоит на R + .5, но объектив телефона с углом
+    // 54°, опущенный всего на .9 ниже низкого карниза, при резком развороте всё
+    // равно даёт *верху кадра* заглянуть за крышу. Нужен внятный запас по объёму
+    // крыши, а не просто запрет самой точке камеры пересекать стену.
+    // У периметра камера намеренно чуть ближе к ребёнку: тесный, но полностью
+    // внутренний кадр всегда лучше вида на спрятанный уличный мир.
     const maxR = INSIDE_R - 3.5;
     if (d > maxR) {
       const k = maxR / d;
@@ -761,17 +757,17 @@ export class Level0Scene extends BaseLevelScene {
   }
 
   /**
-   * `withCameraOrbit()` rotates around the hero only for the render, then
-   * restores the stored follow-camera position. Clamping before render is
-   * therefore the only point that can catch a hard look-around which swings
-   * the lens through the yurt wall or low roof. The outdoor world keeps its
-   * unconstrained orbit; this is a room boundary, not a global camera rule.
+   * `withCameraOrbit()` поворачивает камеру вокруг героя только на время
+   * отрисовки, а потом возвращает сохранённое положение камеры следования.
+   * Поэтому ограничение перед отрисовкой — единственная точка, где можно поймать
+   * резкий осмотр, уводящий объектив сквозь стену юрты или низкую крышу. Улица
+   * сохраняет свободную орбиту: это граница комнаты, а не общее правило камеры.
    */
   protected beforeRenderCamera() {
     if (this.insideYurt) this.keepCameraInsideYurt();
   }
 
-  /** Enter the second location from the blackout, or directly for dev QA. */
+  /** Вход во вторую локацию из затемнения — или напрямую, для отладки. */
   private enterYurt(noteDelay = 1500, celebrate = true) {
     this.insideYurt = true;
     this.showOnly(true);
@@ -782,7 +778,7 @@ export class Level0Scene extends BaseLevelScene {
     this.airborne = false;
     this.jumpVelocity = 0;
     this.camera.position.set(YURT_INSIDE.x, 4.2, YURT_INSIDE.z + 12.4);
-    // Snap the aim rather than easing it two hundred metres.
+    // Прицел переставляется мгновенно, а не едет плавно двести метров.
     this.resetCameraAim();
     this.kuiRound = 0;
     this.startKuiRound(performance.now() + noteDelay);
@@ -790,8 +786,8 @@ export class Level0Scene extends BaseLevelScene {
   }
 
   /**
-   * A direct room start makes the camera boundary checkable without replaying
-   * three minutes of outdoor beats. It is dead in production builds.
+   * Прямой старт в комнате позволяет проверить границу камеры, не переигрывая
+   * три минуты уличных битов. В production-сборке этого кода нет.
    *
    * `?mission=0&l0=inside`
    */
@@ -834,8 +830,8 @@ export class Level0Scene extends BaseLevelScene {
       this.spawnSparks(t.position, 12, [0xe9e2d2, 0xc4462f]);
       this.praiseUntil = now + 900;
       if (this.pegsDone >= this.pegsTotal) {
-        // The felt is mended, so the gardener opens the door. The level's
-        // second half is somewhere else.
+        // Войлок починен, и садовник открывает дверь. Вторая половина уровня —
+        // в другом месте.
         this.phase = 'enter';
         this.stars += 5;
         AudioManager.sfx('found');
@@ -845,7 +841,7 @@ export class Level0Scene extends BaseLevelScene {
       return;
     }
 
-    // ── Inside: answering the kui ────────────────────────────────
+    // ── Внутри: ответ на кюй ─────────────────────────────────────
     if (this.phase === 'inside' && t.userData.isStringPad) {
       if (this.kuiListening) return; // still being played to; pressing does nothing
       this.pressPad(t.userData.index as number, now);
@@ -853,12 +849,12 @@ export class Level0Scene extends BaseLevelScene {
   }
 
   /**
-   * One answer on one pad.
+   * Один ответ на одной площадке.
    *
-   * Right notes accumulate. A wrong note costs nothing at all — no stars, no
-   * lives, no restart of the round — the phrase is simply played again, which
-   * is what happens when a child gets it wrong in front of someone teaching
-   * them. The only thing a mistake costs is the few seconds of hearing it.
+   * Верные ноты накапливаются. Неверная не стоит вообще ничего — ни звёзд, ни
+   * жизней, ни перезапуска круга: фраза просто играется снова, как и бывает,
+   * когда ребёнок ошибается перед тем, кто его учит. Ошибка стоит только
+   * нескольких секунд прослушивания.
    */
   private pressPad(index: number, now: number) {
     const want = this.kuiPhrase[this.kuiEchoed];
@@ -878,8 +874,8 @@ export class Level0Scene extends BaseLevelScene {
           [0xf0d24a, 0x5fbf7a],
         );
         if (this.kuiRound >= this.kuiRounds.length) {
-          // The melody is whole. The song happens here, in the room it was
-          // learned in, rather than back out on the grass.
+          // Мелодия собрана целиком. Песня звучит здесь, в той комнате, где её
+          // учили, а не снова на траве.
           this.phase = 'song';
           this.stars += 6;
           this.nextAt = now + 5200;
@@ -889,7 +885,7 @@ export class Level0Scene extends BaseLevelScene {
         }
       }
     } else {
-      // Wrong note: a soft "not that one", then the phrase again.
+      // Неверная нота: мягкое «не эта», и фраза играется снова.
       this.noteMistake();
       AudioManager.sfx('stumble');
       this.startKuiRound(now + 700);
@@ -897,12 +893,12 @@ export class Level0Scene extends BaseLevelScene {
     this.pushHud();
   }
 
-  /** Deal a fresh phrase for the current round and start playing it. */
+  /** Выдать новую фразу для текущего круга и начать её играть. */
   private startKuiRound(atMs: number) {
     const len = this.kuiRounds[Math.min(this.kuiRound, this.kuiRounds.length - 1)];
-    // Re-dealt on every attempt rather than kept, so a child who missed the
-    // fourth note is not made to sit through the same phrase until they get
-    // it — and so nobody can beat it by memorising one answer.
+    // Фраза выдаётся заново на каждой попытке, а не сохраняется: ребёнка,
+    // промахнувшегося на четвёртой ноте, не заставляют высиживать ту же фразу до
+    // победы, и никто не пройдёт это, заучив один ответ.
     this.kuiPhrase = Array.from({ length: len }, () => Math.floor(Math.random() * 3));
     this.kuiEchoed = 0;
     this.kuiPlayI = 0;
@@ -910,7 +906,7 @@ export class Level0Scene extends BaseLevelScene {
     this.kuiNextNoteAt = atMs;
   }
 
-  /** Light a string and its pad for a moment. `strength` 1 is a full pluck. */
+  /** На мгновение зажечь струну и её площадку. `strength` = 1 — полный щипок. */
   private flashString(index: number, strength: number) {
     const s = this.interior?.strings[index];
     if (s) s.userData.lit = strength;
@@ -938,9 +934,9 @@ export class Level0Scene extends BaseLevelScene {
         seed: 0,
         features: [
           { kind: 'flat', x: 0, z: SPAWN_Z - 3, r: 8 },
-          // Campsite terrace: yurt, porch, and the ground behind toward the
-          // treeline. A disc of r=9 was too small and sat inside the world rim,
-          // so corridor + rim put the tent on a hillside.
+          // Площадка стоянки: юрта, порог и земля позади, к кромке леса. Диск
+          // радиусом 9 был мал и попадал внутрь края мира, поэтому коридор плюс
+          // край ставили юрту на склон.
           {
             kind: 'flatRect' as const,
             x: YURT.x,
@@ -961,12 +957,12 @@ export class Level0Scene extends BaseLevelScene {
       },
     });
 
-    // ── The mountains behind spawn ──────────────────────────────────
-    // `setupForestEnvironment`'s own backdrop ridge sits entirely past the
-    // yurt (z ≈ -62 to -78) — nothing marks the way Barsik came down from.
-    // This closes the loop behind him: a boulder field at the foot of a
-    // ridge, not an invisible wall. `clampToPlayArea` is what actually stops
-    // the player at BACK_WALL_Z; this is why they stop there.
+    // ── Горы за спавном ─────────────────────────────────────────────
+    // Собственная фоновая гряда `setupForestEnvironment` целиком лежит за юртой
+    // (z ≈ −62…−78), и путь, по которому Барсик спустился, ничем не отмечен.
+    // Это замыкает мир за его спиной: валунное поле у подножия хребта, а не
+    // невидимая стена. Останавливает игрока на BACK_WALL_Z всё равно
+    // `clampToPlayArea`; здесь — объяснение, почему он там останавливается.
     for (const [ox, oz, h, w] of [
       [-40, 50, 22, 17],
       [-2, 58, 26, 20],
@@ -983,10 +979,10 @@ export class Level0Scene extends BaseLevelScene {
 
     this.reserve(0, SPAWN_Z, 5);
     this.reserve(YURT.x, YURT.z, 8);
-    // The whole river, not a ribbon down the middle of it. `reserve` is what
-    // keeps decoration out, and at r = 6.5 it covered a fraction of a bed
-    // that is thirty metres across — so grass, bushes and trees came up
-    // through the water either side of the stones.
+    // Резервируется вся река, а не ленточка по её середине. Декор не пускает
+    // именно `reserve`, а при r = 6.5 он покрывал лишь часть русла шириной в
+    // тридцать метров — трава, кусты и деревья лезли из воды по обе стороны от
+    // камней.
     for (let i = 0; i <= 10; i++) {
       const z = CROSSING_FROM - (i / 10) * (CROSSING_FROM - CROSSING_TO);
       this.reserve(routeX(z), z, RIVER_HALF_WIDTH);
@@ -994,16 +990,15 @@ export class Level0Scene extends BaseLevelScene {
     for (const l of LANTERNS) this.reserve(l.x, l.z, 2.5);
     for (const p of PEGS) this.reserve(p.x, p.z, 2);
 
-    // ── The water line ───────────────────────────────────────────
-    // Derived from the terrain that actually got built, not from a constant.
-    // The first attempt hard-coded bed + 0.62 and the stream came out *above*
-    // the near bank — a river flooding the meadow. Sampling both banks and
-    // sitting partway between them cannot do that, whatever the terrain
-    // generator decides to produce.
+    // ── Уровень воды ─────────────────────────────────────────────
+    // Выводится из построенного рельефа, а не из константы. В первой попытке
+    // было жёстко «дно + 0.62», и ручей оказывался *выше* ближнего берега —
+    // река, затопившая луг. Выборка обоих берегов и посадка между ними так не
+    // умеет, что бы ни выдал генератор рельефа.
     //
-    // Computed here rather than with the water mesh, because everything
-    // placed below needs to know where the water is: the trail used to march
-    // straight into the river and lay stepping stones along the bottom of it.
+    // Считается здесь, а не вместе с водной поверхностью, потому что всё, что
+    // ставится ниже, должно знать, где вода: тропа раньше уходила прямо в реку и
+    // выкладывала камни по её дну.
     const midZ = (CROSSING_FROM + CROSSING_TO) / 2;
     const bedY = this.groundHeightAt(routeX(midZ), midZ);
     const bankY = Math.min(
@@ -1012,16 +1007,15 @@ export class Level0Scene extends BaseLevelScene {
     );
     const waterY = bedY + Math.max(0.25, (bankY - bedY) * 0.55);
     this.waterY = waterY;
-    // Set before the scatter runs, so nothing is planted on the river bed.
+    // Задаётся до разброса, чтобы на дне реки ничего не выросло.
     this.waterLineY = waterY;
 
     const pad = spawnPad(0, SPAWN_Z);
     this.scene.add(pad);
 
-    // The trail stops at each bank. It used to be laid at even spacing from
-    // the spawn to the yurt regardless of what was in the way, so a line of
-    // path stones ran along the river bed underwater — which also quietly
-    // told the player the route went straight through.
+    // Тропа обрывается у каждого берега. Раньше её клали равномерно от спавна до
+    // юрты, не глядя на то, что по пути, и линия плит уходила под воду по дну —
+    // заодно молча сообщая игроку, что маршрут идёт напрямик.
     await this.layTrail(
       loader,
       Array.from({ length: 26 }, (_, i) => {
@@ -1031,12 +1025,12 @@ export class Level0Scene extends BaseLevelScene {
       { size: 1.25 },
     );
 
-    // Wide enough to run past the treeline. Where the ground rises above the
-    // water line the terrain simply hides the plane, so the shore draws
-    // itself and there is no strip of grass sitting inside the river.
+    // Достаточно широкая, чтобы уйти за кромку леса. Там, где земля поднимается
+    // выше уровня воды, рельеф просто скрывает плоскость: берег рисуется сам, и
+    // полосы травы внутри реки не остаётся.
     //
-    // The stones are passed in so the water knows something is standing in
-    // it: twelve cylinders in a mirror-flat sheet look painted on.
+    // Камни передаются внутрь, чтобы вода знала, что в ней что-то стоит:
+    // двенадцать цилиндров в зеркально ровном листе выглядят нарисованными.
     this.river = createRiverWater({
       width: RIVER_HALF_WIDTH * 2,
       length: Math.abs(CROSSING_TO - CROSSING_FROM) + 12,
@@ -1047,10 +1041,10 @@ export class Level0Scene extends BaseLevelScene {
     });
     this.scene.add(this.river.mesh);
 
-    // Top surface, a little proud of the water so it reads as dry.
+    // Верхняя грань чуть выше воды, чтобы читалась сухой.
     const topY = waterY + 0.3;
-    // Reaches the bed rather than floating at a constant height: the bed is
-    // sculpted, so a fixed 2 m cylinder hangs in the water at the deep end.
+    // Достаёт до дна, а не висит на постоянной высоте: дно рельефное, и
+    // фиксированный цилиндр в 2 м на глубоком конце повисает в воде.
     const stoneMat = new THREE.MeshStandardMaterial({ color: 0x9aa3a8, roughness: 0.95 });
     for (const s of STONES) {
       const x = routeX(s.z) + s.x;
@@ -1067,17 +1061,16 @@ export class Level0Scene extends BaseLevelScene {
       stone.userData.sunk = 0;
       this.stones.push(stone);
       this.scene.add(stone);
-      // The bit that was missing entirely. Without this the stones are
-      // scenery: height comes from `groundHeightAt`, which knows only the
-      // terrain, so the hero's feet tracked the river bed and sank straight
-      // through every one of them.
-      // The reach is a touch wider than the pad — a child aiming at the edge
-      // gets the stone, not the water.
+      // Того, чего не было вовсе. Без этого камни — декорация: высота берётся из
+      // `groundHeightAt`, который знает только рельеф, и лапы героя шли по дну
+      // реки, проваливаясь сквозь каждый камень.
+      // Радиус чуть шире площадки: ребёнок, целящийся в край, получает камень, а
+      // не воду.
       this.addPlatform(stone, STONE_R + 0.45, h / 2);
     }
     this.assertCrossingIsJumpable(waterY);
 
-    // ── Lanterns, lying where the wind put them ───────────────────
+    // ── Фонари лежат там, куда их положил ветер ───────────────────
     for (const spec of LANTERNS) {
       const holder = new THREE.Group();
       const glb =
@@ -1087,8 +1080,8 @@ export class Level0Scene extends BaseLevelScene {
       body.position.y = 0;
       holder.add(body);
 
-      // The flame is what changes when it is set upright, so it is separate
-      // and starts dark.
+      // При подъёме меняется именно пламя, поэтому оно отдельным объектом и
+      // начинает тёмным.
       const flame = new THREE.Mesh(
         new THREE.SphereGeometry(0.13, 10, 8),
         new THREE.MeshStandardMaterial({
@@ -1109,8 +1102,8 @@ export class Level0Scene extends BaseLevelScene {
       const bed = this.groundHeightAt(spec.x, spec.z);
       holder.position.set(spec.x, bed, spec.z);
       holder.rotation.z = spec.rotZ;   // knocked over
-      // fitHeight grounds the mesh upright; after tipping, lift so the lowest
-      // point still rests on the terrain.
+      // fitHeight сажает меш на землю стоя; после опрокидывания приподнимаем,
+      // чтобы самая нижняя точка по-прежнему лежала на рельефе.
       holder.updateMatrixWorld(true);
       groundY(holder, bed);
       holder.userData.isLantern = true;
@@ -1122,7 +1115,7 @@ export class Level0Scene extends BaseLevelScene {
       this.scene.add(holder);
     }
 
-    // ── The yurt, its felt, and the player of the dombra ──────────
+    // ── Юрта, её войлок и тот, кто играет на домбре ───────────────
     this.yurt = makeYurt();
     this.yurt.position.set(YURT.x, this.groundHeightAt(YURT.x, YURT.z), YURT.z);
     this.scene.add(this.yurt);
@@ -1132,13 +1125,13 @@ export class Level0Scene extends BaseLevelScene {
       (await loadPropModel(loader, 's1_quality_tent_peg.glb', { height: 1.15, aspectMax: 14 })) ??
       null;
 
-    // Permanent skirt stakes — readable guy-rope pegs around the yurt even
-    // before the mend beat, so the tent does not look like it floats free.
+    // Постоянные колья по низу: понятные колышки растяжек вокруг юрты ещё до
+    // бита с починкой, чтобы она не выглядела висящей в воздухе.
     const stakeR = 3.55;
     for (const s of YURT_STAKES) {
       const x = YURT.x + Math.cos(s.angle) * stakeR;
       const z = YURT.z + Math.sin(s.angle) * stakeR;
-      // Skip the doorway arc so stakes do not sit on the red porch mat.
+      // Дуга у входа пропускается, чтобы колья не стояли на красном коврике.
       const doorAng = Math.PI / 2; // +z entrance
       const dAng = Math.abs(Math.atan2(Math.sin(s.angle - doorAng), Math.cos(s.angle - doorAng)));
       if (dAng < 0.55) continue;
@@ -1160,13 +1153,12 @@ export class Level0Scene extends BaseLevelScene {
       this.scene.add(panel);
     }
 
-    // ── The porch ────────────────────────────────────────────────
-    // Gardener and dombra used to sit at YURT.z + 4.6 — a metre short of
-    // where the crossing lets the player off, which read as "left by the
-    // water" rather than "waiting at the door". Both are staged against the
-    // wall instead, either side of the doorway the teleport already uses
-    // (YURT.z + 3.6), on a mat that declares the spot as a place rather
-    // than a patch of grass something happened to be dropped on.
+    // ── Порог ────────────────────────────────────────────────────
+    // Садовник и домбра стояли на YURT.z + 4.6 — в метре от того места, где
+    // переправа выпускает игрока, и это читалось как «брошено у воды», а не
+    // «ждут у двери». Теперь оба поставлены к стене, по обе стороны от проёма,
+    // который и так использует телепорт (YURT.z + 3.6), на коврике, который
+    // объявляет это место местом, а не пятачком травы, куда что-то уронили.
     const doorFront = YURT.z + 3.6;
     const porchZ = YURT.z + 3.1;
     const gx = YURT.x - 1.6;
@@ -1180,18 +1172,18 @@ export class Level0Scene extends BaseLevelScene {
     mat.position.set(YURT.x - 1.1, this.groundHeightAt(YURT.x - 1.1, porchZ) + 0.02, porchZ);
     this.scene.add(mat);
 
-    // No porch NPC: Meshy `*_rigged` friends here read as a giant doll next to
-    // the yurt. The door/dialogue still work; sparks fall back to the hero.
+    // NPC на пороге нет: друзья Meshy `*_rigged` здесь читаются гигантской
+    // куклой рядом с юртой. Дверь и диалог работают; искры уходят к герою.
     this.gardener = null;
 
-    // Soft-3D Meshy dombra — porch prop + interior kui instrument body.
+    // Мягкая домбра из Meshy: реквизит на пороге и корпус инструмента внутри.
     const dombraGlb =
       (await loadPropModel(loader, 's1_quality_dombra.glb', { height: 1.45, aspectMax: 10 })) ??
       null;
 
-    // Leaned against the felt at a single backward tilt, the way you rest an
-    // instrument when your hands are busy pinning down a wall — not the old
-    // three-axis knock-over that read as dropped mid-lawn.
+    // Прислонена к войлоку одним наклоном назад — так ставят инструмент, когда
+    // руки заняты стеной, — а не прежним заваливанием по трём осям, которое
+    // читалось «уронили посреди лужайки».
     if (dombraGlb) {
       const porch = dombraGlb.clone(true);
       fitHeight(porch, 1.45);
@@ -1206,14 +1198,14 @@ export class Level0Scene extends BaseLevelScene {
     this.dombra.position.set(dx, this.groundHeightAt(dx, porchZ + 0.3), porchZ + 0.3);
     this.dombra.rotation.set(0.22, 0.55, -0.08);
     this.scene.add(this.dombra);
-    // Solid. Without this the hero walks straight through the instrument.
+    // Твёрдая. Без этого герой проходит сквозь инструмент.
     this.colliders.push({ kind: 'circle', x: (gx + dx) / 2, z: porchZ + 0.15, r: 1.15 });
 
-    // ── The door marker ─────────────────────────────────────────────
-    // A ring on the threshold, the same visual language the lanterns and
-    // felt pegs already use for "something happens here" — lit only once
-    // the gardener has actually opened the door (phase 'enter'), so it
-    // never invites the player to a door that would not open yet.
+    // ── Маркер двери ────────────────────────────────────────────────
+    // Кольцо на пороге — тот же язык, которым фонари и колышки уже говорят
+    // «здесь что-то происходит». Загорается только после того, как садовник
+    // действительно открыл дверь (фаза 'enter'), и никогда не зовёт игрока к
+    // двери, которая ещё не откроется.
     const marker = new THREE.Mesh(
       new THREE.RingGeometry(0.85, 1.15, 24),
       new THREE.MeshBasicMaterial({
@@ -1225,12 +1217,10 @@ export class Level0Scene extends BaseLevelScene {
     this.scene.add(marker);
     this.doorMarker = marker;
 
-    // ── Dressing ─────────────────────────────────────────────────
-    // Everything that grows out of soil is filtered against the water line.
-    // These loops walked the route at even spacing from the spawn to the
-    // yurt, which marches straight through the middle of the river — so
-    // bushes and tulips were coming up out of the water either side of the
-    // stepping stones.
+    // ── Декор ────────────────────────────────────────────────────
+    // Всё, что растёт из земли, проверяется по уровню воды. Эти циклы шли по
+    // маршруту равномерно от спавна до юрты, а он идёт прямо через середину
+    // реки, — и кусты с тюльпанами вылезали из воды по обе стороны от камней.
     for (let i = 0; i < 24; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = SPAWN_Z - (i / 24) * (SPAWN_Z - YURT.z);
@@ -1256,12 +1246,12 @@ export class Level0Scene extends BaseLevelScene {
     }
     await placeAmbientCritters(this.scene, loader, [
       { key: 'squirrel', x: routeX(4) + 6, z: 4, rotY: -1.1, h: 0.85 },
-      // On the far beach, not at z −30, which is now the middle of the river.
+      // На дальнем пляже, а не на z −30: теперь это середина реки.
       { key: 'bird', x: routeX(-43) - 4.5, z: -43, rotY: 0.6, h: 0.5 },
     ]);
 
-    // The wall. Planted last, so it can read the corridor and every room the
-    // level reserved and hug the outside of both.
+    // Стена. Ставится последней, чтобы прочитать и коридор, и все комнаты,
+    // которые зарезервировал уровень, и обойти их снаружи.
     await this.encloseWithForest(loader, {
       zFrom: YURT.z - 8,
       zTo: SPAWN_Z + 4,
@@ -1274,16 +1264,17 @@ export class Level0Scene extends BaseLevelScene {
       },
     });
 
-    // ── The second location ──────────────────────────────────────
-    // Built two hundred metres out, well past the terrain's own extent and
-    // past the fog, so there is no angle from which one location can see the
-    // other. It costs nothing to leave it in the scene: it is a single group,
-    // never in the camera frustum until the hero is standing in it.
+    // ── Вторая локация ───────────────────────────────────────────
+    // Построена в двухстах метрах, далеко за пределами рельефа и за туманом,
+    // чтобы не было угла, с которого одна локация видит другую. Оставлять её в
+    // сцене ничего не стоит: это одна группа, и в пирамиду видимости она не
+    // попадает, пока герой в ней не окажется.
     const interior = buildYurtInterior({
       dombraBody: dombraGlb
         ? (() => {
             const body = dombraGlb.clone(true);
-            // Interior kui uses an oversized instrument; sizing is done in buildDombra.
+            // Внутри для кюя нужен увеличенный инструмент; размер задаётся в
+            // buildDombra.
             return body;
           })()
         : null,
@@ -1292,7 +1283,7 @@ export class Level0Scene extends BaseLevelScene {
     interior.root.visible = false;
     this.scene.add(interior.root);
     await this.upgradeYurtCushions(loader, interior.root);
-    // The pads sit in an arc in front of the instrument.
+    // Площадки стоят дугой перед инструментом.
     this.pads = buildAnswerPads();
     for (const pad of this.pads) {
       const i = pad.userData.index as number;
@@ -1301,9 +1292,9 @@ export class Level0Scene extends BaseLevelScene {
       this.scene.add(pad);
     }
 
-    // Inside, the floor is flat and at zero. Wrapping the sampler rather than
-    // giving the interior its own terrain keeps every height-aware system —
-    // movement, the jump, prop grounding — working in both places unchanged.
+    // Внутри пол плоский и на нуле. Обёртка сэмплера вместо отдельного рельефа
+    // для интерьера оставляет все системы, зависящие от высоты — движение,
+    // прыжок, посадку реквизита, — работающими в обоих местах без изменений.
     const outdoorHeight = this.groundHeightAt;
     this.groundHeightAt = (x, z) => (this.insideYurt ? 0 : outdoorHeight(x, z));
 
@@ -1329,15 +1320,16 @@ export class Level0Scene extends BaseLevelScene {
   }
 
   /**
-   * Soft-3D kurpeshki + pillows along the wall. Procedural blocks stay until
-   * these load (or if Meshy files are missing).
+   * Мягкие курпешки и подушки вдоль стены. Процедурные блоки стоят, пока эти не
+   * загрузятся — или если файлов Meshy нет.
    */
   private async upgradeYurtCushions(loader: ReturnType<typeof createGameGltfLoader>, root: THREE.Group) {
     const kurpeshki: THREE.Object3D[] = [];
     for (const file of ['s1_quality_kurpeshki.glb', 's1_quality_kurpeshki_blue.glb']) {
       const glb = await loadPropModel(loader, file, { maxSize: 2.6, aspectMax: 12 });
       if (!glb) continue;
-      // Prefer long-flat orientation: if Meshy stood it on end, lay it down.
+      // Предпочитаем горизонтальную ориентацию: если Meshy поставил инструмент
+      // на попа, кладём его.
       const size = new THREE.Box3().setFromObject(glb).getSize(new THREE.Vector3());
       if (size.y > Math.max(size.x, size.z) * 0.7) {
         glb.rotation.x = -Math.PI / 2;
@@ -1361,41 +1353,39 @@ export class Level0Scene extends BaseLevelScene {
   }
 
   /**
-   * Refuse to ship a crossing the hero cannot make.
+   * Не выпускать переправу, которую герой не может пройти.
    *
-   * The first crossing had two gaps of 4.36 m and 4.32 m against 2.83 m of
-   * reach — not hard, impossible, and it took a player to find it because
-   * nothing in the build was measuring. A hop that no longer fits should
-   * break the build's console the moment the level loads, not a child's
-   * afternoon.
+   * В первой версии два промежутка были 4.36 м и 4.32 м при досягаемости 2.83 м —
+   * не сложно, а невозможно, и нашёл это игрок, потому что в сборке никто ничего
+   * не мерил. Прыжок, который перестал помещаться, должен ломать консоль сборки
+   * в момент загрузки уровня, а не вечер ребёнка.
    *
-   * Reach is derived from the same constants the jump uses, so tuning the
-   * jump re-checks the level for free.
+   * Досягаемость выводится из тех же констант, что и сам прыжок, поэтому его
+   * настройка бесплатно перепроверяет уровень.
    */
   private assertCrossingIsJumpable(waterY: number) {
     if (!import.meta.env.DEV) return;
-    // A scene that React has already thrown away keeps running its `init` to
-    // the end, and `dispose` has by then replaced the terrain sampler with a
-    // flat zero. Everything then reads as under water, both banks come back
-    // unreachable, and the console fills with a failure that is not real —
-    // which is worse than no check at all, because it is what a real failure
-    // would be hiding behind.
+    // Сцена, которую React уже выбросил, всё равно доигрывает свой `init` до
+    // конца, а `dispose` к тому моменту заменил сэмплер рельефа плоским нулём.
+    // После этого всё читается как под водой, оба берега возвращаются
+    // недостижимыми, и консоль заполняется несуществующей ошибкой — а это хуже,
+    // чем отсутствие проверки, потому что за таким шумом спрячется настоящая.
     if (this.disposed) return;
     const airtime = (2 * this.jumpSpeed) / this.gravity;
-    // Most hops are sized for a walk-jump; the exit expects a short run-up.
+    // Почти все прыжки рассчитаны на шаговый; выход ждёт короткого разбега.
     const walkReach = this.baseSpeed * airtime;
     const reach = this.runSpeed * airtime;
 
-    // The banks are found by asking the terrain where it comes out of the
-    // water, never by trusting CROSSING_FROM/TO. Those are inputs to the
-    // trench, and the trench feathers over three metres, so the real shore is
-    // a metre or so beyond them — measuring against the constant is how the
-    // exit hop came out "fine" at 2.4 m when it was really 3.0 m and
-    // impossible. And a shore is a line, not a point: the nearest dry ground
-    // may be off to one side, which is a perfectly good place to land.
-    // `dir` is given, not inferred from CROSSING_FROM/TO: the exit stone sits
-    // *past* CROSSING_TO, so inferring the direction sent the scan back up
-    // the river and reported the shore as unreachable at infinity.
+    // Берега находятся вопросом к рельефу — где он выходит из воды, — а не
+    // доверием к CROSSING_FROM/TO. Это входные данные для русла, а русло
+    // растушёвано на три метра, поэтому настоящий берег примерно на метр
+    // дальше. Замер по константе — то, из-за чего выходной прыжок считался
+    // «нормальным» на 2.4 м, когда на деле был 3.0 м и невозможен. И берег — это
+    // линия, а не точка: ближайшая суша может оказаться сбоку, и приземлиться
+    // там совершенно нормально.
+    // `dir` передаётся, а не выводится из CROSSING_FROM/TO: выходной камень
+    // стоит *за* CROSSING_TO, поэтому выведенное направление отправляло поиск
+    // вверх по реке и объявляло берег недостижимым на бесконечности.
     const nearestDryFrom = (x: number, z: number, dir: 1 | -1) => {
       let best = Infinity;
       for (let dz = 0; dz <= 10; dz += 0.2) {
@@ -1412,12 +1402,12 @@ export class Level0Scene extends BaseLevelScene {
 
     const pads = STONES.map((s) => ({ x: routeX(s.z) + s.x, z: s.z }));
     const hops: Array<{ what: string; need: number }> = [];
-    // Entry: from the near shore onto the first pad. The pad's radius counts,
-    // the shore's does not.
+    // Вход: с ближнего берега на первую площадку. Радиус площадки учитывается,
+    // радиус берега — нет.
     hops.push({ what: 'bank → stone 1', need: nearestDryFrom(pads[0].x, pads[0].z, 1) - STONE_R });
     for (let i = 1; i < pads.length; i++) {
-      // Take off from the centre of one pad, land on the near lip of the next.
-      // Nobody should have to use the far lip.
+      // Отталкиваемся от центра одной площадки и приземляемся на ближний край
+      // следующей. Дальним краем пользоваться никто не обязан.
       hops.push({
         what: `stone ${i} → ${i + 1}`,
         need: Math.hypot(pads[i].x - pads[i - 1].x, pads[i].z - pads[i - 1].z) - STONE_R,
@@ -1450,7 +1440,7 @@ export class Level0Scene extends BaseLevelScene {
     );
   }
 
-  /** Fallback lantern if neither GLB is usable — the beat must still work. */
+  /** Запасной фонарь, если ни один GLB не подошёл: бит обязан работать всё равно. */
   private makeSimpleLantern(): THREE.Group {
     const g = new THREE.Group();
     const metal = new THREE.MeshStandardMaterial({ color: 0x6f5b45, roughness: 0.85 });
@@ -1591,8 +1581,8 @@ export class Level0Scene extends BaseLevelScene {
       kuiLength: this.kuiPhrase.length,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      // Not 'intro' too: canMove excludes it (see above), so showing the
-      // move hint there told the child to move before input did anything.
+      // И не 'intro': canMove её исключает (см. выше), поэтому подсказка о
+      // движении там просила ребёнка идти раньше, чем ввод хоть что-то делал.
       showMoveHint: !this.hasTakenFirstStep && p === 'follow',
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
@@ -1600,9 +1590,8 @@ export class Level0Scene extends BaseLevelScene {
   }
 
   /**
-   * Distances on the ground plane, never in 3D — a target's height must not
-   * cost the player reach. See the note in Level9Scene for what that bug
-   * looked like when it was live.
+   * Расстояния по плоскости земли, никогда в 3D: высота цели не должна съедать
+   * радиус игрока. Как этот баг выглядел вживую — см. заметку в Level9Scene.
    */
   private nearestInteract(): THREE.Object3D | null {
     const hp = this.hero.position;
@@ -1623,8 +1612,8 @@ export class Level0Scene extends BaseLevelScene {
         if (d < bestD) { bestD = d; best = p; }
       }
     } else if (this.phase === 'inside' && !this.kuiListening) {
-      // The pads are a metre across and two and a half apart, so a generous
-      // reach here still cannot pick the wrong one.
+      // Площадки метр в поперечнике и в двух с половиной метрах друг от друга,
+      // поэтому щедрый радиус здесь всё равно не выберет соседнюю.
       bestD = 2.0;
       for (const p of this.pads) {
         const d = flat(p);
@@ -1636,10 +1625,9 @@ export class Level0Scene extends BaseLevelScene {
 
   private objectiveWorldPos(): THREE.Vector3 | null {
     if (this.phase === 'follow' || this.phase === 'intro') {
-      // Deliberately silent for the first few seconds: the sound is the
-      // navigation, and an arrow offered immediately would teach a child to
-      // watch the arrow instead of the world for the rest of the season.
-      // It appears once they have taken a step and had a moment to listen.
+      // Первые секунды намеренно молчит: навигация здесь — звук, а стрелка,
+      // предложенная сразу, научила бы ребёнка смотреть на стрелку вместо мира
+      // до конца сезона. Появляется, когда он сделал шаг и успел прислушаться.
       if (!this.hasTakenFirstStep || this.nearness < 0.08) return null;
       return new THREE.Vector3(YURT.x, 0, YURT.z);
     }
@@ -1648,8 +1636,8 @@ export class Level0Scene extends BaseLevelScene {
       return next?.position.clone() ?? null;
     }
     if (this.phase === 'crossing') {
-      // Next stone past the furthest one actually reached, not always the
-      // first — see `furthestStoneIdx` (BUG-013).
+      // Следующий камень за самым дальним достигнутым, а не всегда первый —
+      // см. `furthestStoneIdx` (BUG-013).
       const s = this.stones[this.furthestStoneIdx + 1];
       return s ? new THREE.Vector3(s.position.x, 0, s.position.z) : null;
     }
@@ -1681,14 +1669,14 @@ export class Level0Scene extends BaseLevelScene {
       this.pushHud();
     }
 
-    // ── The doorway ──────────────────────────────────────────────
-    // A blackout, not a cross-fade: for the two locations to stay secret from
-    // each other the screen has to be fully black at the moment the hero
-    // moves. The teleport is deferred to that frame.
+    // ── Дверной проём ────────────────────────────────────────────
+    // Затемнение, а не наплыв: чтобы локации остались тайной друг для друга,
+    // экран в момент переноса героя должен быть полностью чёрным. Телепорт
+    // отложен именно на этот кадр.
     const fadeWas = this.fade;
     this.fade += (this.fadeTo - this.fade) * Math.min(1, dt * 7);
-    // The blackout is drawn by the HUD, so it has to be told about it on every
-    // frame it is moving — pushHud otherwise only fires when a beat changes.
+    // Затемнение рисует HUD, поэтому о нём надо сообщать каждый кадр, пока оно
+    // движется: иначе pushHud срабатывает только на смене бита.
     if (Math.abs(this.fade - fadeWas) > 0.004) this.pushHud();
     if (this.pendingTeleport && this.fade > 0.96) {
       this.pendingTeleport();
@@ -1714,7 +1702,7 @@ export class Level0Scene extends BaseLevelScene {
       }
     }
 
-    // ── The kui ──────────────────────────────────────────────────
+    // ── Кюй ──────────────────────────────────────────────────────
     if (this.phase === 'inside' && this.kuiListening && now >= this.kuiNextNoteAt) {
       if (this.kuiPlayI < this.kuiPhrase.length) {
         this.flashString(this.kuiPhrase[this.kuiPlayI], 1);
@@ -1728,7 +1716,7 @@ export class Level0Scene extends BaseLevelScene {
       }
     }
 
-    // Strings and pads decay back to dark after each pluck.
+    // После каждого щипка струны и площадки гаснут обратно.
     for (const s of this.interior?.strings ?? []) {
       const lit = Math.max(0, (s.userData.lit as number) - dt * 2.2);
       s.userData.lit = lit;
@@ -1747,16 +1735,16 @@ export class Level0Scene extends BaseLevelScene {
       p.position.y = lit * 0.05;
     }
     if (this.interior) {
-      // Firelight breathes; the dust in the shaft turns.
-      // Soft lamp fill — no campfire flicker.
+      // Свет очага дышит, пыль в столбе света поворачивается.
+      // Мягкая заливка лампой, без костровых всполохов.
       this.interior.hearthLight.intensity = 1.45 + Math.sin(now * 0.003) * 0.08;
       this.interior.motes.rotation.y += dt * 0.06;
     }
 
     const canMove = !['intro', 'song', 'outro'].includes(this.phase) && this.fade < 0.5;
 
-    // Sinking stones move before height is settled so the hero rides down with
-    // the pad instead of one frame behind it.
+    // Тонущие камни двигаются до того, как посчитана высота, чтобы герой уходил
+    // вниз вместе с площадкой, а не на кадр позже неё.
     if (this.phase === 'crossing') {
       const standing = this.stones.find((s) => this.isStandingOn(s));
       if (standing) {
@@ -1773,35 +1761,35 @@ export class Level0Scene extends BaseLevelScene {
     }
 
     if (this.insideYurt) {
-      // A closed room needs no corridor: the walls are the bounds, and
-      // `clampToPlayArea` is overridden to a circle while we are in here.
+      // Закрытой комнате коридор не нужен: границами служат стены, и пока мы
+      // внутри, `clampToPlayArea` переопределён на круг.
       this.updateMovement(dt, canMove, this.baseSpeed * 0.92, -60, 60, YURT_INSIDE.z - 60, YURT_INSIDE.z + 60);
     } else {
       this.updateMovement(dt, canMove, this.baseSpeed, -26, 26, YURT.z - 10, SPAWN_Z + 3);
     }
 
-    // How close the dombra sounds. This is the level's navigation, so it is
-    // computed every frame and fed to the HUD as a meter rather than left as
-    // an audio-only cue a child on a muted phone would never get.
+    // Насколько близко звучит домбра. Это навигация уровня, поэтому считается
+    // каждый кадр и отдаётся в HUD шкалой, а не остаётся звуковой подсказкой,
+    // которую ребёнок с выключенным звуком не получит никогда.
     const dz = Math.hypot(this.hero.position.x - YURT.x, this.hero.position.z - YURT.z);
     const span = Math.hypot(YURT.x, SPAWN_Z - YURT.z);
     this.nearness = this.insideYurt ? 1 : Math.max(0, Math.min(1, 1 - dz / span));
-    // A chime whose gap shortens as you close — audible "warmer". It is the
-    // outdoor navigation and has nothing to say once the walk is over, so it
-    // stops at the door rather than ticking under the mini-game.
+    // Перезвон, промежутки которого сокращаются по мере приближения, —
+    // слышимое «теплее». Это уличная навигация, и после конца прогулки ей
+    // сказать нечего, поэтому она смолкает у двери, а не тикает под мини-игрой.
     const gap = 2600 - this.nearness * 1700;
     if (canMove && !this.insideYurt && this.phase !== 'enter' && now - this.lastChime > gap) {
       this.lastChime = now;
       AudioManager.sfx(this.nearness > 0.6 ? 'sparkle' : 'tick');
     }
 
-    // follow → lanterns, once the first fallen lantern is in sight.
+    // follow → lanterns, как только в поле зрения первый упавший фонарь.
     if (this.phase === 'follow' && this.hero.position.z < LANTERNS[0].z + 6) {
       this.phase = 'lanterns';
       this.pushHud();
     }
 
-    // Lanterns rise and light.
+    // Фонари поднимаются и загораются.
     for (const l of this.lanterns) {
       const done = l.userData.done as boolean;
       const target = done ? 0 : (l.userData.restZ as number);
@@ -1814,11 +1802,11 @@ export class Level0Scene extends BaseLevelScene {
       (glow.material as THREE.MeshBasicMaterial).opacity = done ? 0.28 : 0.4 + Math.sin(now * 0.004) * 0.12;
     }
 
-    // ── The stream ───────────────────────────────────────────────
-    // One uniform. This used to rewrite 595 vertex positions in JavaScript
-    // on every frame to make a single sine ripple.
+    // ── Ручей ────────────────────────────────────────────────────
+    // Одна униформа. Раньше здесь каждый кадр переписывались 595 позиций вершин
+    // на JavaScript ради одной синусоидальной ряби.
     this.river?.update(now * 0.001);
-    // ── The crossing ─────────────────────────────────────────────
+    // ── Переправа ────────────────────────────────────────────────
     if (this.phase === 'crossing') {
       const h = this.hero.position;
 
@@ -1891,11 +1879,11 @@ export class Level0Scene extends BaseLevelScene {
 
     this.updateAmbient(dt, now);
 
-    // Cinematic only until the first step, same fix as L2/L8/L16 — without
-    // the guard the camera stays locked to this fixed path for the whole
-    // intro timer even after the hero starts moving. Not currently
-    // symptomatic here (intro is short enough not to trip the threshold),
-    // but the same root cause is present, so the guard goes in anyway.
+    // Кинематографично только до первого шага — та же правка, что на L2, L8 и
+    // L16. Без этой проверки камера остаётся на фиксированном пути весь таймер
+    // интро, даже когда герой уже пошёл. Здесь это пока не проявляется — интро
+    // достаточно короткое, чтобы не дойти до порога, — но причина та же, поэтому
+    // проверка ставится всё равно.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const from = [
@@ -1904,8 +1892,8 @@ export class Level0Scene extends BaseLevelScene {
         new THREE.Vector3(0, 5.4, SPAWN_Z + 7),
       ];
       const at = [
-        // Open on the far end of the walk — the place the music is coming
-        // from — then come down behind the hero.
+        // Открываемся на дальнем конце пути — там, откуда идёт музыка, — а
+        // потом опускаемся за спину герою.
         new THREE.Vector3(YURT.x, 2.2, YURT.z + 12),
         new THREE.Vector3(routeX(2), 1.4, 2),
         new THREE.Vector3(0, 1.1, SPAWN_Z - 4),
@@ -1914,7 +1902,7 @@ export class Level0Scene extends BaseLevelScene {
       this.camera.position.lerp(from[idx], 1 - Math.pow(ease, dt));
       this.camera.lookAt(at[idx]);
     } else if (this.insideYurt && (this.phase === 'song' || this.phase === 'outro')) {
-      // The closing shot is on the instrument, from across the room.
+      // Финальный кадр — на инструменте, через всю комнату.
       this.updateCamera(
         new THREE.Vector3(YURT_INSIDE.x + 2.6, 3.8, YURT_INSIDE.z + 2.6),
         new THREE.Vector3(YURT_INSIDE.x, 2.6, YURT_INSIDE.z - 6.2),
@@ -1922,8 +1910,7 @@ export class Level0Scene extends BaseLevelScene {
         dt,
       );
     } else if (this.insideYurt) {
-      // Pulled in and lifted, because the outdoor rig would put the camera
-      // through the felt.
+      // Подтянута и приподнята: уличная схема провела бы камеру сквозь войлок.
       const cx = YURT_INSIDE.x + (this.hero.position.x - YURT_INSIDE.x) * 0.6;
       this.updateCamera(
         new THREE.Vector3(cx, this.hero.position.y + 4.2, this.hero.position.z + 7.4),
