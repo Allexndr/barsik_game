@@ -83,6 +83,9 @@ class AudioManagerClass {
   private voiceManifest: VoiceManifest | null = null;
   private voiceLoad: Promise<void> | null = null;
   private voiceEl: HTMLAudioElement | null = null;
+  /** Lines blocked by autoplay until the next user gesture. */
+  private pendingTts: { text: string; lang: 'ru' | 'kk'; nick?: string } | null = null;
+  private voicePrimed = false;
   /** Ids that 404'd. Asking twice for a clip that is not there is waste. */
   private voiceMissing = new Set<string>();
 
@@ -146,6 +149,25 @@ class AudioManagerClass {
     }
 
     this.loadVoices();
+  }
+
+  /**
+   * Unlock Web Audio + HTML5 voice clips from an explicit tap (Play, joystick…).
+   * Retries a line that was blocked by autoplay instead of marking the clip dead.
+   */
+  unlockFromGesture() {
+    this.init();
+    if (!this.voicePrimed) {
+      this.voicePrimed = true;
+      const prime = new Audio(`${VOICE_BASE}previews/edge_ru_f.mp3`);
+      prime.volume = 0.001;
+      void prime.play().catch(() => {});
+    }
+    const pending = this.pendingTts;
+    if (pending) {
+      this.pendingTts = null;
+      this.tts(pending.text, pending.lang, pending.nick);
+    }
   }
 
   /**
@@ -437,28 +459,81 @@ class AudioManagerClass {
    * The lookup normalizes the same way the extractor did, so a line carrying
    * the player's nickname finds the clip rendered without it.
    */
+  /** Female (default) uses `voice/{lang}/`; male uses `voice/m/{lang}/`. */
+  private _voiceGender: 'f' | 'm' = 'f';
+
+  setVoiceGender(g: 'f' | 'm') {
+    if (this._voiceGender === g) return;
+    this._voiceGender = g;
+    this.voiceMissing.clear();
+    this.stopTts();
+  }
+
+  getVoiceGender(): 'f' | 'm' {
+    return this._voiceGender;
+  }
+
+  private voiceClipUrl(lang: 'ru' | 'kk', id: string): string {
+    const fmt = this.voiceManifest?.format ?? 'mp3';
+    const prefix = this._voiceGender === 'm' ? `m/${lang}` : lang;
+    return `${VOICE_BASE}${prefix}/${id}.${fmt}`;
+  }
+
+  /** Settings preview samples (short fixed lines, not from the mission pack). */
+  playVoicePreview(lang: 'ru' | 'kk' = 'ru', gender: 'f' | 'm' = this._voiceGender) {
+    if (this._muted) return;
+    this.stopTts();
+    const file = `previews/edge_${lang}_${gender}.mp3`;
+    const el = new Audio(`${VOICE_BASE}${file}`);
+    el.volume = this._volume;
+    this.voiceEl = el;
+    el.play().catch(() => {
+      if (this.voiceEl === el) this.voiceEl = null;
+    });
+  }
+
   tts(text: string, lang: 'ru' | 'kk' = 'ru', nick?: string) {
     if (!this._ttsEnabled || this._muted) return;
     this.stopTts();
 
-    const id = lineId(text, lang, nick);
-    const known = this.voiceManifest?.lines[id];
-    if (known && !this.voiceMissing.has(id)) {
-      const el = new Audio(`${VOICE_BASE}${lang}/${id}.${this.voiceManifest!.format}`);
-      el.volume = this._volume;
-      this.voiceEl = el;
-      el.play().catch(() => {
-        // Autoplay policy before the first tap, or a file that never made it
-        // into the build. Either way, fall through to the browser once and
-        // stop asking for this clip.
-        this.voiceMissing.add(id);
-        if (this.voiceEl === el) this.voiceEl = null;
-        this.speakWithBrowser(text, lang);
-      });
+    const speak = () => {
+      const id = lineId(text, lang, nick);
+      const known = this.voiceManifest?.lines[id];
+      const missKey = `${this._voiceGender}:${id}`;
+      if (known && !this.voiceMissing.has(missKey)) {
+        const el = new Audio(this.voiceClipUrl(lang, id));
+        el.volume = this._volume;
+        this.voiceEl = el;
+        el.play().catch((err: DOMException) => {
+          if (err?.name === 'NotAllowedError') {
+            this.pendingTts = { text, lang, nick };
+            if (this.voiceEl === el) this.voiceEl = null;
+            return;
+          }
+          this.voiceMissing.add(missKey);
+          if (this.voiceEl === el) this.voiceEl = null;
+          if (this._voiceGender === 'm') {
+            const fallback = new Audio(`${VOICE_BASE}${lang}/${id}.${this.voiceManifest!.format}`);
+            fallback.volume = this._volume;
+            this.voiceEl = fallback;
+            fallback.play().catch(() => {
+              if (this.voiceEl === fallback) this.voiceEl = null;
+              this.speakWithBrowser(text, lang);
+            });
+            return;
+          }
+          this.speakWithBrowser(text, lang);
+        });
+        return;
+      }
+      this.speakWithBrowser(text, lang);
+    };
+
+    if (!this.voiceManifest && this.voiceLoad) {
+      void this.voiceLoad.finally(speak);
       return;
     }
-
-    this.speakWithBrowser(text, lang);
+    speak();
   }
 
   /**

@@ -1,9 +1,12 @@
 {
- "at": "2026-08-25T02:27:13.890Z",
+ "at": "2026-09-09T11:37:29.151Z",
  "backend": "edge",
+ "persona": "f",
  "voices": {
-  "ru": "ru-RU-SvetlanaNeural",
-  "kk": "kk-KZ-AigulNeural"
+  "edge": {
+   "ru": "ru-RU-SvetlanaNeural",
+   "kk": "kk-KZ-AigulNeural"
+  }
  },
- "clips": 712
+ "clips": 716
 }

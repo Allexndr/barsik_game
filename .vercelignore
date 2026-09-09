@@ -9,12 +9,27 @@ docs/mission0_*.png
 *.zip
 .DS_Store
 
+# Workspace books (symlinks break Vercel build)
+book-1-guidebook
+book-2-ai-team
+
+# Legacy source art — not runtime
+archive/
+
 # Raw source art / pipeline — NOT public/assets (runtime GLB/webp)
 /assets/
 /tools/
-/.venv-bg/
+.venv-bg/
 /vendor/
 /dist/
 /node_modules/
 /.git/
 *.tgz
+test-results/
+.meshy-work/
+.playwright/
+.hive-mind/
+.swarm/
+.backup-before-ruflo-*/
+.codex/
+.cursor/

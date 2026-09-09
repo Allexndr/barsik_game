@@ -61,6 +61,15 @@ export function HubScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const [group, setGroup] = useState<ChatGroup>('hello');
   const [draft, setDraft] = useState('');
   const [warn, setWarn] = useState<string | null>(null);
+  /**
+   * Чат свёрнут, пока его не открыли.
+   *
+   * Три ряда — категории, фразы и эмодзи — висели раскрытыми всегда: 17 кнопок
+   * поверх города ещё до того, как ребёнок что-то сделал, и полторы сотни
+   * пикселей нижней части кадра. Хаб — это место, куда приходят смотреть и
+   * ходить; разговор здесь второе действие, а не первое.
+   */
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -92,7 +101,27 @@ export function HubScreen({ embedded = false }: { embedded?: boolean } = {}) {
         setPlace(to);
       },
       friendList,
-    );
+    ).catch((error) => {
+      console.error('[hub] init_failed', { place, error });
+      setHud({
+        phase: 'hub',
+        speaker: 'Барсик',
+        line: '',
+        objective: '',
+        stars: 0,
+        canInteract: false,
+        showMoveHint: false,
+        showActionHint: false,
+        outro: false,
+        online: 1,
+        status: 'offline',
+        location: place,
+        locationRu: 'Арбат',
+        locationKk: 'Арбат',
+        atPortal: null,
+        atRide: null,
+      });
+    });
     return () => {
       sceneRef.current = null;
       scene.dispose();
@@ -185,7 +214,17 @@ export function HubScreen({ embedded = false }: { embedded?: boolean } = {}) {
         ))}
       </div>
 
-      <div className="hub-chat">
+      <button
+        type="button"
+        className={`hub-chat-toggle ${chatOpen ? 'is-on' : ''}`}
+        onClick={() => setChatOpen((v) => !v)}
+        aria-expanded={chatOpen}
+        aria-label={ru ? (chatOpen ? 'Закрыть общение' : 'Открыть общение') : (chatOpen ? 'Сөйлесуді жабу' : 'Сөйлесуді ашу')}
+      >
+        {chatOpen ? '✕' : '💬'}
+      </button>
+
+      <div className={`hub-chat ${chatOpen ? '' : 'is-collapsed'}`} hidden={!chatOpen}>
         <div className="hub-groups">
           {(Object.keys(CHAT_GROUP_LABEL) as ChatGroup[]).map((g) => (
             <button

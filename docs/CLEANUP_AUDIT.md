@@ -33,3 +33,16 @@
 2. Удалить `CityScreen` после подтверждения, что Hub покрывает cityObjects.
 3. Remote: `git push origin --delete` на superseded `codex/*` (confirm).
 4. Docs hygiene: сжать/архивировать дублирующие S1 notes когда board Done стабилен.
+
+## Сделано 2026-08-31
+
+| Что | Действие |
+|-----|----------|
+| `dist/`, `.meshy-work/`, `Meshy_AI_*.glb`, `test-results/`, agent DB | удалены локально (~1.2 GB+) |
+| `public/assets/models/*_meshy_legacy.glb`, `_quarantine_*`, `*.prev.glb` | удалены (~76 MB) |
+| `public/voxel-prototype/` | удалён (spike) |
+| `src/utils/cityStages.ts`, `Terrain.ts`, `WaterSurface.ts`, `heroLooks.ts` | удалены (0 runtime imports) |
+| Корневые `*-AUDIT.md`, QA/roadmap отчёты | → `docs/audits/` |
+| `ARCHITECTURE.md`, `QUICKSTART.md`, … | → `docs/archive/` |
+| Корневой `assets/` (2D PNG источники) | → `archive/legacy-2d-art/assets/` |
+| `gen_*.py` | → `scripts/legacy-art-gen/` |

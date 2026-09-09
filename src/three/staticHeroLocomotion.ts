@@ -11,7 +11,3 @@ export function updateStaticHeroLocomotion(root: THREE.Object3D, walking: boolea
   root.position.y = baseY + bob;
   root.rotation.z = walking ? Math.sin(phase) * 0.04 : 0;
 }
-
-export function markStaticHeroBaseY(root: THREE.Object3D) {
-  root.userData.baseY = root.position.y;
-}

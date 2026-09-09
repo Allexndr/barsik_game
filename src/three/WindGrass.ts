@@ -100,15 +100,19 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
    * (29, 82, 17) — трава была темнее вчетверо по зелёному и читалась в кадре
    * как тёмные иглы, а не как трава.
    *
-   * Второе: этот шейдер пишет `gl_FragColor` сам и не проходит через
-   * `<colorspace_fragment>`, которым штатные материалы переводят линейное
-   * обратно в sRGB на выходе. Значит, в буфер надо класть сразу sRGB-значение
-   * — освещения здесь всё равно нет, смешивать в линейном пространстве нечего.
+   * Второе, и это сломалось позже: обход преобразования вывел траву из того
+   * же конвейера, по которому идёт вся остальная сцена. Рендерер работает с
+   * ACES-тонмаппингом (exposure 1.12), и штатные материалы приглушаются им, а
+   * трава — нет. На кадре это читалось как белые иглы поверх зелёного поля;
+   * дети на плейтесте описали это как «текстуры отсоединены».
    *
-   * `LinearSRGBColorSpace` в `setHex` означает «эти числа уже в рабочем
-   * пространстве, не трогай»: компоненты остаются равны hex/255.
+   * Поэтому теперь как у всех: цвета кладём в линейное рабочее пространство
+   * (`new THREE.Color(hex)` переводит сам), а фрагментный шейдер в конце
+   * прогоняет `<tonemapping_fragment>` и `<colorspace_fragment>` — те самые
+   * чанки, которых ему не хватало. Ни двойного преобразования, ни выпадения
+   * из тонмаппинга.
    */
-  const raw = (hex: number) => new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace);
+  const raw = (hex: number) => new THREE.Color(hex);
 
   const material = new THREE.ShaderMaterial({
     uniforms: {
@@ -167,6 +171,11 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
         col *= 0.9 + 0.28 * vY;
         float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
         gl_FragColor = vec4(mix(col, fogColor, fogFactor), 1.0);
+        // The same two steps every standard material ends with. Without them
+        // the field was the one thing in the scene that skipped ACES and the
+        // sRGB transform, and it blew out to white.
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `,
     side: THREE.DoubleSide,

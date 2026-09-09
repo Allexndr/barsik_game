@@ -419,48 +419,6 @@ export function buildFountain(x: number, z: number, r: number): THREE.BufferGeom
   return parts;
 }
 
-/**
- * Яблоко-памятник.
- *
- * Опора всей площадки. Алматы переводится как «яблоневое», апорт — его символ,
- * и ребёнок приходит сюда прямо из «Фруктового леса», где яблоки собирал
- * весь первый акт. Поэтому центр Арбата — то, что связывает хаб с сезоном,
- * а не абстрактная стела.
- */
-export function buildAppleMonument(x: number, z: number): THREE.BufferGeometry[] {
-  const parts: THREE.BufferGeometry[] = [];
-  parts.push(cyl(2.1, 2.4, 0.35, 14, x, 0.17, z, ARBAT.stone));
-  parts.push(cyl(1.5, 1.75, 0.35, 14, x, 0.52, z, ARBAT.pavingStripe));
-  parts.push(box(1.5, 1.1, 1.5, x, 1.25, z, ARBAT.stone));
-  parts.push(box(1.75, 0.16, 1.75, x, 1.88, z, ARBAT.gold));
-
-  const body = new THREE.SphereGeometry(1.35, 18, 14);
-  const pos = body.attributes.position as THREE.BufferAttribute;
-  const v = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i);
-    // Вмятина сверху и снизу — иначе это шар, а не яблоко. Но прежние 0.42
-    // при множителе 1.06 по бокам давали помидор: плод выходил заметно шире
-    // собственной высоты. Вмятина мельче, бока не раздуваем, и яблоко чуть
-    // выше, чем шире, — как настоящий апорт.
-    const dent = Math.pow(Math.abs(v.y) / 1.35, 3) * 0.2;
-    v.y -= Math.sign(v.y) * dent * 1.35;
-    v.y *= 1.1;
-    pos.setXYZ(i, v.x, v.y, v.z);
-  }
-  body.computeVertexNormals();
-  body.translate(x, 3.3, z);
-  parts.push(paint(body, ARBAT.apple));
-
-  parts.push(cyl(0.07, 0.1, 0.7, 6, x, 4.78, z, ARBAT.trunk));
-  const leaf = new THREE.SphereGeometry(0.42, 9, 7);
-  leaf.scale(1.7, 0.24, 0.95);
-  leaf.rotateZ(0.4);
-  leaf.translate(x + 0.55, 4.9, z);
-  parts.push(paint(leaf, ARBAT.appleLeaf));
-  return parts;
-}
-
 /** Мольберт портретиста с холстом. Их вдоль Арбата целая шеренга. */
 export function buildEasel(x: number, z: number, rotY: number, canvasHue: number): THREE.BufferGeometry[] {
   const local: THREE.BufferGeometry[] = [];

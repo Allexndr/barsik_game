@@ -318,19 +318,23 @@ function buildPortraitRouteD(
 
 export function TravelMapScreen() {
   const levelStars = useGameStore((s) => s.levelStars);
+  const levelClean = useGameStore((s) => s.levelClean);
   const currentLevel = useGameStore((s) => s.currentLevel);
   const startEpisode = useUIStore((s) => s.startEpisode);
   const lang = useUIStore((s) => s.lang);
   const tier = useViewportTier();
   const wide = tier === 'desktop' || tier === 'tablet';
+  // After the finale currentLevel points to the next chapter teaser (17), but
+  // the last playable level is still the useful map focus and replay target.
+  const mapLevel = Math.min(Math.max(currentLevel, 0), SEASON1_LEVELS - 1);
 
-  const portrait = useMemo(() => buildPortraitPins(currentLevel), [currentLevel]);
-  const wideData = useMemo(() => buildWidePins(currentLevel), [currentLevel]);
+  const portrait = useMemo(() => buildPortraitPins(mapLevel), [mapLevel]);
+  const wideData = useMemo(() => buildWidePins(mapLevel), [mapLevel]);
 
   const pins = wide ? wideData.pins : portrait.pins;
   const bands = portrait.bands;
   const currentPin =
-    pins.find((p) => p.id === currentLevel) ?? pins[pins.length - 1] ?? portrait.pins[0];
+    pins.find((p) => p.id === mapLevel) ?? pins[pins.length - 1] ?? portrait.pins[0];
   const wideChapterIdx = wideData.chapterIdx;
   // The portrait band's own bounding box — chapter art is clipped to each
   // band's [top, bottom], so nothing ever renders above the first band's
@@ -430,7 +434,7 @@ export function TravelMapScreen() {
   };
 
   const seasonDone = currentLevel >= SEASON1_LEVELS;
-  const levelLabel = Math.min(currentLevel, SEASON1_LEVELS - 1) + 1;
+  const levelLabel = mapLevel + 1;
   // Levels actually finished, not levels reachable. This counted unlocked
   // levels while wearing a tick icon, so it always claimed one more than the
   // child had done: standing on an unplayed level 6 it read «6/17».
@@ -485,26 +489,28 @@ export function TravelMapScreen() {
 
   // Route strokes follow the painted dirt (dense samples + Catmull-Rom),
   // not pin-to-pin chords that cut across grass between missions.
-  let pathDoneD = '';
-  let pathAheadD = '';
-  if (wide) {
-    const norm = DESKTOP_PATHS[wideChapterIdx] ?? CHAPTER_PATHS[wideChapterIdx];
-    const toSvg = (p: PathPoint): PathPoint => {
-      if (DESKTOP_PATHS[wideChapterIdx]) {
-        return { x: p.x * DESKTOP_W, y: p.y * DESKTOP_H };
-      }
-      const cover = coverFit(BG_W, BG_H, DESKTOP_W, DESKTOP_H);
-      return {
-        x: p.x * cover.renderW - cover.offsetX,
-        y: p.y * cover.renderH - cover.offsetY,
-      };
-    };
-    pathDoneD = routePathD(norm, localPins.length, 0, splitIdx, toSvg);
-    pathAheadD = routePathD(norm, localPins.length, splitIdx, localPins.length - 1, toSvg);
-  } else {
-    pathDoneD = buildPortraitRouteD(portrait, 0, splitIdx);
-    pathAheadD = buildPortraitRouteD(portrait, splitIdx, portrait.pins.length - 1);
-  }
+  const [pathDoneD, pathAheadD] = wide
+    ? (() => {
+        const norm = DESKTOP_PATHS[wideChapterIdx] ?? CHAPTER_PATHS[wideChapterIdx];
+        const toSvg = (p: PathPoint): PathPoint => {
+          if (DESKTOP_PATHS[wideChapterIdx]) {
+            return { x: p.x * DESKTOP_W, y: p.y * DESKTOP_H };
+          }
+          const cover = coverFit(BG_W, BG_H, DESKTOP_W, DESKTOP_H);
+          return {
+            x: p.x * cover.renderW - cover.offsetX,
+            y: p.y * cover.renderH - cover.offsetY,
+          };
+        };
+        return [
+          routePathD(norm, localPins.length, 0, splitIdx, toSvg),
+          routePathD(norm, localPins.length, splitIdx, localPins.length - 1, toSvg),
+        ];
+      })()
+    : [
+        buildPortraitRouteD(portrait, 0, splitIdx),
+        buildPortraitRouteD(portrait, splitIdx, portrait.pins.length - 1),
+      ];
 
   const chapterIdx = wide ? wideChapterIdx : currentPin.chapterIdx;
   const currentChapterName =
@@ -690,12 +696,25 @@ export function TravelMapScreen() {
               }
 
               const r = pin.status === 'current' ? 20 : 15;
+              const playable = pin.status === 'current' || pin.status === 'completed';
+              const pinLabel = lang === 'kk'
+                ? `${pin.id + 1}-деңгей, ${pin.status === 'current' ? 'қазіргі' : 'өтілген'}`
+                : `Уровень ${pin.id + 1}, ${pin.status === 'current' ? 'текущий' : 'пройден'}`;
 
               return (
                 <g
                   key={pin.id}
                   className={`pin-group pin-${pin.status}`}
+                  role={playable ? 'button' : undefined}
+                  tabIndex={playable ? 0 : -1}
+                  aria-label={playable ? pinLabel : undefined}
                   onClick={() => handlePinClick(pin.id)}
+                  onKeyDown={(event) => {
+                    if (playable && (event.key === 'Enter' || event.key === ' ')) {
+                      event.preventDefault();
+                      handlePinClick(pin.id);
+                    }
+                  }}
                   style={{ cursor: pin.status !== 'near' ? 'pointer' : 'default' }}
                 >
                   {/* Stable hit area — larger than visual, never scaled */}
@@ -723,6 +742,40 @@ export function TravelMapScreen() {
                     {pin.status === 'completed' && (
                       <g transform={`translate(${pin.x - 7}, ${pin.y - 7}) scale(0.6)`}>
                         <IconCheckPath />
+                      </g>
+                    )}
+                    {/*
+                      What the level was worth, under the level.
+
+                      `levelStars` has held a best-per-level score since the
+                      save format was written and nothing ever showed it: the
+                      map said only "passed" or "not passed", so a child who
+                      played a level well and one who scraped through saw the
+                      same tick. Older testers had no way to see they were
+                      getting better at anything.
+
+                      A badge rather than bare text on the pin: the pin is 30px
+                      across and "★25" set inside it overflowed the circle into
+                      illegible mush. Its own plate carries the contrast.
+                    */}
+                    {pin.status === 'completed' && (levelStars[pin.id] ?? 0) > 0 && (
+                      <g className="pin-score" pointerEvents="none">
+                        <rect
+                          x={pin.x - 15}
+                          y={pin.y + r - 1}
+                          width={30}
+                          height={15}
+                          rx={7.5}
+                          className="pin-score-plate"
+                        />
+                        <text
+                          x={pin.x}
+                          y={pin.y + r + 10}
+                          textAnchor="middle"
+                          className={`pin-score-text${levelClean[pin.id] ? ' is-clean' : ''}`}
+                        >
+                          {levelClean[pin.id] ? `✦ ${levelStars[pin.id]}` : `★ ${levelStars[pin.id]}`}
+                        </text>
                       </g>
                     )}
                     {pin.status === 'near' && (
@@ -792,13 +845,12 @@ export function TravelMapScreen() {
           variant="primary"
           size="lg"
           icon={<IconPaw size={22} />}
-          onClick={() => handlePinClick(Math.min(currentLevel, SEASON1_LEVELS - 1))}
-          disabled={seasonDone}
+          onClick={() => handlePinClick(mapLevel)}
         >
           {seasonDone
             ? lang === 'kk'
-              ? '1-маусым бітті · 2-маусым жақында'
-              : 'Сезон 1 пройден · Сезон 2 скоро'
+              ? `${levelLabel}-деңгейді қайта ойнау`
+              : `Пройти уровень ${levelLabel} ещё раз`
             : lang === 'kk'
               ? `Ойнау · ${levelLabel}-деңгей`
               : `Играть · Уровень ${levelLabel}`}

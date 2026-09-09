@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { loadCharModel, loadGlb, loadPropModel } from './scenes/BaseLevelScene';
-import { fitHeight, fitMaxSize, groundY } from './modelUtils';
+import { disposeObject3DResources, fitHeight, fitMaxSize, groundY } from './modelUtils';
 import { CAST_CHAR_GLB, CAST_PROP_GLB } from './castModels';
 
 export type PlaceOpts = {
@@ -16,6 +16,8 @@ export type PlaceOpts = {
   height?: number;
   maxSize?: number;
   scale?: number;
+  /** Ambient decoration should use the static LOD, never the rigged variant. */
+  preferStatic?: boolean;
 };
 
 /**
@@ -58,7 +60,9 @@ async function placeFile(
           height: opts.height,
           maxSize: opts.maxSize ?? (opts.height ? undefined : 1.2),
         })
-      : await loadCharModel(loader, file, opts.height ?? 0.9);
+      : await loadCharModel(loader, file, opts.height ?? 0.9, {
+          preferStatic: opts.preferStatic,
+        });
   if (!obj) return null;
   if (opts.scale !== undefined) obj.scale.multiplyScalar(opts.scale);
   const base = groundSampler ? groundSampler(opts.x, opts.z) : 0;
@@ -244,6 +248,7 @@ export async function placeAmbientCritters(
       z: s.z,
       rotY: s.rotY ?? Math.random() * Math.PI * 2,
       height: s.h ?? 0.8,
+      preferStatic: true,
     });
     if (!o) continue;
     const tris = triangleCount(o);
@@ -254,6 +259,9 @@ export async function placeAmbientCritters(
           `${AMBIENT_TRIANGLE_BUDGET} budget. Remesh it and it comes back.`,
         );
       }
+      // The model was loaded only to measure it. Do not leave its geometry,
+      // materials, and textures retained when a decorative LOD is rejected.
+      disposeObject3DResources(o);
       continue;
     }
     scene.add(o);

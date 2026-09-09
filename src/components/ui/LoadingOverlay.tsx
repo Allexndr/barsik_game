@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { onLoadProgress, setLoadProgressLang, type LoadProgress } from '@/three/loadProgress';
+import { onLoadProgress, setLoadProgressLang, type LoadProgress } from '@/three/loadProgressState';
 import { PlushButton } from './PlushButton';
 import './LoadingOverlay.css';
 
@@ -222,8 +222,10 @@ export function LoadingOverlay({
           <div className="loading-overlay__bar-fill" style={{ width: `${pct}%` }} />
         </div>
 
-        <span className="loading-overlay__text">
-          {caption}
+        <span className="loading-overlay__text" role="status" aria-live="polite">
+          {assetsReady
+            ? (lang === 'kk' ? 'Дайын — ойынды баста!' : 'Готово — начинай игру!')
+            : caption}
           {progress.total > 0 ? <em className="loading-overlay__pct"> {pct}%</em> : null}
         </span>
 

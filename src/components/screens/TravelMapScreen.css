@@ -223,6 +223,27 @@
   user-select: none;
 }
 
+/* Score badge under a completed pin. Its own plate, because the pin itself is
+   30px across and a number set inside it collided with the tick. */
+.pin-score-plate {
+  fill: rgba(45, 27, 78, 0.78);
+}
+
+.pin-score-text {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 11px;
+  fill: #ffd75e;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* A level finished without a single stumble. Brighter mark, same slot — the
+   difference should be noticeable without needing a legend to decode it. */
+.pin-score-text.is-clean {
+  fill: #8ef5c0;
+}
+
 .pin-pulse-ring {
   stroke: #2aa8d8;
   stroke-width: 2.5;

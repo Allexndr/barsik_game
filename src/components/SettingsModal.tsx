@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useUIStore } from '@/store/useUIStore';
+import { useUIStore, type VoiceGender } from '@/store/useUIStore';
 import { useGameStore } from '@/store/useGameStore';
 import { t, type Lang } from '@/i18n';
 import { PlushButton } from '@/components/ui/PlushButton';
 import { IconClose, IconShield, IconSoundOff, IconSoundOn } from '@/components/ui/icons';
+import { AudioManager } from '@/audio/AudioManager';
 import './SettingsModal.css';
 
 interface Props {
@@ -18,6 +19,8 @@ export function SettingsModal({ open, onClose }: Props) {
   const endEpisode = useUIStore((s) => s.endEpisode);
   const muted = useUIStore((s) => s.muted);
   const toggleMuted = useUIStore((s) => s.toggleMuted);
+  const voiceGender = useUIStore((s) => s.voiceGender);
+  const setVoiceGender = useUIStore((s) => s.setVoiceGender);
   const clearSession = useGameStore((s) => s.clearSession);
   const patchPlayer = useGameStore((s) => s.patchPlayer);
   const player = useGameStore((s) => s.player);
@@ -28,6 +31,12 @@ export function SettingsModal({ open, onClose }: Props) {
   const pickLang = (next: Lang) => {
     setLang(next);
     patchPlayer({ lang: next });
+  };
+
+  const pickVoice = (g: VoiceGender) => {
+    setVoiceGender(g);
+    AudioManager.setVoiceGender(g);
+    AudioManager.playVoicePreview(lang, g);
   };
 
   const exitToStart = () => {
@@ -77,6 +86,28 @@ export function SettingsModal({ open, onClose }: Props) {
               onClick={() => pickLang('kk')}
             >
               ҚАЗ
+            </button>
+          </div>
+        </div>
+
+        <div className="smodal-row">
+          <span>{lang === 'kk' ? 'Дауыс' : 'Голос'}</span>
+          <div className="smodal-lang" role="group" aria-label={lang === 'kk' ? 'Дауыс' : 'Голос'}>
+            <button
+              type="button"
+              className={voiceGender === 'f' ? 'active' : ''}
+              onClick={() => pickVoice('f')}
+              aria-pressed={voiceGender === 'f'}
+            >
+              {lang === 'kk' ? 'Әйел' : 'Женский'}
+            </button>
+            <button
+              type="button"
+              className={voiceGender === 'm' ? 'active' : ''}
+              onClick={() => pickVoice('m')}
+              aria-pressed={voiceGender === 'm'}
+            >
+              {lang === 'kk' ? 'Ер' : 'Мужской'}
             </button>
           </div>
         </div>

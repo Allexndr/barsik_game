@@ -9,7 +9,10 @@ import {
 const MUTED_KEY = 'barsik_muted';
 const VOL_KEY = 'barsik_volume';
 const TTS_KEY = 'barsik_tts';
+const VOICE_GENDER_KEY = 'barsik_voice_gender';
 const FREE_CHAT_KEY = 'barsik_free_chat';
+
+export type VoiceGender = 'f' | 'm';
 
 function readStoredMuted(): boolean {
   try {
@@ -33,6 +36,14 @@ function readStoredTts(): boolean {
     return localStorage.getItem(TTS_KEY) !== '0';
   } catch {
     return true;
+  }
+}
+
+function readStoredVoiceGender(): VoiceGender {
+  try {
+    return localStorage.getItem(VOICE_GENDER_KEY) === 'm' ? 'm' : 'f';
+  } catch {
+    return 'f';
   }
 }
 
@@ -66,9 +77,13 @@ export interface UIState {
   muted: boolean;
   volume: number;
   ttsEnabled: boolean;
+  /** Narrator gender pack: f → voice/{lang}/, m → voice/m/{lang}/. */
+  voiceGender: VoiceGender;
   freeChatEnabled: boolean;
   showSettings: boolean;
   paused: boolean;
+  /** Changes on every mission start so replaying the same level remounts it. */
+  episodeRunId: number;
 
   setScreen: (screen: UIState['currentScreen']) => void;
   setActiveTab: (tab: UIState['activeTab']) => void;
@@ -81,10 +96,14 @@ export interface UIState {
   toggleMuted: () => void;
   setVolume: (v: number) => void;
   toggleTts: () => void;
+  setVoiceGender: (g: VoiceGender) => void;
   setFreeChat: (v: boolean) => void;
   setShowSettings: (v: boolean) => void;
   setPaused: (v: boolean) => void;
 }
+
+/** Последний уровень с собственной 3D-сценой: экраны mission0…mission16. */
+const LAST_MISSION = 16;
 
 export const useUIStore = create<UIState>((set) => ({
   currentScreen: 'welcome',
@@ -97,123 +116,25 @@ export const useUIStore = create<UIState>((set) => ({
   muted: typeof window !== 'undefined' ? readStoredMuted() : false,
   volume: typeof window !== 'undefined' ? readStoredVolume() : 0.6,
   ttsEnabled: typeof window !== 'undefined' ? readStoredTts() : true,
+  voiceGender: typeof window !== 'undefined' ? readStoredVoiceGender() : 'f',
   freeChatEnabled: typeof window !== 'undefined' ? readStoredFreeChat() : false,
   showSettings: false,
   paused: false,
+  episodeRunId: 0,
 
   setScreen: (screen) => set({ currentScreen: screen }),
   setActiveTab: (tab) => set({ activeTab: tab }),
   startEpisode: (episodeId) => {
-    set({ paused: false, showSettings: false });
-    // Level 0 = Mission0 (real 3D «Первое утро»)
-    if (episodeId === 0) {
+    set((state) => ({
+      paused: false,
+      showSettings: false,
+      episodeRunId: state.episodeRunId + 1,
+    }));
+    // У каждого уровня 0–16 своя 3D-сцена, и экран называется по номеру.
+    // Всё, что вне этого диапазона, — карточка эпизода на карте.
+    if (Number.isInteger(episodeId) && episodeId >= 0 && episodeId <= LAST_MISSION) {
       set({
-        currentScreen: 'mission0',
-        showEpisode: false,
-        episodeId: null,
-        activeTab: 'travel',
-      });
-      return;
-    }
-    // Level 1 = Mission1 (real 3D «Первый друг»)
-    if (episodeId === 1) {
-      set({
-        currentScreen: 'mission1',
-        showEpisode: false,
-        episodeId: null,
-        activeTab: 'travel',
-      });
-      return;
-    }
-    // Level 2 = Mission2 (real 3D «Яблоневый сад»)
-    if (episodeId === 2) {
-      set({
-        currentScreen: 'mission2',
-        showEpisode: false,
-        episodeId: null,
-        activeTab: 'travel',
-      });
-      return;
-    }
-    // Level 3 = Mission3 (real 3D «Потерявшийся ёжик»)
-    if (episodeId === 3) {
-      set({
-        currentScreen: 'mission3',
-        showEpisode: false,
-        episodeId: null,
-        activeTab: 'travel',
-      });
-      return;
-    }
-    // Level 4 = Mission4 (real 3D «Качающийся мостик»)
-    if (episodeId === 4) {
-      set({
-        currentScreen: 'mission4',
-        showEpisode: false,
-        episodeId: null,
-        activeTab: 'travel',
-      });
-      return;
-    }
-    // Level 5 = Mission5 (real 3D «Корзина для белочки»)
-    if (episodeId === 5) {
-      set({
-        currentScreen: 'mission5',
-        showEpisode: false,
-        episodeId: null,
-        activeTab: 'travel',
-      });
-      return;
-    }
-    // Level 6 = Mission6 (real 3D «Лесная загадка»)
-    if (episodeId === 6) {
-      set({
-        currentScreen: 'mission6',
-        showEpisode: false,
-        episodeId: null,
-        activeTab: 'travel',
-      });
-      return;
-    }
-    // Level 7 = Mission7 (real 3D «Встреча с Путало»)
-    if (episodeId === 7) {
-      set({
-        currentScreen: 'mission7',
-        showEpisode: false,
-        episodeId: null,
-        activeTab: 'travel',
-      });
-      return;
-    }
-    // Level 8 = Mission8 (real 3D «Лесной праздник»)
-    if (episodeId === 8) {
-      set({
-        currentScreen: 'mission8',
-        showEpisode: false,
-        episodeId: null,
-        activeTab: 'travel',
-      });
-      return;
-    }
-    // Level 9 = Mission9 (real 3D «QR-сундук»)
-    if (episodeId === 9) {
-      set({
-        currentScreen: 'mission9',
-        showEpisode: false,
-        episodeId: null,
-        activeTab: 'travel',
-      });
-      return;
-    }
-    // Levels 10-16 = Mission10-16 (real 3D winter chapter 1B)
-    const missionScreens: Record<number, string> = {
-      10: 'mission10', 11: 'mission11', 12: 'mission12',
-      13: 'mission13', 14: 'mission14', 15: 'mission15', 16: 'mission16',
-    };
-    const screen = missionScreens[episodeId];
-    if (screen) {
-      set({
-        currentScreen: screen as UIState['currentScreen'],
+        currentScreen: `mission${episodeId}` as UIState['currentScreen'],
         showEpisode: false,
         episodeId: null,
         activeTab: 'travel',
@@ -273,6 +194,14 @@ export const useUIStore = create<UIState>((set) => ({
       }
       return { ttsEnabled };
     }),
+  setVoiceGender: (g) => {
+    try {
+      localStorage.setItem(VOICE_GENDER_KEY, g);
+    } catch {
+      /* ignore */
+    }
+    set({ voiceGender: g });
+  },
   setFreeChat: (v) =>
     set(() => {
       try {
@@ -285,3 +214,10 @@ export const useUIStore = create<UIState>((set) => ({
   setShowSettings: (v) => set({ showSettings: v }),
   setPaused: (v) => set({ paused: v }),
 }));
+
+// QA: same dev-only exposure pattern as `window.__gameStore` in
+// useGameStore.ts — lets QA trigger soft-gates etc. directly instead of
+// waiting out real session-time thresholds.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  (window as unknown as { __uiStore?: typeof useUIStore }).__uiStore = useUIStore;
+}
