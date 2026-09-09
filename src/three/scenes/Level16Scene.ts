@@ -342,11 +342,17 @@ export class Level16Scene extends BaseLevelScene {
     // Широкая дуга вокруг сундука, а не толпа 7×6 у точки появления. Все, кого
     // Барсик встретил за сезон, стоят в конце пути — ради этого кадра финал и
     // существует.
+    //
+    // Дуга шириной 11 м, а не 20: финальная камера стоит в 11 м от сундука и
+    // захватывает около 12.6 м по ширине, поэтому на прежних x = ±10.2 и ±8.6
+    // четверо друзей из девяти оказывались за краем кадра, а двое — обрезаны
+    // рамкой. Проверено прохождением: в кадре последнего уровня сезона были
+    // видны двое из девяти.
     const friendPositions: [number, number][] = [
-      [-7.4, CHEST_Z + 3.4], [7.4, CHEST_Z + 3.4],
-      [-8.6, CHEST_Z - 1.2], [8.6, CHEST_Z - 1.2],
-      [-10.2, CHEST_Z - 3.2], [10.2, CHEST_Z - 3.2],
-      [-5.2, CHEST_Z - 5.4], [5.2, CHEST_Z - 5.4],
+      [-4.1, CHEST_Z + 3.4], [4.1, CHEST_Z + 3.4],
+      [-4.8, CHEST_Z - 1.2], [4.8, CHEST_Z - 1.2],
+      [-5.6, CHEST_Z - 3.2], [5.6, CHEST_Z - 3.2],
+      [-2.9, CHEST_Z - 5.4], [2.9, CHEST_Z - 5.4],
       [0, CHEST_Z - 7.2],
     ];
     const friendColors = [0xa29bfe, 0xfdcb6e, 0x55efc4, 0xff7675, 0x74b9ff, 0xffeaa7, 0xe17055, 0xdfe6e9, 0x81ecec];
@@ -470,12 +476,17 @@ export class Level16Scene extends BaseLevelScene {
 
   private makeChest(): THREE.Group {
     const g = new THREE.Group();
-    const iceMat = new THREE.MeshStandardMaterial({
-      color: 0xb3e5fc, roughness: 0.15, metalness: 0.45, transparent: true, opacity: 0.88,
-    });
     // Карты окружения в игре нет, поэтому почти металлической поверхности
-    // нечего отражать и она читается плоско-чёрной вместо золота — тот же класс
-    // ошибки, что у ассетов из CC0-наборов. Золото даёт свечение emissive.
+    // нечего отражать: при metalness 0.45 и roughness 0.15 лёд уходил в
+    // чёрное, и главный приз сезона выглядел тёмным ящиком. Проверено
+    // прохождением до фазы `open`. Ниже тот же класс ошибки был исправлен для
+    // золота — этот материал стоял строкой выше и остался прежним.
+    const iceMat = new THREE.MeshStandardMaterial({
+      color: 0xb3e5fc, roughness: 0.22, metalness: 0.05,
+      emissive: 0x4fc3f7, emissiveIntensity: 0.3,
+      transparent: true, opacity: 0.88,
+    });
+    // Золото — так же: свечение вместо отражений.
     const goldMat = new THREE.MeshStandardMaterial({
       color: 0xffd700, roughness: 0.25, metalness: 0.12, emissive: 0xffd700, emissiveIntensity: 0.35,
     });
@@ -678,15 +689,19 @@ export class Level16Scene extends BaseLevelScene {
 
     if (this.phase === 'open' && now > this.nextAt) {
       this.phase = 'outro';
-      this.spawnSparks(new THREE.Vector3(0, 2, -5), 30, [0xffd700, 0x00cec9]);
+      this.spawnSparks(new THREE.Vector3(0, 2, CHEST_Z), 30, [0xffd700, 0x00cec9]);
       this.pushHud();
     }
 
     // Конфетти время от времени в фазах open и outro.
+    //
+    // У сундука, а не на z = −4: там он стоял до переноса финала в конец
+    // подъёма. После переноса праздник сыпался в тридцати метрах от того
+    // места, где его должны были видеть, — то есть за спиной у игрока.
     if ((this.phase === 'open' || this.phase === 'outro') && now - this.confettiBurst > 800) {
       this.confettiBurst = now;
       this.spawnSparks(
-        new THREE.Vector3((Math.random() - 0.5) * 4, 1.5, -4 + (Math.random() - 0.5) * 3),
+        new THREE.Vector3((Math.random() - 0.5) * 4, 1.5, CHEST_Z + 1 + (Math.random() - 0.5) * 3),
         12,
         [0x4fc3f7, 0xffd700],
       );
