@@ -16,11 +16,22 @@
 |---|---|---|
 | `SUPABASE_URL` | адрес проекта | Supabase → Project Settings → API → Project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | служебный ключ | там же, `service_role`. **Секрет** |
-| `ADMIN_TOKEN` | пароль от панели | придумайте длинную случайную строку |
+| `SUPABASE_ADMIN_EMAILS` | allowlist администраторов | email пользователей Supabase Auth через запятую |
+| `ADMIN_ALLOW_LEGACY_TOKEN` | временный переходный режим | `true` только на время миграции |
+| `ADMIN_TOKEN` | legacy-пароль, не рекомендуется | длинная случайная строка |
 
 Затем один раз запустить `supabase/admin_schema.sql` в SQL-редакторе Supabase.
 Без него панель работает, но не умеет скрывать строки рейтинга и не ведёт
 журнал — она об этом честно пишет на вкладке «Журнал».
+
+Для server-side aggregation обзора и durable rate limiting дополнительно
+запустить `supabase/platform_hardening.sql`. До применения этой миграции
+`/api/admin/overview` и city-say намеренно возвращают ошибку конфигурации, а не
+откатываются к небезопасному чтению всех строк или in-memory-only лимиту.
+
+Для server-authoritative progression включить Anonymous Sign-Ins в Supabase Auth
+и применить `supabase/progression.sql`. Уже начатые локальные сейвы не переносятся
+автоматически: их нужно отдельно мигрировать после выбора политики доверия.
 
 ### Про service-role ключ
 
@@ -88,6 +99,11 @@ api/admin/audit.ts       чтение журнала
 src/admin/               интерфейс, грузится лениво отдельным чанком
 supabase/admin_schema.sql миграция: hidden, вьюха, таблица журнала
 ```
+
+Новый вход выполняется access token пользователя Supabase Auth; сервер проверяет
+его через `/auth/v1/user` и принимает только `app_metadata.admin=true`, роль
+`admin` или email из `SUPABASE_ADMIN_EMAILS`. Legacy-токен следует включать только
+временно через `ADMIN_ALLOW_LEGACY_TOKEN=true`.
 
 Вход по `?admin=1`, а не по пути `/admin`, потому что путь потребовал бы
 rewrite в `vercel.json`. Путь тоже принимается — если rewrite появится,
