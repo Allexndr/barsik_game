@@ -59,40 +59,40 @@ export interface L4Hud extends BaseHud {
   bridgeSafe: boolean;
 }
 
-/** Deck tile footprint in metres. The CC0 nature kit is authored on a 1×1 grid. */
+/** Размер плиты настила в метрах. Набор CC0 сделан по сетке 1×1. */
 const TILE = 2;
-/** Gorge lips: the near bank ends here, the far bank starts there. */
+/** Края ущелья: здесь кончается ближний берег, там начинается дальний. */
 const NEAR_EDGE = 3;
 const FAR_EDGE = -19;
 const GORGE_DEPTH = 7;
 
 /**
- * Rock pillar in mid-gorge, built from one cliff block of the CC0 kit. Those
- * are cubes whose origin sits at the bottom, so a block of side CLIFF placed
- * at y = -CLIFF has its grass top exactly at deck height — the hero walks on
- * at y = 0 and no height sampling is involved. Its footprint is CLIFF wide,
- * which is why the deck tiles either side of it start 3.25 m out: a tile any
- * closer would sink into the rock.
+ * Скальный столб посреди ущелья, собранный из одного утёсного блока набора
+ * CC0. Это кубы с началом координат внизу, поэтому блок со стороной CLIFF,
+ * поставленный на y = −CLIFF, даёт травяную верхушку ровно на высоте настила:
+ * герой заходит на неё при y = 0, и никакой выборки высоты не требуется.
+ * Основание шириной CLIFF — отсюда и то, что плиты настила по обе стороны
+ * начинаются в 3.25 м: любая ближе утонула бы в скале.
  */
 const ISLAND_Z = -7;
 const ISLAND_HALF_Z = 3.5;
 const ISLAND_HALF_X = 3;
 
-/** Deck tile centres. Two before the island, three after. */
+/** Центры плит настила: две до островка, три после. */
 const SECTION_Z = [0, -2, -12, -14, -16];
-/** Which tiles the wind tore loose. Spread across both spans so the gaps are
- *  readable from the near lip and the far span still looks broken. */
+/** Какие плиты сорвал ветер. Разнесены по обоим пролётам: провалы видно с
+ *  ближнего края, и дальний пролёт тоже выглядит разрушенным. */
 const MISSING = [0, 2, 4];
 
 const WINCH_X = 2.6;
 const WINCH_Z = -22.5;
-/** Aya waits well back from the lip; the walk-on has to have somewhere to start. */
+/** Айя ждёт поодаль от края: выходу на мост нужно откуда-то начинаться. */
 const AYA_Z = -26;
 
 /**
- * Where the wind dropped the planks. Two on the gorge lip with a lookout
- * railing, one thrown back into the trees — that one is what makes a child
- * turn around and discover the bank behind them has anything on it.
+ * Куда ветер бросил доски. Две на краю ущелья, у смотровых перил, одна —
+ * назад в деревья: именно она заставляет ребёнка обернуться и обнаружить, что
+ * на берегу за спиной вообще что-то есть.
  */
 /**
  * Перегоны 12–18 м, а не 32.
@@ -122,9 +122,9 @@ interface BridgeSection {
   safeDuration: number;
   unsafeDuration: number;
   crossed: boolean;
-  /** Deck tile missing until the matching plank is found. */
+  /** Плита отсутствует, пока не найдена её доска. */
   missing: boolean;
-  /** Tied down by the windlass: stops swaying for good. */
+  /** Закреплена воротом: больше не качается. */
   locked: boolean;
   plank: THREE.Object3D;
   glow: THREE.Mesh;
@@ -137,11 +137,11 @@ interface LoosePlank {
   marker: THREE.Group;
   spot: (typeof PLANK_SPOTS)[number];
   taken: boolean;
-  /** Set during the repair beat: where this plank flies to. */
+  /** Задаётся в момент починки: куда летит эта доска. */
   target: THREE.Vector3;
 }
 
-/** A loose deck plank: a board with two nail heads, readable at any distance. */
+/** Оторванная доска настила: доска с двумя шляпками гвоздей, видна с любого расстояния. */
 function makeLoosePlank(): THREE.Group {
   const g = new THREE.Group();
   const wood = new THREE.MeshStandardMaterial({ color: 0xa9784f, roughness: 0.85 });
@@ -157,7 +157,7 @@ function makeLoosePlank(): THREE.Group {
   return g;
 }
 
-/** Timber railing for a lookout, so the lip reads as somewhere to stand. */
+/** Деревянные перила смотровой площадки: край читается местом, где можно встать. */
 function makeRailing(width: number): THREE.Group {
   const g = new THREE.Group();
   const wood = new THREE.MeshStandardMaterial({ color: 0x8a6a4f, roughness: 0.9 });
@@ -177,12 +177,12 @@ function makeRailing(width: number): THREE.Group {
 }
 
 /**
- * Towers, sagging hand ropes and vertical hangers. The sag is what makes the
- * span read as a suspension bridge rather than two straight sticks.
+ * Опоры, провисающие поручни и вертикальные подвесы. Именно провис делает
+ * пролёт подвесным мостом, а не двумя прямыми палками.
  *
- * The rope is built per span rather than once end to end: with a pier in the
- * middle, a single parabola would dip to hand height right where the hero
- * walks across the island, and he would stroll straight through the rail.
+ * Канат строится по пролётам, а не одной ниткой от края до края: с опорой
+ * посередине единая парабола опускалась бы на высоту руки ровно там, где
+ * герой идёт по островку, и он проходил бы сквозь поручень.
  */
 function makeBridgeRigging(spans: Array<[number, number]>, tile: number): THREE.Group {
   const g = new THREE.Group();
@@ -193,7 +193,7 @@ function makeBridgeRigging(spans: Array<[number, number]>, tile: number): THREE.
   const sagLow = 1.15;
 
   const ropeHeight = (t: number) => {
-    // Parabolic sag: high at both towers, lowest at mid-span.
+    // Параболический провис: высоко у обеих опор, ниже всего посередине пролёта.
     const centred = (t - 0.5) * 2;
     return sagLow + (towerTop - sagLow) * centred * centred;
   };
@@ -213,7 +213,7 @@ function makeBridgeRigging(spans: Array<[number, number]>, tile: number): THREE.
       rope.castShadow = false;
       g.add(rope);
 
-      // Hangers tying the hand rope down to the deck.
+      // Подвесы, притягивающие поручень к настилу.
       for (let i = 1; i < 12; i++) {
         const t = i / 12;
         const top = ropeHeight(t);
@@ -225,7 +225,7 @@ function makeBridgeRigging(spans: Array<[number, number]>, tile: number): THREE.
     }
   }
 
-  // Towers at both lips and at the island, which carries the span's midpoint.
+  // Опоры на обоих краях и на островке, который держит середину пролёта.
   const towerZ = new Set(spans.flat());
   for (const z of towerZ) {
     for (const side of [-1, 1]) {
@@ -247,15 +247,15 @@ function makeBridgeRigging(spans: Array<[number, number]>, tile: number): THREE.
 }
 
 /**
- * The windlass on the far bank. Turning it takes the slack out of the hand
- * ropes; three turns and the deck stands still for good.
+ * Ворот на дальнем берегу. Каждый поворот выбирает слабину поручней; три
+ * поворота — и настил перестаёт качаться совсем.
  */
 function makeWinch(): { group: THREE.Group; crank: THREE.Group; drum: THREE.Mesh } {
   const group = new THREE.Group();
   const wood = new THREE.MeshStandardMaterial({ color: 0x8a6a4f, roughness: 0.9 });
-  // No envmap in this game, so metalness alone reflects nothing and renders
-  // flat black — same fix as L9's gold: emissive carries the metal's own
-  // colour instead of relying on a reflection that doesn't exist.
+  // Карты окружения в игре нет, поэтому одна металличность ничего не отражает
+  // и даёт плоско-чёрное — та же правка, что у золота на L9: собственный цвет
+  // металла несёт emissive, а не отражение, которого не существует.
   const iron = new THREE.MeshStandardMaterial({
     color: 0x5a5f66, roughness: 0.45, metalness: 0.55,
     emissive: 0x5a5f66, emissiveIntensity: 0.3,
@@ -279,7 +279,7 @@ function makeWinch(): { group: THREE.Group; crank: THREE.Group; drum: THREE.Mesh
   drum.castShadow = true;
   group.add(drum);
 
-  // Rope wound onto the drum, so the thing visibly stores what it pulls.
+  // Канат намотан на барабан: видно, что ворот хранит то, что тянет.
   const coil = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.62, 14), new THREE.MeshStandardMaterial({ color: 0xd9b382, roughness: 1 }));
   coil.rotation.z = Math.PI / 2;
   coil.position.y = 1.2;
@@ -317,21 +317,21 @@ export class Level4Scene extends BaseLevelScene {
   private bridgeElapsedMs = 0;
   private lastBridgeSafe: boolean | null = null;
 
-  // Act I
+  // Акт I.
   private planks: LoosePlank[] = [];
   private planksFound = 0;
   private lastPlankKind: LoosePlank['spot']['kind'] | null = null;
   private repairStartedAt = 0;
-  /** Rope strung across the bridge mouth until the deck is whole. */
+  /** Верёвка поперёк входа на мост, пока настил не цел. */
   private barrier: THREE.Group | null = null;
   private barrierCollider: Collider | null = null;
 
-  // Act II
+  // Акт II.
   private islandVisited = false;
   private islandBeatUntil = 0;
   private islandLantern: THREE.Object3D | null = null;
 
-  // Act III
+  // Акт III.
   private winch: THREE.Group | null = null;
   private winchCrank: THREE.Group | null = null;
   private winchMarker: THREE.Group | null = null;
@@ -349,7 +349,7 @@ export class Level4Scene extends BaseLevelScene {
     this.pushHud();
   }
 
-  // ── Interaction ──────────────────────────────────────────────
+  // ── Взаимодействие ───────────────────────────────────────────
   tryInteract() {
     const t = this.interactTarget;
     if (!t) return;
@@ -392,15 +392,15 @@ export class Level4Scene extends BaseLevelScene {
     if (this.winchTurns >= this.totalWinchTurns) return;
     this.winchTurns += 1;
     this.crankTarget += Math.PI * 2;
-    // One star a turn, not two: three taps in one spot is the least effortful
-    // thing in the level and should not out-earn walking the whole lip.
+    // Одна звезда за поворот, а не две: три нажатия на одном месте — самое
+    // необременительное действие уровня, и оно не должно приносить больше, чем
+    // обход всего края.
     this.stars += 1;
     AudioManager.sfx('success');
     this.praiseUntil = now + 700;
 
-    // Each turn takes the slack out of one more stretch of deck, so the
-    // child sees the bridge go quiet section by section instead of all at
-    // once at the end.
+    // Каждый поворот успокаивает ещё один участок настила: ребёнок видит, как
+    // мост затихает по секциям, а не разом в конце.
     const lockGroups = [[0, 1], [2, 3], [4]];
     for (const i of lockGroups[this.winchTurns - 1] ?? []) {
       const s = this.sections[i];
@@ -422,7 +422,7 @@ export class Level4Scene extends BaseLevelScene {
     this.pushHud();
   }
 
-  /** Rebuilds the winch rope with less sag. Three rebuilds a level. */
+  /** Пересобирает канат ворота с меньшим провисом. Три пересборки за уровень. */
   private setRopeTension(t: number) {
     if (!this.tensionRope) return;
     const sag = 1.1 * (1 - t);
@@ -445,7 +445,7 @@ export class Level4Scene extends BaseLevelScene {
     return z <= ISLAND_Z + ISLAND_HALF_Z && z >= ISLAND_Z - ISLAND_HALF_Z;
   }
 
-  // ── Build ────────────────────────────────────────────────────
+  // ── Сборка сцены ─────────────────────────────────────────────
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: L4Hud) => void) {
     this.nick = nick || this.defaultNick(lang);
     this.lang = lang;
@@ -458,9 +458,10 @@ export class Level4Scene extends BaseLevelScene {
     this.setupSky();
     this.setupClouds(8, 28, 60);
 
-    // ── Gorge ─────────────────────────────────────────────────
-    // Two separate banks leave a real gap in the world. A single ground plane
-    // would make the ravine a dark rectangle painted on grass.
+    // ── Ущелье ────────────────────────────────────────────────
+    // Два отдельных берега оставляют в мире настоящий разрыв. Одна общая
+    // плоскость земли превратила бы овраг в тёмный прямоугольник, нарисованный
+    // на траве.
     const grass = makeGrassTexture();
     for (const [zStart, zEnd] of [[NEAR_EDGE, 80], [-90, FAR_EDGE]] as const) {
       const depth = zEnd - zStart;
@@ -474,21 +475,21 @@ export class Level4Scene extends BaseLevelScene {
       this.scene.add(bank);
     }
 
-    // Nothing may be scattered into the chasm. Tree and prop scatter works in
-    // rings centred on each bank, and those rings cross the gorge — a pine
-    // hovering over a 7-metre drop is the single most obvious "this is a
-    // prototype" tell a level can have. Two rows of circles rather than one:
-    // a single row wide enough to span 22 metres of gorge would also swallow
-    // the lookouts on the lip.
-    // `keepClear`, not `reserve`: the gorge is the one place in this level
-    // the player must not be. Declared as a room it made the play area
-    // eighty-eight metres wide and the bridge pointless.
+    // В пропасть ничего сыпать нельзя. Разброс деревьев и реквизита работает
+    // кольцами вокруг каждого берега, а эти кольца пересекают ущелье, и сосна,
+    // висящая над семиметровым обрывом, — самый явный признак прототипа,
+    // который уровень может показать. Два ряда кругов, а не один: единственный
+    // ряд шириной в 22 метра ущелья заодно проглотил бы смотровые площадки на
+    // краю.
+    // `keepClear`, а не `reserve`: ущелье — единственное место уровня, где
+    // игрока быть не должно. Объявленное комнатой, оно растянуло игровую зону
+    // на восемьдесят восемь метров и обессмыслило мост.
     for (const z of [-4, -14]) {
       for (let x = -44; x <= 44; x += 8) this.keepClear(x, z, 10);
     }
 
-    // Gravel bed with a shallow stream, so the drop bottoms out in something
-    // readable instead of a flat dark band.
+    // Галечное дно с мелким ручьём: обрыв заканчивается чем-то читаемым, а не
+    // плоской тёмной полосой.
     const bedWidth = Math.abs(NEAR_EDGE - FAR_EDGE) + 4;
     const bed = new THREE.Mesh(
       new THREE.PlaneGeometry(320, bedWidth),
@@ -498,10 +499,10 @@ export class Level4Scene extends BaseLevelScene {
     bed.position.set(0, -GORGE_DEPTH, (NEAR_EDGE + FAR_EDGE) / 2);
     this.scene.add(bed);
 
-    // Same shader-based water Level 0 and Level 1 use — waves, depth tint and
-    // shore foam — instead of a flat tinted rectangle. The bed itself was
-    // already a real dug gorge (`GORGE_DEPTH`); only the water surface was
-    // still the old flat plane.
+    // Та же шейдерная вода, что на нулевом и первом уровнях — волны, тонировка
+    // по глубине и пена у берега, — вместо плоского крашеного прямоугольника.
+    // Само дно уже было настоящим вырытым ущельем (`GORGE_DEPTH`); плоской
+    // оставалась только поверхность воды.
     this.stream = createRiverWater({
       width: 320,
       length: bedWidth * 0.55,
@@ -524,14 +525,14 @@ export class Level4Scene extends BaseLevelScene {
       this.scene.add(rock);
     }
 
-    // Rock faces down both sides of the gorge, tiled from the CC0 cliff kit.
-    // One block spans the full drop: the cliff models carry a grass top, so any
-    // block that stops partway down shows a green shelf inside the canyon.
+    // Скальные стены по обеим сторонам ущелья, выложены из утёсного набора CC0.
+    // Один блок закрывает весь перепад: у моделей утёсов сверху трава, поэтому
+    // блок, оканчивающийся на полпути, показывал бы зелёную полку внутри каньона.
     const CLIFF = GORGE_DEPTH + 0.5;
     const cliffWall: Array<{ x: number; z: number }> = [];
     for (let x = -30; x <= 30; x += CLIFF) {
-      // Jitter towards the gorge only. A block nudged the other way would pull
-      // back behind the bank plane and open a strip of void along the lip.
+      // Дрожание только в сторону ущелья. Блок, сдвинутый наружу, ушёл бы за
+      // плоскость берега и открыл полосу пустоты вдоль края.
       cliffWall.push({ x, z: NEAR_EDGE + CLIFF / 2 - Math.random() * 1.1 });
       cliffWall.push({ x, z: FAR_EDGE - CLIFF / 2 + Math.random() * 1.1 });
     }
@@ -545,9 +546,9 @@ export class Level4Scene extends BaseLevelScene {
       if (block) this.scene.add(block);
     }
 
-    // Boulders lodged part-way down both faces. Without them a 60-metre run of
-    // identical blocks reads as one flat brown slab, which is the single
-    // largest surface in the level.
+    // Валуны, застрявшие на середине обеих стен. Без них шестьдесят метров
+    // одинаковых блоков читаются одной плоской коричневой плитой — самой
+    // большой поверхностью уровня.
     const faceRocks: Array<{ x: number; z: number; maxSize: number }> = [];
     for (let i = 0; i < 12; i++) {
       const near = i % 2 === 0;
@@ -563,32 +564,32 @@ export class Level4Scene extends BaseLevelScene {
       this.scene.add(rock);
     }
 
-    // ── Rock pillar mid-gorge ─────────────────────────────────
-    // The rest point that turns one long corridor into two spans. One block,
-    // not a tiled stack: the kit's cliff block is a CLIFF-sided cube, so a
-    // single one already spans the island footprint, and tiling only produced
-    // seams and z-fighting on the shared faces.
+    // ── Скальный столб посреди ущелья ─────────────────────────
+    // Точка отдыха, превращающая один длинный коридор в два пролёта. Один блок,
+    // а не стопка: утёсный блок набора — куб со стороной CLIFF, и одного уже
+    // хватает на всё основание островка, а укладка стопкой давала только швы и
+    // мерцание на общих гранях.
     const pillarBlock = await kit.spawn('nature', 'cliff_block_rock', {
       scale: CLIFF,
       ground: false,
     });
     if (pillarBlock) {
-      // Placed from its own measured bounds rather than from an assumed
-      // origin. The kit's cliff blocks are anchored at a corner, not at their
-      // centre, so positioning by hand put the pillar a whole block off the
-      // bridge line — fine in the wall rows, where a uniform half-block shift
-      // is invisible, and very much not fine for a single landmark.
+      // Ставится по собственным замеренным габаритам, а не по предполагаемому
+      // началу координат. Утёсные блоки набора привязаны к углу, а не к центру,
+      // поэтому расстановка на глаз уводила столб на целый блок от линии моста —
+      // в рядах стен, где сдвиг на полблока одинаков и незаметен, это нормально,
+      // а для единственного ориентира — нет.
       const box = new THREE.Box3().setFromObject(pillarBlock);
       const centre = box.getCenter(new THREE.Vector3());
       pillarBlock.position.set(-centre.x, -box.max.y, ISLAND_Z - centre.z);
       this.scene.add(pillarBlock);
     }
 
-    // Flat grassy cap, so the island top is a place to stand rather than the
-    // top face of a stack of blocks.
-    // Reaches all the way to the deck tiles either side. The rock is 0.25 m
-    // short of them, and an unbridged slit of void at foot level reads as a
-    // hole a child is about to fall through.
+    // Плоская травяная шапка: верх островка — место, где стоят, а не верхняя
+    // грань стопки блоков.
+    // Дотягивается до плит настила по обе стороны. Скала не достаёт до них
+    // 0.25 м, и незакрытая щель пустоты на уровне ног читается дырой, в которую
+    // ребёнок вот-вот провалится.
     const cap = new THREE.Mesh(
       new THREE.PlaneGeometry(ISLAND_HALF_X * 2 + 0.6, 8),
       new THREE.MeshStandardMaterial({ map: grass, roughness: 0.95 }),
@@ -603,10 +604,10 @@ export class Level4Scene extends BaseLevelScene {
     });
     if (this.islandLantern) this.scene.add(this.islandLantern);
 
-    // A flag on the pier. From the near lip the island is brown rock in front
-    // of a brown cliff face 12 metres behind it, and the two read as one wall;
-    // the flag is the only thing that breaks the silhouette and tells a child
-    // there is somewhere to stand halfway across.
+    // Флаг на опоре. С ближнего края островок — коричневая скала на фоне
+    // коричневой стены в двенадцати метрах за ним, и вместе они читаются одной
+    // стеной; флаг — единственное, что разбивает силуэт и говорит ребёнку, что
+    // на середине пути есть где встать.
     const islandFlag = await placeS1Prop(loader, 'flag', {
       x: 1.9, z: ISLAND_Z + 1.4, height: 2.6,
     });
@@ -621,7 +622,7 @@ export class Level4Scene extends BaseLevelScene {
       this.scene.add(rock);
     }
 
-    // Broken silhouette on the lips so the canyon is not two straight walls.
+    // Изломанный силуэт краёв, чтобы каньон не был двумя прямыми стенами.
     const lipRocks: Array<{ x: number; z: number; maxSize: number }> = [];
     for (let i = 0; i < 18; i++) {
       const side = i % 2 === 0 ? NEAR_EDGE + 0.9 : FAR_EDGE - 0.9;
@@ -632,24 +633,25 @@ export class Level4Scene extends BaseLevelScene {
       });
     }
     for (const rock of await kit.scatter('nature', ['rock_tallC', 'stone_largeB', 'rock_largeD', 'stone_tallF'], lipRocks)) {
-      // Keep the bridge mouth and both lookouts clear.
+      // Вход на мост и обе смотровые площадки держим свободными.
       if (Math.abs(rock.position.x) < 2.4) continue;
       if (PLANK_SPOTS.some((s) => Math.hypot(s.x - rock.position.x, s.z - rock.position.z) < 3)) continue;
       this.scene.add(rock);
     }
 
-    // ── Gameplay zones reserved before any scatter ────────────
+    // ── Игровые зоны резервируются до всякого разброса ────────
     this.reserve(0, 6, 4.5);
     this.reserve(0, AYA_Z, 4);
     this.reserve(WINCH_X, WINCH_Z, 3);
     for (const spot of PLANK_SPOTS) this.reserve(spot.x, spot.z, 3.4);
 
-    // The level is three places joined by one crossing, and saying so is what
-    // lets the enclosure wall it correctly: a wide bank you search, a narrow
-    // deck you time, and a small far bank you finish on. The near bank is one
-    // room rather than three plank-sized ones, because act I is exploration
-    // and the planks sit sixteen metres either side of the route — declared
-    // as separate rooms they would be islands with no way to walk to them.
+    // Уровень — это три места, соединённые одной переправой, и сказать это
+    // прямо нужно, чтобы ограда встала верно: широкий берег, который обыскивают,
+    // узкий настил, по которому идут по ритму, и маленький дальний берег, на
+    // котором заканчивают. Ближний берег — одна комната, а не три по размеру
+    // доски: акт I — это исследование, доски лежат в шестнадцати метрах по обе
+    // стороны маршрута, и объявленные отдельными комнатами они стали бы
+    // островами, до которых не дойти.
     this.reserve(0, 11, 15);
     this.playPath = [
       { x: 0, z: 16 },
@@ -666,11 +668,11 @@ export class Level4Scene extends BaseLevelScene {
     this.scene.add(await placeWoodSign(loader, -3.6, 8.4, 0.3, 0xef9a9a));
     this.scene.add(await placeWoodSign(loader, 3.4, AYA_Z + 1.8, -0.4, 0x81c784));
 
-    // ── Act I: the lip ────────────────────────────────────────
+    // ── Акт I: край ущелья ────────────────────────────────────
     for (const spot of PLANK_SPOTS) {
       if (spot.kind === 'forest') {
-        // Thrown into the undergrowth: framed by bushes rather than a railing,
-        // so it reads as "blown here" and not as a fourth lookout.
+        // Заброшена в подлесок: обрамлена кустами, а не перилами, поэтому
+        // читается как «занесло ветром», а не как четвёртая смотровая.
         for (const bush of await kit.scatter('nature', ['plant_bushLarge', 'plant_bushDetailed'], [
           { x: spot.x - 1.6, z: spot.z + 0.9, maxSize: 1.5 },
           { x: spot.x + 1.7, z: spot.z - 0.6, maxSize: 1.3 },
@@ -679,8 +681,8 @@ export class Level4Scene extends BaseLevelScene {
           this.scene.add(bush);
         }
       } else {
-        // A lookout facing the drop: railing on the gorge side, a bench to
-        // make it somewhere a child is invited to stop.
+        // Смотровая площадка над обрывом: перила со стороны ущелья и скамья,
+        // чтобы это было местом, где ребёнка приглашают остановиться.
         const railing = makeRailing(5.2);
         railing.position.set(spot.x, 0, NEAR_EDGE + 0.55);
         this.scene.add(railing);
@@ -710,9 +712,9 @@ export class Level4Scene extends BaseLevelScene {
       this.planks.push({ mesh, marker, spot, taken: false, target: new THREE.Vector3() });
     }
 
-    // Approach path from the CC0 ground kit instead of flat coloured quads.
-    // Stops at the lip: the original ran five tiles from z 6.5 down to -1.5,
-    // and the last three hung in mid-air over the chasm.
+    // Подход выложен плитами наземного набора CC0, а не плоскими крашеными
+    // квадратами. Кончается у края: в исходном варианте пять плит шли от z 6.5
+    // до −1.5, и последние три висели в воздухе над пропастью.
     for (let i = 0; i < 3; i++) {
       const tile = await kit.spawn('nature', 'ground_pathStraight', {
         scale: 2,
@@ -732,13 +734,13 @@ export class Level4Scene extends BaseLevelScene {
       if (tile) this.scene.add(tile);
     }
 
-    // Deliberately no arrows on the near approach. Act I sends the child along
-    // the lip, and a row of glowing arrows aimed at a bridge that is roped off
-    // says the opposite of the objective. The guide arrow already points at the
-    // nearest plank, and the bridge needs no signposting — it is the largest
-    // thing in the level with a red rope across it.
+    // На ближнем подходе стрелок намеренно нет. Акт I отправляет ребёнка вдоль
+    // края, а ряд светящихся стрелок, указывающих на перекрытый верёвкой мост,
+    // говорит противоположное заданию. Стрелка-указатель и так ведёт к
+    // ближайшей доске, а мост в указателях не нуждается: это самый большой
+    // объект уровня, поперёк которого натянута красная верёвка.
 
-    // ── Bridge ────────────────────────────────────────────────
+    // ── Мост ──────────────────────────────────────────────────
     this.bridgeGroup = new THREE.Group();
     this.scene.add(this.bridgeGroup);
 
@@ -752,8 +754,8 @@ export class Level4Scene extends BaseLevelScene {
       if (ramp) this.bridgeGroup.add(ramp);
     }
 
-    // Rule of Three: the first two spans teach the rhythm at a gentle pace,
-    // the three after the island run faster.
+    // Правило трёх: первые два пролёта учат ритму в мягком темпе, три после
+    // островка идут быстрее.
     const sectionConfigs = [
       { safeDuration: 3.2, unsafeDuration: 1.4, swaySpeed: 1.0 },
       { safeDuration: 2.6, unsafeDuration: 1.6, swaySpeed: 1.2 },
@@ -775,9 +777,9 @@ export class Level4Scene extends BaseLevelScene {
         ground: false,
       })) ?? new THREE.Group();
 
-      // A faint wash only. A strong tint turned the wooden deck into candy
-      // stripes; the plank must still read as wood, with the symbol carrying
-      // the actual signal.
+      // Только лёгкий налёт цвета. Сильная тонировка превращала деревянный
+      // настил в леденцовые полосы; доска обязана читаться деревом, а сигнал
+      // несёт значок.
       const glow = new THREE.Mesh(
         new THREE.PlaneGeometry(TILE * 0.86, TILE * 0.94),
         new THREE.MeshBasicMaterial({
@@ -791,7 +793,8 @@ export class Level4Scene extends BaseLevelScene {
       glow.rotation.x = -Math.PI / 2;
       glow.position.y = 0.03;
 
-      // Shape duplicates color for accessibility: ring = steady/go, cross = sway/wait.
+      // Форма дублирует цвет ради доступности: кольцо — стоит, иди; крест —
+      // качается, жди.
       const safeMaterial = new THREE.MeshBasicMaterial({ color: 0xdcffe8, toneMapped: false });
       const unsafeMaterial = new THREE.MeshBasicMaterial({ color: 0xfff1f0, toneMapped: false });
       const safeSignal = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.58, 24), safeMaterial);
@@ -806,8 +809,8 @@ export class Level4Scene extends BaseLevelScene {
       unsafeSignal.position.y = 0.06;
       unsafeSignal.visible = false;
 
-      // A missing tile shows the drop through the deck. That gap is the whole
-      // brief for act I, stated in geometry rather than in a line of text.
+      // Отсутствующая плита показывает обрыв сквозь настил. Этот провал и есть
+      // всё задание акта I, сказанное геометрией, а не строкой текста.
       if (missing) {
         plank.visible = false;
         glow.visible = false;
@@ -835,7 +838,7 @@ export class Level4Scene extends BaseLevelScene {
       });
     }
 
-    // Loose planks fly to their gaps during the repair beat.
+    // В момент починки оторванные доски улетают в свои провалы.
     for (const [i, index] of MISSING.entries()) {
       const plank = this.planks[i];
       if (plank) plank.target.set(0, 0.35, SECTION_Z[index]);
@@ -846,9 +849,8 @@ export class Level4Scene extends BaseLevelScene {
       [ISLAND_Z - ISLAND_HALF_Z, FAR_EDGE],
     ], TILE));
 
-    // Rope across the mouth while the deck has holes in it. A child who walks
-    // straight at the bridge is stopped by something they can see, not by an
-    // invisible wall.
+    // Верёвка поперёк входа, пока в настиле дыры. Ребёнка, идущего прямо на
+    // мост, останавливает то, что он видит, а не невидимая стена.
     this.barrier = new THREE.Group();
     const ropeMat = new THREE.MeshStandardMaterial({ color: 0xe17055, roughness: 1 });
     for (const y of [0.55, 0.95]) {
@@ -861,7 +863,7 @@ export class Level4Scene extends BaseLevelScene {
     this.barrierCollider = { kind: 'circle', x: 0, z: NEAR_EDGE - 0.2, r: 1.5 };
     this.colliders.push(this.barrierCollider);
 
-    // ── Act III: the windlass ─────────────────────────────────
+    // ── Акт III: ворот ────────────────────────────────────────
     const built = makeWinch();
     this.winch = built.group;
     this.winchCrank = built.crank;
@@ -870,9 +872,9 @@ export class Level4Scene extends BaseLevelScene {
     this.scene.add(this.winch);
     this.colliders.push({ kind: 'circle', x: WINCH_X, z: WINCH_Z, r: 0.8 });
 
-    // Act III had no marker of any kind: the objective named a windlass the
-    // child had never seen, and the only pointer was the guide arrow, which
-    // hides itself the moment anything is in interact range.
+    // У акта III не было никакого маркера: задание называло ворот, которого
+    // ребёнок ни разу не видел, а единственным указателем была стрелка, которая
+    // прячется, едва что-нибудь попадает в радиус взаимодействия.
     this.winchMarker = questMarker(0xffe27a, 0xf6a623);
     this.winchMarker.position.set(WINCH_X, 0, WINCH_Z);
     this.winchMarker.visible = false;
@@ -885,7 +887,7 @@ export class Level4Scene extends BaseLevelScene {
     this.scene.add(this.tensionRope);
     this.setRopeTension(0);
 
-    // ── Dressing ──────────────────────────────────────────────
+    // ── Декор ─────────────────────────────────────────────────
     await this.placeProps(loader, [
       { key: 'rock_snow', opts: { x: -6.5, z: 4.2, maxSize: 1.3 } },
       { key: 'rock_snow', opts: { x: 6.8, z: 4.6, maxSize: 1.1, rotY: 1.0 } },
@@ -897,8 +899,8 @@ export class Level4Scene extends BaseLevelScene {
       { key: 'lantern_wood', opts: { x: 3.6, z: FAR_EDGE - 1.4, height: 1.35 } },
     ]);
 
-    // Trees on both banks. The near bank now has 20 metres of depth behind
-    // spawn, and without a treeline it reads as an empty stage.
+    // Деревья на обоих берегах. У ближнего теперь двадцать метров глубины за
+    // точкой появления, и без кромки леса он читается пустой сценой.
     await this.loadTrees(loader, 20, 22, -34, 4.5);
     await this.loadTrees(loader, 16, 18, 24, 4.5);
     await this.loadProps(loader, 7, 8, 18, -34);
@@ -910,14 +912,15 @@ export class Level4Scene extends BaseLevelScene {
     ayaGroup.rotation.y = Math.PI; // face the bridge, and the arriving player
     this.aya = ayaGroup;
     this.scene.add(ayaGroup);
-    // Waiting on the far bank, "visible from the start" per the comment
-    // above — but reachable, and had no collider of her own.
+    // Ждёт на дальнем берегу, «видна с самого начала» — как сказано в
+    // комментарии выше, — но при этом достижима, а собственного коллайдера у неё
+    // не было.
     this.colliders.push({ kind: 'circle', x: ayaGroup.position.x, z: ayaGroup.position.z, r: 0.55 });
     this.ayaMarker = questMarker(0xa29bfe, 0x6c5ce7);
     this.ayaMarker.position.copy(this.aya.position);
-    // Lit from the start. Somebody waiting on the far side, visible from the
-    // near lip, is the reason to cross at all — hiding it until after the
-    // crossing meant the level's whole point arrived only once it was over.
+    // Горит с самого начала. Тот, кто ждёт на той стороне и виден с этого края,
+    // и есть причина вообще переходить; спрятать это до конца переправы значило
+    // сообщить смысл уровня только тогда, когда он уже закончился.
     this.scene.add(this.ayaMarker);
 
     for (let i = 0; i < 5; i++) {
@@ -929,7 +932,7 @@ export class Level4Scene extends BaseLevelScene {
       this.scene.add(bf);
     }
 
-    // Flowers framing both approaches — kept off the gorge itself.
+    // Цветы обрамляют оба подхода, но не лезут в само ущелье.
     const flowerSpots: Array<{ x: number; z: number; height: number }> = [];
     for (let i = 0; i < 14; i++) {
       const side = i % 2 === 0 ? 1 : -1;
@@ -944,29 +947,29 @@ export class Level4Scene extends BaseLevelScene {
       this.scene.add(flower);
     }
 
-    // Wind grass on both banks, matched to the level's fog. The gorge is left
-    // out: setupWindGrass samples a flat ground, and blades over the chasm
-    // would hang in mid-air. Both bands also start clear of the gorge reserve
-    // above, or most of the requested blades would be discarded on placement
-    // and the count would quietly mean nothing.
+    // Ветреная трава на обоих берегах, под цвет тумана уровня. Ущелье
+    // исключено: setupWindGrass выбирает высоту по плоской земле, и травинки над
+    // пропастью висели бы в воздухе. Обе полосы начинаются за границей резерва
+    // ущелья, иначе большая часть запрошенных травинок отбрасывалась бы при
+    // расстановке и число молча перестало бы что-либо значить.
     this.setupWindGrass({
       count: this.grassCountForTier(this.isMobile ? 2600 : 7000),
       area: { xMin: -30, xMax: 30, zMin: 6, zMax: 32 },
     });
-    // Shorter blades on the far bank. Act III's two objects — the windlass and
-    // Aya — both stand there, and at the near bank's blade height the grass
-    // came up past Aya's waist from the camera's angle and swallowed her.
+    // На дальнем берегу трава ниже. Оба объекта акта III — ворот и Айя — стоят
+    // там, и при высоте травинок ближнего берега трава с угла камеры
+    // поднималась Айе выше пояса и проглатывала её.
     this.setupWindGrass({
       count: this.grassCountForTier(this.isMobile ? 2000 : 5200),
       area: { xMin: -26, xMax: 26, zMin: -38, zMax: -20 },
       bladeHeight: [0.2, 0.42],
     });
 
-    // Hero
+    // Герой.
     const start = this.devStart();
     this.hero.position.set(start?.x ?? 0, 0, start?.z ?? 6);
-    // Walled last. The gorge is `keepClear`, so the treeline stops at the lip
-    // rather than growing out over a seven-metre drop.
+    // Ограда ставится последней. Ущелье помечено `keepClear`, поэтому кромка
+    // леса останавливается у края, а не растёт над семиметровым обрывом.
     await this.enclosePath(loader);
 
     this.scene.add(this.hero);
@@ -979,13 +982,13 @@ export class Level4Scene extends BaseLevelScene {
       addEventListener('resize', this.resize);
 
       if (start) {
-        // Drop straight into the act that owns wherever we were asked to
-        // stand, or the play-area clamp for the intro phase would shove the
-        // hero back across the gorge on the first frame.
+        // Входим сразу в тот акт, которому принадлежит запрошенная точка, иначе
+        // ограничение игровой зоны для фазы интро на первом же кадре зашвырнёт
+        // героя обратно через ущелье.
         this.phase = start.z > NEAR_EDGE ? 'edge' : start.z > FAR_EDGE ? 'bridge' : 'winch';
-        // `&planks=N` marks N of them already found, so the repair beat — the
-        // one piece of act I that only fires after a 40-metre walk — can be
-        // reached in one load instead of three.
+        // `&planks=N` помечает N досок уже найденными: бит починки — единственная
+        // часть акта I, которая срабатывает только после сорока метров ходьбы, —
+        // достигается за одну загрузку вместо трёх.
         const pre = Number(new URLSearchParams(location.search).get('planks') ?? 0);
         for (const p of this.planks.slice(0, Math.max(0, Math.min(pre, this.planks.length - 1)))) {
           p.taken = true;
@@ -1150,8 +1153,8 @@ export class Level4Scene extends BaseLevelScene {
     if (p === 'edge') {
       const next = this.planks.filter((x) => !x.taken);
       if (!next.length) return null;
-      // Nearest first: the two lookouts are 32 metres apart and a child should
-      // not be sent across the whole lip and back.
+      // Сначала ближайшая: смотровые площадки в тридцати двух метрах друг от
+      // друга, и гонять ребёнка через весь край и обратно не нужно.
       next.sort((a, b) => this.hero.position.distanceTo(a.mesh.position) - this.hero.position.distanceTo(b.mesh.position));
       return next[0].mesh.position.clone();
     }
@@ -1164,12 +1167,13 @@ export class Level4Scene extends BaseLevelScene {
     return null;
   }
 
-  /** Play-area bounds for the current act: [xMin, xMax, zMin, zMax]. */
+  /** Границы игровой зоны текущего акта: [xMin, xMax, zMin, zMax]. */
   private bounds(): [number, number, number, number] {
     switch (this.phase) {
-      // The near lip is the level's first real space: 48 metres wide and 20
-      // deep, because act I is exploration and the old 16×24 box made it a
-      // corridor with three pickups in it.
+      // Ближний край — первое настоящее пространство уровня: сорок восемь метров
+      // в ширину и двадцать в глубину, потому что акт I — это исследование, а
+      // прежняя коробка 16×24 превращала его в коридор с тремя подбираемыми
+      // предметами.
       case 'edge': return [-24, 24, NEAR_EDGE + 0.8, 24];
       case 'bridge':
       case 'island': return [-24, 24, FAR_EDGE - 0.6, 24];
@@ -1178,7 +1182,7 @@ export class Level4Scene extends BaseLevelScene {
     }
   }
 
-  // ── Loop ─────────────────────────────────────────────────────
+  // ── Игровой цикл ─────────────────────────────────────────────
   protected loop = () => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
@@ -1215,13 +1219,13 @@ export class Level4Scene extends BaseLevelScene {
     const [xMin, xMax, zMin, zMax] = this.bounds();
     const moveResult = this.updateMovement(dt, canMove, this.baseSpeed, xMin, xMax, zMin, zMax);
 
-    // The chasm is visual, but the playable route is the physical bridge.
-    // Keeping feet over the planks prevents side bypasses and section skipping;
-    // the island is wider, so it gets its own clamp rather than the deck's.
+    // Пропасть — визуальная, но играбельный маршрут — это физический мост.
+    // Удержание ног над досками не даёт обойти сбоку и перескочить секцию;
+    // островок шире, поэтому у него собственное ограничение, а не настильное.
     const hz = this.hero.position.z;
-    // Only while the bridge is the route. Once act III starts the hero is on
-    // the far bank, and leaving the clamp on would pin them to a 1.4 m strip
-    // for the two metres between the ramp and open ground.
+    // Только пока маршрут — мост. С началом акта III герой на дальнем берегу, и
+    // оставленное ограничение прижало бы его к полосе шириной 1.4 м на те два
+    // метра, что отделяют сход с моста от открытой земли.
     if ((this.phase === 'bridge' || this.phase === 'island') && hz < NEAR_EDGE + 0.6 && hz > FAR_EDGE - 0.3) {
       const half = this.onIsland(hz) ? ISLAND_HALF_X - 0.4 : 0.72;
       this.hero.position.x = THREE.MathUtils.clamp(this.hero.position.x, -half, half);
@@ -1235,7 +1239,7 @@ export class Level4Scene extends BaseLevelScene {
       ? Math.sin(now * 0.045) * 0.13
       : THREE.MathUtils.lerp(this.hero.rotation.z, 0, 1 - Math.pow(0.01, dt));
 
-    // Loose planks bob so they read as pickups rather than scenery.
+    // Оторванные доски покачиваются, чтобы читаться подбираемыми, а не декором.
     if (this.phase === 'edge' || this.phase === 'intro') {
       for (const p of this.planks) {
         if (p.taken) continue;
@@ -1287,7 +1291,7 @@ export class Level4Scene extends BaseLevelScene {
       const safe = this.isSectionSafe(s);
       const sway = safe ? 0 : Math.sin(this.bridgeElapsedMs * 0.004 * s.swaySpeed + s.swayPhase) * swayAmount;
       s.group.rotation.z = sway;
-      // Deck dips slightly as it swings, so motion reads even without colour.
+      // Настил слегка проседает на качании: движение читается и без цвета.
       s.plank.position.y = -0.3 * TILE - Math.abs(sway) * 0.35;
       deckSway += sway;
 
@@ -1300,14 +1304,14 @@ export class Level4Scene extends BaseLevelScene {
       s.unsafeSignal.visible = !safe;
     }
 
-    // Ropes and towers lean with the average deck motion so the span moves as
-    // one structure instead of five independent slabs.
+    // Канаты и опоры кренятся по среднему движению настила, чтобы пролёт
+    // двигался одной конструкцией, а не пятью независимыми плитами.
     if (this.bridgeGroup) {
       this.bridgeGroup.rotation.z = (deckSway / this.totalSections) * 0.45;
     }
   }
 
-  /** Planks fly from Barsik's paws into their gaps, one after another. */
+  /** Доски одна за другой улетают из лап Барсика в свои провалы. */
   private updateRepair(now: number) {
     const elapsed = now - this.repairStartedAt;
     let landed = 0;
@@ -1316,8 +1320,8 @@ export class Level4Scene extends BaseLevelScene {
       const t = THREE.MathUtils.clamp((elapsed - start) / 900, 0, 1);
       if (t <= 0) continue;
       const eased = t * t * (3 - 2 * t);
-      // Straight-line lerp plus an arc, so a plank sails across the gorge
-      // rather than sliding along the ground.
+      // Прямая интерполяция плюс дуга: доска перелетает ущелье, а не скользит по
+      // земле.
       plank.mesh.position.x = THREE.MathUtils.lerp(this.hero.position.x, plank.target.x, eased);
       plank.mesh.position.z = THREE.MathUtils.lerp(this.hero.position.z, plank.target.z, eased);
       plank.mesh.position.y = 1.1 + Math.sin(eased * Math.PI) * 1.6 - eased * 0.75;
@@ -1346,9 +1350,9 @@ export class Level4Scene extends BaseLevelScene {
       if (this.barrier) this.barrier.visible = false;
       AudioManager.sfx('levelComplete');
       if (this.barrierCollider) {
-        // By identity, not by a stored index: every prop, tree and bench
-        // pushes colliders after this one, so an index would rot the moment
-        // the build order changed.
+        // По самому объекту, а не по сохранённому индексу: каждый пропс, дерево
+        // и скамья добавляют коллайдеры после этого, и индекс протух бы при первом
+        // же изменении порядка сборки.
         const at = this.colliders.indexOf(this.barrierCollider);
         if (at >= 0) this.colliders.splice(at, 1);
         this.barrierCollider = null;
@@ -1358,9 +1362,9 @@ export class Level4Scene extends BaseLevelScene {
   }
 
   /**
-   * The island beat. Arriving lights the lantern and buys a moment of camera
-   * that shows the whole gorge — no control is taken away, because a child who
-   * loses the stick mid-bridge reads it as a bug.
+   * Бит на островке. Приход зажигает фонарь и покупает момент камеры,
+   * показывающей всё ущелье. Управление при этом не отбирается: ребёнок,
+   * потерявший стик посреди моста, читает это как поломку.
    */
   private updateIsland(now: number) {
     if (this.phase !== 'bridge' && this.phase !== 'island') return;
@@ -1400,7 +1404,7 @@ export class Level4Scene extends BaseLevelScene {
         let stumbledThisFrame = false;
         if (Math.abs(heroZ - currentSection.z) < TILE / 2 + 0.15) {
           if (!this.isSectionSafe(currentSection)) {
-            // Stumble safely back to the entry edge of this section.
+            // Безопасно отступить к входному краю этой секции.
             this.stumbling = true;
             this.stumbleUntil = now + 800;
             this.hero.position.set(0, this.hero.position.y, currentSection.z + 1.35);
@@ -1423,15 +1427,15 @@ export class Level4Scene extends BaseLevelScene {
       }
     }
 
-    // Reaching the far bank opens act III rather than ending the level: the
-    // point of the crossing is what it lets Barsik do for somebody else.
+    // Приход на дальний берег открывает акт III, а не заканчивает уровень: смысл
+    // переправы в том, что она позволяет Барсику сделать что-то для другого.
     if (this.sectionsCrossed >= this.totalSections && this.hero.position.z < FAR_EDGE + 1) {
       this.phase = 'winch';
       this.stars += 3;
       this.spawnSparks(this.hero.position, 18);
       AudioManager.sfx('levelComplete');
-      // Hand the marker over: two "!" beacons on one bank would put the child
-      // in front of Aya, who has nothing to say until the bridge is tied down.
+      // Маркер передаётся дальше: два восклицательных знака на одном берегу
+      // привели бы ребёнка к Айе, которой нечего сказать, пока мост не закреплён.
       if (this.ayaMarker) this.ayaMarker.visible = false;
       if (this.winchMarker) this.winchMarker.visible = true;
       this.pushHud();
@@ -1446,7 +1450,7 @@ export class Level4Scene extends BaseLevelScene {
     }
   }
 
-  /** Aya walks onto the deck she was too frightened to touch. */
+  /** Айя выходит на настил, к которому боялась подойти. */
   private updateMeeting(now: number) {
     if (!this.aya) return;
     const t = THREE.MathUtils.clamp((now - this.ayaWalkStart) / 5200, 0, 1);
@@ -1466,9 +1470,9 @@ export class Level4Scene extends BaseLevelScene {
   }
 
   private updateCameraForPhase(dt: number, now: number) {
-    // Cinematic only until the first step, same fix as L2/L8/L16 — without
-    // the guard the camera stays locked to this fixed path for the whole
-    // intro timer even after the hero starts moving.
+    // Кинематографично только до первого шага — та же правка, что на L2, L8 и
+    // L16. Без этой проверки камера остаётся на фиксированном пути весь таймер
+    // интро, даже когда герой уже пошёл.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [
@@ -1479,7 +1483,7 @@ export class Level4Scene extends BaseLevelScene {
       const introLook = [
         new THREE.Vector3(0, 1, -2),
         new THREE.Vector3(0, 0.5, -6),
-        // The last beat frames the gaps in the deck, which is the brief.
+        // Последний кадр строится на провалах настила — в них и задание.
         new THREE.Vector3(0, -1.2, -6),
       ];
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
@@ -1488,16 +1492,16 @@ export class Level4Scene extends BaseLevelScene {
     }
 
     if (this.phase === 'meet') {
-      // A held wide shot: the bridge, the girl, and the fact that neither is
-      // moving any more.
+      // Удержанный общий план: мост, девочка и то, что больше ничего не
+      // качается.
       this.camera.position.lerp(new THREE.Vector3(9.5, 6, -21.5), 1 - Math.pow(0.03, dt));
       this.camera.lookAt(0, 1.2, FAR_EDGE - 1);
       return;
     }
 
     const f = this.cameraFraming();
-    // Mid-gorge the camera lifts and looks down, because the island is the one
-    // place in the level where the whole drop is visible from above.
+    // Посреди ущелья камера поднимается и смотрит вниз: островок — единственное
+    // место уровня, откуда весь обрыв виден сверху.
     const beat = now < this.islandBeatUntil ? 1 : 0;
     const back = 8.5 + f.backAdd + beat * 1.5;
     const height = (5.0 + beat * 2.4) * f.heightMul;
