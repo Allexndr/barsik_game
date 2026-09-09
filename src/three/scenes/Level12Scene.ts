@@ -65,10 +65,10 @@ const WAYPOINTS: Array<[number, number]> = [
   [4, -66],
 ];
 
-/** Normalised checkpoint positions along the route. */
+/** Положение контрольных ворот вдоль маршрута, в долях от его длины. */
 const CHECKPOINTS = [0.13, 0.25, 0.37, 0.49, 0.6, 0.71, 0.82, 0.93];
 
-/** Crystals sit off the racing line, so the golden path costs a steer. */
+/** Кристаллы стоят в стороне от гоночной линии: за золотой путь надо подруливать. */
 const CRYSTALS: Array<[t: number, lateral: number]> = [
   [0.19, 0.55],
   [0.3, -0.6],
@@ -112,16 +112,23 @@ export class Level12Scene extends BaseLevelScene {
 
   tryInteract() {}
 
-  /** Inertia and trail width both tighten as the level progresses. */
+  /**
+   * Fraction of velocity retained per *second* (applied as `inertia ** dt`
+   * each frame — see the `sliding` block). Tightens as the level
+   * progresses: `learn` stops in well under a second so a first-timer
+   * keeps control; `drop` holds speed for over a second, so the turn
+   * has to start earlier, same as before — only the numbers changed, not
+   * the intent (see `Спуск` comment below).
+   */
   private get inertia() {
-    if (this.phase === 'learn') return 0.78;
-    if (this.phase === 'turn') return 0.82;
+    if (this.phase === 'learn') return 0.02;
+    if (this.phase === 'turn') return 0.06;
     // Спуск: лёд держит скорость дольше, поэтому поворот надо начинать раньше.
-    return this.phase === 'drop' ? 0.9 : 0.85;
+    return this.phase === 'drop' ? 0.22 : 0.12;
   }
 
   private static halfWidthAt(t: number) {
-    // Wide while learning, tightening through the bends, tightest on the drop.
+    // Широко, пока учишься; уже на поворотах; совсем узко на спуске.
     if (t < 0.13) return 1.95;
     if (t < 0.25) return 1.75;
     if (t < DROP_T) return THREE.MathUtils.lerp(1.6, 1.25, (t - 0.25) / (DROP_T - 0.25));
@@ -136,11 +143,11 @@ export class Level12Scene extends BaseLevelScene {
 
     this.camera.position.set(0, 8, 18);
 
-    // Keep decoration and relief off the racing line.
+    // Декор и рельеф не должны лезть на гоночную линию.
     this.pathCorridorHalf = 3.0;
     this.pathCorridor = (z) => {
       const t = THREE.MathUtils.clamp((8 - z) / 74, 0, 1);
-      // flatPointAt, not pointAt: this runs inside the terrain sampler.
+      // flatPointAt, а не pointAt: код выполняется внутри сэмплера рельефа.
       return this.trail ? this.trail.flatPointAt(t).x : 0;
     };
 
@@ -153,9 +160,19 @@ export class Level12Scene extends BaseLevelScene {
       const p = this.trail.pointAt(t);
       this.reserve(p.x, p.z, 2.6);
     }
+    // Начало ленты, чтобы проходимая зона накрывала точку появления героя.
+    // По одним кристаллам она получалась [-72.3, 1.5] при спавне на z = 6 —
+    // то есть герой стоял вне собственных границ уровня. Лёд считает движение
+    // сам и `clampToPlayArea` не зовёт, поэтому героя не выбрасывало, как на
+    // L5, — но первый отрезок оказывался вне объявленной зоны, и поперёк него
+    // вставала лесная стена.
+    {
+      const start = this.trail.pointAt(0);
+      this.reserve(start.x, start.z, 4);
+    }
 
-    // A snow valley with an ice ribbon running through it reads far better
-    // than a level-wide sheet of ice, and keeps the trail edges legible.
+    // Снежная долина с ледяной лентой посередине читается куда лучше, чем
+    // сплошной каток на весь уровень, и края тропы остаются видны.
     await this.setupWinterEnvironment(loader, {
       ground: 'snow',
       decorCount: 26,
@@ -168,9 +185,8 @@ export class Level12Scene extends BaseLevelScene {
         // финишных ворот. Кромка теперь начинается сразу за ними.
         playHalfExtent: 82,
         seed: 12,
-        // No flat features: the corridor above already carves the winding
-        // route, so the trail descends a real valley rather than crossing a
-        // chain of flat discs.
+        // Без плоских площадок: коридор выше уже вырезал извилистый маршрут,
+        // и тропа спускается по настоящей долине, а не по цепочке блинов.
         features: [
           { kind: 'mound', x: -20, z: -12, r: 11, height: 3.2 },
           { kind: 'mound', x: 21, z: -27, r: 12, height: 3.8 },
@@ -178,11 +194,11 @@ export class Level12Scene extends BaseLevelScene {
       },
     });
 
-    // Terrain exists now — sit the ribbon and rails on it.
+    // Рельеф уже построен — сажаем на него ленту и бортики.
     this.trail.setHeightSampler(this.groundHeightAt);
     this.gatePos = this.trail.pointAt(1);
 
-    // ── Trail surface ────────────────────────────────────────────
+    // ── Полотно тропы ────────────────────────────────────────────
     const iceMat = new THREE.MeshStandardMaterial({
       color: 0xdff2fb,
       roughness: 0.06,
@@ -204,7 +220,7 @@ export class Level12Scene extends BaseLevelScene {
       this.trail.buildEdgeRail(railMat, 1, { segments: 180, height: 0.32 }),
     );
 
-    // ── Checkpoint arches ────────────────────────────────────────
+    // ── Контрольные ворота ───────────────────────────────────────
     const archMat = new THREE.MeshStandardMaterial({
       color: 0xa8dcf5, emissive: 0x4fb8e8, emissiveIntensity: 0.3,
       transparent: true, opacity: 0.72,
@@ -257,7 +273,7 @@ export class Level12Scene extends BaseLevelScene {
       this.scene.add(crystal);
     }
 
-    // ── Ice gate, landmark at the finish ─────────────────────────
+    // ── Ледяные врата: ориентир на финише ────────────────────────
     const gateMat = new THREE.MeshStandardMaterial({
       color: 0x9fdcf7, emissive: 0x5bc0eb, emissiveIntensity: 0.45,
       transparent: true, opacity: 0.8,
@@ -281,8 +297,8 @@ export class Level12Scene extends BaseLevelScene {
     gate.position.copy(this.gatePos);
     gate.rotation.y = Math.atan2(gateTan.x, gateTan.z);
     this.scene.add(gate);
-    // Only the two posts are solid — the gap between them is the finish
-    // line itself, and a player has to be able to slide through it.
+    // Твёрдые только две стойки: просвет между ними и есть финишная черта,
+    // сквозь неё надо проехать.
     for (const side of [-1, 1] as const) {
       const rotY = gate.rotation.y;
       this.colliders.push({
@@ -293,7 +309,7 @@ export class Level12Scene extends BaseLevelScene {
       });
     }
 
-    // Ice master waiting past the gate — gives the outro a destination.
+    // За воротами ждёт ледяной мастер — финалу нужна цель, а не пустота.
     const master = await loadCharModel(loader, CAST_CHAR_GLB.ice_master, 1.5);
     if (master) {
       const spot = this.trail.offsetAt(1, 3.2);
@@ -301,9 +317,8 @@ export class Level12Scene extends BaseLevelScene {
       this.snapToGround(master);
       master.lookAt(this.gatePos.x, master.position.y, this.gatePos.z);
       this.scene.add(master);
-      // A destination a player is meant to run at, on an icy trail, needs a
-      // body — same gap as L13's ice_master: nothing here stopped a fast
-      // approach from sliding straight through him.
+      // У цели, на которую разгоняются по льду, должно быть тело — та же
+      // дыра, что у ice_master на L13: на скорости сквозь него проезжали.
       this.colliders.push({ kind: 'circle', x: master.position.x, z: master.position.z, r: 0.55 });
     }
 
@@ -326,8 +341,8 @@ export class Level12Scene extends BaseLevelScene {
     ]);
 
     this.hero.position.set(0, this.groundHeightAt(0, 6), 6);
-    // The wall. Planted last, so it can read the corridor and every room the
-    // level reserved and hug the outside of both.
+    // Стена. Ставится последней, чтобы прочитать и коридор, и все комнаты,
+    // которые зарезервировал уровень, и обойти их снаружи.
     await this.encloseLevel(loader);
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
@@ -411,13 +426,15 @@ export class Level12Scene extends BaseLevelScene {
       slipped: this.slipped,
       stars: this.stars,
       canInteract: false,
-      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'learn'),
+      // Не 'intro': `sliding` (ворота ледяного движения) требует learn/turn/
+      // run/drop и никогда не intro — проверено вживую, это был BUG-011.
+      showMoveHint: !this.hasTakenFirstStep && p === 'learn',
       showActionHint: false,
       outro: p === 'outro',
     });
   }
 
-  /** Slipping off returns the player to the last arch, never to the start. */
+  /** Соскользнул — возвращаешься к последним воротам, а не на старт. */
   private softResetSegment() {
     const t = this.segmentsCrossed > 0 ? CHECKPOINTS[this.segmentsCrossed - 1] : 0;
     const p = this.trail.pointAt(t);
@@ -426,6 +443,7 @@ export class Level12Scene extends BaseLevelScene {
     this.slipped = true;
     this.slipMsgUntil = performance.now() + 2200;
     this.spawnSparks(this.hero.position, 8, [0x42a5f5, 0xe1f5fe]);
+    this.noteMistake();
     AudioManager.sfx('stumble');
     this.pushHud();
   }
@@ -447,7 +465,7 @@ export class Level12Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    if (this.phase === 'intro' && now > this.nextAt) {
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) {
         this.phase = 'learn';
@@ -462,15 +480,22 @@ export class Level12Scene extends BaseLevelScene {
     let projection = this.trail.project(this.hero.position);
 
     if (sliding) {
-      // Ice owns acceleration/inertia instead of `updateMovement`, but input
-      // must obey the same camera-space contract as every walking level.
+      // Разгон и инерцию здесь считает лёд, а не `updateMovement`, но ввод
+      // обязан подчиняться тому же контракту камеры, что и пешие уровни.
       const d = this.cameraRelativeDirection(this.dir());
       const speed = this.baseSpeed * 0.8;
       const inertia = this.inertia;
       this.velocity.x += d.x * speed * dt * 2.4;
       this.velocity.z += d.y * speed * dt * 2.4;
-      this.velocity.x *= inertia;
-      this.velocity.z *= inertia;
+      // `inertia` — доля скорости, сохраняемая за *секунду*, поэтому её надо
+      // возводить в степень `dt`, а не применять покадрово. Покадрово она
+      // срабатывала 60 раз в секунду: скорость гасла за пару кадров после
+      // отпускания стика (никакого скольжения) и даже при зажатом вводе не
+      // поднималась выше ~12% от `maxV`. В отчёте это выглядело как «не
+      // скользит и еле ползёт».
+      const decay = Math.pow(inertia, dt);
+      this.velocity.x *= decay;
+      this.velocity.z *= decay;
 
       const maxV = speed * 1.15;
       this.velocity.x = THREE.MathUtils.clamp(this.velocity.x, -maxV, maxV);
@@ -488,7 +513,7 @@ export class Level12Scene extends BaseLevelScene {
         this.onMovementHintDismiss();
       }
 
-      // Off the ribbon, or doubled back past the start.
+      // Сошёл с ленты или откатился назад за старт.
       if (projection.lateral > projection.halfWidth + 0.35 || this.hero.position.z > 10) {
         this.softResetSegment();
       }
@@ -499,7 +524,7 @@ export class Level12Scene extends BaseLevelScene {
         AudioManager.sfx('whoosh');
       }
 
-      // Checkpoints
+      // Контрольные ворота.
       for (let i = this.segmentsCrossed; i < this.segmentsTotal; i++) {
         if (projection.t < CHECKPOINTS[i]) break;
         this.segmentsCrossed = i + 1;
@@ -529,10 +554,18 @@ export class Level12Scene extends BaseLevelScene {
         break;
       }
 
-      // Crystals
+      // Кристаллы.
       for (const crystal of this.crystalMeshes) {
         if (crystal.userData.collected) continue;
-        if (this.hero.position.distanceTo(crystal.position) < 1.15) {
+        // По плоскости, не в 3D. Кристалл висит в 0.62 м над точкой тропы,
+        // которая и сама поднята над землёй, — примерно 1.1 м над лапами
+        // героя, и сфера радиуса 1.15 м оставляет по горизонтали окно в 34 см.
+        // На льду, на скорости, это не «стоит подрулить», а «невозможно»:
+        // за полный прогон не собрался ни один из десяти. Замер по земле
+        // возвращает задуманные 1.15 м.
+        const c = crystal.position;
+        const h = this.hero.position;
+        if (Math.hypot(h.x - c.x, h.z - c.z) < 1.15) {
           crystal.userData.collected = true;
           crystal.visible = false;
           this.crystals++;
@@ -569,11 +602,11 @@ export class Level12Scene extends BaseLevelScene {
     this.updateGuideArrow(now, sliding ? this.nextCrystalPos() : null, ['intro', 'outro']);
     this.updateAmbient(dt, now);
 
-    // Cinematic only until the first step, same fix as L2/L8/L16 — without
-    // the guard the camera stays locked to this fixed path for the whole
-    // intro timer even after the hero starts moving.
+    // Кинематографично только до первого шага — та же правка, что на L2, L8
+    // и L16. Без этой проверки камера остаётся на фиксированном пути весь
+    // таймер интро, даже когда герой уже пошёл.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
-      // Intro dolly down the first bend, previewing the route.
+      // Наезд камеры по первому повороту: показать маршрут заранее.
       const idx = Math.min(this.introI, 2);
       const introPos = [
         new THREE.Vector3(0, 8, 18),
@@ -588,8 +621,8 @@ export class Level12Scene extends BaseLevelScene {
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
       this.camera.lookAt(introLook[idx]);
     } else {
-      // Chase camera aligned to the trail, so bends read before they arrive
-      // instead of swinging into view at the last moment.
+      // Камера-преследователь выровнена по тропе, чтобы повороты читались
+      // заранее, а не влетали в кадр в последний момент.
       const tan = this.trail.tangentAt(Math.min(projection.t + 0.03, 1));
       const f = this.cameraFraming();
       const back = tan.clone().multiplyScalar(-(9.5 + f.backAdd));

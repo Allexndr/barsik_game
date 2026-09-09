@@ -86,7 +86,13 @@ const TRAIL_FRUITS: Array<{ z: number; side: number; color: number }> = [
   { z: -3.0, side: 1, color: 0xff6b6b },
   { z: -6.0, side: -1, color: 0xffa502 },
   { z: -9.0, side: 1, color: 0xff6b6b },
-  { z: -11.5, side: -1, color: 0xffa502 },
+  // Was -11.5: past the creek's near-bank fence (CREEK_Z + CREEK_HALF_WIDTH +
+  // 0.12 = -10.28, collider blocks standing around z≈-10.5) and outside the
+  // BRIDGE_GAP, so no reachable standing spot existed within the 1.6m 3D
+  // pickup radius — verified by exhaustive position sampling. -9.5 keeps this
+  // as the last fruit before the bridge gate (TRAIL_GATE_Z=-12) while staying
+  // on the reachable near side of the fence.
+  { z: -9.5, side: -1, color: 0xffa502 },
 ];
 const TRAIL_OFFSET = 3.2;
 /** Пока плоды не собраны, за эту черту не пускаем: мост начинается за ней. */
@@ -247,7 +253,7 @@ function berryScarf(x: number, y: number, z: number) {
   return g;
 }
 
-export class Mission1Scene extends BaseLevelScene {
+export class Level1Scene extends BaseLevelScene {
   private phase: L2Phase = 'intro';
   private onHud: ((h: L2Hud) => void) | null = null;
   private introI = 0;
@@ -777,7 +783,10 @@ export class Mission1Scene extends BaseLevelScene {
     // Фруктовая тропа первого акта.
     for (const t of TRAIL_FRUITS) {
       const x = trailBend(t.z) + t.side * TRAIL_OFFSET;
-      const f = makeFruit(new THREE.Vector3(x, 0.5, t.z), 'trail', t.color);
+      // groundHeightAt, not a bare 0.5: the creek bank slopes down toward the
+      // water, and an absolute y left fruit #5 floating 2m above the sunken
+      // bank (BUG-001) with fruit #4 only 0.56m from the same fate.
+      const f = makeFruit(new THREE.Vector3(x, this.groundHeightAt(x, t.z) + 0.5, t.z), 'trail', t.color);
       this.trailFruits.push(f);
       this.fruits.push(f);
       this.scene.add(f, f.userData.ring, f.userData.beam);
@@ -958,7 +967,7 @@ export class Mission1Scene extends BaseLevelScene {
         'Жол бойында жемістер шашылған — жинап ал, керек болады!',
       );
       objective = this.copy(`🍎 Собрано: ${got}/${need}`, `🍎 Жиналды: ${got}/${need}`);
-      if (performance.now() < this.praiseUntil) line = this.copy('Так держать!', 'Жарайсың!');
+      if (performance.now() < this.praiseUntil) line = this.praise();
     } else if (p === 'creek') {
       line = this.copy('Ручей! Перейдём по мостику.', 'Бұлақ! Көпірмен өтейік.');
       objective = this.copy('🌉 Перейди по мостику', '🌉 Көпірден өт');
@@ -1075,7 +1084,7 @@ export class Mission1Scene extends BaseLevelScene {
     const now = performance.now();
     this.river?.update(now * 0.001);
 
-    if (this.phase === 'intro' && now > this.nextAt) {
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) {
         this.phase = 'trail';

@@ -44,6 +44,8 @@ import { createFpsSampler } from '@/dev/fpsSampler';
 import '@/dev/levelAudit';
 import { getRenderQualityProfile, resolveRenderQualityTier, type RenderQualityProfile } from '../renderQuality';
 import { HERO_HEIGHT, TREE_RING, forestRowHeight } from '../worldScale';
+import { aimGuideArrow, createGuideArrow } from '../guideArrow';
+import { aimObjectiveBeacon, createObjectiveBeacon } from '../objectiveBeacon';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -552,26 +554,6 @@ export function cloud() {
   return g;
 }
 
-export function streamSegment(x1: number, z1: number, x2: number, z2: number, w: number) {
-  const g = new THREE.Group();
-  const len = Math.hypot(x2 - x1, z2 - z1);
-  const dx = (x2 - x1) / len;
-  const ang = Math.atan2(dx, (z2 - z1) / len);
-  const water = new THREE.Mesh(
-    new THREE.PlaneGeometry(w, len),
-    new THREE.MeshStandardMaterial({
-      color: 0x29b6f6, emissive: 0x0288d1, emissiveIntensity: 0.08,
-      roughness: 0.12, metalness: 0.15, transparent: true, opacity: 0.85,
-    }),
-  );
-  water.rotation.x = -Math.PI / 2;
-  water.rotation.z = -ang;
-  water.position.set((x1 + x2) / 2, 0.02, (z1 + z2) / 2);
-  water.castShadow = false; water.receiveShadow = false;
-  g.add(water);
-  return g;
-}
-
 export function bridge(
   x: number,
   z: number,
@@ -779,15 +761,17 @@ const HERO_CANDIDATES = [
 ] as const;
 
 /** Load a named character GLB from /chars, sized to `height`. Null if missing.
- * Prefers `*_rigged.glb` when the caller passes a plain `name.glb`.
+ * Prefers `*_rigged.glb` when the caller passes a plain `name.glb`, unless
+ * `preferStatic` is set for non-interactive scenery.
  */
 export async function loadCharModel(
   loader: GLTFLoader,
   file: string,
   height: number,
+  opts: { preferStatic?: boolean } = {},
 ): Promise<THREE.Object3D | null> {
   const candidates =
-    file.endsWith('_rigged.glb') || file.includes('/')
+    opts.preferStatic || file.endsWith('_rigged.glb') || file.includes('/')
       ? [file]
       : [file.replace(/\.glb$/i, '_rigged.glb'), file];
 
@@ -1028,6 +1012,37 @@ export abstract class BaseLevelScene {
   /** True while the movement speed is the run speed, so the rig can pick a gait. */
   protected running = false;
   protected stars = 0;
+
+  /**
+   * How many times the level had to forgive the player.
+   *
+   * The canon has no fail state, and that stays: a mistake costs nothing but
+   * the retry. But with nothing at stake at all there is also nothing to be
+   * good at, and the older testers — the 10–14s who lost interest fastest —
+   * said so in their own words. Counting the stumbles gives the level a second
+   * thing to say at the end besides "passed": *passed cleanly*.
+   *
+   * Deliberately counted where the game already plays its stumble sound, so
+   * this measures the moments the level itself calls mistakes rather than a
+   * new idea of what one is.
+   */
+  protected mistakes = 0;
+
+  /** A stumble, a slip, a soak — anything the level already forgives. */
+  protected noteMistake() {
+    this.mistakes += 1;
+  }
+
+  /**
+   * Read by the mission screen when the level ends.
+   *
+   * A getter rather than a field on `BaseHud`, so this costs one line here
+   * instead of an edit to all seventeen `pushHud` implementations for a value
+   * only the outro card ever looks at.
+   */
+  get mistakeCount(): number {
+    return this.mistakes;
+  }
   protected colliders: Collider[] = [];
   protected sparks: THREE.Mesh[] = [];
   protected clouds: THREE.Group[] = [];
@@ -1584,6 +1599,13 @@ export abstract class BaseLevelScene {
    */
   protected async loadWinterDecor(loader: GLTFLoader, count = 22, centerZ = -20) {
     const kit = this.assetKit(loader);
+    // Same follow-camera gap as `loadTrees` (see its comment for the full
+    // reasoning) — this scatter needs the identical camera-corridor
+    // exclusion. Confirmed live on L16 (2026-08-29): `tree-snow-a` clipping
+    // the camera at spots the tree's-own-position `isReserved` check has no
+    // way to see, since the camera parks ~9m further down the reachable area
+    // than wherever the hero actually is.
+    const CAMERA_TRAIL_Z = 9;
 
     const trees: Array<{ x: number; z: number; height: number }> = [];
     for (let i = 0; i < count; i++) {
@@ -1592,7 +1614,12 @@ export abstract class BaseLevelScene {
       const x = side * (9 + (i % 5) * 4.2 + Math.random() * 3 + ring * 2.5);
       const z = centerZ + (Math.floor(i / 2) - count / 4) * 5.2 + Math.random() * 2.4;
       if (this.isReserved(x, z, 1.8)) continue;
-      trees.push({ x, z, height: ring === 0 ? 5.6 + Math.random() * 1.6 : ring === 1 ? 4.0 + Math.random() * 1.2 : 2.3 + Math.random() * 0.8 });
+      const height = ring === 0 ? 5.6 + Math.random() * 1.6 : ring === 1 ? 4.0 + Math.random() * 1.2 : 2.3 + Math.random() * 0.8;
+      const camZ = z - CAMERA_TRAIL_Z;
+      const margin = height * 0.4 + 2.0;
+      const clamped = this.clampToPlayArea(x, camZ);
+      if (Math.hypot(clamped.x - x, clamped.z - camZ) < margin) continue;
+      trees.push({ x, z, height });
     }
     // Snow variants only: the plain green fir reads as a Christmas tree
     // dropped into the Ice Valley.
@@ -1789,10 +1816,19 @@ export abstract class BaseLevelScene {
       bloomThreshold: this.renderQuality.bloomThreshold,
       exposure: this.renderQuality.exposure,
     });
-    const p = this.canvas.parentElement;
-    const w = p?.clientWidth || innerWidth;
-    const h = p?.clientHeight || innerHeight;
-    this.quality.setSize(w, h);
+    // Размер берём у рендерера, а не у родителя канвы.
+    //
+    // `renderer.setSize(w, h, false)` не трогает CSS, поэтому буфер рисования
+    // и размер родительского элемента — независимые величины, и совпадают они
+    // только пока никто не менял вёрстку. Цепочка пост-обработки обязана
+    // совпадать именно с буфером: `renderer.getSize` — то, во что рендерер
+    // действительно рисует.
+    //
+    // Замечание для тех, кто придёт сюда за чёрным кадром в КБТУ: это не он.
+    // Там размеры совпадали (1280×720 везде), а чёрный прямоугольник даёт
+    // проход `UnrealBloomPass` — с отключённым bloom кадр правильный.
+    const size = this.renderer.getSize(new THREE.Vector2());
+    this.quality.setSize(size.x, size.y);
   }
 
   /**
@@ -1947,6 +1983,11 @@ export abstract class BaseLevelScene {
     this.clock.getDelta();
   }
 
+  /** Change copy language without destroying a live level or its progress. */
+  setLanguage(lang: 'ru' | 'kk') {
+    this.lang = lang;
+  }
+
   protected renderPausedFrame() {
     if (!this.paused) return false;
     this.clock.getDelta();
@@ -1958,31 +1999,14 @@ export abstract class BaseLevelScene {
   protected onMovementHintDismiss() {}
 
   protected setupGuideArrow() {
-    // Горизонтальная «куда идти», не plumbob вниз на макушку.
-    // rotation.y в updateGuideArrow целится в objective в локали героя;
-    // конус смотрит в +Z группы при rotation.y = 0 (= atan2(dx,dz) на цель).
-    this.guideArrow = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0x00cec9,
-      emissive: 0x00b894,
-      emissiveIntensity: 0.85,
-      roughness: 0.45,
-    });
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.62, 3), mat);
-    tip.rotation.x = -Math.PI / 2; // tip → local +Z
-    tip.position.set(0, 0, 0.28);
-    tip.castShadow = false;
-    tip.receiveShadow = false;
-    const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.36), mat);
-    shaft.position.set(0, 0, -0.08);
-    shaft.castShadow = false;
-    shaft.receiveShadow = false;
-    this.guideArrow.add(tip, shaft);
-    this.guideArrow.position.y = 2.35;
-    this.guideArrow.userData.isGuideArrow = true;
-    this.guideArrow.visible = false;
-    this.hero.add(this.guideArrow);
+    this.guideArrow = createGuideArrow();
+    this.scene.add(this.guideArrow);
+    this.objectiveBeacon = createObjectiveBeacon();
+    this.scene.add(this.objectiveBeacon);
   }
+
+  /** Light column standing on the current objective. See objectiveBeacon.ts. */
+  protected objectiveBeacon: THREE.Group | null = null;
 
   /** Textured static hero with procedural locomotion; plush fallback if loading fails. */
   protected async loadHero(loader: GLTFLoader, height = HERO_HEIGHT) {
@@ -2378,6 +2402,24 @@ export abstract class BaseLevelScene {
     // These are what clampToPlayArea now holds z inside.
     this.corridorZMin = zMin - pad;
     this.corridorZMax = zMax + pad;
+
+    // A level whose spawn sits outside its own walkable range is unfinishable,
+    // and silently so: the first step teleports the hero to the corridor edge.
+    // L5 shipped like that — one reserved room at the burrow (z −71) against a
+    // spawn at z +4, so the escort's squirrel was left 62 m behind on frame one
+    // and the level could never be completed. This is cheap to check and the
+    // failure is invisible without it, so it is checked on every level, always.
+    if (import.meta.env.DEV) {
+      const z = this.hero.position.z;
+      if (z < this.corridorZMin || z > this.corridorZMax) {
+        console.error(
+          `[level] spawn z=${z.toFixed(1)} is outside the walkable range `
+            + `[${this.corridorZMin.toFixed(1)}, ${this.corridorZMax.toFixed(1)}] — `
+            + `the first step will teleport the hero. Reserve the level's opening beat.`,
+        );
+      }
+    }
+
     await this.encloseWithForest(loader, { zFrom: zMin - pad, zTo: zMax + pad });
   }
 
@@ -2557,6 +2599,22 @@ export abstract class BaseLevelScene {
     const mid = ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default', 'tree_pineRoundA', 'tree_pineRoundC'];
     const small = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
 
+    // Every level's follow camera trails the hero by roughly this much in z,
+    // at close to the same x (confirmed live in L3/L6's own camera code).
+    // A canopy can clear the walkable-area check at its own position and
+    // still sit exactly where the camera parks itself once the hero is this
+    // far further down the path — confirmed live (2026-08-29): random trees
+    // from this method clipping the camera on L6/L7/L9/L16.
+    //
+    // `clampToPlayArea`, not `isReserved`, is the right test: it's the same
+    // function real movement uses, so it's correct under all three of its
+    // branches (linear `pathCorridor`, `playPath`, circular `playArena`) —
+    // `isReserved` only ever answers the first one. `isReserved` alone missed
+    // every L16 hit, because L16 walks players with `playArena`, not a
+    // corridor, and reused it anyway on the other three; `clampToPlayArea`
+    // gets all four confirmed levels with one check.
+    const CAMERA_TRAIL_Z = 9;
+
     const placements: Array<{ names: string[]; x: number; z: number; height: number }> = [];
       for (let i = 0; i < count; i++) {
       const ang = (i / count) * Math.PI * 2;
@@ -2572,6 +2630,10 @@ export abstract class BaseLevelScene {
         : ring === 1
           ? heightBase + Math.random() * TREE_RING.midSpan
           : heightBase * TREE_RING.smallMul + Math.random() * TREE_RING.smallSpan;
+      const camZ = z - CAMERA_TRAIL_Z;
+      const margin = height * 0.4 + 2.0;
+      const clamped = this.clampToPlayArea(x, camZ);
+      if (Math.hypot(clamped.x - x, clamped.z - camZ) < margin) continue;
       placements.push({ names, x, z, height });
     }
 
@@ -2686,6 +2748,12 @@ export abstract class BaseLevelScene {
 
   protected bindKeys() {
     const down = (e: KeyboardEvent) => {
+      // Let focused controls keep their native keyboard behavior: Space must
+      // activate buttons and arrows must adjust sliders. Game movement is
+      // handled only when focus is outside an interactive control.
+      if (e.target instanceof HTMLElement && e.target.matches(
+        'button, a, input, select, textarea, [contenteditable="true"], [role="button"]',
+      )) return;
       this.keys.add(e.code);
       if (e.code === 'KeyE') {
         e.preventDefault();
@@ -2709,6 +2777,27 @@ export abstract class BaseLevelScene {
     this.bindOrientationChange();
     (this as unknown as { _kd: typeof down; _ku: typeof up })._kd = down;
     (this as unknown as { _kd: typeof down; _ku: typeof up })._ku = up;
+  }
+
+  /**
+   * Should the opening dialogue get out of the way?
+   *
+   * Every level opens with a three-beat intro on a timer, and movement stays
+   * blocked until it ends — measured across the season at 4.7 to 7.8 seconds,
+   * while the HUD is already telling the child «Двигайся». Holding W for a
+   * second and a half in that window moves the hero exactly zero metres.
+   * Children on playtest read it as the game not listening to them, and said
+   * so; after the outright blockers it was the most common complaint.
+   *
+   * A child reaching for the stick has decided to play. Let them. The intro
+   * runs out on the spot rather than making them watch the rest of it.
+   *
+   * Gated on the first beat having been shown (`introI >= 1`), so a nudge in
+   * the opening moment cannot swallow the level's first line — which is
+   * usually the one naming the goal.
+   */
+  protected introRushed(introI: number): boolean {
+    return introI >= 1 && this.dir().lengthSq() > 0.01;
   }
 
   protected dir() {
@@ -3186,20 +3275,36 @@ export abstract class BaseLevelScene {
     if (!this.guideArrow) return;
     const show = !!obj && !hiddenPhases.includes(this.currentPhase()) && !this.interactTarget;
     this.guideArrow.visible = show;
-    if (show && obj) {
-      const local = obj.clone().sub(this.hero.position);
-      local.y = 0;
-      const dist = local.length();
-      // Уже у цели — стрелка не нужна (иначе крутится над головой «на себя»).
-      if (dist < 1.35) {
-        this.guideArrow.visible = false;
-        return;
-      }
-      local.multiplyScalar(1 / dist);
-      const ang = Math.atan2(local.x, local.z) - this.hero.rotation.y;
-      this.guideArrow.rotation.y = ang;
-      this.guideArrow.position.y = 2.3 + Math.sin(now * 0.006) * 0.1;
+    if (!show || !obj) {
+      // The beacon follows the arrow's visibility exactly. Without this it
+      // keeps burning at the last objective through the outro.
+      this.hideObjectiveBeacon();
+      return;
     }
+
+    const dist = this.hero.position.distanceTo(obj);
+    if (dist < 1.35) {
+      this.guideArrow.visible = false;
+      this.hideObjectiveBeacon();
+      return;
+    }
+    aimGuideArrow(this.guideArrow, this.hero, obj, now);
+
+    // The arrow gives a heading; the beacon gives a destination. Only worth
+    // showing once the objective is far enough that "which way" stops being
+    // the same question as "where" — under four metres it is already on screen.
+    const beacon = this.objectiveBeacon;
+    if (!beacon) return;
+    if (dist < 4) {
+      beacon.visible = false;
+      return;
+    }
+    beacon.visible = true;
+    aimObjectiveBeacon(beacon, obj, this.groundHeightAt(obj.x, obj.z), dist, now);
+  }
+
+  private hideObjectiveBeacon() {
+    if (this.objectiveBeacon) this.objectiveBeacon.visible = false;
   }
 
   /** Smoothed aim point. Null until the first frame, then it trails `look`. */
@@ -3444,6 +3549,7 @@ export abstract class BaseLevelScene {
     this.reserved.length = 0;
     this.fireflies = null;
     this.snowfall = null;
+    this.objectiveBeacon = null;
     this.sparks.length = 0;
   }
 
@@ -3685,5 +3791,34 @@ export abstract class BaseLevelScene {
 
   protected copy(ru: string, kk: string) {
     return this.lang === 'kk' ? kk : ru;
+  }
+
+  /** Сколько раз уже похвалили — чтобы не повторять одну и ту же реплику. */
+  private praiseI = -1;
+
+  /**
+   * Похвала за удавшееся действие.
+   *
+   * Была одна на всю игру — «Так держать!» — и звучала она на каждом фрукте,
+   * каждом фонаре и каждом осколке за все семнадцать уровней. Ребёнок
+   * перестаёт её слышать примерно на третий раз, и вместе с ней перестаёт
+   * слышать, что игра вообще на него реагирует.
+   *
+   * Варианты идут по кругу, а не случайно: случайный выбор нет-нет да и
+   * повторит реплику подряд, и это читается как поломка, а не как разнообразие.
+   *
+   * Отдельная ветка для чистого прохождения: если уровень ещё ни разу не
+   * прощал ошибку, он это замечает. Это единственное место, где счётчик
+   * ошибок слышен по ходу игры, а не только на карточке финала.
+   */
+  protected praise(): string {
+    this.praiseI += 1;
+    if (this.mistakes === 0 && this.praiseI > 0 && this.praiseI % 4 === 3) {
+      return this.copy('И ни разу не оступился!', 'Бір рет те сүрінген жоқсың!');
+    }
+    const ru = ['Так держать!', 'Вот это ловко!', 'Получается!', 'Умница!', 'Ещё одно — и готово!'];
+    const kk = ['Жарайсың!', 'Мінеки, шебер!', 'Болып жатыр!', 'Тамаша!', 'Тағы біреу — болды!'];
+    const i = this.praiseI % ru.length;
+    return this.copy(ru[i], kk[i]);
   }
 }

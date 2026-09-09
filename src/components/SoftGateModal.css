@@ -71,6 +71,18 @@
   margin-bottom: var(--spacing-sm);
 }
 
+.soft-gate-options {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.soft-gate-option {
+  flex: 1;
+  min-width: 0;
+}
+
 .soft-gate-skip {
   width: 100%;
   padding: 0.75rem;

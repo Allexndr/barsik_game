@@ -33,12 +33,24 @@ export interface L13Hud extends BaseHud {
 }
 
 /** First shard sits close and in view; the rest are a real walk. */
+/**
+ * Legs of 13 to 15 metres, not 20 to 29.
+ *
+ * The five shards used to sit 98 metres apart end to end — half a minute of
+ * walking across empty snow with nothing between one and the next, which is
+ * the same shape that made L3 the level children called «слишком тяжёлый».
+ * Measured in a playthrough at 15 to 20 seconds per shard.
+ *
+ * Still a zigzag that uses the width of the valley and still circles the
+ * statue, but the next shard is visible from the one you just picked up.
+ * Kept clear of the polishing stations so the two beats do not overlap.
+ */
 const SHARDS: Array<[x: number, z: number]> = [
   [-6, -3],
-  [14, -9],
-  [-15, -14],
-  [11, -24],
-  [-9, -27],
+  [7, -8],
+  [-7, -14],
+  [6, -20],
+  [-6, -25],
 ];
 
 /** Working faces around the statue, so the player circles it. */
@@ -437,7 +449,8 @@ export class Level13Scene extends BaseLevelScene {
       carrying: this.carrying,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'learn'),
+      // Not 'intro': `isFetchPhase` (learn/gather) is canMove's gate here.
+      showMoveHint: !this.hasTakenFirstStep && p === 'learn',
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
@@ -490,7 +503,7 @@ export class Level13Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    if (this.phase === 'intro' && now > this.nextAt) {
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) this.phase = 'learn';
       else this.nextAt = now + 2600;

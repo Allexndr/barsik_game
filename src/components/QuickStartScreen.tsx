@@ -70,6 +70,8 @@ export function QuickStartScreen() {
             className="quick-input"
             value={nick}
             maxLength={16}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? 'quick-nick-error' : undefined}
             autoFocus
             autoComplete="nickname"
             placeholder={t(lang, 'quick.placeholder')}
@@ -80,7 +82,7 @@ export function QuickStartScreen() {
             }}
           />
           {error && (
-            <p className="quick-error">
+            <p id="quick-nick-error" className="quick-error" role="alert">
               {error}
               {suggestion && (
                 <>

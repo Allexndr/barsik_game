@@ -2,24 +2,25 @@ import * as THREE from 'three';
 import { fabricMap, furMaps } from './furTexture';
 
 /**
- * Barsik as a rig, not a mesh.
+ * Барсик как скелет, а не как меш.
  *
- * The season's blocker was that `barsik.glb` ships with zero skins and zero
- * animation clips — it is physically unriggable, so the hero stood with his
- * arms out for sixteen levels. The procedural stand-in that existed
- * (`createPlushBarsik`) was a flat bag of meshes parented straight to the
- * root: rotating a leg spun it about its own middle rather than about the
- * hip, and there was nowhere to hang a hat.
+ * Блокером сезона было то, что в `barsik.glb` не было ни скинов, ни клипов
+ * анимации: его физически нельзя было анимировать, и герой шестнадцать
+ * уровней стоял с разведёнными лапами. (С 09.09.2026 блокер закрыт — в
+ * моделях героя есть скелет и клипы Idle, Walk, Wave.) Существовавшая тогда
+ * процедурная замена `createPlushBarsik` была плоским мешком мешей,
+ * подвешенных прямо к корню: поворот ноги крутил её вокруг собственной
+ * середины, а не вокруг бедра, и повесить шапку было некуда.
  *
- * This is a jointed hierarchy instead. Every limb is a Group placed *at* its
- * joint with the mesh offset inside it, so rotation pivots where a real joint
- * would. That one change is what makes the rest possible: poses, emotes, and
- * clothing sockets that stay attached to the part of the body they belong to
- * while it moves.
+ * Здесь вместо этого суставная иерархия. Каждая конечность — Group,
+ * поставленная *в* сустав, а меш внутри неё смещён, поэтому поворот идёт
+ * вокруг того места, где сустав и был бы. Именно это делает возможным
+ * остальное: позы, эмоции и точки крепления одежды, которые остаются на своей
+ * части тела, пока та движется.
  *
- * Built at natural proportions and then scaled to the requested height with
- * its feet on y = 0, so it drops into any scene that positions a character by
- * `position.set(x, 0, z)`.
+ * Собирается в естественных пропорциях и потом масштабируется под заданную
+ * высоту так, чтобы лапы стояли на y = 0: модель встаёт в любую сцену,
+ * которая ставит персонажа через `position.set(x, 0, z)`.
  */
 
 export type AvatarSocket =
@@ -66,7 +67,7 @@ export const DEFAULT_LOOK: AvatarLook = {
   trousers: 0x4a6fa5,
 };
 
-/** Every joint the pose system can drive. */
+/** Все суставы, которыми может управлять система поз. */
 interface Joints {
   hips: THREE.Group;
   torso: THREE.Group;
@@ -87,7 +88,7 @@ interface Joints {
 
 type JointName = keyof Joints;
 
-/** Rotation triple. Only the axes a pose cares about are listed. */
+/** Тройка поворотов. Перечислены только те оси, которые важны позе. */
 type Rot = { x?: number; y?: number; z?: number };
 type PoseTargets = Partial<Record<JointName, Rot>>;
 
@@ -96,20 +97,20 @@ export type BodyWear = { hoodie: boolean; jeans: boolean };
 export interface BarsikAvatar {
   root: THREE.Group;
   sockets: Record<AvatarSocket, THREE.Group>;
-  /** Switch pose. Blended, so an emote never snaps. */
+  /** Сменить позу. С плавным переходом, чтобы эмоция не щёлкала. */
   setPose(pose: AvatarPose): void;
   currentPose(): AvatarPose;
-  /** Drive the rig. `t` is seconds; `speed` scales cyclic motion. */
+  /** Двигать скелет. `t` — секунды, `speed` масштабирует цикличное движение. */
   update(dt: number, t: number, speed?: number): void;
   setLook(look: Partial<AvatarLook>): void;
   getLook(): AvatarLook;
   /**
-   * Toggle garment meshes/materials. Fur body is the default; hoodie/jeans
-   * are wardrobe body-wear, not baked-in forever.
+   * Переключить меши и материалы одежды. По умолчанию — мех; худи и джинсы
+   * приходят из гардероба, а не вшиты навсегда.
    */
   setBodyWear(wear: Partial<BodyWear>): void;
   getBodyWear(): BodyWear;
-  /** Put an item on a socket, replacing whatever was there. Null clears it. */
+  /** Надеть предмет в гнездо, заменив то, что там было. Null — снять. */
   equip(socket: AvatarSocket, item: THREE.Object3D | null): void;
   equipped(socket: AvatarSocket): THREE.Object3D | null;
   dispose(): void;
@@ -147,27 +148,26 @@ function deform(geo: THREE.BufferGeometry, fn: (v: THREE.Vector3) => void): THRE
   return geo;
 }
 
-/** Flat crown, broad cheeks, narrow chin, flattened back of the skull. */
+/** Плоская макушка, широкие щёки, узкий подбородок, приплюснутый затылок. */
 function shapeSkull(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   return deform(geo, (v) => {
     const up = v.y / 0.265; // −1 at the chin, +1 at the crown
-    // Crown flattens; a perfect dome is what makes a head read as a bauble.
+    // Макушка приплюснута: идеальный купол превращает голову в ёлочный шар.
     v.y *= 1.0 - Math.max(0, up) * 0.07;
-    // Widest at the cheekbones, tapering to the chin.
+    // Шире всего на скулах, сужается к подбородку.
     const widen = 1 + 0.06 * Math.exp(-((up + 0.15) ** 2) / 0.4) - Math.max(0, -up - 0.45) * 0.3;
     v.x *= widen;
-    // Back of the skull is flatter than the front, so the profile is not a
-    // circle and the ears have somewhere to sit.
+    // Затылок площе лба: профиль перестаёт быть кругом, и ушам есть куда сесть.
     if (v.z < 0) v.z *= 0.88;
     else v.z *= 1.04;
   });
 }
 
 /**
- * A repeating copy of a shared texture.
+ * Повторяющаяся копия общей текстуры.
  *
- * The coat maps are cached and shared between every avatar in the scene, so
- * setting `repeat` on one directly would rescale the markings on all of them.
+ * Карты шерсти кешируются и общие для всех аватаров в сцене, поэтому запись
+ * `repeat` напрямую в одну из них пересчитала бы пятна у всех сразу.
  */
 function tile(source: THREE.Texture, x: number, y: number): THREE.Texture {
   const t = source.clone();
@@ -190,7 +190,7 @@ function shapeTorso(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   });
 }
 
-/** Muzzle: wide at the base, rounded and slightly dropped at the tip. */
+/** Морда: широкая у основания, скруглённая и чуть опущенная к кончику. */
 function shapeMuzzle(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   return deform(geo, (v) => {
     const fwd = THREE.MathUtils.clamp(v.z / 0.119, -1, 1);
@@ -202,11 +202,13 @@ function shapeMuzzle(geo: THREE.BufferGeometry): THREE.BufferGeometry {
 }
 
 /**
- * One eye: sclera, iris and pupil as concentric spheres of falling radius,
- * each pushed forward so it breaks the surface of the one behind it.
+ * Один глаз: белок, радужка и зрачок — концентрические сферы убывающего
+ * радиуса, каждая вынесена вперёд так, чтобы пробивать поверхность
+ * предыдущей.
  *
- * The previous eye was five flat discs stacked along z, which is why they
- * read as buttons pinned to the face — there was no eyeball, only a target.
+ * Прежний глаз был пятью плоскими дисками, сложенными вдоль z, — поэтому они
+ * и читались пуговицами, приколотыми к морде: глазного яблока не было, была
+ * мишень.
  */
 function makeEye(mats: {
   sclera: THREE.Material; eye: THREE.Material; pupil: THREE.Material; glint: THREE.Material;
@@ -218,7 +220,7 @@ function makeEye(mats: {
   iris.scale.set(1, 1, 0.62);
   iris.position.z = 0.031;
   const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.021, 12, 10), mats.pupil);
-  // Vertical slit, the way a cat's pupil actually is.
+  // Вертикальная щель — так зрачок у кошки и устроен.
   pupil.scale.set(0.62, 1.35, 0.5);
   pupil.position.z = 0.049;
   const glint = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 8), mats.glint);
@@ -230,11 +232,11 @@ function makeEye(mats: {
 }
 
 /**
- * Pose library.
+ * Библиотека поз.
  *
- * A pose is a set of joint rotations plus, for the cyclic ones, a function of
- * time layered on top. Splitting them this way means an emote can be blended
- * in over a fraction of a second without fighting the walk cycle.
+ * Поза — это набор поворотов суставов плюс, для цикличных, функция времени
+ * поверх. Такое разделение позволяет подмешать эмоцию за доли секунды, не
+ * ломая цикл ходьбы.
  */
 const POSES: Record<AvatarPose, PoseTargets> = {
   idle: {
@@ -301,14 +303,13 @@ const POSES: Record<AvatarPose, PoseTargets> = {
   },
 };
 
-// Sign convention, which was wrong for every resting pose: a *positive* z on
-// the left shoulder swings that arm toward the body's centre line, not away
-// from it. Both arms were therefore tucked in, and the paws ended up hanging
-// between the thighs. Away from the body is negative on the left, positive on
-// the right. The raised-arm emotes use large angles that pass through the top
-// of the arc, so their signs are correct as written and are left alone.
+// Знак поворота — он был неверен во всех позах покоя: *положительный* z на
+// левом плече уводит руку к средней линии тела, а не от неё. Из-за этого обе
+// руки оказывались прижаты, и лапы висели между бёдрами. От тела — это минус
+// слева и плюс справа. Эмоции с поднятыми руками используют большие углы,
+// проходящие через верх дуги, поэтому их знаки верны как есть и не тронуты.
 
-/** Poses whose cyclic motion is driven per-frame rather than held. */
+/** Позы, чьё цикличное движение считается каждый кадр, а не держится. */
 const CYCLIC = new Set<AvatarPose>(['walk', 'run', 'idle', 'dance', 'wave', 'cheer']);
 
 export function createBarsikAvatar(
@@ -325,9 +326,9 @@ export function createBarsikAvatar(
     fur: new THREE.MeshStandardMaterial({
       map: coatBody.map, bumpMap: coatBody.bumpMap, bumpScale: 0.35, roughness: 0.92,
     }),
-    // Paws, feet and ears are a tenth the size of the torso, so the same map
-    // wrapped onto them put one giant rosette on each. Repeating it shrinks the
-    // markings to match the part.
+    // Лапы, ступни и уши в десять раз мельче торса, поэтому та же карта,
+    // натянутая на них, давала по одной гигантской розетке на каждую. Повтор
+    // уменьшает пятна под размер части.
     furSmall: new THREE.MeshStandardMaterial({
       map: tile(coatBody.map, 3.2, 2.6), bumpMap: tile(coatBody.bumpMap, 3.2, 2.6),
       bumpScale: 0.3, roughness: 0.92,
@@ -340,8 +341,8 @@ export function createBarsikAvatar(
     }),
     spots: new THREE.MeshStandardMaterial({ color: look.spots, roughness: 0.9 }),
     nose: new THREE.MeshStandardMaterial({ color: look.nose, roughness: 0.55 }),
-    // Sclera, not the iris colour: eyes were five stacked spheres with the
-    // iris doing duty as the eyeball, which is why they read as buttons.
+    // Белок, а не цвет радужки: глаз состоял из пяти сложенных сфер, где
+    // радужка работала за глазное яблоко, — отсюда и вид пуговиц.
     sclera: new THREE.MeshStandardMaterial({ color: 0xfbfbfd, roughness: 0.22 }),
     eye: new THREE.MeshStandardMaterial({ color: look.eye, roughness: 0.18 }),
     pupil: new THREE.MeshStandardMaterial({ color: 0x121a26, roughness: 0.15 }),
@@ -357,26 +358,26 @@ export function createBarsikAvatar(
   const rig = new THREE.Group();
   root.add(rig);
 
-  // ── Skeleton ──────────────────────────────────────────────
-  // Positions are the joint centres. Meshes hang off them with an offset, so
-  // a rotation on the joint swings the limb from the right place.
-  // Proportions are budgeted rather than tuned one number at a time, because
-  // adjusting them piecemeal is how the torso ended up as wide as the skull —
-  // a 0.60-wide body under a 0.68-wide head, with the arms swallowed by it.
+  // ── Скелет ────────────────────────────────────────────────
+  // Координаты — центры суставов. Меши висят на них со смещением, поэтому
+  // поворот сустава ведёт конечность из нужного места.
+  // Пропорции задаются бюджетом, а не подкручиванием по одному числу: именно
+  // от поштучной подгонки торс однажды стал шириной с череп — тело 0.60 под
+  // головой 0.68, и руки в нём тонули.
   //
-  //   head    0.54 wide, 0.50 tall   — the chibi read, and the widest part
-  //   torso   0.41 wide, 0.44 tall   — clearly smaller than the head
-  //   arms    0.10 wide              — must clear the torso to be legible
+  //   голова  ширина 0.54, высота 0.50 — чиби-пропорция и самая широкая часть
+  //   торс    ширина 0.41, высота 0.44 — заметно меньше головы
+  //   руки    ширина 0.10             — должны выходить за торс, иначе не видны
   //
   const hips = joint(rig, 0, 0.54, 0);
   const torso = joint(hips, 0, 0, 0);
   const head = joint(torso, 0, 0.56, 0.02);
-  // Ears sit on the skull, not beside it. At ±0.17 they cleared the head
-  // entirely and read as two balloons tied to the sides.
+  // Уши сидят на черепе, а не рядом с ним. На ±0.17 они выходили за голову
+  // целиком и читались двумя шариками, привязанными по бокам.
   const earL = joint(head, -0.125, 0.17, -0.015);
   const earR = joint(head, 0.125, 0.17, -0.015);
-  // Just inside the torso's half-width, so the arm joins the body instead of
-  // hanging in the air beside it — but not so far in that it disappears.
+  // Чуть внутри половины ширины торса: рука прирастает к телу, а не висит
+  // рядом в воздухе, — но не настолько внутри, чтобы пропасть.
   const shoulderL = joint(torso, -0.2, 0.29, 0);
   const shoulderR = joint(torso, 0.2, 0.29, 0);
   const elbowL = joint(shoulderL, 0, -0.225, 0);
@@ -394,47 +395,47 @@ export function createBarsikAvatar(
     hipL, hipR, kneeL, kneeR, tailA, tailB,
   };
 
-  // ── Meshes ────────────────────────────────────────────────
+  // ── Меши ──────────────────────────────────────────────────
   const add = (parent: THREE.Object3D, mesh: THREE.Mesh, cast = true) => {
     mesh.castShadow = cast;
     parent.add(mesh);
     return mesh;
   };
 
-  // Torso: fur by default (naked base). Hoodie pieces toggle via setBodyWear.
-  // Plumper plush sphere (client brief).
+  // Торс: по умолчанию мех (голая база). Части худи включаются через
+  // setBodyWear. Сфера сделана полнее — по брифу заказчика, плюшевее.
   const torsoMesh = add(torso, new THREE.Mesh(shapeTorso(new THREE.SphereGeometry(0.215, 22, 18)), mats.fur));
   torsoMesh.position.y = 0.2;
   const bellyPatch = add(torso, new THREE.Mesh(shapeTorso(new THREE.SphereGeometry(0.14, 16, 12)), mats.belly), false);
   bellyPatch.scale.set(0.98, 0.9, 0.62);
   bellyPatch.position.set(0, 0.14, 0.13);
-  // Hood, sitting behind the neck. It is what says "hoodie" from behind, and
-  // it fills the gap between a big head and a small body.
+  // Капюшон за шеей. Именно он говорит «худи» со спины и заполняет разрыв
+  // между большой головой и маленьким телом.
   const hood = add(torso, new THREE.Mesh(new THREE.SphereGeometry(0.142, 16, 14), mats.hoodie));
   hood.scale.set(1.25, 0.8, 0.8);
   hood.position.set(0, 0.4, -0.1);
-  // Hem, so the hoodie ends somewhere instead of fading into the trousers.
+  // Подол, чтобы худи где-то заканчивалось, а не растворялось в штанах.
   const hem = add(torso, new THREE.Mesh(new THREE.CylinderGeometry(0.152, 0.146, 0.035, 20), mats.hoodie), false);
   hem.position.y = -0.005;
-  // Pocket — a single detail that says "garment" louder than any amount of
-  // shading, because clothes have construction and a painted sphere does not.
+  // Карман — одна деталь, которая говорит «одежда» громче любой закраски:
+  // у одежды есть конструкция, а у крашеной сферы её нет.
   const pocket = add(torso, new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.075, 0.05), mats.hoodieDark), false);
   pocket.position.set(0, 0.075, 0.128);
   pocket.rotation.x = -0.12;
   const hoodieOnly = [hood, hem, pocket];
 
-  // Head. Wider than the shoulders — the chibi read the reference model has,
-  // and the reason it now clears the torso instead of sinking into it.
+  // Голова. Шире плеч — та самая чиби-пропорция эталонной модели, из-за
+  // которой она теперь возвышается над торсом, а не тонет в нём.
   add(head, new THREE.Mesh(shapeSkull(new THREE.SphereGeometry(0.265, 28, 22)), mats.furHead));
-  // Neck. The head used to float directly on the torso with a visible gap
-  // under the jaw at every angle except dead-on.
+  // Шея. Раньше голова лежала прямо на торсе, и под челюстью с любого угла,
+  // кроме строго фронтального, был виден просвет.
   const neck = add(torso, new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.105, 0.15, 14), mats.fur), false);
   neck.position.set(0, 0.44, 0.005);
-  // Muzzle, pushed clear of the skull so there is a face in profile.
+  // Морда вынесена от черепа, чтобы в профиль было лицо.
   const snout = add(head, new THREE.Mesh(shapeMuzzle(new THREE.SphereGeometry(0.119, 18, 14)), mats.belly), false);
   snout.position.set(0, -0.066, 0.207);
-  // Nose leather: a wedge, not a ball. A sphere on the end of a muzzle is the
-  // single clearest "toy" tell on an animal face.
+  // Мочка носа — клин, а не шарик. Сфера на конце морды — самый явный признак
+  // игрушечности на звериной морде.
   const nose = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.037, 12, 10), mats.nose), false);
   nose.scale.set(1.25, 0.82, 0.75);
   nose.position.set(0, -0.016, 0.322);
@@ -445,15 +446,15 @@ export function createBarsikAvatar(
   mouth.position.set(0, -0.078, 0.308);
   mouth.rotation.z = 0;
   mouth.rotation.x = 0.15;
-  // Soft raised brows (happy), not angled-down sad.
+  // Мягко приподнятые брови — радость, а не опущенные вниз, грустные.
   for (const side of [-1, 1] as const) {
     const brow = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.058, 12, 10), mats.furHead), false);
     brow.scale.set(1.2, 0.38, 0.5);
     brow.position.set(side * 0.105, 0.128, 0.195);
     brow.rotation.z = side * -0.18;
   }
-  // Cheek ruffs: snow leopards have wide, soft cheeks, and they give the head
-  // a silhouette that is not a circle from the front.
+  // Бакенбарды: у снежного барса широкие мягкие щёки, и они дают голове
+  // силуэт, который анфас не круг.
   for (const side of [-1, 1] as const) {
     const cheek = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.105, 14, 12), mats.furHead), false);
     cheek.scale.set(0.78, 1.05, 0.85);
@@ -461,9 +462,9 @@ export function createBarsikAvatar(
   }
 
   for (const [side, ear] of [[-1, earL], [1, earR]] as const) {
-    // Rounded, not spiky: a snow-leopard cub's ears are little domes. Sized
-    // to clear the skull — the first pair poked out by 8 cm of 27 and read
-    // as nothing at all.
+    // Округлые, а не острые: у котёнка барса уши — маленькие купола. Размер
+    // подобран так, чтобы выходить за череп: первая пара торчала на 8 см из 27
+    // и не читалась вообще.
     const cone = add(ear, new THREE.Mesh(new THREE.SphereGeometry(0.073, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.66), mats.furSmall));
     cone.scale.set(1.05, 1.15, 0.5);
     cone.rotation.z = side * -0.34;
@@ -475,8 +476,8 @@ export function createBarsikAvatar(
 
   const eyes: THREE.Group[] = [];
   for (const side of [-1, 1] as const) {
-    // Dark mask around the eye: the marking that makes a snow leopard read as
-    // a snow leopard rather than a white cat.
+    // Тёмная маска вокруг глаза — та отметина, по которой снежный барс
+    // читается барсом, а не белой кошкой.
     const patch = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.082, 14, 12), mats.spots), false);
     patch.scale.set(0.95, 0.8, 0.28);
     patch.position.set(side * 0.113, 0.046, 0.207);
@@ -485,18 +486,18 @@ export function createBarsikAvatar(
     const eye = makeEye(mats);
     eye.scale.setScalar(0.95);
     eye.position.set(side * 0.113, 0.055, 0.228);
-    // Slight upward glance reads happier than a flat stare.
+    // Лёгкий взгляд вверх читается радостнее прямого.
     eye.rotation.x = -0.08;
     eye.rotation.y = side * -0.14;
     head.add(eye);
     eyes.push(eye);
   }
-  // Rosettes are painted into the coat map now. They used to be five squashed
-  // spheres at hand-picked spots, which is too few to read as a coat and
-  // obviously stuck-on from close up.
+  // Розетки теперь нарисованы в карте шерсти. Раньше это были пять сплюснутых
+  // сфер в выбранных вручную местах: для шкуры слишком мало, а вблизи видно,
+  // что они наклеены.
 
-  // Whiskers. Three a side, thin and pale — almost subliminal at gameplay
-  // distance, and unmistakable in the dressing room.
+  // Усы. По три с каждой стороны, тонкие и светлые: на игровой дистанции почти
+  // на грани заметности, в гардеробе — безошибочно видны.
   for (const side of [-1, 1] as const) {
     for (const [i, tilt] of [0.22, 0.02, -0.16].entries()) {
       const w = add(head, new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.001, 0.175, 4), mats.belly), false);
@@ -506,12 +507,12 @@ export function createBarsikAvatar(
     }
   }
 
-  // Arms: fur by default; sleeves swap to hoodie material when worn.
+  // Руки: по умолчанию мех, рукава переключаются на материал худи при надевании.
   const armCloth: THREE.Mesh[] = [];
   const armCuffs: THREE.Mesh[] = [];
   for (const [shoulder, elbow] of [[shoulderL, elbowL], [shoulderR, elbowR]] as const) {
-    // Shoulder cap: rounds the join so the arm grows out of the body rather
-    // than being a tube parked against it.
+    // Наплечник скругляет стык: рука растёт из тела, а не приставлена к нему
+    // трубой.
     const cap = add(shoulder, new THREE.Mesh(new THREE.SphereGeometry(0.058, 12, 10), mats.furSmall), false);
     cap.scale.set(1, 0.9, 1);
     const upper = add(shoulder, new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.16, 6, 12), mats.furSmall));
@@ -519,7 +520,7 @@ export function createBarsikAvatar(
     const fore = add(elbow, new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.14, 6, 12), mats.furSmall));
     fore.position.y = -0.096;
     armCloth.push(cap, upper, fore);
-    // Cuff, so the paw reads as a paw coming out of a sleeve.
+    // Манжета, чтобы лапа читалась лапой, выходящей из рукава.
     const cuff = add(elbow, new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.048, 0.028, 12), mats.belly), false);
     cuff.position.y = -0.163;
     armCuffs.push(cuff);
@@ -528,7 +529,7 @@ export function createBarsikAvatar(
     paw.position.y = -0.206;
   }
 
-  // Legs: fur by default; trousers material when jeans are worn.
+  // Ноги: по умолчанию мех, материал штанов — когда надеты джинсы.
   const legCloth: THREE.Mesh[] = [];
   const legCuffs: THREE.Mesh[] = [];
   for (const [hip, knee] of [[hipL, kneeL], [hipR, kneeR]] as const) {
@@ -537,8 +538,8 @@ export function createBarsikAvatar(
     const shin = add(knee, new THREE.Mesh(new THREE.CapsuleGeometry(0.054, 0.13, 6, 10), mats.furSmall));
     shin.position.y = -0.095;
     legCloth.push(thigh, shin);
-    // Trouser cuff, matching the sleeves — the paw comes out of the leg the
-    // same way the hand comes out of the arm.
+    // Манжета штанины, парная рукавам: лапа выходит из штанины так же, как
+    // кисть из рукава.
     const legCuff = add(knee, new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.056, 0.028, 12), mats.trousers), false);
     legCuff.position.y = -0.158;
     legCuffs.push(legCuff);
@@ -547,10 +548,10 @@ export function createBarsikAvatar(
     foot.position.set(0, -0.188, 0.032);
   }
 
-  // Tail in two segments so it can curl rather than swing as one stick.
-  // A snow leopard's tail is nearly as thick as its leg and almost as long as
-  // its body — the first one was a 6 cm wire at hip height, hidden behind the
-  // legs from every angle a player ever sees.
+  // Хвост из двух сегментов, чтобы он мог сворачиваться, а не махать одной
+  // палкой. У снежного барса хвост почти такой же толстый, как лапа, и почти
+  // такой же длинный, как тело; первый вариант был проволокой в 6 см на высоте
+  // бедра, скрытой за ногами со всех углов, которые вообще видит игрок.
   const tailSegA = add(tailA, new THREE.Mesh(new THREE.CapsuleGeometry(0.068, 0.2, 6, 12), mats.furSmall));
   tailSegA.position.z = -0.15;
   tailSegA.rotation.x = Math.PI / 2;
@@ -565,13 +566,13 @@ export function createBarsikAvatar(
     band.position.z = z;
   }
 
-  // ── Clothing sockets ──────────────────────────────────────
-  // Each one hangs off the joint that owns that part of the body, so a hat
-  // stays on the head while the head turns.
+  // ── Гнёзда одежды ─────────────────────────────────────────
+  // Каждое висит на том суставе, которому принадлежит эта часть тела, поэтому
+  // шапка остаётся на голове, пока голова поворачивается.
   const sockets: Record<AvatarSocket, THREE.Group> = {
-    // Sockets follow the skull, so they moved when it grew. The face socket
-    // was left inside the head by the resize and the glasses — the brand's
-    // single most recognisable cue — simply vanished into it.
+    // Гнёзда следуют за черепом и сдвинулись, когда он вырос. После
+    // пересчёта размера гнездо лица осталось внутри головы, и очки — самая
+    // узнаваемая деталь бренда — просто пропали в ней.
     head: socketAt(head, 0, 0.155, 0),
     face: socketAt(head, 0, 0.049, 0.27),
     neck: socketAt(torso, 0, 0.4, 0.04),
@@ -584,10 +585,9 @@ export function createBarsikAvatar(
     footR: socketAt(kneeR, 0, -0.22, 0.04),
   };
 
-  // ── Normalise to the requested height, feet on the floor ──
-  // Measured rather than assumed: the proportions above are authored for
-  // readability, and every caller positions a character with y = 0 meaning
-  // "standing here".
+  // ── Приведение к заданной высоте, лапы на полу ────────────
+  // Замеряется, а не берётся на веру: пропорции выше сделаны ради читаемости,
+  // а каждый вызывающий ставит персонажа так, что y = 0 означает «стоит здесь».
   rig.updateWorldMatrix(true, true);
   const box = new THREE.Box3().setFromObject(rig);
   const natural = box.max.y - box.min.y;
@@ -595,9 +595,9 @@ export function createBarsikAvatar(
   rig.scale.setScalar(scale);
   rig.position.y = -box.min.y * scale;
 
-  // ── Pose state ────────────────────────────────────────────
+  // ── Состояние позы ────────────────────────────────────────
   let pose: AvatarPose = 'idle';
-  // Current and target rotations per joint, so a pose change eases in.
+  // Текущие и целевые повороты по суставам, чтобы смена позы шла плавно.
   const current = new Map<JointName, THREE.Euler>();
   for (const name of Object.keys(joints) as JointName[]) {
     current.set(name, new THREE.Euler(0, 0, 0));
@@ -635,8 +635,8 @@ export function createBarsikAvatar(
     update(dt, t, speed = 1) {
       const blend = 1 - Math.pow(0.0001, Math.min(dt, 0.05));
 
-      // Cyclic layer. Walk and run drive the limbs from a gait phase; the
-      // held poses get a small breath so the character is never a statue.
+      // Цикличный слой. Ходьба и бег ведут конечности от фазы шага, а позы
+      // покоя получают лёгкое дыхание, чтобы персонаж не был статуей.
       const cadence = pose === 'run' ? 13 : pose === 'walk' ? 9 : 2.2;
       const phase = t * cadence * (CYCLIC.has(pose) ? speed : 1);
       const gait = pose === 'walk' || pose === 'run' ? Math.sin(phase) : 0;
@@ -681,8 +681,8 @@ export function createBarsikAvatar(
         j.rotation.set(cur.x, cur.y, cur.z);
       }
 
-      // Vertical bob rides on the rig, not on a joint, so clothing and the
-      // hero's own world position stay unaffected.
+      // Вертикальное покачивание живёт на самом скелете, а не на суставе,
+      // поэтому одежда и мировая позиция героя не затрагиваются.
       const bob = pose === 'walk' || pose === 'run'
         ? Math.abs(Math.sin(phase)) * (pose === 'run' ? 0.045 : 0.028)
         : breath * 0.6;
@@ -733,7 +733,8 @@ export function createBarsikAvatar(
     },
   };
 
-  // Brand lock glasses come from outfit via dressAvatar (face socket = on eyes).
-  // Do not auto-equip here — would fight the worn set and duplicate on head.
+  // Фирменные очки приходят из наряда через dressAvatar (гнездо лица — на
+  // глазах). Здесь их автоматически не надевать: это спорило бы с надетым
+  // комплектом и дало бы вторую пару на голове.
   return avatar;
 }

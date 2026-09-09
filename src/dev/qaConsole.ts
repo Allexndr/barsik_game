@@ -17,7 +17,8 @@ declare global {
 
 export function installQaConsoleCollector() {
   if (typeof window === 'undefined') return () => {};
-  const enabled = new URLSearchParams(window.location.search).get('qa') === '1';
+  const enabled = import.meta.env.DEV
+    && new URLSearchParams(window.location.search).get('qa') === '1';
   if (!enabled) return () => {};
 
   const entries: QaErrorEntry[] = [];

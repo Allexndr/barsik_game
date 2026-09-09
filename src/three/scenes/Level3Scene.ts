@@ -128,16 +128,17 @@ function makeTrack(x: number, z: number, heading = 0): THREE.Group {
 
   for (const child of g.children) child.renderOrder = 2;
   g.rotation.x = -Math.PI / 2;
-  // Rotating the group after the -90° X tilt turns the print in the ground
-  // plane; z is the in-plane axis once the group is laid flat.
+  // Поворот группы после наклона -90° по X разворачивает след в плоскости
+  // земли: когда группа уложена плашмя, осью в этой плоскости становится z.
   g.rotation.z = -heading;
   g.position.set(x, 0.06, z);
   return g;
 }
 
 /**
- * Wrapped in an outer group: the reveal animation drives the outer scale, so
- * the character's own size must live on a child to survive setScalar(1).
+ * Обёрнут во внешнюю группу: анимация появления крутит масштаб именно её,
+ * поэтому собственный размер персонажа должен жить на потомке — иначе его
+ * затрёт setScalar(1).
  */
 function makeHedgehog(): THREE.Group {
   const wrapper = new THREE.Group();
@@ -153,11 +154,11 @@ async function loadHedgehog(loader: GLTFLoader): Promise<THREE.Group> {
   if (!glb) return makeHedgehog();
   const wrapper = new THREE.Group();
   wrapper.add(glb);
-  // No plush character child — reveal/bob still work on the wrapper.
+  // Плюшевого потомка нет — появление и покачивание работают на обёртке.
   return wrapper;
 }
 
-/** The old oak from L3. Exported so L10 can revisit the same landmark. */
+/** Старый дуб с L3. Экспортируется, чтобы L10 вернулся к тому же ориентиру. */
 export function makeOldOak(x: number, z: number): THREE.Group {
   const g = new THREE.Group();
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 1 });
@@ -239,7 +240,7 @@ export class Level3Scene extends BaseLevelScene {
   private clueUntil = 0;
   private lastClue: 'bushes' | 'rocks' | null = null;
   private revealStartedAt = 0;
-  /** How far along the trail we are — index into `sectors`. */
+  /** Насколько далеко мы по следу — индекс в `sectors`. */
   private trailIndex = 0;
 
   protected currentPhase() { return this.phase; }
@@ -253,13 +254,13 @@ export class Level3Scene extends BaseLevelScene {
     if (!t) return;
 
     if (this.isTracking()) {
-      // Check sector
+      // Проверить сектор.
       const sector = this.sectors.find((s) => s.group === t);
       if (sector && !sector.checked) {
         this.checkSector(sector);
         return;
       }
-      // Pick up bonus
+      // Подобрать бонус.
       if (t.userData.kind === 'bonus' && t.userData.alive) {
         t.userData.alive = false;
         (t as THREE.Mesh).visible = false;
@@ -285,17 +286,17 @@ export class Level3Scene extends BaseLevelScene {
     return this.phase === 'tracking';
   }
 
-  /** The one place on the trail the player can search right now. */
+  /** Единственное место на следу, где сейчас можно искать. */
   private currentSector(): SearchSector | null {
     return this.sectors[this.trailIndex] ?? null;
   }
 
   /**
-   * Show the footprints for one leg and hide the rest.
+   * Показать следы одного отрезка и скрыть остальные.
    *
-   * Every print visible at once is a map, not a trail — the player reads the
-   * whole route off the ground and the search is over before it starts. One
-   * leg at a time is the difference between tracking and sightseeing.
+   * Все следы разом — это карта, а не след: игрок считывает весь маршрут с
+   * земли, и поиск заканчивается, не начавшись. Один отрезок за раз — это и
+   * есть разница между выслеживанием и экскурсией.
    */
   private revealLeg(index: number) {
     for (const [i, s] of this.sectors.entries()) {
@@ -308,7 +309,7 @@ export class Level3Scene extends BaseLevelScene {
     if (sector.bubble) sector.bubble.visible = false;
 
     if (sector.hasHedgehog && sector.hedgehog) {
-      // Found!
+      // Нашли!
       sector.hedgehog.visible = true;
       sector.hedgehog.scale.setScalar(0.15);
       this.revealStartedAt = performance.now();
@@ -319,7 +320,7 @@ export class Level3Scene extends BaseLevelScene {
       this.phase = 'found';
       if (this.hedgehogMarker) this.hedgehogMarker.visible = true;
     } else {
-      // Empty — rustle leaves + show bonus if any
+      // Пусто: шуршим листвой и показываем бонус, если он тут есть.
       this.spawnSparks(sector.group.position, 6, [0x27ae60, 0x2ecc71]);
       AudioManager.sfx('whoosh');
       this.lastClue = sector.label === 'bushes' || sector.label === 'rocks' ? sector.label : null;
@@ -342,12 +343,15 @@ export class Level3Scene extends BaseLevelScene {
     const loader = createGameGltfLoader();
 
     this.camera.position.set(-8, 6, 14);
+    // `fireflies: true` уже создаёт их; явный вызов, который стоял следом,
+    // делал второй такой же рой. В `this.fireflies` оставался только последний,
+    // поэтому первый никогда не анимировался и никогда не удалялся: вдвое
+    // больше частиц, половина из них мёртвая, и утечка при каждом выходе.
     await this.setupForestEnvironment(loader, { flatRadius: 24, flatCenterZ: -16, fireflies: true });
     this.setupSky();
     this.setupClouds(7, 26, 60);
-    this.setupFireflies();
 
-    // Hills + overlook for search (GDD: verticality)
+    // Холмы и площадка обзора для поиска (по GDD — вертикальность).
     for (const [hx, hz, hr, hh] of [
       [-22, -6, 12, 1.4],
       [24, -28, 14, 1.6],
@@ -359,7 +363,7 @@ export class Level3Scene extends BaseLevelScene {
     this.scene.add(pathArrow(0, -3.5, 0));
     this.scene.add(await placeWoodSign(loader, 1.8, -4.5, -0.4, 0xffeaa7));
 
-    // Mountains
+    // Горы.
     for (const [x, z, h, w] of [
       [-48, -70, 22, 16],
       [2, -80, 28, 20],
@@ -368,23 +372,28 @@ export class Level3Scene extends BaseLevelScene {
       this.scene.add(mountain(x, z, h, w));
     }
 
-    // Zone discs
+    // Диски зон.
     this.scene.add(zoneDisc(0, 4, 7, 0x66bb6a, 0.025)); // start
     this.scene.add(zoneDisc(0, -12, 14, 0x81c784, 0.02)); // search area
 
-    // Spawn pad
+    // Площадка появления.
     this.scene.add(spawnPad(0, 4));
 
-    // Old oak landmark — visible behind the search area, not blocking the camera.
-    this.oldOak = makeOldOak(0, -11.5);
+    // Ориентир — старый дуб: виден за зоной поиска и не загораживает камеру.
+    // x = -4.5, а не 0: и тропа, и отставание камеры держатся около hero.x ≈ 0,
+    // а крона шириной 3–4 м. Стоя по центру тропы, она стабильно проглатывала
+    // камеру, стоило герою отойти на пару метров к северу (проверено: камера
+    // приходит в точку внутри габаритного параллелепипеда кроны, а не просто
+    // близко к нему).
+    this.oldOak = makeOldOak(-4.5, -11.5);
     this.oldOak.scale.setScalar(0.68);
     this.scene.add(this.oldOak);
-    this.colliders.push({ kind: 'circle', x: 0, z: -11.5, r: 1.1 });
+    this.colliders.push({ kind: 'circle', x: -4.5, z: -11.5, r: 1.1 });
 
-    // Sign
+    // Указатель.
     this.scene.add(await placeWoodSign(loader, -2.5, 0, 0.3, 0xa5d6a7));
 
-    // Dirt path
+    // Грунтовая тропа.
     for (let i = 0; i < 16; i++) {
       const dirt = new THREE.Mesh(
         new THREE.PlaneGeometry(2.2, 1.0),
@@ -395,7 +404,7 @@ export class Level3Scene extends BaseLevelScene {
       this.scene.add(dirt);
     }
 
-    // Path arrows
+    // Стрелки вдоль тропы.
     for (let i = 0; i < 5; i++) {
       const a = pathArrow(0, 2.5 - i * 2.6, 0);
       a.scale.setScalar(0.74);
@@ -403,11 +412,11 @@ export class Level3Scene extends BaseLevelScene {
       this.scene.add(a);
     }
 
-    // Trees
+    // Деревья.
     await this.loadTrees(loader, 40, 28, -16, 4.5);
     await this.loadProps(loader, 10, 6, 32, -18);
 
-    // S1 landmarks — mushroom cottage, stump, critters (laconic)
+    // Ориентиры сезона: домик-мухомор, пенёк, зверьки — без перегруза.
     await this.placeProps(loader, [
       { key: 'mushroom_cottage', opts: { x: -11, z: -8, maxSize: 2.4, rotY: 0.6 } },
       { key: 'mushroom', opts: { x: -6, z: -14, maxSize: 0.55 } },
@@ -431,21 +440,28 @@ export class Level3Scene extends BaseLevelScene {
     ]);
     this.colliders.push({ kind: 'circle', x: -11, z: -8, r: 1.6 });
 
-    // 3 search sectors
-    // Spread to the corners of the map the level already has. They used to sit
-    // inside a 16×32 slice of a 50×43 clamp — fifty-one metres of trail on a
-    // board with room for eighty — so the "search" barely left the path.
-    // Five stops, not three. Three legs is 80m of walking on a level budgeted
-    // at 300s; five zigzag across the clamp for about 130m and give the trail
-    // somewhere to build.
+    // Five search sectors, zigzagging — but a walk, not a march.
+    //
+    // These were spread to the corners of the clamp to stop the search from
+    // hugging the path, which was the right problem to fix. It overshot: the
+    // legs came out 27 to 36 metres each, 111 metres in total, with nothing
+    // between one sector and the next. Playtesting with children put this
+    // level top of the "слишком тяжёлый" list and one of them said plainly
+    // that they did not know where to go — thirty-five seconds of walking
+    // across open ground between two events is not a search, it is a commute.
+    //
+    // Legs are now 12 to 17 metres: still a zigzag that uses the width of the
+    // board and still five stops, but the next sector is in sight from the
+    // last. Kept clear of the four hills and the old oak so nothing buries a
+    // stop; the hedgehog's log stays exactly where it was.
     const sectorData = [
-      { x: -17, z: -6, hasHedgehog: false, label: 'bushes' },
-      { x: 18, z: -14, hasHedgehog: false, label: 'rocks' },
-      { x: -14, z: -22, hasHedgehog: false, label: 'bushes' },
-      { x: 12, z: -29, hasHedgehog: false, label: 'rocks' },
+      { x: -9, z: -5, hasHedgehog: false, label: 'bushes' },
+      { x: 6, z: -13, hasHedgehog: false, label: 'rocks' },
+      { x: -8, z: -20, hasHedgehog: false, label: 'bushes' },
+      { x: 7, z: -26, hasHedgehog: false, label: 'rocks' },
       { x: -3, z: -33, hasHedgehog: true, label: 'log' },
     ];
-    // Reserved so the scatter cannot bury a sector the player is sent to find.
+    // Резерв, чтобы разброс декора не завалил сектор, который надо найти.
     for (const sd of sectorData) this.reserve(sd.x, sd.z, 4.5);
 
     for (const [index, sd] of sectorData.entries()) {
@@ -453,7 +469,7 @@ export class Level3Scene extends BaseLevelScene {
       group.position.set(sd.x, 0, sd.z);
       this.scene.add(group);
 
-      // Bushes/rocks/log around sector
+      // Кусты, камни и бревно вокруг сектора.
       if (sd.label === 'bushes') {
         this.scene.add(bush(sd.x - 1.5, sd.z - 1, 1.3));
         this.scene.add(bush(sd.x + 1.5, sd.z - 0.5, 1.2));
@@ -483,7 +499,7 @@ export class Level3Scene extends BaseLevelScene {
         this.colliders.push({ kind: 'aabb', x: sd.x, z: sd.z, halfW: 2.0, halfD: 0.6 });
       }
 
-      // Question bubble
+      // Пузырь с вопросом.
       const bubble = makeQuestionBubble(sd.x, sd.z);
       this.scene.add(bubble);
 
@@ -500,29 +516,29 @@ export class Level3Scene extends BaseLevelScene {
       const steps = Math.max(6, Math.round(Math.hypot(sd.x - from.x, sd.z - from.z) / 2.6));
       for (let i = 1; i <= steps; i++) {
         const t = i / steps;
-        // A gentle S rather than a ruled line: an animal does not walk a
-        // straight segment between two points, and neither does a child.
+        // Мягкая «эска», а не линейка: зверь не ходит по отрезку между двумя
+        // точками, и ребёнок тоже.
         const nx = -(sd.z - from.z);
         const nz = sd.x - from.x;
         const len = Math.hypot(nx, nz) || 1;
         const bow = Math.sin(t * Math.PI) * 1.8;
         const tx = from.x + (sd.x - from.x) * t + (nx / len) * bow + (Math.random() - 0.5) * 0.3;
         const tz = from.z + (sd.z - from.z) * t + (nz / len) * bow + (Math.random() - 0.5) * 0.3;
-        // Heading toward the next print, so the paw points the way.
+        // Развёрнут к следующему следу, чтобы лапа указывала направление.
         const ahead = Math.min(t + 1 / steps, 1);
         const ax = from.x + (sd.x - from.x) * ahead + (nx / len) * Math.sin(ahead * Math.PI) * 1.8;
         const az = from.z + (sd.z - from.z) * ahead + (nz / len) * Math.sin(ahead * Math.PI) * 1.8;
         const track = makeTrack(tx, tz, Math.atan2(ax - tx, az - tz));
-        // Ride the sculpted ground: at a flat y = 0.03 a print sinks into
-        // every rise the terrain has.
+        // Следы ложатся по рельефу: на фиксированной y = 0.03 они тонут в
+        // каждом подъёме.
         track.position.y = this.groundHeightAt(tx, tz) + 0.03;
-        // Only the leg being walked is visible; revealLeg turns each on.
+        // Виден только проходимый сейчас отрезок; включает его revealLeg.
         track.visible = index === 0;
         tracks.push(track);
         this.scene.add(track);
       }
 
-      // Bonus in empty sectors
+      // Бонус в пустых секторах.
       let bonus: THREE.Mesh | null = null;
       if (!sd.hasHedgehog) {
         bonus = makeStarBonus(sd.x, sd.z + 0.5);
@@ -531,11 +547,16 @@ export class Level3Scene extends BaseLevelScene {
         this.scene.add(bonus);
       }
 
-      // Hedgehog in correct sector (hidden initially)
+      // Ёжик в нужном секторе, сначала скрыт.
       let hedgehog: THREE.Group | null = null;
       if (sd.hasHedgehog) {
         hedgehog = await loadHedgehog(loader);
-        hedgehog.position.set(sd.x, 0, sd.z);
+        // По земле, а не в абсолютном нуле. Бревно лежит на подъёме высотой
+        // 2.2 м, поэтому ёжик на y = 0 оказывался на столько же ниже лап героя,
+        // а `nearestInteract` меряет в 3D при радиусе 2.0 м — один только
+        // перепад по высоте его почти исчерпывал. Ёжика находили, но не могли
+        // погладить: уровню не хватало одного нажатия до собственного финала.
+        hedgehog.position.set(sd.x, this.groundHeightAt(sd.x, sd.z), sd.z);
         hedgehog.visible = false;
         this.scene.add(hedgehog);
         this.hedgehogMesh = hedgehog;
@@ -555,7 +576,7 @@ export class Level3Scene extends BaseLevelScene {
       });
     }
 
-    // Hedgehog quest marker (shown when found)
+    // Маркер квеста над ёжиком, появляется, когда его нашли.
     this.hedgehogMarker = questMarker(0xa29bfe, 0x6c5ce7);
     this.hedgehogMarker.visible = false;
     if (this.hedgehogMesh) {
@@ -563,7 +584,7 @@ export class Level3Scene extends BaseLevelScene {
     }
     this.scene.add(this.hedgehogMarker);
 
-    // Butterflies
+    // Бабочки.
     for (let i = 0; i < 8; i++) {
       const bf = butterfly(
         (Math.random() - 0.5) * 18,
@@ -574,7 +595,7 @@ export class Level3Scene extends BaseLevelScene {
       this.scene.add(bf);
     }
 
-    // Tulips
+    // Тюльпаны.
     for (let i = 0; i < 16; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const z = 3 - (i / 16) * 12;
@@ -582,11 +603,11 @@ export class Level3Scene extends BaseLevelScene {
       this.scene.add(tulip(x, z, [0xe74c3c, 0xf1c40f, 0xe67e22, 0xfd79a8, 0xa29bfe][i % 5]));
     }
 
-    // Hero
+    // Герой.
     this.hero.position.set(0, this.groundHeightAt(0, 4), 4);
-    // This level is a serpentine, not a field: its beats sit alternately left
-    // and right going down. Drawing that as an actual route, then walling it,
-    // is what stops it reading as a clearing with things scattered in it.
+    // Уровень — серпантин, а не поле: биты идут вниз попеременно слева и
+    // справа. Если проложить это настоящим маршрутом и обнести стенами, он
+    // перестаёт читаться как поляна с разбросанными предметами.
     this.derivePathFromRooms({ x: 0, z: 4 });
     await this.enclosePath(loader);
 
@@ -630,9 +651,9 @@ export class Level3Scene extends BaseLevelScene {
     } else if (this.isTracking()) {
       const leg = this.trailIndex + 1;
       const total = this.sectors.length;
-      // Read off the sector the trail actually leads to. This used to index a
-      // three-element array by trailIndex, so the clue and the destination
-      // agreed only as long as nobody changed the route.
+      // Берётся из того сектора, к которому реально ведёт след. Раньше здесь
+      // индексировался массив из трёх элементов по trailIndex, и подсказка
+      // совпадала с целью ровно до первого изменения маршрута.
       const label = this.currentSector()?.label ?? 'bushes';
       const where = label === 'bushes'
         ? this.copy('густые кусты', 'қалың бұталар')
@@ -681,7 +702,7 @@ export class Level3Scene extends BaseLevelScene {
             `Тастардың астында ешкім жоқ, бірақ іздер ${dir} кетеді!`,
           );
     } else if (performance.now() < this.praiseUntil && p !== 'intro' && p !== 'outro') {
-      line = this.copy('Так держать!', 'Жарайсың!');
+      line = this.praise();
     }
 
     this.onHud?.({
@@ -708,22 +729,24 @@ export class Level3Scene extends BaseLevelScene {
     if (this.isTracking()) {
       const s = this.currentSector();
       if (s && !s.checked) {
-        // On the ground plane, not in 3D. Measuring to a point at y = 0 while
-        // the hero stands on sculpted terrain counts his elevation as
-        // distance: at the fallen log the ground is 2.28m up, so standing
-        // 1.2m from the marker measured 2.58m and the last stop on the trail
-        // could not be searched at all.
+        // По плоскости земли, а не в 3D. Замер до точки на y = 0, пока герой
+        // стоит на рельефе, засчитывает его высоту как расстояние: у упавшего
+        // бревна земля поднята на 2.28 м, поэтому в 1.2 м от маркера выходило
+        // 2.58 м, и последнюю остановку следа нельзя было обыскать вовсе.
         const d = Math.hypot(hp.x - s.x, hp.z - s.z);
         if (d < bestD) { bestD = d; best = s.group; }
       }
-      // Also check bonuses
+      // Заодно проверяем бонусы.
       for (const b of this.bonusCollectibles) {
         if (!b.userData.alive || !b.visible) continue;
         const d = hp.distanceTo(b.position);
         if (d < bestD) { bestD = d; best = b; }
       }
     } else if (this.phase === 'found' && this.hedgehogMesh) {
-      const d = hp.distanceTo(this.hedgehogMesh.position);
+      // По плоскости — по той же причине, что и проверка сектора выше: на
+      // рельефе трёхмерный замер тратит радиус на собственную высоту героя.
+      const m = this.hedgehogMesh.position;
+      const d = Math.hypot(hp.x - m.x, hp.z - m.z);
       if (d < bestD) best = this.hedgehogMesh;
     }
 
@@ -734,7 +757,12 @@ export class Level3Scene extends BaseLevelScene {
     const p = this.phase;
     if (this.isTracking()) {
       const s = this.currentSector();
-      return s && !s.checked ? new THREE.Vector3(s.x, 0, s.z) : null;
+      // По земле, а не в абсолютном нуле. Последняя остановка стоит на подъёме
+      // 2.2 м, и маркер на y = 0 разворачивал стрелку в склон — ребёнка звали
+      // под землю.
+      return s && !s.checked
+        ? new THREE.Vector3(s.x, this.groundHeightAt(s.x, s.z), s.z)
+        : null;
     }
     if (p === 'found' && this.hedgehogMesh) return this.hedgehogMesh.position.clone();
     return null;
@@ -747,8 +775,8 @@ export class Level3Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    // Intro progression
-    if (this.phase === 'intro' && now > this.nextAt) {
+    // Ход интро.
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) {
         this.phase = 'tracking';
@@ -766,12 +794,12 @@ export class Level3Scene extends BaseLevelScene {
     const speed = this.baseSpeed;
     this.updateMovement(dt, canMove, speed, -25, 25, -35, 8);
 
-    // Only the next place on the trail wears a question mark. Three of them at
-    // once said "search anywhere", which is what the level used to be.
+    // Вопросительный знак висит только над следующим местом. Три сразу
+    // означали «ищи где угодно» — именно этим уровень раньше и был.
     for (const [i, s] of this.sectors.entries()) {
       if (s.bubble) s.bubble.visible = !s.checked && this.isTracking() && i === this.trailIndex;
     }
-    // Bob question bubbles
+    // Покачивание пузырей с вопросом.
     for (const s of this.sectors) {
       if (s.bubble && s.bubble.visible) {
         s.bubble.position.y = Math.sin(now * 0.003 + (s.bubble.userData.bob as number)) * 0.15;
@@ -779,14 +807,14 @@ export class Level3Scene extends BaseLevelScene {
       }
     }
 
-    // Bob bonus collectibles
+    // Покачивание бонусов.
     for (const b of this.bonusCollectibles) {
       if (!b.userData.alive || !b.visible) continue;
       b.position.y = 0.5 + Math.sin(now * 0.005 + b.position.x) * 0.1;
       b.rotation.y += dt * 1.5;
     }
 
-    // Hedgehog idle animation
+    // Ёжик в покое.
     if (this.hedgehogMesh && this.hedgehogMesh.visible) {
       if (this.revealStartedAt > 0) {
         const revealT = THREE.MathUtils.clamp((now - this.revealStartedAt) / 650, 0, 1);
@@ -803,14 +831,14 @@ export class Level3Scene extends BaseLevelScene {
       if (character) updatePlushAnimal(character, false, now * 0.001);
     }
 
-    // Hedgehog marker pulse
+    // Пульсация маркера над ёжиком.
     if (this.hedgehogMarker && this.hedgehogMarker.visible) {
       const bang = this.hedgehogMarker.userData.bang as THREE.Object3D;
       bang.position.y = 4.2 + Math.sin(now * 0.006) * 0.15;
       bang.rotation.y += dt * 2;
     }
 
-    // Butterflies
+    // Бабочки.
     for (const b of this.butterflies) {
       const ph = (b.userData.phase as number) + now * 0.001;
       b.position.x = (b.userData.ox as number) + Math.sin(ph) * 1.2;
@@ -819,22 +847,22 @@ export class Level3Scene extends BaseLevelScene {
       b.rotation.y = ph;
     }
 
-    // Guide arrow
+    // Стрелка-указатель.
     const obj = this.objectiveWorldPos();
     this.updateGuideArrow(now, obj, ['intro', 'outro']);
 
-    // Interaction detection
+    // Поиск объекта для взаимодействия.
     const prev = this.interactTarget;
     this.interactTarget = this.nearestInteract();
     if (prev !== this.interactTarget) this.pushHud();
 
-    // Ambient updates
+    // Обновление окружения.
     this.updateAmbient(dt, now);
 
-    // Camera
-    // Cinematic only until the first step, same fix as L2/L8/L16 — without
-    // the guard the camera stays locked to this fixed path for the whole
-    // intro timer even after the hero starts moving.
+    // Камера.
+    // Кинематографично только до первого шага — та же правка, что на L2, L8 и
+    // L16. Без этой проверки камера остаётся на фиксированном пути весь таймер
+    // интро, даже когда герой уже пошёл.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [
@@ -850,10 +878,10 @@ export class Level3Scene extends BaseLevelScene {
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
       this.camera.lookAt(introLook[idx]);
     } else {
-      // Portrait and phone-landscape need a flatter, further-back camera:
-      // the desktop pitch puts the lower third of a tall frame into the
-      // ground right in front of the hero. cameraFraming() already existed
-      // and seven levels used it; this one did not.
+      // Портрету и телефону в ландшафте нужна камера положе и дальше:
+      // десктопный наклон отправляет нижнюю треть высокого кадра в землю прямо
+      // перед героем. cameraFraming() уже существовал, и его использовали семь
+      // уровней; этот — нет.
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
         this.cameraLateral(this.hero.position.x) + f.lateral,

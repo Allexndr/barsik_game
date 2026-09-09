@@ -109,6 +109,41 @@
 
 /* ── Чат ──────────────────────────────────────────────────────────────── */
 
+/* Кнопка, за которой живёт общение. Стоит там же, где раньше начинался
+   первый ряд, чтобы её нашли на прежнем месте. */
+.hub-chat-toggle {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: 52px;
+  height: 52px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.hub-chat-toggle.is-on {
+  background: #3dcc6e;
+  color: #10240f;
+  font-size: 20px;
+}
+
+.hub-chat-toggle:active { transform: scale(0.95); }
+
+/* `display: flex` ниже перебивает атрибут `hidden`, поэтому свёрнутую панель
+   надо гасить явно — иначе она остаётся на экране и скрыта только на словах. */
+.hub-chat[hidden] { display: none; }
+
+/* Раскрытая панель поднимается над кнопкой, а не ложится на неё. */
+.hub-chat:not(.is-collapsed) {
+  bottom: 74px;
+}
+
 .hub-chat {
   position: absolute;
   left: 12px;

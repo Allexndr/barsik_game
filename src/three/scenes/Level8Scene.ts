@@ -58,19 +58,19 @@ export interface FestivalHud extends BaseHud {
   carrying: boolean;
 }
 
-// ── Layout ──────────────────────────────────────────────────────
+// ── Планировка ──────────────────────────────────────────────────
 const SPAWN_Z = 6;
-/** Centre of the festival glade — table, fire, friends. */
+/** Центр праздничной поляны: стол, костёр, друзья. */
 const GLADE_Z = -24;
 const TABLE_Z = GLADE_Z;
 const FIRE_Z = GLADE_Z - 3.8;
 
-/** Centre line of the walk from the forest edge down to the glade. */
+/** Осевая линия пути от кромки леса вниз к поляне. */
 function routeX(z: number) {
   return Math.sin((z - SPAWN_Z) * 0.085) * 3.2;
 }
 
-/** Post positions: on the path's z, offset to alternating sides of it. */
+/** Столбы стоят на z тропы, попеременно смещаясь то влево, то вправо. */
 const LANTERNS: Array<{ z: number; side: 1 | -1 }> = [
   { z: 2, side: 1 },
   { z: -4, side: -1 },
@@ -79,37 +79,51 @@ const LANTERNS: Array<{ z: number; side: 1 | -1 }> = [
   { z: -21, side: 1 },
 ];
 
-/** The three trees the garlands are strung between, in hanging order. */
+/** Три дерева, между которыми натягивают гирлянды, в порядке развешивания. */
 const GARLAND_TREES: Array<[number, number]> = [
   [-9.5, -18.5],
   [9.5, -18.5],
   [0, -31],
 ];
 
+/**
+ * Три куста по кромке поляны, на трёх разных направлениях: ребёнок между
+ * рейсами разворачивается, но стол из виду не теряет.
+ *
+ * Было четыре куста в 13–15 м в лесу. По замеру полного прохождения сбор урожая
+ * занимал 66 с из 104-секундного уровня — четыре одинаковых рейса, дольше, чем
+ * акты с фонарями и гирляндами вместе, и именно на нём ребёнок скорее всего
+ * бросал. Кусты подтянуты к ~8 м, рейсов стало три; четвёртый фрукт приносит в
+ * финале белка, поэтому на столе по-прежнему четыре.
+ */
 const FRUIT_SPOTS: Array<{ x: number; z: number; key: keyof typeof CAST_PROP_GLB; color: number }> = [
-  { x: -11.5, z: -15, key: 'apple', color: 0xe74c3c },
-  { x: 11, z: -13.5, key: 'berry', color: 0x9b59b6 },
-  { x: -12, z: -30, key: 'strawberry', color: 0xff6b81 },
-  { x: 12.5, z: -29, key: 'apple_gold', color: 0xf1c40f },
+  { x: -6.0, z: -20.2, key: 'apple', color: 0xe74c3c },
+  { x: 7.9, z: -25.5, key: 'berry', color: 0x9b59b6 },
+  { x: -6.5, z: -29.4, key: 'strawberry', color: 0xff6b81 },
 ];
+
+/** Вклад белки: она приносит его в фазе `gather`, а не игрок. */
+const GIFT_FRUIT = { key: 'apple_gold' as keyof typeof CAST_PROP_GLB, color: 0xf1c40f };
+/** Индекс в списке `cast` ниже — белка. */
+const GIFT_BEARER = 3;
 
 const DAY = {
   sun: new THREE.Color(0xfff8e7),
   hemi: new THREE.Color(0xfff6e0),
   fog: new THREE.Color(0x81c784),
 };
-// Blue evening, not a purple one. The first pass leaned magenta and the fog
-// carried that tint onto the grass, so the whole glade read as lit through a
-// party gel rather than as dusk.
+// Вечер синий, а не лиловый. В первом варианте он уходил в пурпур, туман
+// переносил этот оттенок на траву, и вся поляна читалась подсвеченной цветным
+// светофильтром, а не сумерками.
 const DUSK = {
   sun: new THREE.Color(0xffb070),
   hemi: new THREE.Color(0x5c6a92),
   fog: new THREE.Color(0x33456b),
 };
 
-// ── Built pieces ────────────────────────────────────────────────
+// ── Собираемые объекты ──────────────────────────────────────────
 
-/** Ground marker under a target that is currently interactable. */
+/** Метка на земле под целью, с которой сейчас можно взаимодействовать. */
 function hintRing(color: number, r = 0.9): THREE.Mesh {
   const m = new THREE.Mesh(
     new THREE.RingGeometry(r * 0.62, r, 20),
@@ -121,9 +135,9 @@ function hintRing(color: number, r = 0.9): THREE.Mesh {
 }
 
 /**
- * Path lantern. Built rather than loaded: the whole act turns on the
- * difference between "off" and "on" reading instantly at ten metres, and that
- * needs a light source we own, not whatever emissive a GLB happened to ship.
+ * Фонарь у тропы. Собран, а не загружен: весь акт держится на том, что разницу
+ * между «погас» и «горит» видно мгновенно с десяти метров, а для этого нужен
+ * свой источник света, а не то свечение, которое случайно оказалось в GLB.
  */
 function lanternPost() {
   const group = new THREE.Group();
@@ -159,9 +173,9 @@ function lanternPost() {
   );
   core.position.y = 1.98;
 
-  // Created dark rather than added on lighting: adding a light to a live scene
-  // recompiles every material that can receive it, and five recompiles spread
-  // through an act is five visible hitches.
+  // Создаётся сразу тёмным, а не досвечивается позже: добавление света в живую
+  // сцену пересобирает каждый материал, который может его принять, и пять таких
+  // пересборок за акт — это пять заметных рывков.
   const lamp = new THREE.PointLight(0xffb347, 0, 11, 2);
   lamp.position.y = 1.98;
 
@@ -171,7 +185,7 @@ function lanternPost() {
   return { group, core, lamp, glass, ring };
 }
 
-/** Sagging string of bulbs between two anchor points. */
+/** Провисающая нить лампочек между двумя точками крепления. */
 function garlandArc(a: THREE.Vector3, b: THREE.Vector3) {
   const group = new THREE.Group();
   const steps = 22;
@@ -222,7 +236,7 @@ function makeTable(): THREE.Group {
   return g;
 }
 
-/** Fallback fruit when the GLB is missing, so a spot is never an empty patch. */
+/** Запасной фрукт, если нет GLB: место не должно оказаться пустой проплешиной. */
 function fruitBall(color: number): THREE.Group {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
@@ -249,7 +263,7 @@ interface LanternSpot {
 }
 
 interface GarlandSpot {
-  /** Coil at the tree's foot, hidden once hung. */
+  /** Моток у подножия дерева, исчезает, когда гирлянда повешена. */
   bundle: THREE.Group;
   ring: THREE.Mesh;
   anchor: THREE.Vector3;
@@ -258,21 +272,40 @@ interface GarlandSpot {
 }
 
 interface FruitSpot {
-  /** Stays put: the bush, the ring, the thing the hero walks up to. */
+  /** Остаётся на месте: куст, кольцо — то, к чему подходит герой. */
   group: THREE.Group;
-  /** The piece that leaves with the hero. */
+  /** То, что уходит вместе с героем. */
   fruit: THREE.Object3D;
   ring: THREE.Mesh;
-  /** Rest height of `fruit` inside `group`, so the bob has something to bob around. */
+  /** Высота покоя `fruit` внутри `group` — вокруг неё идёт покачивание. */
   baseY: number;
   taken: boolean;
+}
+
+/** Разница от `a` до `b` со знаком, по короткой стороне. */
+function shortestTurn(a: number, b: number) {
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return d;
 }
 
 interface PartyGuest {
   model: THREE.Object3D;
   from: THREE.Vector3;
   to: THREE.Vector3;
+  /** Разворот на подходе — по направлению движения. */
+  walkYaw: number;
+  /** Разворот на метке — лицом в объектив. */
+  poseYaw: number;
 }
+
+/**
+ * Примерно там стоит камера игрока во время съёмки. Гости разворачиваются сюда,
+ * чтобы последним кадром главы были четверо друзей, смотрящих на ребёнка, а не
+ * четыре спины, направленные в четыре стороны.
+ */
+const LENS = new THREE.Vector3(0, 0, GLADE_Z + 8);
 
 export class Level8Scene extends BaseLevelScene {
   /**
@@ -301,18 +334,20 @@ export class Level8Scene extends BaseLevelScene {
   private fruitsDone = 0;
 
   private carried: THREE.Object3D | null = null;
+  /** Едет с белкой через фазу `gather` и в конце оказывается на столе. */
+  private giftFruit: THREE.Object3D | null = null;
   private tableTopY = 0.95;
-  /** Where delivered fruit lands on the table, kept clear of the cake and honey. */
+  /** Куда ложится принесённый фрукт: в стороне от торта и мёда. */
   private stackSlots: Array<[number, number]> = [[-0.8, 0.1], [-0.32, -0.74], [0.4, -0.7], [0.82, 0.02]];
 
   private butterflies: THREE.Group[] = [];
   private flashMesh: THREE.Mesh | null = null;
   private celebrateAt = 0;
   private gatherAt = 0;
-  /** Where the hero stood when the last fruit landed, so he can walk into shot. */
+  /** Где стоял герой, когда лёг последний фрукт, — оттуда он выходит в кадр. */
   private heroFrom = new THREE.Vector3();
 
-  /** 0 = afternoon, 1 = the lit-up evening the festival happens in. */
+  /** 0 — день, 1 — тот освещённый вечер, в который и происходит праздник. */
   private dusk = 0;
   private duskTarget = 0;
   private duskApplied = -1;
@@ -327,7 +362,7 @@ export class Level8Scene extends BaseLevelScene {
     this.pushHud();
   }
 
-  // ── Interaction ───────────────────────────────────────────────
+  // ── Взаимодействие ────────────────────────────────────────────
   tryInteract() {
     const t = this.interactTarget;
     if (!t) return;
@@ -344,8 +379,8 @@ export class Level8Scene extends BaseLevelScene {
       this.stars += 2;
       this.spawnSparks(spot.group.position, 10, [0xfeca57, 0xfff3c4]);
       AudioManager.sfx('collect');
-      // Evening arrives with the lights, so the act reads as an evening being
-      // made rather than a counter being filled.
+      // Вечер наступает вместе с огнями: акт читается как вечер, который
+      // делают, а не как заполняемый счётчик.
       this.duskTarget = 0.18 + (this.lanternsDone / LANTERNS.length) * 0.62;
       if (this.lanternsDone >= LANTERNS.length) {
         this.phase = 'garlands';
@@ -383,9 +418,9 @@ export class Level8Scene extends BaseLevelScene {
       if (!spot) return;
       spot.taken = true;
       spot.ring.visible = false;
-      // Carried in front of the hero rather than teleported to the table: the
-      // walk back is the act, and it has to be visible that something is on it.
-      // Only the fruit travels — the bush it grew on stays where it grew.
+      // Фрукт несут перед героем, а не телепортируют на стол: дорога обратно и
+      // есть акт, и должно быть видно, что в лапах что-то есть. Едет только
+      // фрукт — куст, на котором он рос, остаётся на месте.
       this.hero.add(spot.fruit);
       spot.fruit.position.set(0, 1.35, 0.3);
       this.carried = spot.fruit;
@@ -395,7 +430,7 @@ export class Level8Scene extends BaseLevelScene {
     }
   }
 
-  /** Delivery is proximity, not a keypress — a child at the table expects it. */
+  /** Сдача — по расстоянию, а не по нажатию: ребёнок у стола ждёт именно этого. */
   private updateDelivery() {
     if (this.phase !== 'harvest' || !this.carried) return;
     const dx = this.hero.position.x;
@@ -423,7 +458,7 @@ export class Level8Scene extends BaseLevelScene {
     this.pushHud();
   }
 
-  // ── Build ─────────────────────────────────────────────────────
+  // ── Сборка сцены ──────────────────────────────────────────────
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: FestivalHud) => void) {
     this.nick = nick || this.defaultNick(lang);
     this.lang = lang;
@@ -450,8 +485,8 @@ export class Level8Scene extends BaseLevelScene {
       },
     });
 
-    // Second sky, faded in as the light drops. The base dome's gradient is
-    // baked into a texture, so dusk cannot be done by tinting it.
+    // Второе небо, проявляется по мере угасания света. Градиент базового купола
+    // запечён в текстуру, поэтому сумерки нельзя сделать его подкраской.
     const dusk = skyDome();
     dusk.geometry.dispose();
     dusk.geometry = new THREE.SphereGeometry(176, 32, 24);
@@ -465,7 +500,7 @@ export class Level8Scene extends BaseLevelScene {
     this.scene.add(dusk);
     this.bgColor = this.scene.background as THREE.Color;
 
-    // Reserve every interaction point before anything is scattered.
+    // Резервируем все точки взаимодействия до того, как разбросан декор.
     this.reserve(0, GLADE_Z, 11);
     this.reserve(0, SPAWN_Z, 5);
     for (const t of GARLAND_TREES) this.reserve(t[0], t[1], 3.4);
@@ -475,11 +510,10 @@ export class Level8Scene extends BaseLevelScene {
     const pad = spawnPad(0, SPAWN_Z);
     pad.position.y = this.groundHeightAt(0, SPAWN_Z) + 0.01;
     this.scene.add(pad);
-    // No glade disc. `flat` blends relief toward zero at its centre rather than
-    // cutting a plateau, so a flat ring eleven metres wide would have sunk into
-    // the ground on one side and floated on the other. The glade is marked by
-    // the fire, the table and the ring of garlands — which is what the level is
-    // about anyway.
+    // Диска поляны нет. `flat` сводит рельеф к нулю в своём центре, а не вырезает
+    // плато, поэтому ровное кольцо шириной одиннадцать метров одним краем ушло бы
+    // в землю, а другим повисло. Поляну обозначают костёр, стол и кольцо гирлянд —
+    // то есть ровно то, ради чего уровень и сделан.
     this.scene.add(await placeWoodSign(loader, -2.8, SPAWN_Z - 1.4, 0.35, 0xffd700));
 
     await this.layTrail(
@@ -491,7 +525,7 @@ export class Level8Scene extends BaseLevelScene {
       { size: 1.3 },
     );
 
-    // Table at the heart of the glade.
+    // Стол в сердце поляны.
     const tableGlb =
       (await loadPropModel(loader, CAST_PROP_GLB.party_table, { maxSize: 2.4 })) ??
       (await loadPropModel(loader, CAST_PROP_GLB.table, { maxSize: 2.4 }));
@@ -499,7 +533,7 @@ export class Level8Scene extends BaseLevelScene {
     table.position.set(0, 0, TABLE_Z);
     this.snapToGround(table);
     this.scene.add(table);
-    // The stack sits on whatever the table's own top is, measured, not assumed.
+    // Стопка стоит на реальной столешнице — высота замеряется, а не берётся на глаз.
     this.tableTopY = new THREE.Box3().setFromObject(table).max.y;
     this.colliders.push({ kind: 'circle', x: 0, z: TABLE_Z, r: 1.5 });
 
@@ -514,7 +548,7 @@ export class Level8Scene extends BaseLevelScene {
     this.scene.add(this.fireLight);
     this.colliders.push({ kind: 'circle', x: 0, z: FIRE_Z, r: 0.9 });
 
-    // Act 1 — lanterns along the path.
+    // Акт 1 — фонари вдоль тропы.
     for (const spec of LANTERNS) {
       const x = routeX(spec.z) + spec.side * 2.9;
       const built = lanternPost();
@@ -525,12 +559,12 @@ export class Level8Scene extends BaseLevelScene {
       this.colliders.push({ kind: 'circle', x, z: spec.z, r: 0.34 });
     }
 
-    // Act 2 — three real trees, placed by hand, with a coil at each foot.
+    // Акт 2 — три настоящих дерева, расставленных вручную, с мотком у каждого.
     const kit = this.assetKit(loader);
-    // One anchor height for all three, taken from the highest tree foot. Hung
-    // at ground + 4.1 each, the three trunks' own height differences tilted
-    // every span; a level triangle is what a strung garland actually looks
-    // like, and it keeps the lowest sag clear of the hero's head.
+    // Высота креплений общая для всех трёх, взята от самого высокого подножия.
+    // При «земля + 4.1» у каждого разница высот стволов перекашивала каждый
+    // пролёт; ровный треугольник — это то, как натянутая гирлянда выглядит на
+    // самом деле, и он держит нижнюю точку провиса выше головы героя.
     const anchorY = Math.max(...GARLAND_TREES.map(([x, z]) => this.groundHeightAt(x, z))) + 4.3;
     const anchors: THREE.Vector3[] = [];
     for (const [x, z] of GARLAND_TREES) {
@@ -561,7 +595,7 @@ export class Level8Scene extends BaseLevelScene {
       bundle.add(coil);
       const ring = hintRing(0xff6b6b, 1.0);
       bundle.add(ring);
-      // Offset toward the glade so the coil is never behind its own trunk.
+      // Смещён к поляне, чтобы моток не оказался за собственным стволом.
       const toward = new THREE.Vector3(-x, 0, GLADE_Z - z).normalize().multiplyScalar(1.5);
       bundle.position.set(x + toward.x, this.groundHeightAt(x + toward.x, z + toward.z), z + toward.z);
       this.scene.add(bundle);
@@ -574,21 +608,22 @@ export class Level8Scene extends BaseLevelScene {
       });
     }
 
-    // Act 3 — fruit growing out in the forest.
+    // Акт 3 — фрукты, растущие в лесу.
     for (const spec of FRUIT_SPOTS) {
       const group = new THREE.Group();
       const bushBase = await loadPropModel(loader, CAST_PROP_GLB.mushroom, { maxSize: 0.8 });
       if (bushBase) {
-        // x and z only. fitMaxSize buries the grounding offset in position.y,
-        // and a position.set(_, 0, _) throws it away — the same mistake the
-        // comment three lines down warns about, made on the line above it.
+        // Только x и z. fitMaxSize прячет смещение посадки на землю в
+        // position.y, а position.set(_, 0, _) его выбрасывает — ровно та ошибка,
+        // от которой предостерегает комментарий тремя строками ниже, сделанная
+        // строкой выше него.
         bushBase.position.x = 0.55;
         bushBase.position.z = 0.3;
         group.add(bushBase);
       }
-      // Wrapped: both fitters bury their grounding offset in the model's own
-      // position.y, and setting that y directly is what sinks a prop into the
-      // ground. The wrapper keeps the offset somewhere nothing overwrites.
+      // Обёртка: оба подгонщика прячут смещение посадки в собственную position.y
+      // модели, и запись в эту y напрямую как раз и топит предмет в земле.
+      // Обёртка держит смещение там, где его ничто не перезапишет.
       const fruit = new THREE.Group();
       fruit.add((await loadPropModel(loader, CAST_PROP_GLB[spec.key], { maxSize: 0.45 })) ?? fruitBall(spec.color));
       fruit.position.y = 0.62;
@@ -600,7 +635,7 @@ export class Level8Scene extends BaseLevelScene {
       this.fruits.push({ group, fruit, ring, baseY: 0.62, taken: false });
     }
 
-    // The friends wait at the treeline and walk in for the finale.
+    // Друзья ждут на опушке и выходят к финалу.
     const cast: Array<{
       file: string;
       h: number;
@@ -610,17 +645,38 @@ export class Level8Scene extends BaseLevelScene {
     }> = [
       { file: 'aya.glb', h: 1.2, from: [-15, -35], to: [-2.7, GLADE_Z + 1.9], fallback: () => createPlushCharacter(AYA_LOOK) },
       { file: 'putalo.glb', h: 1.3, from: [15, -35], to: [2.7, GLADE_Z + 1.9], fallback: () => createPlushCharacter({ height: 1.3, top: 0x55efc4, bottom: 0x00b894, hairStyle: 'cap' }) },
-      { file: 'hedgehog.glb', h: 0.9, from: [-17, -20], to: [-3.4, FIRE_Z + 1.4], fallback: () => createPlushHedgehog() },
-      { file: 'squirrel.glb', h: 0.95, from: [17, -20], to: [3.4, FIRE_Z + 1.4], fallback: () => createPlushSquirrel() },
+      // Шире передней пары, а не уже: на x = ±3.4 два мелких зверя попадали ровно
+      // на лучи камеры к Айе и Путало и скрывались за ними — на общем фото,
+      // которым кончается глава, не хватало двоих друзей из четырёх. И вперёд от
+      // костра: на FIRE_Z + 1.4 разведённые метки оказывались в 0.89 м от скамеек,
+      // то есть внутри них.
+      { file: 'hedgehog.glb', h: 0.9, from: [-17, -20], to: [-5.6, FIRE_Z + 2.8], fallback: () => createPlushHedgehog() },
+      { file: 'squirrel.glb', h: 0.95, from: [17, -20], to: [5.6, FIRE_Z + 2.8], fallback: () => createPlushSquirrel() },
     ];
     for (const c of cast) {
       const model = (await loadCharModel(loader, c.file, c.h)) ?? c.fallback();
       const from = new THREE.Vector3(c.from[0], this.groundHeightAt(c.from[0], c.from[1]), c.from[1]);
       const to = new THREE.Vector3(c.to[0], this.groundHeightAt(c.to[0], c.to[1]), c.to[1]);
       model.position.copy(from);
-      model.rotation.y = Math.atan2(to.x - from.x, to.z - from.z);
+      const walkYaw = Math.atan2(to.x - from.x, to.z - from.z);
+      model.rotation.y = walkYaw;
       this.scene.add(model);
-      this.guests.push({ model, from, to });
+      this.guests.push({ model, from, to, walkYaw, poseYaw: Math.atan2(LENS.x - to.x, LENS.z - to.z) });
+    }
+
+    // Остаётся в сцене, а не делается потомком белки: `loadCharModel` подгоняет
+    // каждого гостя под заданную высоту, и потомок подогнанной модели наследует
+    // её масштаб. Следовать за носильщиком по мировым координатам стоит одной
+    // строки в `gather` и не может дать неверный размер.
+    {
+      const gift = new THREE.Group();
+      gift.add((await loadPropModel(loader, CAST_PROP_GLB[GIFT_FRUIT.key], { maxSize: 0.45 })) ?? fruitBall(GIFT_FRUIT.color));
+      const bearer = this.guests[GIFT_BEARER];
+      if (bearer) {
+        gift.position.set(bearer.from.x, bearer.from.y + 0.8, bearer.from.z + 0.3);
+        this.scene.add(gift);
+        this.giftFruit = gift;
+      }
     }
 
     for (let i = 0; i < 6; i++) {
@@ -632,9 +688,8 @@ export class Level8Scene extends BaseLevelScene {
     await this.loadTrees(loader, 26, 20, -14, 4.6);
     await this.loadProps(loader, 11, 6, 30, -14);
 
-    // placeS1Prop reads `y` as a height above the terrain, not a world y, so
-    // anything standing on the table needs the table top measured from the
-    // ground under it.
+    // placeS1Prop читает `y` как высоту над рельефом, а не как мировую, поэтому
+    // для всего, что стоит на столе, столешницу надо мерить от земли под ней.
     const tableTopLocal = this.tableTopY - this.groundHeightAt(0, TABLE_Z);
     await this.placeProps(loader, [
       { key: 'cake', opts: { x: 0, z: TABLE_Z, maxSize: 0.6, y: tableTopLocal } },
@@ -659,8 +714,8 @@ export class Level8Scene extends BaseLevelScene {
 
     const start = this.devStart() ?? { x: 0, z: SPAWN_Z };
     this.hero.position.set(start.x, this.groundHeightAt(start.x, start.z), start.z);
-    // The wall. Planted last, so it can read the corridor and every room the
-    // level reserved and hug the outside of both.
+    // Стена. Ставится последней, чтобы прочитать и коридор, и все комнаты,
+    // которые зарезервировал уровень, и обойти их снаружи.
     await this.encloseLevel(loader);
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
@@ -731,7 +786,10 @@ export class Level8Scene extends BaseLevelScene {
       speaker = this.copy('Ёжик', 'Кірпі');
       line = this.carried
         ? this.copy('Неси на стол, я подвину тарелки!', 'Дастарханға апар, мен тәрелкелерді жылжытам!')
-        : this.copy('А стол-то пустой! Найди фрукты в лесу.', 'Дастархан бос қой! Орманнан жеміс тап.');
+        : this.copy(
+            'А стол-то пустой! Вон кусты по краю поляны — рви!',
+            'Дастархан бос қой! Әне, алаң шетіндегі бұталар — үз!',
+          );
       objective = this.carried
         ? this.copy('🍎 Отнеси фрукт на стол', '🍎 Жемісті дастарханға апар')
         : this.copy(
@@ -769,13 +827,14 @@ export class Level8Scene extends BaseLevelScene {
       carrying: Boolean(this.carried),
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'lanterns'),
+      // Не 'intro': canMove пропускает только lanterns, garlands и harvest.
+      showMoveHint: !this.hasTakenFirstStep && p === 'lanterns',
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
   }
 
-  // ── Targeting ─────────────────────────────────────────────────
+  // ── Выбор цели ────────────────────────────────────────────────
   private planar(a: THREE.Vector3) {
     return Math.hypot(a.x - this.hero.position.x, a.z - this.hero.position.z);
   }
@@ -817,7 +876,7 @@ export class Level8Scene extends BaseLevelScene {
     return best;
   }
 
-  // ── Time of day ───────────────────────────────────────────────
+  // ── Время суток ───────────────────────────────────────────────
   private applyTimeOfDay() {
     if (Math.abs(this.dusk - this.duskApplied) < 0.003) return;
     this.duskApplied = this.dusk;
@@ -831,8 +890,8 @@ export class Level8Scene extends BaseLevelScene {
       this.hemiLight.intensity = THREE.MathUtils.lerp(0.58, 0.3, d);
       this.hemiLight.color.copy(DAY.hemi).lerp(DUSK.hemi, d);
     }
-    // Lifted rather than dropped: an evening a five-year-old plays in has to
-    // stay readable, so the loss of sun is partly bought back as ambient.
+    // Поднимается, а не гасится: вечер, в который играет пятилетний, обязан
+    // оставаться читаемым, поэтому потеря солнца частично возвращается заливкой.
     if (this.ambientLight) this.ambientLight.intensity = THREE.MathUtils.lerp(0.06, 0.22, d);
 
     this.scratch.copy(DAY.fog).lerp(DUSK.fog, d);
@@ -842,7 +901,7 @@ export class Level8Scene extends BaseLevelScene {
     if (this.fireLight) this.fireLight.intensity = d * 2.4;
   }
 
-  // ── Loop ──────────────────────────────────────────────────────
+  // ── Игровой цикл ──────────────────────────────────────────────
   protected loop = () => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
@@ -850,7 +909,7 @@ export class Level8Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    if (this.phase === 'intro' && now > this.nextAt) {
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) {
         this.phase = 'lanterns';
@@ -870,25 +929,54 @@ export class Level8Scene extends BaseLevelScene {
     this.updateMovement(dt, canMove, this.baseSpeed, -19, 19, -34, 9);
     this.updateDelivery();
 
-    // After updateMovement, not before: with canMove false it clears `walking`
-    // and cross-fades to idle, which would have left the hero sliding to his
-    // mark in an idle pose.
+    // После updateMovement, а не до: при canMove = false он сбрасывает `walking`
+    // и переводит в покой, из-за чего герой ехал бы к своей метке в позе стоя.
     if (this.phase === 'gather') {
       const t = THREE.MathUtils.clamp((now - this.gatherAt) / 3400, 0, 1);
       const ease = t * t * (3 - 2 * t);
+      // Разворот начинается на середине пути, чтобы гости приходили уже лицом к
+      // камере, а не крутились на месте, когда уже встали.
+      const turn = THREE.MathUtils.smoothstep(t, 0.5, 1);
       for (const [i, g] of this.guests.entries()) {
         g.model.position.lerpVectors(g.from, g.to, ease);
         if (t < 1) g.model.position.y += Math.abs(Math.sin(now * 0.012 + i)) * 0.06;
+        g.model.rotation.y = g.walkYaw + shortestTurn(g.walkYaw, g.poseYaw) * turn;
       }
-      // It is Barsik's party — he has to be in the photograph. He may have
-      // delivered that last fruit from any side of the table, so he walks to
-      // the front of the group and turns to face the camera.
+      const bearer = this.guests[GIFT_BEARER];
+      if (this.giftFruit && bearer) {
+        // Пока идёт — в лапах, в последний такт кладётся на стол. Телепорт на
+        // 3.5 м от метки белки до тарелки читался как щелчок, а не как «поставил».
+        const hand = new THREE.Vector3(bearer.model.position.x, bearer.model.position.y + 0.8, bearer.model.position.z + 0.3);
+        const place = THREE.MathUtils.smoothstep(t, 0.78, 1);
+        if (place <= 0) {
+          this.giftFruit.position.copy(hand);
+        } else {
+          const [gx, gz] = this.stackSlots[this.stackSlots.length - 1];
+          const plate = new THREE.Vector3(gx, this.tableTopY, TABLE_Z + gz);
+          this.giftFruit.position.lerpVectors(hand, plate, place);
+          this.giftFruit.position.y += Math.sin(place * Math.PI) * 0.28;
+        }
+        this.giftFruit.rotation.y += dt * 1.6;
+      }
+      // Это праздник Барсика, он обязан быть на фото. Последний фрукт он мог
+      // принести с любой стороны стола, поэтому выходит вперёд группы и
+      // разворачивается к камере.
       this.hero.position.x = THREE.MathUtils.lerp(this.heroFrom.x, 0, ease);
       this.hero.position.z = THREE.MathUtils.lerp(this.heroFrom.z, GLADE_Z + 3.4, ease);
       this.hero.position.y = this.groundHeightAt(this.hero.position.x, this.hero.position.z);
       this.hero.rotation.y = THREE.MathUtils.lerp(this.yaw, 0, ease);
       this.walking = t < 0.96;
       if (t >= 1) {
+        // Белка приходит с четвёртым фруктом, и стол полон, хотя ребёнок сделал
+        // три рейса из четырёх.
+        if (this.giftFruit) {
+          const [gx, gz] = this.stackSlots[this.stackSlots.length - 1];
+          this.giftFruit.position.set(gx, this.tableTopY, TABLE_Z + gz);
+          this.giftFruit = null;
+          this.stars += 2;
+          this.spawnSparks(new THREE.Vector3(gx, this.tableTopY, TABLE_Z + gz), 10, [0xf1c40f, 0xffd700]);
+          AudioManager.sfx('collect');
+        }
         this.phase = 'celebrate';
         this.celebrateAt = now;
         this.praiseUntil = now + 4000;
@@ -902,12 +990,12 @@ export class Level8Scene extends BaseLevelScene {
       }
     }
 
-    // Evening eases in rather than stepping, so lighting a lantern reads as a
-    // moment rather than a light switch.
+    // Вечер наступает плавно, а не ступенькой: зажжённый фонарь читается
+    // мгновением, а не щелчком выключателя.
     this.dusk += (this.duskTarget - this.dusk) * Math.min(1, dt * 0.9);
     this.applyTimeOfDay();
 
-    // Pulse only what is currently actionable.
+    // Пульсирует только то, с чем можно взаимодействовать сейчас.
     for (const l of this.lanterns) {
       if (!l.lit) {
         (l.ring.material as THREE.MeshBasicMaterial).opacity = 0.3 + Math.sin(now * 0.004 + l.flicker) * 0.22;
@@ -958,10 +1046,10 @@ export class Level8Scene extends BaseLevelScene {
 
     this.updateAmbient(dt, now);
 
-    // ── Camera ──
+    // ── Камера ──
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
-      // Reveal: the glade first, so the walk has somewhere to be going, then
-      // down to the path, then behind the hero.
+      // Показ: сначала поляна, чтобы у пути была видимая цель, потом спуск к
+      // тропе, потом за спину герою.
       const idx = Math.min(this.introI, 2);
       const pos = [
         new THREE.Vector3(11, 9, 15),
@@ -973,7 +1061,7 @@ export class Level8Scene extends BaseLevelScene {
         new THREE.Vector3(routeX(-4), 1.2, -4),
         new THREE.Vector3(0, 1.2, SPAWN_Z - 3),
       ];
-      // Slow on the establishing beat, quick to settle on the last.
+      // Медленно на общем плане, быстро — на последнем.
       const ease = idx === 0 ? 0.35 : idx === 1 ? 0.1 : 0.02;
       this.camera.position.lerp(pos[idx], 1 - Math.pow(ease, dt));
       this.camera.lookAt(look[idx]);
@@ -985,10 +1073,10 @@ export class Level8Scene extends BaseLevelScene {
         dt,
       );
     } else {
-      // Portrait and phone-landscape need a flatter, further-back camera: the
-      // desktop pitch puts the lower third of a tall frame into the ground
-      // right in front of the hero. cameraFraming() already existed and seven
-      // levels used it; this one did not.
+      // Портрету и телефону в ландшафте нужна камера положе и дальше:
+      // десктопный наклон отправляет нижнюю треть высокого кадра в землю прямо
+      // перед героем. cameraFraming() уже существовал, и его использовали семь
+      // уровней; этот — нет.
       const f = this.cameraFraming();
       this.updateCamera(
         new THREE.Vector3(

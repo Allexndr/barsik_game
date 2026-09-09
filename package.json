@@ -9,6 +9,12 @@
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx",
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:gameplay": "playwright test tests/e2e/gameplay.spec.ts",
+    "test:device": "playwright test tests/e2e/device-matrix.spec.ts",
+    "test:perf": "playwright test tests/e2e/performance.spec.ts",
     "voice:check": "node scripts/extract-voice-lines.mjs --check"
   },
   "dependencies": {
@@ -20,6 +26,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -31,6 +38,7 @@
     "globals": "^17.8.0",
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.65.0",
-    "vite": "^7.3.6"
+    "vite": "^7.3.6",
+    "vitest": "^3.2.7"
   }
 }

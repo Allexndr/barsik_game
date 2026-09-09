@@ -21,17 +21,6 @@ export function IconStar(props: IconProps) {
   );
 }
 
-export function IconFruit(props: IconProps) {
-  return (
-    <svg {...base(props)}>
-      <path
-        fill="currentColor"
-        d="M12.4 3.6c.35-.65 1-1.1 1.7-1.2-.05.9-.55 1.75-1.3 2.2.55.05 1.05.25 1.4.55C16.8 6.3 18 8.6 18 11.1c0 4.15-2.9 8.9-6 8.9s-6-4.75-6-8.9c0-2.7 1.4-5.05 3.4-6.15.85-.47 1.85-.47 2.6.02.28.18.56.4.8.63.1-.72.35-1.4.6-2.03z"
-      />
-    </svg>
-  );
-}
-
 export function IconPaw(props: IconProps) {
   return (
     <svg {...base(props)}>
@@ -162,15 +151,6 @@ export function IconMinus(props: IconProps) {
   return (
     <svg {...base(props)}>
       <path d="M5 12h14" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function IconCompass(props: IconProps) {
-  return (
-    <svg {...base(props)}>
-      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
-      <path fill="currentColor" d="M15.5 8.5l-2.2 5-5 2.2 2.2-5 5-2.2z" />
     </svg>
   );
 }

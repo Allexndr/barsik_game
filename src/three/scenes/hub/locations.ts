@@ -90,10 +90,6 @@ export function getLocation(id: LocationId): HubLocation | null {
   return REGISTRY.get(id) ?? null;
 }
 
-export function allLocations(): HubLocation[] {
-  return [...REGISTRY.values()];
-}
-
 /**
  * Куда ребёнок попадает, придя из соседней локации.
  *

@@ -19,7 +19,7 @@ import { useGameStore } from '@/store/useGameStore';
  * Ice key opens snowflake lock. Group photo finale. Season 1 complete → Chapter 3 teaser.
  */
 
-/** The cave sits at the far end of the climb, not four metres from spawn. */
+/** Пещера — в конце подъёма, а не в четырёх метрах от точки появления. */
 const CHEST_Z = -34;
 
 export type L16Phase = 'intro' | 'gather' | 'lock' | 'approach' | 'unlock' | 'open' | 'outro';
@@ -176,14 +176,14 @@ export class Level16Scene extends BaseLevelScene {
     this.lang = lang;
     this.onHud = onHud;
 
-    // Same shape as L9's acorn: derived from the save rather than a loose
-    // localStorage flag, because the flag is outside `barsik_progress` and a
-    // save that lost it left the season finale unfinishable.
+    // Так же, как жёлудь на L9: берётся из сейва, а не из отдельного флага в
+    // localStorage. Флаг лежит вне `barsik_progress`, и сейв, потерявший его,
+    // делал финал сезона непроходимым.
     this.hasIceKey = resolveKey(KEY_ICE).has;
     if (!this.hasIceKey && import.meta.env.DEV) {
-      // Spare for a QA jump into `?mission=16` with no save. Never in a build,
-      // and never when the save says L13 is behind you — that case now takes
-      // the real path, so the real path is the one being played locally.
+      // Подстраховка для входа QA в `?mission=16` без сейва. В сборку не
+      // попадает и не срабатывает, если сейв говорит, что L13 уже пройден: там
+      // идёт настоящая ветка, и локально играется именно она.
       console.warn('[L16] no ice key and level 13 is not complete — granting for QA only');
       this.hasIceKey = true;
     }
@@ -194,10 +194,10 @@ export class Level16Scene extends BaseLevelScene {
     await this.setupWinterEnvironment(loader, {
       sky: ['#3a5a7a', '#6a8aaa', '#b0d0e8'],
       backdrop: 'finale',
-      // The default play extent of 30 puts the rim lift — a 3.4 m wall of
-      // hillside — across everything past z = -16. With the finale moved to
-      // the end of a forty-metre climb, the chest and all seven friends would
-      // have been standing on that slope.
+      // При стандартном радиусе зоны 30 подъём края — стена склона высотой
+      // 3.4 м — накрывает всё дальше z = -16. После переноса финала в конец
+      // сорокаметрового подъёма сундук и все семеро друзей оказались бы на
+      // этом склоне.
       terrain: { playHalfExtent: 52, rimFalloff: 16 },
       decorCenterZ: -22,
     });
@@ -254,7 +254,8 @@ export class Level16Scene extends BaseLevelScene {
     this.scene.add(marker);
     this.prepMarkers.push(marker);
 
-    // Floating ice key (from L13 master) — ice_key prop → golden tinted → procedural
+    // Парящий ледяной ключ (от мастера с L13): проп ice_key → золотой оттенок
+    // → процедурная запасная модель.
     const iceKeyGlb = await loadPropModel(loader, CAST_PROP_GLB.ice_key_prop, { maxSize: 0.55 });
     const goldenKeyGlb = iceKeyGlb
       ? null
@@ -328,18 +329,19 @@ export class Level16Scene extends BaseLevelScene {
       { key: 'penguin', x: -7, z: -4, rotY: 0.9, h: 0.75 },
     ]);
 
-    // Group photo — unlocked cast first; locked friends as soft silhouettes
+    // Общее фото: сначала открытые персонажи, закрытые — мягкими силуэтами.
     const unlocked = new Set(useGameStore.getState().friends.map((f) => f.id));
-    // Always show gardener + aya as story anchors; rest respect unlocks
+    // Садовник и Айя показываются всегда как якоря сюжета; остальные —
+    // по мере открытия.
     unlocked.add('gardener');
     unlocked.add('aya');
-    // Full nine-friend roster (season1Friends.ts). yagodka_rare (L9) and
-    // snowman (L15) were missing here — the finale photo of "everyone Barsik
-    // met" was missing two of the nine people it claimed to be of.
+    // Полный состав из девяти друзей (season1Friends.ts). Здесь не хватало
+    // yagodka_rare (L9) и snowman (L15): на финальном фото «всех, кого встретил
+    // Барсик» не было двоих из девяти.
     const friendIds = ['gardener', 'aya', 'hedgehog', 'squirrel', 'putalo', 'yagodka_rare', 'ice_master', 'snowman', 'ice_friend_rare'] as const;
-    // A wide arc around the chest rather than a 7x6 huddle in front of the
-    // spawn. Everyone Barsik met across the season is standing at the end of
-    // the walk, which is the shot the finale is for.
+    // Широкая дуга вокруг сундука, а не толпа 7×6 у точки появления. Все, кого
+    // Барсик встретил за сезон, стоят в конце пути — ради этого кадра финал и
+    // существует.
     const friendPositions: [number, number][] = [
       [-7.4, CHEST_Z + 3.4], [7.4, CHEST_Z + 3.4],
       [-8.6, CHEST_Z - 1.2], [8.6, CHEST_Z - 1.2],
@@ -385,10 +387,9 @@ export class Level16Scene extends BaseLevelScene {
       const waiting = WAITING_FRIENDS.find((w) => w.index === i);
       if (waiting) {
         f.position.set(waiting.x, f.position.y, waiting.z);
-        // Height above came from groundY(f) at the gathering spot near the
-        // chest, which is flat (base 0). The waiting spot is partway up the
-        // snow slope — reusing that y buried two of five friends into the
-        // mound.
+        // Высота выше бралась из groundY(f) для места сбора у сундука, а там
+        // ровно (база 0). Место ожидания — на середине снежного склона, и с той
+        // же y двое друзей из пяти уходили в сугроб.
         groundY(f, this.groundHeightAt(waiting.x, waiting.z));
         f.rotation.y = Math.atan2(-waiting.x, 4 - waiting.z);
         f.visible = true;
@@ -435,17 +436,18 @@ export class Level16Scene extends BaseLevelScene {
 
     for (let z = 0; z > CHEST_Z + 6; z -= 3.5) {
       const arrow = pathArrow(0, z, 0);
-      // The climb to the chest is a snow slope, not flat ground — pathArrow's
-      // fixed y=0 buried the trail markers up to 1.6 units into the mound.
+      // Подъём к сундуку — снежный склон, а не ровная земля: фиксированный
+      // y = 0 у pathArrow топил указатели в сугробе на глубину до 1.6.
       this.snapToGround(arrow);
       this.scene.add(arrow);
     }
 
     this.hero.position.set(0, this.groundHeightAt(0, 4), 4);
-    // One room, not one road. A corridor here would put a wall through the
-    // middle of the only space the level has.
-    // Taken from the movement bounds the level already declares: x ±22, z −45..8 — the chest sits at z −34, so a fourteen-metre arena
-    // would have walled the player away from the thing the level is about.
+    // Одна комната, а не дорога. Коридор здесь провёл бы стену через середину
+    // единственного пространства уровня.
+    // Размеры взяты из границ движения, которые уровень и так объявляет:
+    // x ±22, z −45..8. Сундук стоит на z −34, поэтому арена радиусом
+    // четырнадцать отгородила бы игрока от того, ради чего уровень сделан.
     this.playArena = { x: 0, z: -18.5, r: 35 };
     await this.encloseArena(loader);
 
@@ -471,9 +473,9 @@ export class Level16Scene extends BaseLevelScene {
     const iceMat = new THREE.MeshStandardMaterial({
       color: 0xb3e5fc, roughness: 0.15, metalness: 0.45, transparent: true, opacity: 0.88,
     });
-    // No environment map in this game, so a mostly-metal surface has nothing
-    // to reflect and reads as flat black instead of gold — same class of bug
-    // as the CC0 kit assets. Emissive carries the gold glow instead.
+    // Карты окружения в игре нет, поэтому почти металлической поверхности
+    // нечего отражать и она читается плоско-чёрной вместо золота — тот же класс
+    // ошибки, что у ассетов из CC0-наборов. Золото даёт свечение emissive.
     const goldMat = new THREE.MeshStandardMaterial({
       color: 0xffd700, roughness: 0.25, metalness: 0.12, emissive: 0xffd700, emissiveIntensity: 0.35,
     });
@@ -580,7 +582,8 @@ export class Level16Scene extends BaseLevelScene {
       prepTotal: this.prepTotal,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      showMoveHint: !this.hasTakenFirstStep && (p === 'intro' || p === 'gather'),
+      // Не 'intro': canMove исключает эту фазу (intro/outro/open).
+      showMoveHint: !this.hasTakenFirstStep && p === 'gather',
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
@@ -636,7 +639,7 @@ export class Level16Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    if (this.phase === 'intro' && now > this.nextAt) {
+    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
       this.introI += 1;
       if (this.introI >= 3) { this.phase = this.hasIceKey ? 'gather' : 'approach'; this.pushHud(); }
       else { this.nextAt = now + 2600; this.pushHud(); }
@@ -679,7 +682,7 @@ export class Level16Scene extends BaseLevelScene {
       this.pushHud();
     }
 
-    // Periodic confetti during open/outro
+    // Конфетти время от времени в фазах open и outro.
     if ((this.phase === 'open' || this.phase === 'outro') && now - this.confettiBurst > 800) {
       this.confettiBurst = now;
       this.spawnSparks(
@@ -739,7 +742,14 @@ export class Level16Scene extends BaseLevelScene {
           f.rotation.y = Math.atan2(dx, dz);
         }
       }
-      if (f.visible) f.position.y = Math.sin(now * 0.003 + f.position.x) * 0.05;
+      // Абсолютное присваивание (вместо прибавки покачивания к посаженной на
+      // землю y) прижимало каждого видимого друга к ~0±0.05 независимо от
+      // рельефа. На ровной площадке для фото это незаметно, но двоих из пяти
+      // ждущих, чьё место на склоне поднято на 0.6–0.8 м, оно каждый кадр
+      // закапывало, тут же отменяя посадку через groundY().
+      if (f.visible) {
+        f.position.y = this.groundHeightAt(f.position.x, f.position.z) + Math.sin(now * 0.003 + f.position.x) * 0.05;
+      }
     }
 
     // Кристалл летит в свой луч снежинки-замка.
@@ -774,8 +784,8 @@ export class Level16Scene extends BaseLevelScene {
       this.pushHud();
     }
 
-    // Ring of crystals around the chest — `userData.spin` was set at build
-    // time and never read, so all eight sat dead still.
+    // Кольцо кристаллов вокруг сундука: `userData.spin` записывался при сборке
+    // и никогда не читался, поэтому все восемь стояли неподвижно.
     for (const c of this.crystals) {
       c.rotation.y += dt * (0.6 + (c.userData.spin as number) * 0.05);
       c.position.y = 0.5 + Math.sin(now * 0.0025 + (c.userData.spin as number)) * 0.12;
@@ -791,11 +801,11 @@ export class Level16Scene extends BaseLevelScene {
 
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
-      // The last intro shot looks all the way down the valley to the cave, so
-      // the goal of the season's final level is visible before the first step.
-      // Locked to the cinematic path until then — same fix as L2/L8: without
-      // the guard, a child who moves immediately walks off-frame for the
-      // rest of intro's fixed multi-second timer, not just one bad frame.
+      // Последний кадр интро смотрит через всю долину на пещеру, чтобы цель
+      // финального уровня была видна до первого шага. До этого камера держится
+      // кинематографического пути — та же правка, что на L2 и L8: без неё
+      // ребёнок, пошедший сразу, уходит из кадра на весь многосекундный таймер
+      // интро, а не на один кадр.
       const introPos = [new THREE.Vector3(0, 6, 14), new THREE.Vector3(0, 6.5, 13), new THREE.Vector3(0, 8, 12)];
       const introLook = [
         new THREE.Vector3(0, 1, 2),
@@ -805,17 +815,17 @@ export class Level16Scene extends BaseLevelScene {
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
       this.camera.lookAt(introLook[idx]);
     } else if (this.phase === 'open' || this.phase === 'outro') {
-      // Framed on the chest and the arc of friends behind it. This was pinned
-      // to z = 2 looking at z = -5, which is where the chest used to be — with
-      // the finale moved to the end of the climb it would have shot thirty
-      // metres of empty snow for the most important frame of the season.
+      // Кадр построен на сундуке и дуге друзей за ним. Раньше камера стояла на
+      // z = 2 и смотрела в z = -5, где сундук был прежде; после переноса финала
+      // в конец подъёма она снимала бы тридцать метров пустого снега в самом
+      // важном кадре сезона.
       const target = new THREE.Vector3(0, 5.8, CHEST_Z + 11);
       this.camera.position.lerp(target, 1 - Math.pow(0.002, dt));
       this.camera.lookAt(0, 1.3, CHEST_Z - 2.5);
     } else {
-      // Same framing as the rest of the season: a tall or short frame needs a
-      // flatter, further-back camera, or the desktop pitch spends the lower
-      // third of the screen on ground directly in front of the hero.
+      // Кадрирование как во всём сезоне: узкому или низкому экрану нужна
+      // камера положе и дальше, иначе десктопный наклон тратит нижнюю треть
+      // экрана на землю прямо перед героем.
       const f = this.cameraFraming();
       const target = new THREE.Vector3(
         this.cameraLateral(this.hero.position.x) + f.lateral,

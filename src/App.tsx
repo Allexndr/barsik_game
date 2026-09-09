@@ -5,6 +5,8 @@ import { WelcomeScreen } from '@/components/WelcomeScreen';
 import { QuickStartScreen } from '@/components/QuickStartScreen';
 import { GamePage } from '@/pages/GamePage';
 import { ScreenFade } from '@/components/ui/ScreenFade';
+import { MissionRoute } from '@/components/MissionRoute';
+import { hasMission } from '@/components/missions';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { readStoredLang, t, type Lang } from '@/i18n';
 import type { Player } from '@/types';
@@ -14,22 +16,6 @@ import { SEASON1_FRIENDS } from '@/utils/season1Friends';
 import './App.css';
 
 const Mission0Screen = lazy(() => import('@/components/Mission0Screen').then(m => ({ default: m.Mission0Screen })));
-const Mission1Screen = lazy(() => import('@/components/Mission1Screen').then(m => ({ default: m.Mission1Screen })));
-const Mission2Screen = lazy(() => import('@/components/Mission2Screen').then(m => ({ default: m.Mission2Screen })));
-const Mission3Screen = lazy(() => import('@/components/Mission3Screen').then(m => ({ default: m.Mission3Screen })));
-const Mission4Screen = lazy(() => import('@/components/Mission4Screen').then(m => ({ default: m.Mission4Screen })));
-const Mission5Screen = lazy(() => import('@/components/Mission5Screen').then(m => ({ default: m.Mission5Screen })));
-const Mission6Screen = lazy(() => import('@/components/Mission6Screen').then(m => ({ default: m.Mission6Screen })));
-const Mission7Screen = lazy(() => import('@/components/Mission7Screen').then(m => ({ default: m.Mission7Screen })));
-const Mission8Screen = lazy(() => import('@/components/Mission8Screen').then(m => ({ default: m.Mission8Screen })));
-const Mission9Screen = lazy(() => import('@/components/Mission9Screen').then(m => ({ default: m.Mission9Screen })));
-const Mission10Screen = lazy(() => import('@/components/Mission10Screen').then(m => ({ default: m.Mission10Screen })));
-const Mission11Screen = lazy(() => import('@/components/Mission11Screen').then(m => ({ default: m.Mission11Screen })));
-const Mission12Screen = lazy(() => import('@/components/Mission12Screen').then(m => ({ default: m.Mission12Screen })));
-const Mission13Screen = lazy(() => import('@/components/Mission13Screen').then(m => ({ default: m.Mission13Screen })));
-const Mission14Screen = lazy(() => import('@/components/Mission14Screen').then(m => ({ default: m.Mission14Screen })));
-const Mission15Screen = lazy(() => import('@/components/Mission15Screen').then(m => ({ default: m.Mission15Screen })));
-const Mission16Screen = lazy(() => import('@/components/Mission16Screen').then(m => ({ default: m.Mission16Screen })));
 const HubScreen = lazy(() =>
   import('@/components/screens/HubScreen').then((mod) => ({ default: mod.HubScreen })),
 );
@@ -61,7 +47,7 @@ function applyLang(lang: Lang) {
   useUIStore.getState().setLang(lang);
 }
 
-function migrateProgress(raw: unknown) {
+export function migrateProgress(raw: unknown) {
   if (!raw || typeof raw !== 'object') throw new Error('invalid_progress');
   const data = raw as Record<string, unknown>;
   const unlockedLevels = Array.isArray(data.unlockedLevels)
@@ -88,6 +74,33 @@ function migrateProgress(raw: unknown) {
     Object.fromEntries(
       unlockedLevels.map((levelId) => [levelId, LEVEL_CONFIGS[levelId]?.reward.stars ?? 0]),
     );
+  // Clean-run marks. Older saves have none, which reads as "no level cleared
+   // cleanly yet" — correct, and it fills in as the player replays.
+  const levelClean =
+    data.levelClean && typeof data.levelClean === 'object'
+      ? Object.fromEntries(
+          Object.entries(data.levelClean as Record<string, unknown>)
+            .filter(([levelId, value]) => {
+              const id = Number(levelId);
+              return Number.isInteger(id) && id >= 0 && id <= 16 && value === true;
+            })
+            .map(([levelId]) => [Number(levelId), true]),
+        )
+      : {};
+
+  const highestDone = Math.max(
+    -1,
+    ...unlockedLevels,
+    ...Object.entries(levelStars)
+      .filter(([, stars]) => Number(stars) > 0)
+      .map(([id]) => Number(id)),
+  );
+  const requestedLevel = Math.trunc(
+    Math.max(
+      0,
+      Math.min(17, Number.isFinite(data.currentLevel) ? Number(data.currentLevel) : 0),
+    ),
+  );
   const migratedFriends = Array.isArray(data.friends)
     ? data.friends
         .filter(
@@ -112,13 +125,14 @@ function migrateProgress(raw: unknown) {
   return {
     friends,
     unlockedLevels,
-    currentLevel: Math.trunc(
-      Math.max(
-        0,
-        Math.min(17, Number.isFinite(data.currentLevel) ? Number(data.currentLevel) : 0),
-      ),
-    ),
+    // A pointer is not proof of completion. Cap it at the first level after
+    // confirmed progress, so a damaged value such as 9999 cannot skip the
+    // season or make the UI claim that the finale was completed.
+    currentLevel: highestDone >= 0
+      ? Math.min(requestedLevel, Math.min(17, highestDone + 1))
+      : 0,
     levelStars,
+    levelClean,
     stars: Math.max(0, Number.isFinite(data.stars) ? Number(data.stars) : 0),
     cityObjects:
       data.cityObjects && typeof data.cityObjects === 'object'
@@ -146,15 +160,18 @@ function migrateProgress(raw: unknown) {
           return ids.length ? ids : cool;
         })()
       : ['hoodie_green', 'jeans_blue', 'tubeteika_blue', 'glasses_yellow'],
-    season1Complete:
-      data.season1Complete === true ||
-      (Number.isFinite(data.currentLevel) && Number(data.currentLevel) >= 17) ||
-      unlockedLevels.includes(16),
+    // Completion is derived from the canonical final level, never from a
+    // user-editable pointer or a stale boolean flag in localStorage.
+    season1Complete: unlockedLevels.includes(16),
   };
 }
 
 export function App() {
   const currentScreen = useUIStore((s) => s.currentScreen);
+  // Уровни 1–16 различаются только данными — см. `missions.ts`.
+  // У нулевого свой экран: там собственный HUD с фонарями, колышками и кюем.
+  const missionId = Number(/^mission(\d+)$/.exec(currentScreen)?.[1]);
+  const episodeRunId = useUIStore((s) => s.episodeRunId);
 
   useEffect(() => {
     // Language first: stored preference, then player's lang if returning
@@ -163,9 +180,17 @@ export function App() {
     // Fetch the voice manifest early, so the first line of the first level is
     // already a rendered clip rather than the browser's synthesiser. Costs one
     // request, and a 404 leaves the old behaviour untouched.
-    void AudioManager.loadVoicePack();
+    void AudioManager.loadVoicePack().catch((error) => {
+      console.warn('[audio] voice_pack_unavailable', { error });
+    });
+    AudioManager.setVoiceGender(useUIStore.getState().voiceGender);
 
-    const saved = localStorage.getItem('barsik_player');
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem('barsik_player');
+    } catch (error) {
+      console.warn('[storage] player_read_failed', { error });
+    }
     if (saved) {
       try {
         const player = migratePlayer(JSON.parse(saved));
@@ -183,7 +208,12 @@ export function App() {
       }
     }
 
-    const progress = localStorage.getItem('barsik_progress');
+    let progress: string | null = null;
+    try {
+      progress = localStorage.getItem('barsik_progress');
+    } catch (error) {
+      console.warn('[storage] progress_read_failed', { error });
+    }
     if (progress) {
       try {
         const migrated = migrateProgress(JSON.parse(progress));
@@ -292,59 +322,14 @@ export function App() {
 
   return (
     <div className="app">
-      <ScreenFade screenKey={currentScreen}>
+      <ScreenFade screenKey={`${currentScreen}:${episodeRunId}`}>
         {currentScreen === 'welcome' && <WelcomeScreen />}
         {currentScreen === 'quick' && <QuickStartScreen />}
         {currentScreen === 'mission0' && (
           <Suspense fallback={<ScreenLoader />}><Mission0Screen /></Suspense>
         )}
-        {currentScreen === 'mission1' && (
-          <Suspense fallback={<ScreenLoader />}><Mission1Screen /></Suspense>
-        )}
-        {currentScreen === 'mission2' && (
-          <Suspense fallback={<ScreenLoader />}><Mission2Screen /></Suspense>
-        )}
-        {currentScreen === 'mission3' && (
-          <Suspense fallback={<ScreenLoader />}><Mission3Screen /></Suspense>
-        )}
-        {currentScreen === 'mission4' && (
-          <Suspense fallback={<ScreenLoader />}><Mission4Screen /></Suspense>
-        )}
-        {currentScreen === 'mission5' && (
-          <Suspense fallback={<ScreenLoader />}><Mission5Screen /></Suspense>
-        )}
-        {currentScreen === 'mission6' && (
-          <Suspense fallback={<ScreenLoader />}><Mission6Screen /></Suspense>
-        )}
-        {currentScreen === 'mission7' && (
-          <Suspense fallback={<ScreenLoader />}><Mission7Screen /></Suspense>
-        )}
-        {currentScreen === 'mission8' && (
-          <Suspense fallback={<ScreenLoader />}><Mission8Screen /></Suspense>
-        )}
-        {currentScreen === 'mission9' && (
-          <Suspense fallback={<ScreenLoader />}><Mission9Screen /></Suspense>
-        )}
-        {currentScreen === 'mission10' && (
-          <Suspense fallback={<ScreenLoader />}><Mission10Screen /></Suspense>
-        )}
-        {currentScreen === 'mission11' && (
-          <Suspense fallback={<ScreenLoader />}><Mission11Screen /></Suspense>
-        )}
-        {currentScreen === 'mission12' && (
-          <Suspense fallback={<ScreenLoader />}><Mission12Screen /></Suspense>
-        )}
-        {currentScreen === 'mission13' && (
-          <Suspense fallback={<ScreenLoader />}><Mission13Screen /></Suspense>
-        )}
-        {currentScreen === 'mission14' && (
-          <Suspense fallback={<ScreenLoader />}><Mission14Screen /></Suspense>
-        )}
-        {currentScreen === 'mission15' && (
-          <Suspense fallback={<ScreenLoader />}><Mission15Screen /></Suspense>
-        )}
-        {currentScreen === 'mission16' && (
-          <Suspense fallback={<ScreenLoader />}><Mission16Screen /></Suspense>
+        {hasMission(missionId) && (
+          <Suspense fallback={<ScreenLoader />}><MissionRoute levelId={missionId} /></Suspense>
         )}
         {currentScreen === 'hub' && (
           <Suspense fallback={<ScreenLoader />}><HubScreen /></Suspense>
