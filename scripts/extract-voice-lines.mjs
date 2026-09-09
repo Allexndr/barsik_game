@@ -157,6 +157,14 @@ if (process.argv.includes('--check')) {
     console.error('Voice manifest is stale. Run: node scripts/extract-voice-lines.mjs');
     process.exit(1);
   }
+  const missing = Object.entries(lines)
+    .filter(([id, line]) => !existsSync(join(OUT_DIR, line.lang, `${id}.mp3`)))
+    .map(([id, line]) => join(line.lang, `${id}.mp3`));
+  if (missing.length) {
+    console.error(`Voice pack is missing ${missing.length} manifest clips:`);
+    for (const file of missing.slice(0, 12)) console.error(`  ${file}`);
+    process.exit(1);
+  }
   console.log(`Voice manifest up to date (${Object.keys(lines).length} clips).`);
   process.exit(0);
 }
