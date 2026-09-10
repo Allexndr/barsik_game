@@ -1,13 +1,13 @@
 /**
- * AudioManager — unified audio system for the game.
+ * AudioManager — единая звуковая система игры.
  *
- * - SFX: procedural Web Audio (no asset files)
- * - Music: procedural ambient loops per world (forest / ice), quiet under SFX/TTS
- * - TTS: Web Speech API (browser voices)
- * - Mute/volume synced with useUIStore
+ * - Эффекты: процедурный Web Audio, без файлов
+ * - Музыка: процедурные фоновые петли по мирам (лес / лёд), тише эффектов и речи
+ * - Речь: Web Speech API, голоса браузера
+ * - Отключение звука и громкость синхронизированы с useUIStore
  *
- * Drop real files later into public/assets/audio/ — playMusicFile() ready when needed.
- * Hero model is managed by the shared scene loader; audio stays model-agnostic.
+ * Настоящие файлы можно положить в public/assets/audio/ — playMusicFile() готов.
+ * Моделью героя занимается общий загрузчик сцены; звук от модели не зависит.
  */
 
 type SfxName =
@@ -76,17 +76,17 @@ class AudioManagerClass {
   private musicStop: (() => void) | null = null;
 
   /**
-   * Pre-rendered lines, keyed exactly as `scripts/extract-voice-lines.mjs`
-   * named them. Null until `loadVoicePack` resolves; an empty manifest means
-   * no pack was built and every line falls back to the browser.
+   * Заранее записанные реплики с теми же ключами, какие им дал
+   * `scripts/extract-voice-lines.mjs`. До завершения `loadVoicePack` — null;
+   * пустой манифест означает, что пакет не собирали, и все реплики читает браузер.
    */
   private voiceManifest: VoiceManifest | null = null;
   private voiceLoad: Promise<void> | null = null;
   private voiceEl: HTMLAudioElement | null = null;
-  /** Lines blocked by autoplay until the next user gesture. */
+  /** Реплики, заблокированные политикой автовоспроизведения до следующего действия игрока. */
   private pendingTts: { text: string; lang: 'ru' | 'kk'; nick?: string } | null = null;
   private voicePrimed = false;
-  /** Ids that 404'd. Asking twice for a clip that is not there is waste. */
+  /** Идентификаторы, вернувшие 404. Просить дважды несуществующий клип — впустую. */
   private voiceMissing = new Set<string>();
 
   constructor() {
@@ -125,7 +125,7 @@ class AudioManagerClass {
     if (!v) this.stopTts();
   }
 
-  /** Must be called from a user gesture (click, keypress) to satisfy autoplay policy */
+  /** Вызывать только из действия игрока — клика или нажатия клавиши, — иначе автовоспроизведение запретят. */
   init() {
     if (this.ctx) {
       if (this.ctx.state === 'suspended') void this.ctx.resume();
@@ -152,8 +152,9 @@ class AudioManagerClass {
   }
 
   /**
-   * Unlock Web Audio + HTML5 voice clips from an explicit tap (Play, joystick…).
-   * Retries a line that was blocked by autoplay instead of marking the clip dead.
+   * Разблокирует Web Audio и голосовые клипы HTML5 по явному нажатию — «Играть»,
+   * джойстик и подобное. Реплику, заблокированную автовоспроизведением, повторяет,
+   * а не помечает клип мёртвым.
    */
   unlockFromGesture() {
     this.init();
@@ -193,7 +194,7 @@ class AudioManagerClass {
     window.speechSynthesis.onvoiceschanged = read;
   }
 
-  // ── SFX (procedural via Web Audio API) ────────────────────────
+  // ── Эффекты: процедурные, через Web Audio API ─────────────────
 
   private playTone(
     freq: number,
@@ -319,9 +320,9 @@ class AudioManagerClass {
     }
   }
 
-  // ── Music (procedural ambient) ────────────────────────────────
+  // ── Музыка: процедурный фон ───────────────────────────────────
 
-  /** Theme by Season 1 level id: 0–9 forest, 10–16 ice. */
+  /** Тема по номеру уровня первого сезона: 0–9 лес, 10–16 лёд. */
   musicForLevel(levelId: number): MusicTheme {
     if (levelId >= 10) return 'ice';
     return 'forest';
@@ -352,12 +353,12 @@ class AudioManagerClass {
       try {
         (n as OscillatorNode).stop?.();
       } catch {
-        /* already stopped */
+        /* уже остановлено */
       }
       try {
         n.disconnect();
       } catch {
-        /* ignore */
+        /* не важно */
       }
     }
     this.musicNodes = [];
@@ -383,11 +384,11 @@ class AudioManagerClass {
 
   private startForestMusic() {
     if (!this.ctx || !this.musicGain) return;
-    // Soft major pad (C–E–G–A) — warm fruit-forest feel
+    // Мягкий мажорный пэд (до-ми-соль-ля) — тёплое настроение фруктового леса.
     this.startPad([130.81, 164.81, 196.0, 220.0], 'sine', 0.035);
     this.startPad([261.63], 'triangle', 0.018);
 
-    // Occasional soft bird-like chirps
+    // Изредка — мягкое птичье щебетание.
     const chirp = () => {
       if (this._muted || this.musicTheme !== 'forest') return;
       const base = 800 + Math.random() * 600;
@@ -401,11 +402,11 @@ class AudioManagerClass {
 
   private startIceMusic() {
     if (!this.ctx || !this.musicGain) return;
-    // Cool minor pad (A–C–E–G) — soft winter
+    // Холодный минорный пэд (ля-до-ми-соль) — мягкая зима.
     this.startPad([110.0, 130.81, 164.81, 196.0], 'sine', 0.03);
     this.startPad([329.63], 'triangle', 0.012);
 
-    // Sparse icy sparkles
+    // Редкие ледяные искорки.
     const sparkle = () => {
       if (this._muted || this.musicTheme !== 'ice') return;
       const f = 1200 + Math.random() * 800;
@@ -422,11 +423,11 @@ class AudioManagerClass {
     this.musicStop = () => undefined;
   }
 
-  // ── TTS (Web Speech API) ──────────────────────────────────────
+  // ── Речь: Web Speech API ──────────────────────────────────────
 
   /**
-   * Fetch the voice manifest once. Cheap when absent — one 404 and the game
-   * behaves exactly as it did before the pack existed.
+   * Загружает манифест озвучки один раз. Если его нет — дёшево: один 404, и игра
+   * ведёт себя ровно так же, как до появления пакета.
    */
   loadVoicePack(): Promise<void> {
     if (this.voiceLoad) return this.voiceLoad;
@@ -441,25 +442,25 @@ class AudioManagerClass {
     return this.voiceLoad;
   }
 
-  /** True once a pre-rendered pack is available for this language. */
+  /** Истина, когда для этого языка доступен записанный пакет. */
   hasVoicePack(lang: 'ru' | 'kk' = 'ru'): boolean {
     if (!this.voiceManifest) return false;
     return Object.values(this.voiceManifest.lines).some((l) => l.lang === lang);
   }
 
   /**
-   * Speak a line.
+   * Произнести реплику.
    *
-   * A rendered clip first, the browser's synthesiser only if there is no clip
-   * for this text. That order matters most in Kazakh: Android ships no
-   * `kk-KZ` voice, so the fallback is silence or a Russian voice reading
-   * Kazakh — to a five-year-old who cannot read the subtitle, that is the
-   * line simply not happening.
+   * Сначала записанный клип, синтезатор браузера — только если клипа для этого
+   * текста нет. Этот порядок важнее всего на казахском: Android не поставляет голос
+   * `kk-KZ`, поэтому запасной вариант — тишина или русский голос, читающий
+   * казахский. Для пятилетнего, который не читает субтитры, это значит, что реплики
+   * просто не было.
    *
-   * The lookup normalizes the same way the extractor did, so a line carrying
-   * the player's nickname finds the clip rendered without it.
+   * Поиск нормализует текст так же, как извлекатель, поэтому реплика с ником игрока
+   * находит клип, записанный без него.
    */
-  /** Female (default) uses `voice/{lang}/`; male uses `voice/m/{lang}/`. */
+  /** Женский голос (по умолчанию) берётся из `voice/{lang}/`, мужской — из `voice/m/{lang}/`. */
   private _voiceGender: 'f' | 'm' = 'f';
 
   setVoiceGender(g: 'f' | 'm') {
@@ -479,7 +480,7 @@ class AudioManagerClass {
     return `${VOICE_BASE}${prefix}/${id}.${fmt}`;
   }
 
-  /** Settings preview samples (short fixed lines, not from the mission pack). */
+  /** Образцы для прослушивания в настройках: короткие фиксированные реплики, не из пакета миссий. */
   playVoicePreview(lang: 'ru' | 'kk' = 'ru', gender: 'f' | 'm' = this._voiceGender) {
     if (this._muted) return;
     this.stopTts();
@@ -598,7 +599,7 @@ class AudioManagerClass {
     return 'speechSynthesis' in window && window.speechSynthesis.speaking;
   }
 
-  // ── Dispose ───────────────────────────────────────────────────
+  // ── Освобождение ресурсов ─────────────────────────────────────
 
   dispose() {
     this.stopTts();

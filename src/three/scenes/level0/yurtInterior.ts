@@ -1,36 +1,33 @@
 import * as THREE from 'three';
 
 /**
- * The inside of the yurt, as a second location rather than a room.
+ * Нутро юрты — вторая локация, а не комната.
  *
- * The brief was explicit: walking through the door should put you somewhere
- * else entirely, and from neither place should you be able to see the other.
- * That rules out building the interior where the yurt stands — a hollow shell
- * on the same ground leaks in both directions, through the doorway, over the
- * wall, and through the fog.
+ * В задании сказано прямо: пройдя в дверь, игрок должен оказаться совсем в
+ * другом месте, и ни из одного из них не должно быть видно другое. Это
+ * исключает постройку интерьера там, где стоит юрта: полая оболочка на той же
+ * земле протекает в обе стороны — через проём, поверх стены и сквозь туман.
  *
- * So the interior is built far out in world space, past the terrain's own
- * extent, and entering is a fade and a teleport. There is no portal geometry
- * and no second scene: one scene, two places, and the only thing connecting
- * them is a transition the player cannot see through.
+ * Поэтому интерьер построен далеко в мировых координатах, за пределами самого
+ * рельефа, а вход — это затемнение и телепорт. Ни портальной геометрии, ни
+ * второй сцены: одна сцена, два места, и связывает их только переход, сквозь
+ * который не видно.
  *
- * It is also deliberately bigger inside than out. A five-year-old reads that
- * as magic rather than as a mistake, and it is the whole reason to make going
- * in worth doing.
+ * Внутри намеренно просторнее, чем снаружи. Пятилетний читает это как волшебство,
+ * а не как ошибку, — ради этого туда и стоит заходить.
  */
 export const YURT_INSIDE = { x: 0, z: 200 };
 
-/** Floor radius. Generous: the point of the room is that it is much larger inside. */
+/** Радиус пола. С запасом: весь смысл комнаты в том, что внутри гораздо просторнее. */
 export const INSIDE_R = 13;
 
 /**
- * Height of the roof at a given distance from the room's axis.
+ * Высота крыши на заданном расстоянии от оси комнаты.
  *
- * The camera needs this. The poles run from the top of the wall up to the
- * shanyrak, so a following camera that is simply "a bit above the hero" ends
- * up inside the roof near the wall — and a roof pole a hand's width from the
- * lens is a brown wall across the whole screen, which is exactly what the
- * first build of this room looked like.
+ * Это нужно камере. Жерди идут от верха стены к шаныраку, поэтому камера
+ * следования, стоящая просто «чуть выше героя», у стены оказывается внутри
+ * крыши, — а жердь в ладони от объектива это коричневая стена во весь экран,
+ * ровно так первая сборка этой комнаты и выглядела.
  */
 export function roofHeightAt(distanceFromAxis: number): number {
   const wallR = INSIDE_R + 0.5;
@@ -45,12 +42,12 @@ export function roofHeightAt(distanceFromAxis: number): number {
 
 export interface YurtInterior {
   root: THREE.Group;
-  /** The three strings, left to right. Each carries `note`, `colour`, `lit`. */
+  /** Три струны слева направо. У каждой есть `note`, `colour` и `lit`. */
   strings: THREE.Group[];
-  /** The instrument the strings belong to; it leans and glows during the song. */
+  /** Инструмент, которому принадлежат струны: во время песни он наклоняется и светится. */
   dombra: THREE.Group;
   hearthLight: THREE.PointLight;
-  /** Dust motes in the shanyrak light shaft. */
+  /** Пылинки в столбе света из шанырака. */
   motes: THREE.Points;
 }
 
@@ -60,7 +57,7 @@ const WOOD = 0x8a6a44;
 const WOOD_DARK = 0x6a4f33;
 const RED = 0xc4462f;
 
-/** The three string colours, chosen to stay distinct for colour-blind players. */
+/** Три цвета струн, подобранные так, чтобы различаться и при дальтонизме. */
 export const STRING_COLOURS = [0xf0b429, 0x2aa8d8, 0xe0524a];
 
 function mat(color: number, roughness = 0.9) {
@@ -68,11 +65,11 @@ function mat(color: number, roughness = 0.9) {
 }
 
 /**
- * Kerege — the lattice wall.
+ * Кереге — решётчатая стена.
  *
- * Built as two crossed sets of leaning slats rather than a texture, because
- * the diamond pattern is the one thing that makes a round felt room read as a
- * yurt and not as a tent.
+ * Собрана двумя перекрещенными наборами наклонных планок, а не текстурой:
+ * ромбический узор — то единственное, что превращает круглую войлочную комнату в
+ * юрту, а не в палатку.
  */
 function buildLattice(group: THREE.Group, radius: number, height: number) {
   const slat = new THREE.BoxGeometry(0.09, height * 1.24, 0.09);
@@ -91,10 +88,10 @@ function buildLattice(group: THREE.Group, radius: number, height: number) {
 }
 
 /**
- * Uyk — the roof poles, and the shanyrak they meet at.
+ * Уыќ — жерди крыши и шанырак, в котором они сходятся.
  *
- * The shanyrak is the smoke hole and the family's emblem, so it is where the
- * main daylight in the room comes from. Warm fill light softens the rest.
+ * Шанырак — это и дымовое отверстие, и родовой символ, поэтому основной дневной
+ * свет в комнате идёт именно оттуда. Остальное смягчает тёплая заливка.
  */
 function buildRoof(group: THREE.Group, radius: number, wallH: number, apex: number) {
   const poleGeo = new THREE.CylinderGeometry(0.07, 0.09, 1, 6);
@@ -117,7 +114,7 @@ function buildRoof(group: THREE.Group, radius: number, wallH: number, apex: numb
     group.add(pole);
   }
 
-  // The felt cone, sitting on the poles, open at the crown.
+  // Войлочный конус на жердях, открытый на макушке.
   const cone = new THREE.Mesh(
     new THREE.CylinderGeometry(ringR + 0.15, radius + 0.2, apex - wallH, 40, 1, true),
     new THREE.MeshStandardMaterial({ color: FELT_DARK, roughness: 1, side: THREE.BackSide }),
@@ -125,7 +122,7 @@ function buildRoof(group: THREE.Group, radius: number, wallH: number, apex: numb
   cone.position.y = (wallH + apex) / 2;
   group.add(cone);
 
-  // Shanyrak: the ring itself, with its spokes.
+  // Шанырак: само кольцо со спицами.
   const ring = new THREE.Mesh(
     new THREE.TorusGeometry(ringR, 0.11, 8, 32),
     mat(WOOD, 0.8),
@@ -142,8 +139,8 @@ function buildRoof(group: THREE.Group, radius: number, wallH: number, apex: numb
     group.add(s);
   }
 
-  // The light coming down through it. A cone of pale air, not a lamp — this
-  // is the room's one connection to outside and it should read as daytime.
+  // Свет, падающий сквозь него. Конус светлого воздуха, а не лампа: это
+  // единственная связь комнаты с улицей, и читаться она должна дневным светом.
   const shaft = new THREE.Mesh(
     new THREE.CylinderGeometry(ringR * 0.9, ringR * 2.6, apex - 0.2, 24, 1, true),
     new THREE.MeshBasicMaterial({
@@ -155,7 +152,7 @@ function buildRoof(group: THREE.Group, radius: number, wallH: number, apex: numb
   group.add(shaft);
 }
 
-/** Tekemet — the felt carpets, as flat bands of pattern on the floor. */
+/** Текемет — войлочные ковры, плоскими полосами узора по полу. */
 function buildCarpets(group: THREE.Group, radius: number) {
   const ringMat = (c: number) =>
     new THREE.MeshStandardMaterial({ color: c, roughness: 1, metalness: 0 });
@@ -182,7 +179,7 @@ function buildCarpets(group: THREE.Group, radius: number) {
   }
 }
 
-/** Chests along the edge; cushions are dressed later from Meshy kurpeshki. */
+/** Сундуки вдоль стены; подушки добавляются позже курпешками из Meshy. */
 function buildFurnishings(group: THREE.Group, radius: number) {
   const chestGeo = new THREE.BoxGeometry(1.6, 0.95, 0.9);
   const lidGeo = new THREE.BoxGeometry(1.68, 0.16, 0.98);
@@ -199,8 +196,8 @@ function buildFurnishings(group: THREE.Group, radius: number) {
 }
 
 /**
- * Soft warm fill light. The hearth/campfire used to sit here and blocked the
- * walk to the dombra; daylight from the shanyrak plus this lamp is enough.
+ * Мягкая тёплая заливка. Раньше здесь стоял очаг и перекрывал дорогу к домбре;
+ * дневного света из шанырака плюс этой лампы достаточно.
  */
 function buildWarmLight(parent: THREE.Group): THREE.PointLight {
   const light = new THREE.PointLight(0xffd2a8, 1.55, 28, 2);
@@ -209,7 +206,7 @@ function buildWarmLight(parent: THREE.Group): THREE.PointLight {
   return light;
 }
 
-/** Procedural kurpeshki strip — used until Meshy GLBs load. */
+/** Процедурная полоса курпешек — работает, пока не загрузятся GLB из Meshy. */
 function makeFallbackKurpeshki(colour: number): THREE.Group {
   const g = new THREE.Group();
   const matFelt = mat(colour, 0.95);
@@ -241,11 +238,12 @@ export type YurtCushionTemplates = {
 };
 
 /**
- * Lay kurpeshki and pillows along the inner wall, leaving the door arc clear.
- * Templates are Meshy props when available; otherwise soft procedural blocks.
+ * Раскладывает курпешки и подушки вдоль внутренней стены, оставляя свободной дугу
+ * у двери. Шаблоны берутся из Meshy, если они есть, иначе — мягкие процедурные
+ * блоки.
  */
 export function dressYurtCushions(root: THREE.Group, templates?: YurtCushionTemplates | null) {
-  // Clear a previous dress pass (procedural → Meshy upgrade).
+  // Убрать предыдущий проход отделки: замена процедурного на Meshy.
   const doomed: THREE.Object3D[] = [];
   for (const c of root.children) {
     if (c.userData.isYurtCushion) doomed.push(c);
@@ -260,7 +258,7 @@ export function dressYurtCushions(root: THREE.Group, templates?: YurtCushionTemp
     ? templates.pillows
     : [makeFallbackPillow(0xc4462f), makeFallbackPillow(0x2aa8d8)];
 
-  // Door faces +z (hero enters from YURT_INSIDE.z + 7). Skip that wedge.
+  // Дверь смотрит в +z: герой входит с YURT_INSIDE.z + 7. Этот сектор пропускаем.
   const doorCenter = 0;
   const N = 14;
   for (let i = 0; i < N; i++) {
@@ -292,23 +290,23 @@ export function dressYurtCushions(root: THREE.Group, templates?: YurtCushionTemp
 }
 
 /**
- * The dombra, standing on a rest, with its three strings pulled out large.
+ * Домбра на подставке, с тремя крупно вынесенными струнами.
  *
- * A real dombra has two strings. This one has three, and that is a deliberate
- * lie: the mini-game is call-and-response, and three is the smallest number
- * that makes a melody a melody rather than an alternation. The instrument is
- * also oversized — it is the thing the room is about, and a child needs to see
- * which string moved from across the floor.
+ * У настоящей домбры две струны. У этой три, и это намеренная неправда:
+ * мини-игра — перекличка, а три — наименьшее число, при котором мелодия
+ * становится мелодией, а не чередованием. Инструмент к тому же увеличен: он и
+ * есть то, ради чего комната существует, и ребёнок должен видеть через всю
+ * комнату, какая струна шевельнулась.
  *
- * `bodyGlb` is an optional Meshy soft-3D shell; interactive string overlays
- * stay procedural so the kui still lights yellow / cyan / coral.
+ * `bodyGlb` — необязательная мягкая оболочка из Meshy; накладки струн остаются
+ * процедурными, чтобы кюй по-прежнему загорался жёлтым, голубым и коралловым.
  */
 export function buildDombra(strings: THREE.Group[], bodyGlb?: THREE.Object3D | null): THREE.Group {
   const g = new THREE.Group();
 
   if (bodyGlb) {
     const body = bodyGlb.clone(true);
-    // Match the old oversized toy so strings and pads still frame it.
+    // Совпадает с прежней увеличенной моделью, чтобы струны и площадки её обрамляли.
     const box0 = new THREE.Box3().setFromObject(body);
     const size0 = box0.getSize(new THREE.Vector3());
     const targetH = 4.2;
@@ -345,8 +343,8 @@ export function buildDombra(strings: THREE.Group[], bodyGlb?: THREE.Object3D | n
     g.add(head);
   }
 
-  // Interactive strings: thin cores + glow so they read as strings on the
-  // Meshy body, not as three pastel toy instruments of their own.
+  // Интерактивные струны: тонкие сердечники со свечением, чтобы читаться струнами
+  // на корпусе из Meshy, а не тремя отдельными пастельными игрушками.
   const stringGeo = new THREE.CylinderGeometry(0.028, 0.028, 3.6, 6);
   for (let i = 0; i < 3; i++) {
     const holder = new THREE.Group();
@@ -388,13 +386,12 @@ export function buildDombra(strings: THREE.Group[], bodyGlb?: THREE.Object3D | n
 }
 
 /**
- * The three pads the player answers on.
+ * Три площадки, на которых игрок отвечает.
  *
- * They are separate from the instrument on purpose. Pressing the string
- * itself would mean standing inside the dombra, and three interactables
- * thirty centimetres apart is not a target a child can hit on a phone. Laid
- * out in an arc two and a half metres apart, each one is unambiguous with the
- * stick barely moved.
+ * Они намеренно отделены от инструмента. Нажать саму струну означало бы стоять
+ * внутри домбры, а три интерактивных объекта в тридцати сантиметрах друг от друга
+ * — не та цель, в которую ребёнок попадёт с телефона. Разложенные дугой с шагом в
+ * два с половиной метра, они однозначны при едва отклонённом стике.
  */
 export function buildAnswerPads(): THREE.Group[] {
   const pads: THREE.Group[] = [];
@@ -423,11 +420,11 @@ export function buildAnswerPads(): THREE.Group[] {
     halo.position.y = 0.2;
     g.add(halo);
 
-    // A column of light standing on the pad while its note sounds.
+    // Столб света стоит на площадке, пока звучит её нота.
     //
-    // The pad's own brightening was too quiet to be the whole signal: on a
-    // phone, in a warm room lit by a fire, a disc that gets somewhat lighter
-    // is not something a five-year-old can pick out of three. A beam is.
+    // Одного посветления самой площадки для сигнала мало: на телефоне, в тёплой
+    // комнате при свете огня, диск, ставший чуть светлее, пятилетний из трёх не
+    // выделит. Луч — выделит.
     const beam = new THREE.Mesh(
       new THREE.CylinderGeometry(0.72, 1.0, 4.2, 18, 1, true),
       new THREE.MeshBasicMaterial({
@@ -449,7 +446,7 @@ export function buildAnswerPads(): THREE.Group[] {
   return pads;
 }
 
-/** Dust turning in the shaft of light. The only thing that says "air" in here. */
+/** Пыль, кружащая в столбе света. Единственное, что здесь говорит «воздух». */
 function buildMotes(radius: number, apex: number): THREE.Points {
   const N = 90;
   const pos = new Float32Array(N * 3);
@@ -472,20 +469,18 @@ function buildMotes(radius: number, apex: number): THREE.Points {
 }
 
 /**
- * Build the whole interior at `YURT_INSIDE`.
+ * Строит весь интерьер в точке `YURT_INSIDE`.
  *
- * Everything is parented to one group so the location can be moved, hidden or
- * disposed in one move, and so nothing here can be caught by a sweep that
- * walks the outdoor scene.
+ * Всё подвешено к одной группе: локацию можно перенести, скрыть или удалить одним
+ * действием, и ничто отсюда не попадёт в обход, идущий по уличной сцене.
  */
 export function buildYurtInterior(opts?: { dombraBody?: THREE.Object3D | null }): YurtInterior {
   const root = new THREE.Group();
   root.position.set(YURT_INSIDE.x, 0, YURT_INSIDE.z);
 
-  // Tall for a yurt, because this one is twenty-seven metres across. It also
-  // buys headroom for the camera: the roof poles start at the top of the wall
-  // and a following camera that is level with them ends up with a length of
-  // timber across the lens.
+  // Для юрты высоко, но эта двадцать семь метров в поперечнике. Заодно это даёт
+  // запас камере: жерди начинаются от верха стены, и камера следования на их
+  // уровне получает поперёк объектива бревно.
   const wallH = 4.4;
   const apex = 8.6;
 
@@ -496,7 +491,7 @@ export function buildYurtInterior(opts?: { dombraBody?: THREE.Object3D | null })
   floor.rotation.x = -Math.PI / 2;
   root.add(floor);
 
-  // The felt wall, seen from inside.
+  // Войлочная стена, вид изнутри.
   const wall = new THREE.Mesh(
     new THREE.CylinderGeometry(INSIDE_R + 0.5, INSIDE_R + 0.5, wallH, 48, 1, true),
     new THREE.MeshStandardMaterial({ color: FELT, roughness: 1, side: THREE.BackSide }),
@@ -508,20 +503,20 @@ export function buildYurtInterior(opts?: { dombraBody?: THREE.Object3D | null })
   buildRoof(root, INSIDE_R + 0.5, wallH, apex);
   buildCarpets(root, INSIDE_R);
   buildFurnishings(root, INSIDE_R);
-  // Procedural stand-ins first; Level0 swaps in Meshy kurpeshki after load.
+  // Сначала процедурные заглушки; после загрузки Level0 подменяет их курпешками из Meshy.
   dressYurtCushions(root);
   const hearthLight = buildWarmLight(root);
 
   const strings: THREE.Group[] = [];
   const dombra = buildDombra(strings, opts?.dombraBody ?? null);
-  // Close enough to the pads that a camera framing them has the instrument in
-  // shot too — the whole point of the round is watching which string moved.
+  // Достаточно близко к площадкам, чтобы камера, строящая кадр по ним, захватывала
+  // и инструмент: весь смысл круга в том, чтобы видеть, какая струна шевельнулась.
   //
-  // Leaned back on its rest rather than stood upright. Upright, the neck and
-  // all three strings went up behind the dialogue panel, which permanently
-  // occupies the top third of a phone screen: the one thing the player has to
-  // watch was the one thing they could not see. Tilted away, the strings lie
-  // across the middle band where there is nothing over them.
+  // Отклонена назад на подставке, а не поставлена прямо. В вертикальном положении
+  // гриф и все три струны уходили за панель диалога, которая на телефоне постоянно
+  // занимает верхнюю треть экрана: единственное, на что игрок обязан смотреть,
+  // оказывалось единственным, чего он не видел. Наклонённые струны лежат в средней
+  // полосе, где над ними ничего нет.
   dombra.position.set(0, 0.5, -6.4);
   dombra.rotation.set(-1.24, 0.06, 0);
   dombra.scale.setScalar(0.78);
