@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 
 /**
- * Procedural child characters in the ART_DIRECTION plush style:
- * big head, short body, short limbs, large friendly eyes, soft matte materials.
+ * Процедурные персонажи-дети в плюшевом стиле из ART_DIRECTION: большая голова,
+ * короткое тело, короткие конечности, крупные добрые глаза, мягкие матовые
+ * материалы.
  *
- * Every named friend in Season 1 previously rendered as either the yellow duck
- * placeholder or a bare coloured capsule. One parameterised builder keeps the
- * cast visually consistent while still making each character recognisable.
+ * Раньше каждый именованный друг первого сезона рисовался либо жёлтой уткой-
+ * заглушкой, либо голой цветной капсулой. Один параметризованный строитель держит
+ * состав визуально согласованным и при этом оставляет каждого персонажа
+ * узнаваемым.
  */
 
 export type HairStyle = 'braids' | 'short' | 'bun' | 'cap';
@@ -16,11 +18,11 @@ export interface PlushCharacterOptions {
   hair?: number;
   top?: number;
   bottom?: number;
-  /** Kerchief / scarf colour. Omit for no accessory. */
+  /** Цвет платка или шарфа. Не указан — аксессуара нет. */
   accent?: number;
   eye?: number;
   hairStyle?: HairStyle;
-  /** Overall height in metres. Children read best at 1.15–1.35. */
+  /** Общая высота в метрах. Дети лучше всего читаются на 1.15–1.35. */
   height?: number;
 }
 
@@ -54,7 +56,7 @@ export function createPlushCharacter(opts: PlushCharacterOptions = {}): THREE.Gr
     opacity: 0.55,
   });
 
-  // Legs and shoes
+  // Ноги и обувь.
   const legs: THREE.Mesh[] = [];
   for (const side of [-1, 1]) {
     const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.2, 6, 10), bottomMat);
@@ -68,12 +70,12 @@ export function createPlushCharacter(opts: PlushCharacterOptions = {}): THREE.Gr
     g.add(leg, shoe);
   }
 
-  // Torso
+  // Торс.
   const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.2, 8, 14), topMat);
   torso.position.y = 0.56;
   torso.castShadow = true;
 
-  // Arms
+  // Руки.
   const arms: THREE.Mesh[] = [];
   for (const side of [-1, 1]) {
     const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.19, 6, 10), topMat);
@@ -86,7 +88,7 @@ export function createPlushCharacter(opts: PlushCharacterOptions = {}): THREE.Gr
     g.add(arm, hand);
   }
 
-  // Head
+  // Голова.
   const head = new THREE.Group();
   head.position.y = 0.94;
   const skull = new THREE.Mesh(new THREE.SphereGeometry(0.26, 22, 18), skinMat);
@@ -94,7 +96,7 @@ export function createPlushCharacter(opts: PlushCharacterOptions = {}): THREE.Gr
   skull.castShadow = true;
   head.add(skull);
 
-  // Eyes: white, iris, pupil, highlight — the sparkle is what makes them read as friendly.
+  // Глаза: белок, радужка, зрачок, блик — именно искорка делает их добрыми.
   for (const side of [-1, 1]) {
     const white = new THREE.Mesh(new THREE.SphereGeometry(0.062, 12, 10), eyeWhiteMat);
     white.scale.set(1, 1.15, 0.6);
@@ -121,7 +123,7 @@ export function createPlushCharacter(opts: PlushCharacterOptions = {}): THREE.Gr
   smile.position.set(0, -0.115, 0.235);
   head.add(nose, smile);
 
-  // Hair
+  // Волосы.
   const hairCap = new THREE.Mesh(
     new THREE.SphereGeometry(0.272, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.62),
     hairMat,
@@ -173,7 +175,7 @@ export function createPlushCharacter(opts: PlushCharacterOptions = {}): THREE.Gr
 
   g.add(torso, head);
 
-  // Normalise to the requested height so callers can place characters directly.
+  // Приводим к заданной высоте, чтобы вызывающие могли ставить персонажей напрямую.
   const box = new THREE.Box3().setFromObject(g);
   const size = box.getSize(new THREE.Vector3());
   g.scale.multiplyScalar(height / Math.max(size.y, 0.001));
@@ -190,8 +192,8 @@ const TORSO_Y = 0.56;
 const HEAD_Y = 0.94;
 
 /**
- * Idle breathing plus an optional wave. Keeps NPCs alive on screen without
- * needing skinned animation data.
+ * Дыхание в покое и, по желанию, взмах лапой. Держит персонажей живыми на экране
+ * без скиннованных анимаций.
  */
 export function updatePlushCharacter(root: THREE.Object3D, t: number, waving = false) {
   if (!root.userData.isPlushCharacter) return;

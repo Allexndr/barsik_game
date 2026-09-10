@@ -1,27 +1,26 @@
 import * as THREE from 'three';
 
 /**
- * Procedural snow-leopard coat.
+ * Процедурная шкура снежного барса.
  *
- * The rig was jointed and posed correctly and still read as a plastic toy,
- * because every surface on it was an untextured MeshStandardMaterial on a
- * smooth sphere. Next to the Meshy friends — which carry a painted fur map —
- * it looked like a different game's asset.
+ * Скелет был суставным и позы верными, а модель всё равно читалась пластиковой
+ * игрушкой: каждая её поверхность была нетекстурированным MeshStandardMaterial на
+ * гладкой сфере. Рядом с друзьями из Meshy, у которых есть нарисованная карта
+ * шерсти, она выглядела ассетом из другой игры.
  *
- * Rosettes used to be flattened spheres stuck onto the body. Five of them, at
- * hand-picked positions, which is both too few to read as a coat and obviously
- * appliqué up close. Painting them into the map instead gives dozens of them,
- * following the surface, for one texture and no extra geometry.
+ * Розетки раньше были сплюснутыми сферами, приклеенными к телу. Пять штук в
+ * выбранных вручную местах — и слишком мало, чтобы читаться шкурой, и вблизи
+ * очевидно накладными. Нарисованные в карту, они дают десятки пятен, идущих по
+ * поверхности, за одну текстуру и без лишней геометрии.
  *
- * The bump map is the same noise at higher frequency. It costs nothing extra
- * at runtime and is what stops the fur reading as painted plastic: it breaks
- * the specular highlight that a bare sphere spreads evenly across the whole
- * face.
+ * Карта неровностей — тот же шум на большей частоте. В работе она не стоит
+ * ничего дополнительного и именно она не даёт меху читаться крашеным пластиком:
+ * разбивает блик, который голая сфера размазывает ровно по всей морде.
  */
 
 const SIZE = 512;
 
-/** Deterministic noise, so a coat is identical every run and never shimmers. */
+/** Детерминированный шум: шкура одинакова при каждом запуске и не мерцает. */
 function makeRng(seed: number) {
   let s = seed >>> 0;
   return () => {
@@ -42,9 +41,9 @@ function hex(color: number) {
 }
 
 /**
- * One rosette: a broken ring of dark fur around a slightly warmer centre.
- * Drawn as a handful of arcs rather than a circle — a solid ring reads as a
- * polka dot, and a snow leopard's markings are open-sided.
+ * Одна розетка: разорванное кольцо тёмной шерсти вокруг чуть более тёплой
+ * середины. Рисуется несколькими дугами, а не окружностью: сплошное кольцо
+ * читается горохом, а у снежного барса отметины разомкнуты.
  */
 function rosette(c: CanvasRenderingContext2D, x: number, y: number, r: number, rng: () => number, spots: string) {
   c.save();
@@ -62,8 +61,8 @@ function rosette(c: CanvasRenderingContext2D, x: number, y: number, r: number, r
     c.stroke();
     angle += span + 0.5 + rng() * 0.6;
   }
-  // Centre, dimmer than the ring — the mark that separates a rosette from a
-  // plain ring.
+  // Середина темнее кольца — та деталь, которая отличает розетку от простого
+  // кольца.
   c.globalAlpha = 0.35;
   c.fillStyle = spots;
   c.beginPath();
@@ -72,7 +71,7 @@ function rosette(c: CanvasRenderingContext2D, x: number, y: number, r: number, r
   c.restore();
 }
 
-/** Fine directional grain, so the surface is never flat between rosettes. */
+/** Тонкий направленный ворс, чтобы поверхность между розетками не была плоской. */
 function grain(c: CanvasRenderingContext2D, rng: () => number, color: string, count: number, alpha: number) {
   c.save();
   c.globalAlpha = alpha;
@@ -83,8 +82,8 @@ function grain(c: CanvasRenderingContext2D, rng: () => number, color: string, co
     const x = rng() * SIZE;
     const y = rng() * SIZE;
     const len = 3 + rng() * 7;
-    // Mostly downward: fur lies along the body, and consistent direction is
-    // what stops the grain reading as television static.
+    // Преимущественно вниз: шерсть лежит вдоль тела, и именно единое направление
+    // не даёт ворсу читаться телевизионным снегом.
     const a = Math.PI / 2 + (rng() - 0.5) * 0.9;
     c.beginPath();
     c.moveTo(x, y);
@@ -103,12 +102,11 @@ export interface FurMaps {
 const cache = new Map<string, FurMaps>();
 
 /**
- * Coat colour map plus a matching bump map.
+ * Цветовая карта шкуры и парная к ней карта неровностей.
  *
- * `density` scales how many rosettes are drawn: the head wants fewer and
- * larger, a flank wants many. Cached per (fur, spots, density) because every
- * avatar in a scene shares the same coat and generating it is a few hundred
- * canvas operations.
+ * `density` задаёт число розеток: голове нужно меньше и крупнее, боку — много.
+ * Кешируется по тройке (мех, пятна, плотность), потому что все аватары сцены
+ * делят одну шкуру, а её создание — несколько сотен операций на холсте.
  */
 export function furMaps(fur: number, spots: number, density = 1): FurMaps {
   const key = `${fur}-${spots}-${density}`;
@@ -120,8 +118,8 @@ export function furMaps(fur: number, spots: number, density = 1): FurMaps {
   colour.fillStyle = hex(fur);
   colour.fillRect(0, 0, SIZE, SIZE);
 
-  // Shade the belly side lighter. The V coordinate of a sphere runs pole to
-  // pole, so a vertical gradient becomes top-to-bottom shading on the body.
+  // Со стороны живота светлее. Координата V у сферы идёт от полюса к полюсу,
+  // поэтому вертикальный градиент превращается в затенение тела сверху вниз.
   const grad = colour.createLinearGradient(0, 0, 0, SIZE);
   grad.addColorStop(0, 'rgba(255,255,255,0.16)');
   grad.addColorStop(0.55, 'rgba(255,255,255,0)');
@@ -136,11 +134,11 @@ export function furMaps(fur: number, spots: number, density = 1): FurMaps {
   for (let i = 0; i < count; i++) {
     const r = (14 + rng() * 16) / density ** 0.5;
     const x = rng() * SIZE;
-    // Keep the poles clear: a sphere's UVs pinch there and a rosette drawn
-    // across the seam smears into a stripe.
+    // Полюса держим чистыми: развёртка сферы там стягивается, и розетка,
+    // нарисованная поперёк шва, размазывается в полосу.
     const y = SIZE * 0.12 + rng() * SIZE * 0.76;
     rosette(colour, x, y, r, rng, hex(spots));
-    // Wrap horizontally so the seam has no bald line down it.
+    // Заворачиваем по горизонтали, чтобы вдоль шва не осталось лысой линии.
     if (x < r * 1.5) rosette(colour, x + SIZE, y, r, rng, hex(spots));
     if (x > SIZE - r * 1.5) rosette(colour, x - SIZE, y, r, rng, hex(spots));
   }
@@ -173,7 +171,7 @@ export function furMaps(fur: number, spots: number, density = 1): FurMaps {
   return maps;
 }
 
-/** Knit weave for the hoodie, so clothing is not plastic either. */
+/** Трикотажное плетение для худи, чтобы и одежда не была пластиковой. */
 export function fabricMap(color: number): THREE.CanvasTexture {
   const key = `fabric-${color}`;
   const hit = cache.get(key);
