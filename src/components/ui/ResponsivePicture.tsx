@@ -1,12 +1,13 @@
 type Source = {
   src: string;
-  /** CSS media query for &lt;source media=...&gt; */
+  /** CSS-медиазапрос для атрибута media у &lt;source&gt;. */
   media: string;
 };
 
 /**
- * Picks a different image per breakpoint. Same scene/essence, different crop/frame.
- * Order: first matching &lt;source&gt; wins (put desktop first, then tablet, img = phone fallback).
+ * Подбирает своё изображение под каждую точку перелома. Сцена и суть те же, кадр и
+ * обрезка разные. Порядок: побеждает первый подошедший &lt;source&gt;, поэтому сначала
+ * десктоп, потом планшет, а img остаётся запасным вариантом для телефона.
  */
 export function ResponsivePicture({
   sources,
@@ -30,9 +31,10 @@ export function ResponsivePicture({
         alt={alt}
         draggable={false}
         decoding="async"
-        // Lowercase: React 18 does not know the camelCase form and passes it
-        // straight through, which warns on every render of the welcome screen
-        // and buries anything else in the console. React 19 accepts either.
+        // В нижнем регистре: React 18 не знает формы в верблюжьем регистре и
+        // передаёт её как есть, а это предупреждение на каждой отрисовке
+        // приветственного экрана, которое хоронит в консоли всё остальное. React 19
+        // принимает оба варианта.
         {...{ fetchpriority: 'high' }}
         loading="eager"
         aria-hidden={alt === '' ? true : undefined}

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-/** Gentle bob/sway for textured static meshes (TRELLIS) when no rig exists. */
+/** Мягкое покачивание для текстурированных статичных мешей TRELLIS, когда скелета нет. */
 export function updateStaticHeroLocomotion(root: THREE.Object3D, walking: boolean, t: number) {
   if (root.userData.isPlushBarsik) return;
 

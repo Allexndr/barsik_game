@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-/** Hunyuan3D shape-only meshes are often untextured white — tint to plush Barsik palette. */
+/** Меши Hunyuan3D, содержащие только форму, часто приходят белыми без текстур — красим в плюшевую палитру Барсика. */
 export function stylizeHeroGlb(root: THREE.Object3D) {
   const plushWhite = new THREE.Color(0xf5f6fa);
   const spotBlue = new THREE.Color(0x8ea4c4);

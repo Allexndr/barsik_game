@@ -92,7 +92,7 @@ interface RemotePlayer {
 
 const FRIEND_COLORS = [0x74b9ff, 0x55efc4, 0xfdcb6e, 0xff7675, 0xa29bfe, 0x81ecec, 0xfab1a0, 0x00cec9, 0xffeaa7];
 
-/** Soft stand-in for a collected season friend until a dedicated GLB arrives. */
+/** Мягкая заглушка вместо собранного друга сезона, пока нет отдельного GLB. */
 function makeFriendNpc(id: string, color: number): THREE.Group {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
@@ -113,7 +113,7 @@ function makeFriendNpc(id: string, color: number): THREE.Group {
   return g;
 }
 
-/** Seats around the Arbat fountain plaza — friends gather here, not on side streets. */
+/** Места вокруг фонтанной площади Арбата: друзья собираются здесь, а не в переулках. */
 function friendPlazaSpot(i: number, n: number): { x: number; z: number } {
   const count = Math.max(n, 1);
   const angle = (i / count) * Math.PI * 2 - Math.PI / 2;

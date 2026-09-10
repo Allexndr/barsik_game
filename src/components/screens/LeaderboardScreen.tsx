@@ -36,11 +36,11 @@ export function LeaderboardScreen() {
     void load();
   }, [load]);
 
-  // Place the player by their own star count rather than by looking for their
-  // name in the table. There is no submit path in the game — leaderboard.ts
-  // only reads — so a child could play the whole season and never appear, and
-  // the screen would keep showing them a ranking they cannot be part of.
-  // Ranking locally against the fetched rows is honest and always works.
+  // Место игрока определяется по его собственному числу звёзд, а не поиском имени
+  // в таблице. Пути отправки результата в игре нет — leaderboard.ts только читает,
+  // — поэтому ребёнок мог пройти весь сезон и ни разу не появиться, а экран
+  // продолжал бы показывать ему рейтинг, частью которого он быть не может.
+  // Локальное сравнение с загруженными строками честно и работает всегда.
   const nick = player?.nick?.trim() || (lang === 'kk' ? 'Сен' : 'Ты');
   const others = rows.filter(
     (r) => !player?.nick || r.name.trim().toLowerCase() !== player.nick.trim().toLowerCase(),
@@ -51,7 +51,7 @@ export function LeaderboardScreen() {
     { name: nick, stars, total_stars: stars, levels: 0, friends: friends.length, isYou: true },
     ...others.slice(youIndex),
   ];
-  // Who is directly above, and by how much — a target beats a static table.
+  // Кто прямо выше и на сколько: цель работает лучше неподвижной таблицы.
   const ahead = others[youIndex - 1];
   const gap = ahead ? scoreOf(ahead) - stars : 0;
   // Only promise an overtake that is actually within reach. A whole-season
@@ -61,11 +61,11 @@ export function LeaderboardScreen() {
   const REACHABLE = 60;
   const canCatch = Boolean(ahead) && gap <= REACHABLE;
 
-  // A child with 120 stars has no use for a table led by someone with 1486.
-  // Show the podium separately and then the player's own neighbourhood, which
-  // is the part they can move within.
-  // Hidden when the player is already inside the top three — the window below
-  // is then showing the same names, and a list printed twice reads as a bug.
+  // Ребёнку со 120 звёздами таблица во главе с кем-то на 1486 бесполезна.
+  // Показываем пьедестал отдельно, а затем ближайшее окружение самого игрока — ту
+  // часть, внутри которой он может двигаться.
+  // Прячется, если игрок и так в тройке: окно ниже показывало бы те же имена, а
+  // список, напечатанный дважды, читается поломкой.
   const podium = youIndex >= 3 ? others.slice(0, 3) : [];
   const WINDOW = 3;
   const from = Math.max(0, youIndex - WINDOW);
