@@ -16,8 +16,8 @@ import {
 } from './chapterPaths';
 import './TravelMapScreen.css';
 
-// Season 1 ships levels 0..16: Fruit Forest 0..9 + Ice Valley 10..16.
-// The remaining four map nodes are world teasers, not fake playable levels.
+// В первом сезоне выходят уровни 0…16: Фруктовый лес 0…9 и Ледяная долина 10…16.
+// Оставшиеся четыре узла карты — тизеры миров, а не фиктивные играбельные уровни.
 const SEASON1_LEVELS = 17;
 
 const CHAPTERS: {
@@ -89,11 +89,13 @@ const ZOOM_MIN = 1;
 const ZOOM_MAX = 2.75;
 
 /**
- * Keep the camera inside the art — never show empty SVG outside the image.
+ * Держит камеру внутри рисунка: пустой SVG за пределами изображения показывать
+ * нельзя.
  *
- * Takes the content's own bounding box (`mapX0..mapX1`, `mapY0..mapY1`)
- * rather than assuming it starts at the origin: the portrait band starts at
- * `BAND_LEFT`, not 0, and its top is the first chapter's clip rect, not 0.
+ * Берёт собственные границы содержимого (`mapX0…mapX1`, `mapY0…mapY1`), а не
+ * предполагает, что оно начинается в начале координат: вертикальная полоса
+ * начинается с `BAND_LEFT`, а не с нуля, и её верх — это отсечение первой главы,
+ * а не ноль.
  */
 function clampCenter(
   cx: number,
@@ -118,7 +120,7 @@ function clampCenter(
 }
 
 function wideViewSize(aspect: number, zoom: number) {
-  // Cover: one axis matches the art, the other crops — no letterbox.
+  // Заполнение кадра: по одной оси совпадает с рисунком, по другой обрезается, без полей.
   if (DESKTOP_W / DESKTOP_H > aspect) {
     const viewH = DESKTOP_H / zoom;
     return { viewW: viewH * aspect, viewH };
@@ -195,7 +197,7 @@ function statusFor(globalIndex: number, currentLevel: number): Status {
   return 'fog';
 }
 
-/** Phone: vertical serpentine through all chapters. */
+/** Телефон: вертикальный серпантин через все главы. */
 function buildPortraitPins(currentLevel: number): {
   pins: Pin[];
   bands: ChapterBand[];
@@ -236,7 +238,7 @@ function buildPortraitPins(currentLevel: number): {
   return { pins, bands, totalHeight: TOP_PAD + (globalIndex - 1) * V_STEP + BOTTOM_PAD };
 }
 
-/** Desktop/tablet: current chapter full-bleed, pins on landscape (or portrait cover) path. */
+/** Десктоп и планшет: текущая глава во весь кадр, пины на горизонтальном (или обрезанном вертикальном) маршруте. */
 function buildWidePins(currentLevel: number): { pins: Pin[]; chapterIdx: number } {
   const chapterIdx = chapterOfLevel(currentLevel);
   const ch = CHAPTERS[chapterIdx];
@@ -254,7 +256,8 @@ function buildWidePins(currentLevel: number): { pins: Pin[]; chapterIdx: number 
       x = p.x * DESKTOP_W;
       y = p.y * DESKTOP_H;
     } else {
-      // Portrait art cover-fitted into landscape frame — sample vertical path onto center band.
+      // Вертикальный рисунок вписан в горизонтальный кадр с обрезкой: выбираем
+      // вертикальный маршрут на центральную полосу.
       const p = samplePathProgress(CHAPTER_PATHS[chapterIdx], s);
       const cover = coverFit(BG_W, BG_H, DESKTOP_W, DESKTOP_H);
       x = p.x * cover.renderW - cover.offsetX;
@@ -272,7 +275,7 @@ function buildWidePins(currentLevel: number): { pins: Pin[]; chapterIdx: number 
   return { pins, chapterIdx };
 }
 
-/** Portrait route: follow each chapter's dirt X while Y walks pin-to-pin. */
+/** Вертикальный маршрут: по X идём вдоль тропы каждой главы, по Y — от пина к пину. */
 function buildPortraitRouteD(
   portrait: { pins: Pin[] },
   fromPin: number,
@@ -288,7 +291,7 @@ function buildPortraitRouteD(
     if (!a || !b) continue;
 
     if (a.chapterIdx !== b.chapterIdx) {
-      // Chapter seam — short straight join between bands.
+      // Стык глав — короткая прямая склейка между полосами.
       if (!pts.length) pts.push({ x: a.x, y: a.y });
       pts.push({ x: b.x, y: b.y });
       continue;
@@ -324,8 +327,8 @@ export function TravelMapScreen() {
   const lang = useUIStore((s) => s.lang);
   const tier = useViewportTier();
   const wide = tier === 'desktop' || tier === 'tablet';
-  // After the finale currentLevel points to the next chapter teaser (17), but
-  // the last playable level is still the useful map focus and replay target.
+  // После финала currentLevel указывает на тизер следующей главы (17), но полезной
+  // точкой фокуса карты и целью для повтора остаётся последний играбельный уровень.
   const mapLevel = Math.min(Math.max(currentLevel, 0), SEASON1_LEVELS - 1);
 
   const portrait = useMemo(() => buildPortraitPins(mapLevel), [mapLevel]);
@@ -336,10 +339,9 @@ export function TravelMapScreen() {
   const currentPin =
     pins.find((p) => p.id === mapLevel) ?? pins[pins.length - 1] ?? portrait.pins[0];
   const wideChapterIdx = wideData.chapterIdx;
-  // The portrait band's own bounding box — chapter art is clipped to each
-  // band's [top, bottom], so nothing ever renders above the first band's
-  // top or below the last one's bottom, whatever the cover-fitted image's
-  // own extent is.
+  // Собственные границы вертикальной полосы: рисунок главы отсекается по её
+  // [верх, низ], поэтому ничего не рисуется выше верха первой полосы и ниже низа
+  // последней, каким бы ни был размер вписанного с обрезкой изображения.
   const portraitBounds = {
     x0: BAND_LEFT,
     y0: bands[0]?.top ?? TOP_PAD - V_STEP / 2,
@@ -361,7 +363,7 @@ export function TravelMapScreen() {
   useEffect(() => {
     setZoom(ZOOM_MIN);
     if (wide) {
-      // Full art in frame — don't pan to edge pin (that created green void).
+      // Рисунок целиком в кадре: не панорамируем к крайнему пину, иначе появлялась зелёная пустота.
       setCenter({ x: DESKTOP_W / 2, y: DESKTOP_H / 2 });
     } else {
       setCenter({ x: currentPin.x, y: currentPin.y });
@@ -406,7 +408,7 @@ export function TravelMapScreen() {
       const next = Math.min(z + 0.25, ZOOM_MAX);
       if (wide) {
         const { viewW: nw, viewH: nh } = wideViewSize(aspect, next);
-        // Zoom toward current pin, but stay inside the art.
+        // Приближаемся к текущему пину, оставаясь внутри рисунка.
         setCenter(
           clampCenter(currentPin.x, currentPin.y, nw, nh, 0, 0, DESKTOP_W, DESKTOP_H)
         );
@@ -435,14 +437,14 @@ export function TravelMapScreen() {
 
   const seasonDone = currentLevel >= SEASON1_LEVELS;
   const levelLabel = mapLevel + 1;
-  // Levels actually finished, not levels reachable. This counted unlocked
-  // levels while wearing a tick icon, so it always claimed one more than the
-  // child had done: standing on an unplayed level 6 it read «6/17».
+  // Считаются реально пройденные уровни, а не доступные. Раньше здесь считались
+  // открытые — при значке галочки, — и счётчик всегда завышал на единицу: стоя на
+  // непройденном шестом уровне, он показывал «6/17».
   const season1Done = Object.keys(levelStars)
     .filter((id) => Number(id) < SEASON1_LEVELS && levelStars[Number(id)] > 0).length;
 
   const handlePinClick = (level: number) => {
-    // Only route to real Season 1 missions; Season 2 pins are locked teasers.
+    // Ведём только к настоящим миссиям первого сезона; пины второго — закрытые тизеры.
     if (level <= currentLevel && level < SEASON1_LEVELS) startEpisode(level);
   };
 
@@ -487,8 +489,8 @@ export function TravelMapScreen() {
   const splitLocal = localPins.findIndex((p) => p.id >= currentLevel);
   const splitIdx = splitLocal < 0 ? localPins.length - 1 : splitLocal;
 
-  // Route strokes follow the painted dirt (dense samples + Catmull-Rom),
-  // not pin-to-pin chords that cut across grass between missions.
+  // Линии маршрута идут по нарисованной тропе (частая выборка плюс Catmull-Rom), а
+  // не хордами от пина к пину, срезающими по траве между миссиями.
   const [pathDoneD, pathAheadD] = wide
     ? (() => {
         const norm = DESKTOP_PATHS[wideChapterIdx] ?? CHAPTER_PATHS[wideChapterIdx];
@@ -520,12 +522,12 @@ export function TravelMapScreen() {
   const wideBg = wideCh.bgDesktop ?? wideCh.bg;
   const wideCover = coverFit(BG_W, BG_H, DESKTOP_W, DESKTOP_H);
 
-  // The "here" paw badge floats 44px above the pin. The camera never
-  // scrolls past the art's own top edge (clampCenter), so on level 1 — the
-  // very first pin, closest to that edge — the badge's bubble crossed above
-  // it and rendered half off-screen. Shrinking it (anchored at its tip,
-  // which already sits right on the pin) keeps the tip in place and only
-  // shrinks the bubble that was going to be clipped anyway.
+  // Значок-лапка «ты здесь» висит в 44 пикселях над пином. Камера никогда не
+  // уходит выше верхнего края рисунка (clampCenter), поэтому на первом уровне —
+  // самом первом пине, ближайшем к этому краю — пузырь значка выходил за него и
+  // рисовался наполовину за экраном. Уменьшение с привязкой к кончику, который и
+  // так стоит прямо на пине, оставляет кончик на месте и ужимает только тот
+  // пузырь, который всё равно был бы обрезан.
   const HERE_TIP_ABOVE_PIN = 14; // badge's tip sits 14px above the pin
   const HERE_BUBBLE_SPAN = 42; // tip to bubble top, at scale 1
   const HERE_FLOAT_AMPLITUDE = 6; // `pin-here-float` bobs up this far — stay clear at the peak too
@@ -717,7 +719,7 @@ export function TravelMapScreen() {
                   }}
                   style={{ cursor: pin.status !== 'near' ? 'pointer' : 'default' }}
                 >
-                  {/* Stable hit area — larger than visual, never scaled */}
+                  {/* Устойчивая зона нажатия: больше видимой и никогда не масштабируется */}
                   <circle className="pin-hit" cx={pin.x} cy={pin.y} r={r + 10} />
                   <g className="pin-visual">
                     {pin.status === 'current' && (
@@ -745,18 +747,19 @@ export function TravelMapScreen() {
                       </g>
                     )}
                     {/*
-                      What the level was worth, under the level.
+                      Сколько уровень принёс — прямо под уровнем.
 
-                      `levelStars` has held a best-per-level score since the
-                      save format was written and nothing ever showed it: the
-                      map said only "passed" or "not passed", so a child who
-                      played a level well and one who scraped through saw the
-                      same tick. Older testers had no way to see they were
-                      getting better at anything.
+                      `levelStars` хранит лучший результат по каждому уровню с
+                      момента появления формата сохранения, и никто его не
+                      показывал: карта говорила только «пройден» или «не
+                      пройден», поэтому ребёнок, сыгравший хорошо, и ребёнок,
+                      еле дотянувший, видели одну и ту же галочку. Старшим
+                      тестировщикам неоткуда было увидеть, что они в чём-то
+                      становятся лучше.
 
-                      A badge rather than bare text on the pin: the pin is 30px
-                      across and "★25" set inside it overflowed the circle into
-                      illegible mush. Its own plate carries the contrast.
+                      Плашка, а не голый текст на пине: пин 30 пикселей в
+                      поперечнике, и «★25» внутри него вылезало из круга
+                      нечитаемой кашей. Контраст несёт собственная подложка.
                     */}
                     {pin.status === 'completed' && (levelStars[pin.id] ?? 0) > 0 && (
                       <g className="pin-score" pointerEvents="none">
@@ -800,9 +803,9 @@ export function TravelMapScreen() {
             })}
 
             <g transform={`translate(${currentPin.x}, ${currentPin.y - 44})`}>
-              {/* Scale group is separate from `.pin-here` below: that class
-                  has a CSS float animation on `transform`, which would
-                  override (not compose with) a transform attribute set here. */}
+              {/* Группа масштабирования отделена от `.pin-here` ниже: у того класса
+                  есть CSS-анимация парения по `transform`, которая перебила бы
+                  (а не сложилась с) атрибутом transform, заданным здесь. */}
               <g
                 transform={
                   hereScale < 1 ? `translate(0,30) scale(${hereScale}) translate(0,-30)` : undefined

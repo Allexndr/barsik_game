@@ -41,9 +41,9 @@ function freshState(best: number): RunnerState {
 }
 
 /**
- * Loading screen mini-runner — soft-3D plush Barsik hopping stones/bushes
- * while the world loads. Same rules as before (one jump, no lives); visuals
- * match Style Lock / Barsik Hum instead of flat chrome-dino blocks.
+ * Мини-раннер на экране загрузки: мягкий плюшевый Барсик перепрыгивает камни и
+ * кусты, пока грузится мир. Правила прежние — один прыжок, жизней нет; вид
+ * приведён к стилю бренда вместо плоских блоков «динозавра из Chrome».
  */
 export function LoadingOverlay({
   label,
@@ -275,7 +275,7 @@ function roundRect(
 }
 
 function draw(ctx: CanvasRenderingContext2D, s: RunnerState, lang: 'ru' | 'kk') {
-  // Soft meadow sky
+  // Мягкое небо над лугом.
   const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
   sky.addColorStop(0, '#9fd8ff');
   sky.addColorStop(0.55, '#d4f0ff');
@@ -288,7 +288,7 @@ function draw(ctx: CanvasRenderingContext2D, s: RunnerState, lang: 'ru' | 'kk') 
   drawHills(ctx, s.scroll * 0.35, GROUND_Y - 10, '#9ecf6e', 0.85);
   drawClouds(ctx, s.scroll * 0.12, s.t);
 
-  // Ground
+  // Земля.
   const ground = ctx.createLinearGradient(0, GROUND_Y, 0, CH);
   ground.addColorStop(0, '#8fce5a');
   ground.addColorStop(0.35, '#6fad42');
@@ -296,13 +296,13 @@ function draw(ctx: CanvasRenderingContext2D, s: RunnerState, lang: 'ru' | 'kk') 
   ctx.fillStyle = ground;
   ctx.fillRect(0, GROUND_Y, CW, CH - GROUND_Y);
 
-  // Soft path strip
+  // Мягкая полоса тропы.
   ctx.fillStyle = '#d9b57a';
   ctx.fillRect(0, GROUND_Y, CW, 7);
   ctx.fillStyle = '#c49a5c';
   ctx.fillRect(0, GROUND_Y + 5, CW, 3);
 
-  // Grass tufts scrolling
+  // Уплывающие пучки травы.
   ctx.fillStyle = '#5a9e38';
   for (let i = 0; i < 18; i++) {
     const gx = ((i * 37 - s.scroll * 0.9) % (CW + 40)) - 20;
@@ -326,7 +326,7 @@ function draw(ctx: CanvasRenderingContext2D, s: RunnerState, lang: 'ru' | 'kk') 
   }
   ctx.globalAlpha = 1;
 
-  // Score pill
+  // Плашка со счётом.
   const scoreLabel = String(Math.floor(s.score)).padStart(4, '0');
   ctx.font = '800 14px "Nunito", "Segoe UI", sans-serif';
   const sw = ctx.measureText(scoreLabel).width + 22;
@@ -450,7 +450,7 @@ function drawCloud(ctx: CanvasRenderingContext2D, x: number, y: number, s: numbe
 function drawObstacle(ctx: CanvasRenderingContext2D, o: Obstacle) {
   const top = GROUND_Y - o.h;
   if (o.kind === 'rock') {
-    // Soft pebble with highlight
+    // Мягкий камешек с бликом.
     const g = ctx.createRadialGradient(
       o.x + o.w * 0.35, top + o.h * 0.3, 2,
       o.x + o.w * 0.5, top + o.h * 0.5, o.w * 0.7,
@@ -487,7 +487,7 @@ function drawObstacle(ctx: CanvasRenderingContext2D, o: Obstacle) {
     ctx.beginPath();
     ctx.ellipse(o.x + o.w * 0.72, GROUND_Y - o.h * 0.5, o.w * 0.26, o.h * 0.3, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Berries
+    // Ягоды.
     ctx.fillStyle = '#ff7a6e';
     for (const [bx, by] of [[0.4, 0.4], [0.62, 0.55], [0.5, 0.7]] as const) {
       ctx.beginPath();
@@ -495,7 +495,7 @@ function drawObstacle(ctx: CanvasRenderingContext2D, o: Obstacle) {
       ctx.fill();
     }
   } else {
-    // Tree stump
+    // Пенёк.
     const trunk = ctx.createLinearGradient(o.x, top, o.x + o.w, GROUND_Y);
     trunk.addColorStop(0, '#c9956a');
     trunk.addColorStop(1, '#8a5a36');
@@ -513,14 +513,14 @@ function drawObstacle(ctx: CanvasRenderingContext2D, o: Obstacle) {
     ctx.stroke();
   }
 
-  // Soft contact shadow
+  // Мягкая тень касания.
   ctx.fillStyle = 'rgba(40, 60, 30, 0.18)';
   ctx.beginPath();
   ctx.ellipse(o.x + o.w / 2, GROUND_Y + 2, o.w * 0.42, 3.5, 0, 0, Math.PI * 2);
   ctx.fill();
 }
 
-/** Soft-3D plush snow-leopard cub — Style Lock silhouette. */
+/** Мягкий плюшевый котёнок снежного барса — силуэт по стилевому канону. */
 function drawHero(ctx: CanvasRenderingContext2D, s: RunnerState) {
   const top = GROUND_Y + s.y - HERO_H;
   const x = HERO_X;
@@ -533,7 +533,7 @@ function drawHero(ctx: CanvasRenderingContext2D, s: RunnerState) {
   ctx.scale(1 / squash, squash);
   ctx.translate(-(x + HERO_W / 2), -(top + HERO_H));
 
-  // Shadow
+  // Тень.
   ctx.fillStyle = 'rgba(40, 60, 30, 0.22)';
   ctx.beginPath();
   ctx.ellipse(
@@ -545,7 +545,7 @@ function drawHero(ctx: CanvasRenderingContext2D, s: RunnerState) {
   );
   ctx.fill();
 
-  // Tail
+  // Хвост.
   ctx.strokeStyle = '#f2f4f7';
   ctx.lineWidth = 7;
   ctx.lineCap = 'round';
@@ -559,7 +559,7 @@ function drawHero(ctx: CanvasRenderingContext2D, s: RunnerState) {
   ctx.arc(x - 6, top + 8 + tailWag * 0.4, 3.5, 0, Math.PI * 2);
   ctx.fill();
 
-  // Legs
+  // Лапы.
   ctx.fillStyle = '#e8ebef';
   const liftL = legPhase < 0.5 ? 3 : 0;
   const liftR = legPhase >= 0.5 ? 3 : 0;
@@ -573,7 +573,7 @@ function drawHero(ctx: CanvasRenderingContext2D, s: RunnerState) {
   roundRect(ctx, x + HERO_W - 14, top + HERO_H - 4 - liftR, 8, 4, 2);
   ctx.fill();
 
-  // Body
+  // Тело.
   const body = ctx.createRadialGradient(
     x + HERO_W * 0.4, top + 14, 4,
     x + HERO_W * 0.5, top + 20, 22,
@@ -585,7 +585,7 @@ function drawHero(ctx: CanvasRenderingContext2D, s: RunnerState) {
   roundRect(ctx, x + 2, top + 10, HERO_W - 4, HERO_H - 16, 12);
   ctx.fill();
 
-  // Spots
+  // Пятна.
   ctx.fillStyle = '#9aa1aa';
   for (const [sx, sy, sr] of [[10, 16, 2.2], [22, 20, 2.5], [14, 24, 1.8]] as const) {
     ctx.beginPath();
@@ -593,7 +593,7 @@ function drawHero(ctx: CanvasRenderingContext2D, s: RunnerState) {
     ctx.fill();
   }
 
-  // Head
+  // Голова.
   const head = ctx.createRadialGradient(x + 14, top + 6, 2, x + 18, top + 10, 14);
   head.addColorStop(0, '#ffffff');
   head.addColorStop(1, '#e4e8ed');
@@ -602,7 +602,7 @@ function drawHero(ctx: CanvasRenderingContext2D, s: RunnerState) {
   ctx.ellipse(x + HERO_W / 2, top + 11, 14, 12, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Ears
+  // Уши.
   ctx.fillStyle = '#eef1f5';
   ctx.beginPath();
   ctx.moveTo(x + 8, top + 8);
@@ -630,7 +630,7 @@ function drawHero(ctx: CanvasRenderingContext2D, s: RunnerState) {
   ctx.closePath();
   ctx.fill();
 
-  // Eyes + cheek
+  // Глаза и щека.
   ctx.fillStyle = '#2a3238';
   ctx.beginPath();
   ctx.ellipse(x + 14, top + 11, 2.2, 2.6, 0, 0, Math.PI * 2);
@@ -647,7 +647,7 @@ function drawHero(ctx: CanvasRenderingContext2D, s: RunnerState) {
   ctx.ellipse(x + 28, top + 15, 3, 2, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Nose
+  // Нос.
   ctx.fillStyle = '#f08a9a';
   ctx.beginPath();
   ctx.ellipse(x + 19, top + 15, 2.2, 1.5, 0, 0, Math.PI * 2);
