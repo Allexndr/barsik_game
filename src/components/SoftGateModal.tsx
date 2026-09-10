@@ -27,7 +27,7 @@ function useParentGateQuestion(gate: string | null) {
     }
     const options = [correct, ...distractors].sort(() => Math.random() - 0.5);
     return { a, b, correct, options };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- зависимости намеренно неполные
   }, [gate]);
 }
 

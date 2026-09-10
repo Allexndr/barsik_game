@@ -10,7 +10,7 @@ function readTier(): ViewportTier {
   return 'phone';
 }
 
-/** phone &lt;768 · tablet 768–1099 · desktop ≥1100 — for art framing, not just CSS. */
+/** телефон &lt;768 · планшет 768–1099 · десктоп ≥1100 — для кадрирования графики, а не только для CSS. */
 export function useViewportTier(): ViewportTier {
   const [tier, setTier] = useState<ViewportTier>(readTier);
 

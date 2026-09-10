@@ -1,8 +1,9 @@
 import type { PlushCharacterOptions } from './PlushCharacter';
 
 /**
- * Season 1 human cast. Defined once so a character looks identical in every
- * level they appear in, and so the palette stays inside ART_DIRECTION.
+ * Люди из состава первого сезона. Описаны один раз, чтобы персонаж выглядел
+ * одинаково на каждом уровне, где появляется, и чтобы палитра не выходила за
+ * рамки ART_DIRECTION.
  */
 
 /** Айя — Barsik's first friend. Braids and a bright kerchief. */

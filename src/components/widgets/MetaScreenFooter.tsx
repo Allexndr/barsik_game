@@ -8,7 +8,7 @@ interface Props {
   hint?: string;
 }
 
-/** Shared bottom CTA — every meta screen routes back to travel. */
+/** Общая нижняя кнопка: с любого мета-экрана возвращает к путешествию. */
 export function MetaScreenFooter({ hint }: Props) {
   const lang = useUIStore((s) => s.lang);
   const setActiveTab = useUIStore((s) => s.setActiveTab);

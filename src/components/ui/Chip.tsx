@@ -8,7 +8,7 @@ interface Props {
   className?: string;
 }
 
-/** Small icon+value pill — replaces every emoji stat ("⭐ 3", "🍎 2/3") in the app. */
+/** Маленькая плашка «значок и значение» — заменяет в приложении все эмодзи-счётчики вида «⭐ 3» и «🍎 2/3». */
 export function Chip({ icon, tone = 'neutral', children, className = '' }: Props) {
   return (
     <span className={`ui-chip ui-chip-${tone} ${className}`}>

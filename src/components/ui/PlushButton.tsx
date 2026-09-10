@@ -12,10 +12,10 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /**
- * Single tappable primitive for every screen outside Welcome.
- * Chunky 3D-plush look (gradient + bottom shadow) reused from the
- * approved Welcome CTA, but scoped to one shared component so every
- * surface stays visually identical instead of re-inventing borders.
+ * Единственный нажимаемый примитив для всех экранов, кроме приветственного.
+ * Плотный плюшевый вид — градиент и нижняя тень — взят из утверждённой кнопки
+ * приветствия, но собран в один общий компонент, чтобы все поверхности выглядели
+ * одинаково, а не изобретали рамки заново.
  */
 export function PlushButton({
   variant = 'primary',

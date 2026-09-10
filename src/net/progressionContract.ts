@@ -7,7 +7,7 @@ export interface ServerProgress {
   seasonComplete: boolean;
 }
 
-/** Validate and normalize the only progression shape accepted from the API. */
+/** Проверяет и нормализует единственную форму прогресса, принимаемую от API. */
 export function normalizeServerProgress(raw: unknown): ServerProgress {
   if (!raw || typeof raw !== 'object') throw new Error('invalid_progress');
   const data = raw as Record<string, unknown>;

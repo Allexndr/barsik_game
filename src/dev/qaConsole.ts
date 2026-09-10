@@ -1,6 +1,6 @@
 /**
- * QA console-error collector — enable with `?qa=1`.
- * Exposes `window.__qaErrors()` for Playwright / manual audits (S1 A1).
+ * Сборщик ошибок консоли для проверки: включается через `?qa=1`.
+ * Открывает `window.__qaErrors()` для Playwright и ручных проверок (S1 A1).
  */
 export type QaErrorEntry = {
   at: number;

@@ -10,8 +10,8 @@ import { SoftGateModal } from '@/components/SoftGateModal';
 import { SoftGateController } from '@/components/SoftGateController';
 import './GamePage.css';
 
-// Keep Three.js out of the map's first route. Friends and Shop both create
-// 3D previews, but most players enter the game on Travel first.
+// Держим Three.js вне первого маршрута с картой. И «Друзья», и «Магазин» создают
+// трёхмерные превью, но большинство игроков сначала попадают в «Путешествие».
 const FriendsScreen = lazy(() => import('@/components/screens/FriendsScreen').then((m) => ({ default: m.FriendsScreen })));
 const ShopScreen = lazy(() => import('@/components/screens/ShopScreen').then((m) => ({ default: m.ShopScreen })));
 const LeaderboardScreen = lazy(() => import('@/components/screens/LeaderboardScreen').then((m) => ({ default: m.LeaderboardScreen })));

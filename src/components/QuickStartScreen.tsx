@@ -148,7 +148,7 @@ export function QuickStartScreen() {
   );
 }
 
-/** Minimal soft-3D cub silhouette placeholder — swap for real character art per DESIGN.md when ready. */
+/** Минимальный силуэт котёнка вместо модели — заменить настоящей графикой по DESIGN.md, когда она будет. */
 function BarsikFace({ bow }: { bow?: boolean }) {
   return (
     <svg viewBox="0 0 64 64" width="100%" height="100%" aria-hidden>

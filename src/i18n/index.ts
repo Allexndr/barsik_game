@@ -11,7 +11,7 @@ export function readStoredLang(): Lang {
     const v = localStorage.getItem(LANG_KEY);
     if (isLang(v)) return v;
   } catch {
-    /* ignore */
+    /* не важно */
   }
   return 'ru';
 }
@@ -20,7 +20,7 @@ export function writeStoredLang(lang: Lang): void {
   try {
     localStorage.setItem(LANG_KEY, lang);
   } catch {
-    /* ignore */
+    /* не важно */
   }
 }
 

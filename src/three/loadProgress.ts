@@ -12,7 +12,7 @@ export {
 } from './loadProgressState';
 export type { LoadProgress } from './loadProgressState';
 
-/** Shared Three.js manager; the UI-facing state stays in a Three-free module. */
+/** Общий менеджер Three.js; состояние для интерфейса живёт в модуле без Three. */
 export const gameLoadingManager = new THREE.LoadingManager();
 
 gameLoadingManager.onProgress = (url, loaded, total) => {
