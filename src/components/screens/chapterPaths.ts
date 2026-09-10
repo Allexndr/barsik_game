@@ -1,5 +1,6 @@
-/** Normalized 0..1 dirt-path waypoints per chapter art (y: top→bottom).
- * Extracted by sand-color row tracking — pins should sit on the painted path. */
+/** Нормированные к 0…1 путевые точки грунтовой тропы по рисунку каждой главы
+ * (y идёт сверху вниз). Получены отслеживанием песочного цвета по строкам: пины
+ * должны стоять на нарисованной тропе. */
 
 export type PathPoint = { x: number; y: number };
 
@@ -205,7 +206,7 @@ export function samplePathX(path: PathPoint[], s: number): number {
   return path[path.length - 1]?.x ?? 0.5;
 }
 
-/** Progress 0..1 along an ordered path (portrait or landscape). */
+/** Продвижение 0…1 вдоль упорядоченного маршрута — вертикального или горизонтального. */
 export function samplePathProgress(path: PathPoint[], s: number): PathPoint {
   if (!path.length) return { x: 0.5, y: 0.5 };
   const t = Math.max(0, Math.min(1, s));
@@ -218,8 +219,9 @@ export function samplePathProgress(path: PathPoint[], s: number): PathPoint {
 }
 
 /**
- * Dense samples along a path between two progress values (inclusive).
- * Used so map route strokes follow the painted dirt instead of pin-to-pin chords.
+ * Частая выборка вдоль маршрута между двумя значениями продвижения, включительно.
+ * Нужна, чтобы линии маршрута на карте шли по нарисованной тропе, а не хордами от
+ * пина к пину.
  */
 export function samplePathRange(
   path: PathPoint[],
@@ -240,7 +242,7 @@ export function samplePathRange(
   return out;
 }
 
-/** Catmull-Rom → cubic Bézier SVG `d` (absolute coords already in SVG space). */
+/** Catmull-Rom в кубический Безье для атрибута `d` SVG; координаты уже абсолютные в пространстве SVG. */
 export function pointsToSmoothPathD(points: PathPoint[]): string {
   if (points.length === 0) return '';
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
@@ -254,7 +256,7 @@ export function pointsToSmoothPathD(points: PathPoint[]): string {
     const p1 = points[i];
     const p2 = points[i + 1];
     const p3 = points[i + 2] ?? p2;
-    // Catmull-Rom to cubic (tension 1)
+    // Catmull-Rom в кубический Безье, натяжение 1.
     const c1x = p1.x + (p2.x - p0.x) / 6;
     const c1y = p1.y + (p2.y - p0.y) / 6;
     const c2x = p2.x - (p3.x - p1.x) / 6;
@@ -265,8 +267,8 @@ export function pointsToSmoothPathD(points: PathPoint[]): string {
 }
 
 /**
- * SVG path `d` for the dirt route between pin progresses.
- * `toSvg` maps normalized 0..1 path points into SVG coordinates.
+ * Атрибут `d` для грунтового маршрута между продвижениями пинов.
+ * `toSvg` переводит нормированные точки 0…1 в координаты SVG.
  */
 export function routePathD(
   path: PathPoint[],
@@ -290,7 +292,7 @@ export function routePathD(
   return pointsToSmoothPathD(pts);
 }
 
-/** Landscape desktop path for chapter 1 (fruit forest) — left→right along dirt. */
+/** Горизонтальный десктопный маршрут первой главы (Фруктовый лес) — слева направо по тропе. */
 export const CHAPTER1_DESKTOP_PATH: PathPoint[] = [
   { x: 0.02, y: 0.72 },
   { x: 0.05, y: 0.70 },
