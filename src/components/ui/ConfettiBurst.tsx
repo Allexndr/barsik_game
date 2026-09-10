@@ -15,8 +15,9 @@ type Piece = {
 };
 
 /**
- * Lightweight DOM confetti — no canvas lib. Brand palette, auto-dismiss.
- * Mount when a reward card appears; unmount when parent hides it.
+ * Лёгкое конфетти на DOM, без библиотек для холста. Палитра бренда, само
+ * исчезает. Монтируется при появлении карточки награды и снимается, когда родитель
+ * её прячет.
  */
 export function ConfettiBurst({ count = 28, active = true }: { count?: number; active?: boolean }) {
   const [alive, setAlive] = useState(active);
@@ -60,7 +61,7 @@ export function ConfettiBurst({ count = 28, active = true }: { count?: number; a
             background: p.color,
             animationDelay: p.delay,
             animationDuration: p.duration,
-            // CSS vars for keyframes
+            // CSS-переменные для ключевых кадров.
             ['--drift' as string]: p.drift,
             ['--spin' as string]: p.spin,
           }}

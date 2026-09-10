@@ -9,7 +9,7 @@ export interface Player {
   level: number;
   stars: number;
   createdAt: string;
-  /** Progressive profile */
+  /** Постепенно заполняемый профиль. */
   profileStage: 'guest_nick' | 'phone' | 'email' | 'complete';
   phoneAskedAt?: string;
   emailAskedAt?: string;

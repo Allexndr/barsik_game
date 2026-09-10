@@ -8,13 +8,13 @@ interface DialoguePanelProps {
 }
 
 /**
- * Collapsible dialogue.
+ * Сворачиваемая панель диалога.
  *
- * The panel sits over the top of the scene, and on a phone that is a real
- * cost when a child just wants to look around. It can now be folded to a
- * single strip and reopened, and history is kept so a line that scrolled
- * past can be read again with the arrows — previously each new line
- * destroyed the one before it, which is unfair to a slow reader.
+ * Панель лежит поверх сцены, и на телефоне это настоящая плата, когда ребёнок
+ * просто хочет осмотреться. Теперь её можно свернуть в одну полоску и раскрыть
+ * обратно, а история сохраняется: уехавшую реплику можно перечитать стрелками. До
+ * этого каждая новая реплика уничтожала предыдущую, что нечестно по отношению к
+ * тому, кто читает медленно.
  */
 export function DialoguePanel({ speaker, line, objective, lang }: DialoguePanelProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -88,8 +88,8 @@ export function DialoguePanel({ speaker, line, objective, lang }: DialoguePanelP
       </div>
 
       <div className="m0-line">{shown.line}</div>
-      {/* Only the live objective is shown; scrolling back is for reading, not
-          for acting on a goal that has already been met. */}
+      {/* Показывается только активная цель: прокрутка назад нужна для чтения, а не
+          для действий по уже выполненной задаче. */}
       {atLatest && objective ? <div className="m0-objective">{objective}</div> : null}
     </div>
   );

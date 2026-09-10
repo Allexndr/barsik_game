@@ -31,7 +31,7 @@ function saveSession(next: AuthSession) {
   try {
     localStorage.setItem(SESSION_KEY, JSON.stringify(next));
   } catch {
-    /* Private browsing may deny storage; memory session still works. */
+    /* Приватный режим может запретить хранилище; сессия в памяти при этом работает. */
   }
 }
 
@@ -79,7 +79,7 @@ async function refreshSession(refreshToken: string): Promise<AuthSession | null>
   }
 }
 
-/** Submit a completion event; the RPC returns the server's canonical state. */
+/** Отправляет событие завершения; RPC возвращает каноническое состояние с сервера. */
 export async function syncCompletedLevel(levelId: number, stars: number, friendId?: string, retried = false): Promise<void> {
   const auth = await ensureAnonymousSession();
   if (!auth) return;
@@ -95,7 +95,7 @@ export async function syncCompletedLevel(levelId: number, stars: number, friendI
     });
     if (response.status === 401 && auth.refresh_token && !retried) {
       session = null;
-      try { localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+      try { localStorage.removeItem(SESSION_KEY); } catch { /* не важно */ }
       const refreshed = await refreshSession(auth.refresh_token);
       if (refreshed) {
         await syncCompletedLevel(levelId, stars, friendId, true);

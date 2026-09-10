@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 const SEEN_KEY = 'barsik_camera_look_hint_seen';
 
-/** One-time control affordance for the free camera, dismissed by real use. */
+/** Одноразовая подсказка об управлении свободной камерой; исчезает при реальном использовании. */
 export function CameraLookHint({ lang }: { lang: 'ru' | 'kk' }) {
   const [visible, setVisible] = useState(false);
 
@@ -21,14 +21,15 @@ export function CameraLookHint({ lang }: { lang: 'ru' | 'kk' }) {
     const hide = window.setTimeout(() => {
       setVisible(false);
       if (wasVisible) {
-        try { localStorage.setItem(SEEN_KEY, '1'); } catch { /* private mode */ }
+        try { localStorage.setItem(SEEN_KEY, '1'); } catch { /* приватный режим */ }
       }
     }, 7200);
     const onLook = () => {
       setVisible(false);
-      // Emitted only by BaseLevelScene after an owned camera pointer moves;
-      // joystick/action drags never mark this control as learned.
-      try { localStorage.setItem(SEEN_KEY, '1'); } catch { /* private mode */ }
+      // Отправляется только из BaseLevelScene после движения указателя, которым
+      // управляют камерой; перетаскивание джойстика или кнопки действия освоенным
+      // это управление не считает.
+      try { localStorage.setItem(SEEN_KEY, '1'); } catch { /* приватный режим */ }
     };
     window.addEventListener('barsik:camera-look', onLook);
     return () => {

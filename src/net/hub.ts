@@ -27,10 +27,11 @@ const SUPABASE_ANON =
   ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdXFhYXRwenlhdHpobW1kbXVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwODYwNDUsImV4cCI6MjA5OTY2MjA0NX0.fA7_lyCIPUppg_DmgMuwKHaFR93jMLXD7T7tEfWsceo';
 
 /**
- * Realtime multiplayer stays off until `supabase/city_chat.sql` (+ broadcast
- * RLS) is confirmed on the project. Without that lock any anon client can
- * publish into `hub:*` and bypass the receive-side filter for free text.
- * Opt in explicitly: `VITE_HUB_REALTIME=1` in env / Vercel.
+ * Многопользовательский режим реального времени остаётся выключенным, пока на
+ * проекте не подтверждён `supabase/city_chat.sql` вместе с правами на вещание. Без
+ * этого замка любой анонимный клиент может публиковать в `hub:*` и обходить фильтр
+ * свободного текста, который стоит на приёме. Включается явно:
+ * `VITE_HUB_REALTIME=1` в окружении или в Vercel.
  */
 const HUB_REALTIME_ENABLED =
   import.meta.env.VITE_HUB_REALTIME === '1'
@@ -152,7 +153,8 @@ export function connectHub(
   onChange: () => void,
 ): HubConnection {
   if (!HUB_REALTIME_ENABLED) {
-    // Solo hub: presence/chat stay local until ops confirms Realtime auth.
+    // Одиночный хаб: присутствие и чат остаются локальными, пока эксплуатация не
+    // подтвердит авторизацию Realtime.
     queueMicrotask(() => onChange());
     return offlineHub();
   }

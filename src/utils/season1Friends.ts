@@ -100,7 +100,7 @@ const META: Record<
   },
 };
 
-/** All collectible friends in Season 1, in unlock order. */
+/** Все собираемые друзья первого сезона, в порядке открытия. */
 export const SEASON1_FRIENDS: Season1FriendEntry[] = LEVEL_CONFIGS.filter(
   (l) => l.reward.friend,
 ).map((l) => {
@@ -124,7 +124,7 @@ export const SEASON1_FRIENDS: Season1FriendEntry[] = LEVEL_CONFIGS.filter(
 
 export function isFriendUnlocked(friendId: string, unlockedFriendIds: string[]): boolean {
   if (unlockedFriendIds.includes(friendId)) return true;
-  // Legacy Mission0 id before Season 1 roster normalize
+  // Старый идентификатор нулевой миссии, до нормализации состава первого сезона.
   if (friendId === 'gardener' && unlockedFriendIds.includes('gardener_l1')) return true;
   return false;
 }
