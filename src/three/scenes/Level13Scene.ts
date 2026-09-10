@@ -32,7 +32,7 @@ export interface L13Hud extends BaseHud {
   carrying: boolean;
 }
 
-/** First shard sits close and in view; the rest are a real walk. */
+/** Первый осколок рядом и на виду; до остальных надо идти. */
 /**
  * Legs of 13 to 15 metres, not 20 to 29.
  *
@@ -53,7 +53,7 @@ const SHARDS: Array<[x: number, z: number]> = [
   [-6, -25],
 ];
 
-/** Working faces around the statue, so the player circles it. */
+/** Рабочие грани вокруг статуи, чтобы игрок её обошёл. */
 const POLISH_STATIONS: Array<[x: number, z: number]> = [
   [2.6, -8],
   [-2.6, -8],
@@ -209,7 +209,7 @@ export class Level13Scene extends BaseLevelScene {
     for (let i = 0; i < parts.length; i++) parts[i].visible = i < this.shardsDelivered;
   }
 
-  /** Each polished face lifts the ice from dull to lit. */
+  /** Каждая отполированная грань поднимает лёд от тусклого к светящемуся. */
   private brightenSculpture() {
     if (!this.sculpture) return;
     const mat = this.sculpture.userData.iceMat as THREE.MeshStandardMaterial;
@@ -252,7 +252,7 @@ export class Level13Scene extends BaseLevelScene {
     this.scene.add(pad);
     this.scene.add(await placeWoodSign(loader, -3, 3.5, 0.3, 0xe1f5fe));
 
-    // ── Master's workspace ───────────────────────────────────────
+    // ── Мастерская ───────────────────────────────────────────────
     this.masterPos.y = this.groundHeightAt(0, -9);
     this.scene.add(zoneDisc(0, -9, 4.6, 0x4fc3f7, this.masterPos.y + 0.05));
 
@@ -273,10 +273,9 @@ export class Level13Scene extends BaseLevelScene {
       masterGlb.lookAt(0, masterGlb.position.y, -9);
       this.master = masterGlb;
       this.scene.add(masterGlb);
-      // The podium collider (0,-9, r1.4) doesn't reach him — he stands
-      // 2.5m off its centre — so without his own circle he was the one
-      // solid-looking figure in the level a player could walk straight
-      // through.
+      // Коллайдер подиума (0, −9, r 1.4) до него не достаёт: он стоит в 2.5 м от
+      // центра, — и без собственной окружности он был единственной фигурой уровня,
+      // выглядящей твёрдой, сквозь которую игрок проходил насквозь.
       this.colliders.push({ kind: 'circle', x: -2.1, z: -7.6, r: 0.55 });
     }
 
@@ -289,7 +288,7 @@ export class Level13Scene extends BaseLevelScene {
     this.masterMarker.visible = false;
     this.scene.add(this.masterMarker);
 
-    // ── Polish stations, revealed in the last act ────────────────
+    // ── Места полировки, открываются в последнем акте ────────────
     for (const [x, z] of POLISH_STATIONS) {
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(0.55, 0.85, 28),
@@ -306,7 +305,7 @@ export class Level13Scene extends BaseLevelScene {
       this.scene.add(ring);
     }
 
-    // ── Ice key for L16 ──────────────────────────────────────────
+    // ── Ледяной ключ для L16 ─────────────────────────────────────
     const iceKeyGlb =
       (await loadPropModel(loader, CAST_PROP_GLB.ice_key_prop, { maxSize: 0.6 })) ??
       (await loadPropModel(loader, CAST_PROP_GLB.golden_key, { maxSize: 0.55 }));
@@ -366,9 +365,9 @@ export class Level13Scene extends BaseLevelScene {
     ]);
 
     this.hero.position.set(0, this.groundHeightAt(0, 5), 5);
-    // This level is a serpentine, not a field: its beats sit alternately left
-    // and right going down. Drawing that as an actual route, then walling it,
-    // is what stops it reading as a clearing with things scattered in it.
+    // Уровень — серпантин, а не поле: биты идут вниз попеременно слева и справа.
+    // Если проложить это настоящим маршрутом и обнести стенами, он перестаёт
+    // читаться поляной с разбросанными предметами.
     this.derivePathFromRooms({ x: 0, z: 5 });
     await this.enclosePath(loader);
 
@@ -449,7 +448,7 @@ export class Level13Scene extends BaseLevelScene {
       carrying: this.carrying,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      // Not 'intro': `isFetchPhase` (learn/gather) is canMove's gate here.
+      // Не 'intro': ворота canMove здесь — `isFetchPhase` (learn и gather).
       showMoveHint: !this.hasTakenFirstStep && p === 'learn',
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
@@ -513,7 +512,7 @@ export class Level13Scene extends BaseLevelScene {
     const canMove = this.isFetchPhase || this.phase === 'polish';
     this.updateMovement(dt, canMove, this.baseSpeed, -30, 30, -34, 10);
 
-    // Idle motion so the workspace feels inhabited.
+    // Лёгкое движение в покое, чтобы мастерская ощущалась обжитой.
     if (this.master) {
       this.master.rotation.y += Math.sin(now * 0.0009) * 0.0015;
       this.master.position.y = this.groundHeightAt(this.master.position.x, this.master.position.z)
@@ -543,8 +542,8 @@ export class Level13Scene extends BaseLevelScene {
       m.opacity = 0.55 + Math.sin(now * 0.004 + ring.position.x) * 0.22;
     }
 
-    // Only the live objective is beaconed — a field of lit markers points
-    // nowhere and turns the valley into a forest of lollipops.
+    // Маяк горит только над активной целью: поле зажжённых маркеров не указывает
+    // никуда и превращает долину в лес леденцов.
     const objective = this.objectiveWorldPos();
     for (const shard of this.shards) {
       shard.marker.visible = !shard.picked
@@ -566,9 +565,9 @@ export class Level13Scene extends BaseLevelScene {
 
     this.updateAmbient(dt, now);
 
-    // Cinematic only until the first step, same fix as L2/L8/L16 — without
-    // the guard the camera stays locked to this fixed path for the whole
-    // intro timer even after the hero starts moving.
+    // Кинематографично только до первого шага — та же правка, что на L2, L8 и L16.
+    // Без этой проверки камера остаётся на фиксированном пути весь таймер интро,
+    // даже когда герой уже пошёл.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [
@@ -584,7 +583,7 @@ export class Level13Scene extends BaseLevelScene {
       this.camera.position.lerp(introPos[idx], 1 - Math.pow(0.02, dt));
       this.camera.lookAt(introLook[idx]);
     } else if (this.phase === 'polish') {
-      // Pull in and orbit slightly: the statue is the subject of this act.
+      // Подойти ближе и слегка обойти: статуя — предмет этого акта.
       const target = new THREE.Vector3(
         this.cameraLateral(this.hero.position.x),
         this.hero.position.y + 5.2,
