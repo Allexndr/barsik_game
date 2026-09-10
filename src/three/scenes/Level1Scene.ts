@@ -445,7 +445,12 @@ export class Level1Scene extends BaseLevelScene {
   private objectiveWorldPos(): THREE.Vector3 | null {
     const p = this.phase;
     if (p === 'trail') return this.nearestAlive(this.trailFruits)?.position.clone() ?? null;
-    if (p === 'creek') return new THREE.Vector3(0, 0, -18);
+    // Дальний берег, а не край настила. Мост лежит с −18 до −10, а переход
+    // засчитывается только за z < −20 — то есть стрелка стояла там, где идти
+    // ещё два метра. Ребёнок приходил точно туда, куда она показывала, и
+    // читал ту же просьбу перейти мостик. Теперь прийти к стрелке и значит
+    // перейти.
+    if (p === 'creek') return new THREE.Vector3(0, 0, -21);
     if (p === 'thicket' && this.stuckFruit) return this.stuckFruit.position.clone();
     if (p === 'berries') {
       const next = this.nearestAlive(this.berries);
