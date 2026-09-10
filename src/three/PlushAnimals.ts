@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 
 /**
- * Procedural animal friends in the ART_DIRECTION plush style, matching
- * PlushBarsik's construction so the cast reads as one family.
+ * Процедурные друзья-звери в плюшевом стиле ART_DIRECTION, собранные так же, как
+ * PlushBarsik, чтобы состав читался одной семьёй.
  *
- * These replaced flat stand-ins: the squirrel was a glowing yellow sphere and
- * the hedgehog a brown dome, which made two whole levels look unfinished.
+ * Они заменили плоские заглушки: белочка была светящейся жёлтой сферой, а ёжик —
+ * коричневым куполом, из-за чего два уровня целиком выглядели незаконченными.
  */
 
 const plush = (color: number, roughness = 0.85) =>
@@ -58,7 +58,7 @@ export function createPlushSquirrel(): THREE.Group {
   }
   addEyes(g, 0.06, 0.5, 0.155, 0.032);
 
-  // Plume tail: stacked spheres curving up behind the body.
+  // Пышный хвост: сферы стопкой, изгибающиеся вверх за спиной.
   const tail = new THREE.Group();
   for (let i = 0; i < 5; i++) {
     const t = i / 4;
@@ -100,7 +100,7 @@ export function createPlushHedgehog(): THREE.Group {
   body.position.y = 0.2;
   body.castShadow = true;
 
-  // Quill mantle: a dome over the back, studded with cones.
+  // Иглы: купол над спиной, утыканный конусами.
   const mantle = new THREE.Mesh(
     new THREE.SphereGeometry(0.205, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.62),
     quill,
@@ -157,7 +157,7 @@ export function createPlushHedgehog(): THREE.Group {
   return g;
 }
 
-/** Shared walk / idle animation for the procedural animals. */
+/** Общая анимация ходьбы и покоя для процедурных зверей. */
 export function updatePlushAnimal(root: THREE.Object3D, walking: boolean, t: number) {
   if (!root.userData.isPlushAnimal) return;
   const legs = root.userData.legs as THREE.Mesh[] | undefined;

@@ -1,12 +1,12 @@
 /**
- * Hub dressing — GLB landmarks & ambient NPCs for Arbat sublocations.
+ * Отделка хаба: ориентиры в GLB и фоновые персонажи для локаций Арбата.
  *
- * Geography (real Almaty centre, encoded in `places.ts`):
- *   Arbat (Zhibek Zholy) ↔ Panfilova (south) ↔ Park 28 (east) / KBTU (south)
- *   Arbat ↔ Imanov square + TYUZ (northwest)
+ * География — настоящий центр Алматы, закодирована в `places.ts`:
+ *   Арбат (Жибек Жолы) ↔ Панфилова (юг) ↔ Парк 28 (восток) / КБТУ (юг)
+ *   Арбат ↔ сквер Иманова и ТЮЗ (северо-запад)
  *
- * Procedural landmark shells for cathedral / KBTU / TYUZ / apple are removed —
- * these GLBs are the visible buildings. Missing files are skipped.
+ * Процедурные оболочки ориентиров для собора, КБТУ, ТЮЗа и яблока убраны: видимые
+ * здания — это сами GLB. Отсутствующие файлы пропускаются.
  */
 import * as THREE from 'three';
 import type { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -15,7 +15,7 @@ import { fitHeight, fitMaxSize } from '../../modelUtils';
 import type { LocationId } from './locations';
 
 export type HubDressingSpot = {
-  /** Prefer first existing URL (Meshy/base → Hyper3D fallback). */
+  /** Берём первый существующий адрес: сначала Meshy или базовый, потом запасной Hyper3D. */
   urls: string[];
   kind: 'prop' | 'char';
   x: number;
@@ -29,7 +29,7 @@ const H = '/assets/models/hub';
 const C = '/assets/models/chars';
 const G = '/assets/models/gallery';
 
-/** Prefer Meshy/base landmark over Hyper3D mush. */
+/** Ориентир из Meshy или базовый предпочтительнее каши из Hyper3D. */
 const landmark = (meshy: string, hyper: string) => [`${H}/${meshy}`, `${H}/${hyper}`];
 
 export const HUB_DRESSING: Record<LocationId, HubDressingSpot[]> = {

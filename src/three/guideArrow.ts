@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { HERO_HEIGHT } from './worldScale';
 
-/** Float well above hat/ears — readable on portrait phones. */
+/** Висит заметно выше шапки и ушей — читается на вертикальных экранах телефонов. */
 export const GUIDE_ARROW_HEIGHT = HERO_HEIGHT * 3.15;
 
 const ARROW_COLOR = 0xffc857;
@@ -10,8 +10,9 @@ const ARROW_HEAD_WIDTH = 0.38;
 const ARROW_SHAFT = 0.42;
 
 /**
- * World-space waypoint arrow: gold chevron + soft orb. Attached to the scene,
- * not the hero mesh, so it always points toward the objective in world space.
+ * Путевая стрелка в мировых координатах: золотая галочка и мягкий шарик.
+ * Подвешена к сцене, а не к мешу героя, поэтому всегда указывает на цель в мировом
+ * пространстве.
  */
 export function createGuideArrow(): THREE.Group {
   const g = new THREE.Group();
@@ -62,7 +63,7 @@ export function createGuideArrow(): THREE.Group {
   return g;
 }
 
-/** Reposition above hero and aim horizontally at the objective. */
+/** Переставить над героем и навести по горизонтали на цель. */
 export function aimGuideArrow(
   group: THREE.Group,
   hero: THREE.Object3D,

@@ -2,7 +2,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { gameLoadingManager } from './loadProgress';
 
-/** Shared Draco decoder (Meshy/opt GLBs require KHR_draco_mesh_compression). */
+/** Общий декодер Draco: оптимизированным GLB из Meshy нужен KHR_draco_mesh_compression. */
 let sharedDraco: DRACOLoader | null = null;
 
 function getDraco(): DRACOLoader {
@@ -13,10 +13,10 @@ function getDraco(): DRACOLoader {
   return sharedDraco;
 }
 
-/** Always use this instead of `new GLTFLoader()` for game assets. */
+/** Для игровых ассетов всегда использовать это вместо `new GLTFLoader()`. */
 export function createGameGltfLoader(): GLTFLoader {
-  // Shared manager so the loading screen can show real progress instead of
-  // an animation that measures nothing.
+  // Общий менеджер, чтобы экран загрузки показывал настоящий прогресс, а не
+  // анимацию, которая ничего не измеряет.
   const loader = new GLTFLoader(gameLoadingManager);
   loader.setDRACOLoader(getDraco());
   return loader;

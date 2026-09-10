@@ -7,23 +7,23 @@ const SOCKETS = [
 ] as const;
 
 /**
- * Put a set of wardrobe items on an avatar.
+ * Надевает на аватар набор вещей из гардероба.
  *
- * Lifted out of the dressing room because the outfit has to look the same
- * wherever Barsik appears. It lived only in the shop preview, which meant the
- * clothes a child paid stars for existed on exactly one screen — buy a crown,
- * leave the shop, and it is gone. Anything that renders Barsik calls this.
+ * Вынесено из примерочной, потому что наряд обязан выглядеть одинаково везде, где
+ * появляется Барсик. Раньше это жило только в превью магазина, и одежда, за
+ * которую ребёнок платил звёздами, существовала ровно на одном экране: купил
+ * корону, вышел из магазина — и её нет. Теперь это зовёт всё, что рисует Барсика.
  *
- * Returns the meshes it built so the caller can dispose them before dressing
- * again; the avatar itself does not own them.
+ * Возвращает построенные меши, чтобы вызывающий мог освободить их перед следующим
+ * переодеванием: сам аватар ими не владеет.
  */
 export function dressAvatar(
   avatar: BarsikAvatar,
   itemIds: string[],
   baseLook: AvatarLook,
 ): THREE.Object3D[] {
-  // Colours reset first, or removing a recolour leaves the previous one on:
-  // the palette is state, not a mesh.
+  // Сначала сбрасываются цвета, иначе снятие перекраски оставляет предыдущую:
+  // палитра — это состояние, а не меш.
   avatar.setLook(baseLook);
   avatar.setBodyWear({ hoodie: false, jeans: false });
   for (const socket of SOCKETS) avatar.equip(socket, null);
@@ -45,8 +45,8 @@ export function dressAvatar(
     avatar.equip(item.socket, mesh);
     worn.push(mesh);
 
-    // Footwear and mittens come in pairs; the catalogue names one socket and
-    // the other side is mirrored here rather than duplicating every entry.
+    // Обувь и варежки идут парами; каталог называет одно гнездо, а вторая сторона
+    // отзеркаливается здесь, чтобы не дублировать каждую запись.
     if (PAIRED_FEET.has(id)) {
       const other = item.build();
       avatar.equip('footR', other);
@@ -60,7 +60,7 @@ export function dressAvatar(
   return worn;
 }
 
-/** Detach and free meshes returned by {@link dressAvatar}. */
+/** Отсоединяет и освобождает меши, возвращённые {@link dressAvatar}. */
 export function undressAvatar(worn: THREE.Object3D[]) {
   for (const o of worn) {
     o.parent?.remove(o);

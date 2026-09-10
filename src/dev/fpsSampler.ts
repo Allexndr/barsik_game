@@ -1,11 +1,12 @@
 /**
- * Dev FPS sampler — enable with `?fps=1` (logs avg/p5 over ~10s windows).
+ * Отладочный счётчик кадров: включается через `?fps=1` и пишет среднее и
+ * пятипроцентный перцентиль окнами примерно по десять секунд.
  */
 export type FpsSample = { avg: number; p5: number; frames: number; ms: number };
 
 declare global {
   interface Window {
-    /** Read-only runtime samples for QA/devtools; absent in production builds. */
+    /** Замеры только для чтения, для проверки и devtools; в выпускаемой сборке отсутствуют. */
     __fpsSamples?: () => FpsSample[];
     __clearFpsSamples?: () => void;
   }
@@ -41,14 +42,14 @@ export function createFpsSampler(label = 'barsik') {
       }
       const dt = now - last;
       last = now;
-      // Keep slow frames: dropping them made the sampler disappear precisely
-      // on a struggling device. Ignore only multi-second scheduler/navigation
-      // gaps, which are not render-frame measurements.
+      // Медленные кадры сохраняем: их отбрасывание заставляло счётчик исчезать
+      // ровно на том устройстве, которому тяжело. Игнорируем только многосекундные
+      // провалы планировщика и переходов — это не замеры кадров отрисовки.
       if (dt > 0 && dt < 2_000) times.push(dt);
       if (now - windowStart >= 10_000 && times.length > 30) {
         const sorted = [...times].sort((a, b) => a - b);
         const avg = 1000 / (times.reduce((s, v) => s + v, 0) / times.length);
-        // Low FPS percentile from high frame times (95th dt)
+        // Нижний перцентиль частоты кадров считается по большим временам кадра — 95-й процентиль dt.
         const slowDt = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
         const p5Fps = 1000 / slowDt;
         const sample: FpsSample = {

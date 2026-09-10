@@ -3,12 +3,12 @@ import { useEffect, useState } from 'react';
 const SEEN_KEY = 'barsik_rotate_hint_seen';
 
 /**
- * One-time nudge that turning the phone sideways shows more of the world.
+ * Одноразовая подсказка о том, что повёрнутый набок телефон показывает больше мира.
  *
- * Landscape genuinely widens the view, but nothing on screen says so, and a
- * child will not go looking for it. Shown once ever, only on a phone held
- * upright, and only after the level has settled so it does not compete with
- * the opening shot.
+ * Ландшафт действительно расширяет обзор, но на экране об этом ничего не сказано, а
+ * ребёнок сам искать не станет. Показывается один раз за всё время, только на
+ * телефоне, который держат вертикально, и только когда уровень уже устоялся, чтобы
+ * не спорить с первым кадром.
  */
 export function RotateHint({ lang }: { lang: 'ru' | 'kk' }) {
   const [visible, setVisible] = useState(false);
@@ -30,7 +30,7 @@ export function RotateHint({ lang }: { lang: 'ru' | 'kk' }) {
       try {
         localStorage.setItem(SEEN_KEY, '1');
       } catch {
-        /* private mode — showing it again next session is acceptable */
+        /* приватный режим — показать её ещё раз в следующей сессии допустимо */
       }
     }, 12000);
     return () => {
@@ -39,7 +39,7 @@ export function RotateHint({ lang }: { lang: 'ru' | 'kk' }) {
     };
   }, []);
 
-  // Dismiss as soon as they actually rotate — the hint has done its job.
+  // Убираем сразу после реального поворота: подсказка своё дело сделала.
   useEffect(() => {
     if (!visible) return;
     const onRotate = () => {
@@ -47,7 +47,7 @@ export function RotateHint({ lang }: { lang: 'ru' | 'kk' }) {
       try {
         localStorage.setItem(SEEN_KEY, '1');
       } catch {
-        /* ignore */
+        /* не важно */
       }
     };
     window.addEventListener('orientationchange', onRotate);

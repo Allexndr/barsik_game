@@ -23,7 +23,7 @@ function heroMeshStats(gltf: GLTF) {
         roughnessMap?: THREE.Texture | null;
       };
       if (std.map || std.metalnessMap || std.roughnessMap) hasTexturedMat = true;
-      // MCP Hyper3D + Blender exports often land as standard/physical materials.
+      // Экспорты MCP Hyper3D и Blender часто приходят стандартными или физическими материалами.
       if (std.isMeshStandardMaterial || std.isMeshPhysicalMaterial) hasTexturedMat = true;
     }
   });
@@ -31,11 +31,12 @@ function heroMeshStats(gltf: GLTF) {
   return { verts, hasTexturedMat, hasSkin };
 }
 
-/** Rigged hero with walk/idle clips (MCP Hyper3D + Blender, Mixamo, etc.). */
+/** Герой со скелетом и клипами ходьбы и покоя: MCP Hyper3D с Blender, Mixamo и подобное. */
 export function isUsableHeroGlb(gltf: GLTF): boolean {
   if (!gltf.animations.length) return false;
   const { verts, hasTexturedMat, hasSkin } = heroMeshStats(gltf);
   if (verts <= 200 || verts >= MAX_HERO_VERTS) return false;
-  // Prefer textured; allow skinned+animated MCP exports even if texture flags lag.
+  // Предпочитаем текстурированные, но пропускаем экспорты MCP со скином и анимацией,
+  // даже если признаки текстур отстают.
   return hasTexturedMat || hasSkin;
 }
