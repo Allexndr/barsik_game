@@ -7,10 +7,11 @@ export type { Player, Friend };
 export const GAME_SAVE_VERSION = 2;
 
 /**
- * What a replay of an already-cleared level pays, as a share of its reward.
+ * Сколько платит повторное прохождение уже пройденного уровня — доля от его
+ * награды.
  *
- * Season 1 gives out 322 stars and the wardrobe asks 1644, so without this a
- * child could only ever afford 43% of it and had no way to earn more.
+ * Первый сезон выдаёт 322 звезды, а гардероб просит 1644: без этого ребёнок мог
+ * позволить себе лишь 43% и не имел способа заработать больше.
  */
 export const REPLAY_REWARD_SHARE = 0.25;
 
@@ -21,23 +22,23 @@ export interface GameState {
   currentLevel: number;
   levelStars: Record<number, number>;
   /**
-   * Levels finished without a single stumble, by id.
+   * Уровни, пройденные без единого оступания, по номеру.
    *
-   * Separate from `levelStars` because it answers a different question: not
-   * "how much did you collect" but "did you need the level to forgive you".
-   * That is the one the older players care about.
+   * Отдельно от `levelStars`, потому что отвечает на другой вопрос: не «сколько ты
+   * собрал», а «пришлось ли уровню тебя прощать». Именно этот вопрос важен
+   * старшим игрокам.
    */
   levelClean: Record<number, boolean>;
   /**
-   * Everything the player owns, keyed by id. Named for the city decorations
-   * it started as; wardrobe items share it rather than opening a second
-   * inventory that would need its own save migration.
+   * Всё, чем владеет игрок, по идентификаторам. Название осталось от городских
+   * украшений, с которых всё начиналось; вещи гардероба живут здесь же, а не в
+   * втором инвентаре, которому понадобилась бы собственная миграция сохранений.
    */
   cityObjects: Record<string, boolean>;
-  /** Wardrobe item ids currently worn, in the order they were put on. */
+  /** Идентификаторы надетых вещей гардероба, в порядке надевания. */
   outfit: string[];
   stars: number;
-  /** True after winter finale (level 16) is completed at least once. */
+  /** Истина после того, как зимний финал (уровень 16) пройден хотя бы раз. */
   season1Complete: boolean;
 
   setPlayer: (player: Player) => void;
@@ -55,7 +56,7 @@ function savePlayer(player: Player) {
   try {
     localStorage.setItem('barsik_player', JSON.stringify(player));
   } catch {
-    /* ignore */
+    /* не важно */
   }
 }
 
@@ -88,7 +89,7 @@ export const useGameStore = create<GameState>((set) => ({
     try {
       localStorage.removeItem('barsik_player');
     } catch {
-      /* ignore */
+      /* не важно */
     }
     set({
       player: null,
@@ -122,21 +123,20 @@ export const useGameStore = create<GameState>((set) => ({
       const nextBest = Math.max(previousBest, reward.stars);
       const levelStars = { ...state.levelStars, [levelId]: nextBest };
       const alreadyPlayed = state.unlockedLevels.includes(levelId);
-      // Once earned, a clean run stays earned: a later sloppy replay should not
-      // take away something the child already did.
+      // Заработанное чистое прохождение остаётся заработанным: небрежный повтор
+      // позже не должен отнимать то, что ребёнок уже сделал.
       const levelClean = {
         ...state.levelClean,
         [levelId]: state.levelClean[levelId] || reward.clean === true,
       };
-      // First clear pays the full reward. A replay pays a smaller amount, but
-      // it pays every time.
+      // Первое прохождение платит полную награду. Повтор платит меньше, но платит
+      // каждый раз.
       //
-      // Paying only the difference to a new best meant a replay was worth
-      // exactly nothing: the season hands out 322 stars in total against a
-      // wardrobe of 1644, so 57% of it was unreachable for good and there was
-      // no reason to open a finished level again. A quarter of the reward is
-      // small enough that the first clear still feels like the event, and
-      // large enough that coming back is worth doing.
+      // Выплата только разницы до нового рекорда означала, что повтор не стоит
+      // ровно ничего: сезон выдаёт 322 звезды при гардеробе на 1644, то есть 57%
+      // его были недостижимы навсегда, и открывать пройденный уровень заново не
+      // было причины. Четверть награды достаточно мала, чтобы первое прохождение
+      // осталось событием, и достаточно велика, чтобы возвращаться имело смысл.
       const earnedStars = alreadyPlayed
         ? Math.max(nextBest - previousBest, Math.round(reward.stars * REPLAY_REWARD_SHARE))
         : nextBest - previousBest;
@@ -220,13 +220,15 @@ export const useGameStore = create<GameState>((set) => ({
         levelClean: state.levelClean,
         stars,
         cityObjects: state.cityObjects,
-        // `outfit` is optional on the payload and JSON.stringify drops
-        // undefined keys, so omitting it here rewrites the save without one —
-        // and migrateProgress reads a missing outfit as "pre-wardrobe save"
-        // and hands back the starter cap and glasses. The other four persist
-        // calls all pass it. Nothing calls addStars today (completeLevel owns
-        // the reward path, to avoid the double-award this replaced), so this
-        // never fired; it would have the moment a QR or bonus reward used it.
+        // `outfit` в полезной нагрузке необязателен, а JSON.stringify выбрасывает
+        // ключи со значением undefined, поэтому пропуск его здесь переписал бы
+        // сохранение без наряда, — а migrateProgress читает отсутствие наряда как
+        // «сейв до появления гардероба» и возвращает стартовую кепку с очками.
+        // Остальные четыре вызова сохранения его передают. Сегодня addStars никто
+        // не вызывает: путь награды принадлежит completeLevel, чтобы не повторилось
+        // двойное начисление, которое он и заменил, — поэтому это не срабатывало и
+        // сработало бы в тот момент, когда им воспользовалась бы награда за QR или
+        // бонус.
         outfit: state.outfit,
         season1Complete: state.season1Complete,
       });
@@ -261,10 +263,11 @@ export const useGameStore = create<GameState>((set) => ({
     }),
 }));
 
-// QA: reload-after-reward needs to invoke the real reducer (completeLevel's
-// best-per-level diff is what actually prevents double-awarding), not a
-// crafted localStorage payload that would only test the read side. Same
-// dev-only exposure pattern as `window.__level` in levelAudit.ts.
+// Для проверки: сценарий «награда, потом перезагрузка» обязан вызывать настоящий
+// редьюсер — двойное начисление предотвращает именно разница до лучшего
+// результата внутри completeLevel, — а не подложенное значение в localStorage,
+// которое проверило бы только чтение. Та же схема отладочного доступа, что и у
+// `window.__level` в levelAudit.ts.
 if (import.meta.env.DEV && typeof window !== 'undefined') {
   (window as unknown as { __gameStore?: typeof useGameStore }).__gameStore = useGameStore;
 }
@@ -274,7 +277,7 @@ function persistProgress(data: {
   unlockedLevels: number[];
   currentLevel: number;
   levelStars: Record<number, number>;
-  /** Optional: the four callers that do not touch it pass the current map. */
+  /** Необязательно: четыре вызова, которые его не трогают, передают текущую карту. */
   levelClean?: Record<number, boolean>;
   stars: number;
   cityObjects: Record<string, boolean>;
@@ -287,6 +290,6 @@ function persistProgress(data: {
       JSON.stringify({ version: GAME_SAVE_VERSION, ...data }),
     );
   } catch {
-    /* ignore */
+    /* не важно */
   }
 }

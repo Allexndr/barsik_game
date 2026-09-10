@@ -7,27 +7,27 @@ import { CHARS, loadCharModel } from '../scenes/BaseLevelScene';
 import { groundY } from '../modelUtils';
 
 /**
- * The dressing-room renderer.
+ * Отрисовщик примерочной.
  *
- * A shop where you cannot see the thing on your character is a list of names,
- * and the whole reason the avatar is procedural is that trying something on
- * should cost nothing — no download, no loading spinner, no waiting. Equipping
- * here is a synchronous mesh build measured in fractions of a millisecond, so
- * the child can tap through forty items as fast as they can move their finger.
+ * Магазин, где нельзя увидеть вещь на своём персонаже, — это список названий, а
+ * весь смысл процедурного аватара в том, что примерка не должна стоить ничего:
+ * ни загрузки, ни крутилки, ни ожидания. Надевание здесь — синхронная сборка
+ * меша, измеряемая долями миллисекунды, и ребёнок пролистывает сорок вещей так
+ * быстро, как двигает пальцем.
  *
- * Deliberately its own tiny renderer rather than a level scene: it needs one
- * character, three lights and a turntable, and running a full quality pipeline
- * behind a shop list would cost a phone real battery for nothing.
+ * Намеренно собственный крошечный отрисовщик, а не сцена уровня: нужны один
+ * персонаж, три источника света и поворотный круг, а гонять полный конвейер
+ * качества за списком магазина значит впустую тратить батарею телефона.
  *
- * Evidence / QA: `?shopHero=meshy` mounts the Meshy GLB on the turntable
- * instead of the procedural avatar (for settlement screenshots and review).
+ * Для отчётов и проверки: `?shopHero=meshy` ставит на круг GLB из Meshy вместо
+ * процедурного аватара.
  */
 export interface AvatarPreview {
   avatar: BarsikAvatar;
-  /** Apply a set of owned/selected item ids. Order does not matter. */
+  /** Применяет набор идентификаторов купленных и выбранных вещей. Порядок не важен. */
   setOutfit(itemIds: string[]): void;
   setPose(pose: AvatarPose): void;
-  /** Drag support: spin the turntable by hand. */
+  /** Поддержка перетаскивания: круг можно крутить рукой. */
   spinBy(delta: number): void;
   resize(width: number, height: number): void;
   start(): void;
@@ -67,15 +67,16 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
     : THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
-  // Framed tight on purpose. The panel is wide and short, and at a wider
-  // angle the character sat small in the middle of it — a dressing room
-  // where you cannot see the clothes is not doing its job.
+  // Кадр намеренно тесный. Панель широкая и низкая, и при более широком угле
+  // персонаж сидел маленьким посередине: примерочная, в которой не видно одежды,
+  // своей работы не делает.
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 40);
   camera.position.set(0, 0.95, 3.15);
   camera.lookAt(0, 0.8, 0);
 
-  // Three-point rig: the same key/fill/rim ratio the levels use, so an item
-  // does not look like a different game once it is worn outside the shop.
+  // Трёхточечная схема с тем же соотношением ключевого, заполняющего и контрового
+  // света, что на уровнях: надетая вещь не должна выглядеть как из другой игры,
+  // стоит выйти из магазина.
   const key = new THREE.DirectionalLight(0xfff6e8, 2.1);
   key.position.set(2.4, 4, 3);
   key.castShadow = true;
@@ -88,8 +89,8 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
   rim.position.set(-1.2, 2.6, -3.4);
   scene.add(key, fill, rim, new THREE.AmbientLight(0xffffff, 0.35));
 
-  // A soft disc to catch the shadow, so the character is standing on
-  // something rather than floating in a void.
+  // Мягкий диск, принимающий тень, чтобы персонаж стоял на чём-то, а не парил в
+  // пустоте.
   const floor = new THREE.Mesh(
     new THREE.CircleGeometry(1.5, 40),
     new THREE.ShadowMaterial({ opacity: 0.18 }),
@@ -113,7 +114,7 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
   let manualSpin = 0;
   let lastSpinAt = 0;
   const clock = new THREE.Clock();
-  /** Meshes built for the current outfit, disposed when it changes. */
+  /** Меши текущего наряда; удаляются при его смене. */
   let worn: THREE.Object3D[] = [];
   let meshyRoot: THREE.Object3D | null = null;
   const mixers: THREE.AnimationMixer[] = [];
@@ -128,7 +129,8 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
     void (async () => {
       for (const file of MESHY_SHOP_CANDIDATES) {
         if (disposed) return;
-        // Static Meshy exports first — preferStatic avoids a missing *_rigged probe.
+        // Сначала статичные экспорты Meshy: preferStatic избавляет от запроса
+        // отсутствующего файла *_rigged.
         const preferStatic = /meshy_static|quality/i.test(file);
         const model = await loadCharModel(loader, file, 1.05, { preferStatic });
         if (!model) continue;
@@ -145,7 +147,8 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
         box.getSize(size);
         box.getCenter(center);
         const tall = Math.max(size.y, 0.8);
-        // Short shop panel: pull back and use a slightly wider FOV so head+feet fit.
+        // Панель магазина низкая: отходим и берём чуть более широкий угол, чтобы
+        // поместились и голова, и лапы.
         camera.fov = 36;
         camera.position.set(0, Math.max(0.85, center.y), Math.max(4.0, tall * 3.35));
         camera.lookAt(0, Math.max(0.45, center.y * 0.65), 0);
@@ -193,8 +196,8 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
         raf = requestAnimationFrame(loop);
         const dt = Math.min(clock.getDelta(), 0.05);
         const t = clock.elapsedTime;
-        // Idle turntable, paused for a moment after a drag so the child can
-        // look at the side they turned to.
+        // Круг вращается сам, но после перетаскивания замирает на мгновение, чтобы
+        // ребёнок рассмотрел ту сторону, к которой повернул.
         const idleSpin = performance.now() - lastSpinAt > 1600 ? spin * dt : 0;
         turntable.rotation.y += idleSpin + manualSpin;
         manualSpin = 0;
@@ -224,7 +227,7 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
     },
   };
 
-  // Turn a touch or mouse drag on the canvas into a spin.
+  // Превращает касание или перетаскивание мышью по холсту во вращение.
   let dragging = false;
   let lastX = 0;
   const down = (e: PointerEvent) => {
