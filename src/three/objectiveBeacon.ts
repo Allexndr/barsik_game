@@ -1,18 +1,18 @@
 import * as THREE from 'three';
 
 /**
- * A light column standing on the current objective.
+ * Столб света, стоящий над текущей целью.
  *
- * The guide arrow says which way; it cannot say *where*, and on levels whose
- * beats sit tens of metres apart that is not enough — L3's five search stops
- * are 26–36 m from each other with nothing between them, and children
- * playtesting it said "I don't know where to go next" and called the level
- * too hard. A direction alone asks a child to walk on faith across empty
- * ground; a beacon on the horizon is a place to walk to.
+ * Стрелка-указатель говорит, в какую сторону; сказать, *где*, она не может, а на
+ * уровнях, чьи биты стоят в десятках метров друг от друга, этого мало: пять
+ * остановок поиска на L3 разнесены на 26–36 м, и между ними ничего нет, — дети на
+ * тестах говорили «я не знаю, куда идти дальше» и называли уровень трудным. Одно
+ * направление предлагает ребёнку идти через пустое поле на веру; маяк на
+ * горизонте — это место, к которому можно пойти.
  *
- * Drawn without depth testing so it reads over a hill rather than being
- * swallowed by one — the whole point is to be visible before you can see the
- * thing itself. The ground ring keeps depth so it still sits *on* the world.
+ * Рисуется без проверки глубины, чтобы читаться поверх холма, а не тонуть в нём:
+ * весь смысл в том, чтобы его было видно раньше, чем саму цель. Кольцо на земле
+ * глубину сохраняет, поэтому маяк по-прежнему стоит *на* мире.
  */
 
 const BEACON_COLOR = 0xffc857;
@@ -38,8 +38,8 @@ export function createObjectiveBeacon(): THREE.Group {
   column.position.y = COLUMN_HEIGHT / 2;
   column.userData.isGuideArrow = true;
 
-  // Sits on the ground and obeys depth, so the beacon still belongs to the
-  // world instead of floating in front of it.
+  // Лежит на земле и подчиняется глубине, поэтому маяк остаётся частью мира, а не
+  // висит перед ним.
   const ringGeo = new THREE.RingGeometry(0.75, 1.15, 40);
   const ringMat = new THREE.MeshBasicMaterial({
     color: BEACON_COLOR,
@@ -55,18 +55,17 @@ export function createObjectiveBeacon(): THREE.Group {
 
   group.add(column, ring);
 
-  // No dispose of its own: the beacon is a child of the scene, and the
-  // scene's teardown already walks it and frees geometry and materials.
+  // Собственного освобождения ресурсов нет: маяк — потомок сцены, а её разбор уже
+  // обходит его и освобождает геометрию и материалы.
   return group;
 }
 
 /**
- * Place the beacon and breathe it.
+ * Ставит маяк и заставляет его дышать.
  *
- * The ring pulses faster the closer the hero gets — "warmer", with no words
- * and no numbers, which is the only kind of distance readout that works for a
- * child who cannot yet read. `dist` is the flat distance the caller already
- * computed.
+ * Кольцо пульсирует тем чаще, чем ближе герой, — «теплее», без слов и без цифр, а
+ * это единственный вид показания расстояния, который работает для ребёнка, ещё не
+ * умеющего читать. `dist` — плоское расстояние, уже посчитанное вызывающим.
  */
 export function aimObjectiveBeacon(
   beacon: THREE.Group,
@@ -77,7 +76,7 @@ export function aimObjectiveBeacon(
 ) {
   beacon.position.set(target.x, groundY, target.z);
 
-  // 0 far away, 1 right on top of it.
+  // 0 — далеко, 1 — прямо над ним.
   const closeness = THREE.MathUtils.clamp(1 - dist / 40, 0, 1);
   const pulseHz = 0.9 + closeness * 2.4;
   const pulse = 0.5 + 0.5 * Math.sin((now / 1000) * pulseHz * Math.PI * 2);
@@ -85,8 +84,8 @@ export function aimObjectiveBeacon(
   const [column, ring] = beacon.children as THREE.Mesh[];
 
   const columnMat = column.material as THREE.MeshBasicMaterial;
-  // Fades out as the hero arrives: standing inside a light column reads as a
-  // bug, and by then the objective is its own signpost.
+  // Гаснет по мере подхода: стоять внутри светового столба читается поломкой, а к
+  // этому моменту цель и сама себе указатель.
   columnMat.opacity = 0.1 + 0.14 * pulse * (1 - closeness * 0.55);
 
   const ringMat = ring.material as THREE.MeshBasicMaterial;

@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 
 /**
- * Procedural plush snow-leopard cub (ART_DIRECTION) when barsik.glb is absent.
- * Bipedal upright soft-toy: two legs + two arms, big head, green hoodie cue.
+ * Процедурный плюшевый котёнок снежного барса по ART_DIRECTION — на случай, если
+ * barsik.glb отсутствует. Прямоходящая мягкая игрушка: две ноги, две руки,
+ * большая голова, узнаваемое зелёное худи.
  */
 export function createPlushBarsik(): THREE.Group {
   const g = new THREE.Group();
@@ -18,7 +19,7 @@ export function createPlushBarsik(): THREE.Group {
   const jeans = plush(0x4a6fa5, 0.85);
   const glass = plush(0xf1c40f, 0.45);
 
-  // Torso — upright child proportions
+  // Торс — прямоходящие детские пропорции.
   const body = new THREE.Mesh(new THREE.SphereGeometry(0.36, 20, 16), hoodie);
   body.scale.set(1.05, 1.15, 0.95);
   body.position.y = 0.72;
@@ -53,7 +54,7 @@ export function createPlushBarsik(): THREE.Group {
     pupilMesh.position.set(side * 0.12, 1.26, 0.4);
     g.add(eyeWhite, eyeBall, pupilMesh);
 
-    // Yellow glasses on head (brand cue from T-pose ref)
+    // Жёлтые очки на голове — узнаваемая деталь бренда с эталона в T-позе.
     const lens = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.012, 6, 14), glass);
     lens.position.set(side * 0.1, 1.42, 0.12);
     lens.rotation.x = Math.PI / 2;
@@ -76,7 +77,7 @@ export function createPlushBarsik(): THREE.Group {
     g.add(s);
   }
 
-  // Two legs (jeans) — bipedal stance
+  // Две ноги в джинсах — двуногая стойка.
   const legs: THREE.Mesh[] = [];
   for (const side of [-1, 1] as const) {
     const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.28, 6, 8), jeans);
@@ -90,7 +91,7 @@ export function createPlushBarsik(): THREE.Group {
     g.add(paw);
   }
 
-  // Two arms
+  // Две руки.
   const arms: THREE.Mesh[] = [];
   for (const side of [-1, 1] as const) {
     const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.22, 6, 8), hoodie);
@@ -118,7 +119,7 @@ const BODY_Y = 0.72;
 const HEAD_Y = 1.22;
 const TAIL_BASE_X = 0.7;
 
-/** Procedural walk / idle breathe when barsik.glb has no skeleton. */
+/** Процедурная ходьба и дыхание в покое, когда у barsik.glb нет скелета. */
 export function updatePlushLocomotion(root: THREE.Object3D, walking: boolean, t: number) {
   if (!root.userData.isPlushBarsik) return;
 

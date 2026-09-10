@@ -2,29 +2,30 @@ import { KEY_ACORN, KEY_ICE, readFlag, writeFlag } from './castModels';
 import { useGameStore } from '@/store/useGameStore';
 
 /**
- * Facts the save already knows, which used to live only in loose flags.
+ * Факты, которые сейв и так знает, а хранились они только в отдельных флагах.
  *
- * Two levels are gated on an item earned several levels earlier: L9's chest
- * needs the acorn from L5, L16's needs the ice key from L13. That fact used to
- * live only in a bare localStorage entry written by the earlier level and read
- * by the later one. It sits outside `barsik_progress`, so `migrateProgress`
- * never sees it: no version, no migration, and nothing to rebuild it from.
+ * Два уровня закрыты предметом, полученным несколькими уровнями раньше: сундуку на
+ * L9 нужен жёлудь с L5, сундуку на L16 — ледяной ключ с L13. Этот факт жил только
+ * в голой записи localStorage, которую писал ранний уровень и читал поздний. Она
+ * лежит вне `barsik_progress`, поэтому `migrateProgress` её вообще не видит: ни
+ * версии, ни миграции, ни данных, из которых её восстановить.
  *
- * The flag is a cache of something the save already knows. L5 has exactly one
- * way into its outro — take the acorn from the squirrel — and L13 writes the
- * ice key on the same line that ends the level, so "finished L5" *is* "has the
- * acorn". That copy of the fact is the one that gets versioned and migrated.
+ * Флаг — это кеш того, что сейв уже знает. У L5 есть ровно один путь в финал —
+ * забрать жёлудь у белочки, — а L13 записывает ледяной ключ той же строкой,
+ * которой заканчивает уровень: «прошёл L5» *и есть* «есть жёлудь». Именно эта
+ * копия факта версионируется и мигрирует.
  *
- * Deriving it also closes a hole that could not be seen while developing.
- * Both levels granted themselves a spare key under `import.meta.env.DEV`, so
- * the gate that fails is precisely the one no local playthrough ever reaches.
- * In the shipped bundle that branch is dead-code-eliminated — verified in
- * `dist`, where the read compiles to a single `hasAcornKey=j(X)` with no
- * fallback. A save with L5 done and no flag was a chest that never opens, and
- * the only advice on screen was to go and get the key on level 5.
+ * Вывод факта заодно закрывает дыру, которую при разработке увидеть было нельзя.
+ * Оба уровня выдавали себе запасной ключ под `import.meta.env.DEV`, поэтому
+ * ломается ровно та проверка, до которой ни одно локальное прохождение не
+ * доходит. В выпускаемой сборке эта ветка вырезается как мёртвый код — проверено
+ * в `dist`, где чтение компилируется в одну строку `hasAcornKey=j(X)` без
+ * запасного варианта. Сейв с пройденным L5 и без флага означал сундук, который
+ * никогда не откроется, а единственным советом на экране было пойти взять ключ на
+ * пятом уровне.
  */
 
-/** Which level hands the item over. */
+/** Какой уровень выдаёт предмет. */
 const GRANTED_BY: Record<string, number> = {
   [KEY_ACORN]: 5,
   [KEY_ICE]: 13,
@@ -33,21 +34,21 @@ const GRANTED_BY: Record<string, number> = {
 export interface KeyState {
   has: boolean;
   /**
-   * The flag was missing and the key came from the save instead. Nothing is
-   * shown for this — a child who never lost anything should not be told
-   * something was repaired — but it is worth a line in the console.
+   * Флага не было, и ключ взят из сейва. Ребёнку ничего не показывается — тому,
+   * кто ничего не терял, незачем сообщать о починке, — но строки в консоли это
+   * стоит.
    */
   restored: boolean;
 }
 
 /**
- * Does the player hold this key?
+ * Есть ли у игрока этот ключ?
  *
- * Three signals, because the save has three ways of remembering that a level
- * is behind you and a migrated save may not carry all of them. In particular
- * `migrateProgress` defaults `unlockedLevels` to `[]` when the field is absent
- * while parsing `currentLevel` independently, so a save can legitimately say
- * "you are on level 9" with an empty completed set.
+ * Три признака, потому что сейв помнит о пройденном уровне тремя способами, а
+ * мигрированный может нести не все. В частности, `migrateProgress` при
+ * отсутствии поля подставляет в `unlockedLevels` пустой список, а `currentLevel`
+ * разбирает отдельно, — поэтому сейв может законно сообщать «ты на девятом
+ * уровне» с пустым множеством пройденных.
  */
 export function resolveKey(key: string): KeyState {
   if (readFlag(key)) return { has: true, restored: false };
@@ -60,8 +61,8 @@ export function resolveKey(key: string): KeyState {
     currentLevel > from || unlockedLevels.includes(from) || (levelStars[from] ?? 0) > 0;
   if (!earned) return { has: false, restored: false };
 
-  // Self-heal, so the next read is a plain flag read and the two records stop
-  // disagreeing.
+  // Самопочинка: следующее чтение будет обычным чтением флага, и две записи
+  // перестанут противоречить друг другу.
   writeFlag(key, true);
   if (import.meta.env.DEV) {
     console.info(`[inventory] ${key} restored from progress (level ${from} is complete)`);
@@ -69,7 +70,7 @@ export function resolveKey(key: string): KeyState {
   return { has: true, restored: true };
 }
 
-/** Written by Mission 0 on the same line that calls `completeLevel(0, …)`. */
+/** Пишется нулевой миссией той же строкой, которая вызывает `completeLevel(0, …)`. */
 export const INTRO_DONE_KEY = 'barsik_mission0_done';
 
 /**
