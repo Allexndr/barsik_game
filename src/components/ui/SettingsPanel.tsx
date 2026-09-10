@@ -29,11 +29,11 @@ export function SettingsPanel({ onRestart }: SettingsPanelProps) {
   const setScreen = useUIStore((s) => s.setScreen);
   const dialogRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
-  // Pausing used to open this panel straight into language/volume/TTS
-  // controls — a child pressing pause landed on settings, not on
-  // resume/restart/exit. When paused, show a menu first and settings only
-  // on request; outside a pause (this panel has no other caller today) skip
-  // straight to settings as before.
+  // Раньше пауза открывала эту панель сразу на управлении языком, громкостью и
+  // озвучкой: ребёнок, нажавший паузу, попадал в настройки, а не к «продолжить,
+  // заново, выйти». На паузе сначала показывается меню, а настройки — по запросу;
+  // вне паузы (сегодня у этой панели других вызовов нет) сразу настройки, как
+  // раньше.
   const [showSettingsSubview, setShowSettingsSubview] = useState(false);
 
   useEffect(() => {
@@ -57,8 +57,8 @@ export function SettingsPanel({ onRestart }: SettingsPanelProps) {
       const first = dialog?.querySelector<HTMLElement>(focusableSelector);
       (initial ?? first)?.focus();
     };
-    // Defer one frame so focus wins over the pointer event that opened the
-    // pause menu and over any scene-level input listener handling that event.
+    // Откладываем на кадр, чтобы фокус выиграл у события указателя, открывшего
+    // меню паузы, и у любого обработчика ввода на уровне сцены.
     const focusFrame = window.requestAnimationFrame(focusFirst);
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -201,16 +201,16 @@ export function SettingsPanel({ onRestart }: SettingsPanelProps) {
             {ru ? 'Настройки' : 'Параметрлер'}
           </PlushButton>
           <PlushButton variant="ghost" size="md" onClick={handleQuit}>
-            {/* Names the place it actually goes. `handleQuit` calls
-                setScreen('game'), which is the travel map — not a menu.
-                On a phone this is now the only way out of a level, so it
-                had better say where it leads. */}
+            {/* Называет то место, куда действительно ведёт. `handleQuit` вызывает
+                setScreen('game'), а это карта путешествия, а не меню. На телефоне
+                это теперь единственный выход с уровня, так что он обязан сообщать,
+                куда именно ведёт. */}
             {ru ? 'Выйти на карту' : 'Картаға шығу'}
           </PlushButton>
         </div>
         ) : (
         <>
-        {/* Language */}
+        {/* Язык */}
         <div className="settings-row">
           <span className="settings-label" id="settings-language-label">{ru ? 'Язык' : 'Тіл'}</span>
           <div className="settings-lang" role="group" aria-labelledby="settings-language-label">
@@ -229,7 +229,7 @@ export function SettingsPanel({ onRestart }: SettingsPanelProps) {
           </div>
         </div>
 
-        {/* Volume */}
+        {/* Громкость */}
         <div className="settings-row">
           <span className="settings-label" id="settings-volume-label">{ru ? 'Громкость' : 'Дыбыс'}</span>
           <div className="settings-volume">
@@ -256,7 +256,7 @@ export function SettingsPanel({ onRestart }: SettingsPanelProps) {
           </div>
         </div>
 
-        {/* TTS */}
+        {/* Озвучка реплик */}
         <div className="settings-row">
           <span className="settings-label">{ru ? 'Озвучка текста' : 'Мәтін дауысы'}</span>
           <button
@@ -270,7 +270,7 @@ export function SettingsPanel({ onRestart }: SettingsPanelProps) {
           </button>
         </div>
 
-        {/* Narrator gender — packs in voice/ and voice/m/ */}
+        {/* Голос рассказчика — пакеты в voice/ и voice/m/ */}
         <div className="settings-row">
           <span className="settings-label" id="settings-voice-label">
             {ru ? 'Голос' : 'Дауыс'}
@@ -328,8 +328,8 @@ export function SettingsPanel({ onRestart }: SettingsPanelProps) {
           </button>
         </div>
 
-        {/* Back to the pause menu — settings is a nested view while paused,
-            not the first thing a child sees after pressing pause. */}
+        {/* Назад в меню паузы: на паузе настройки — вложенный экран, а не первое,
+            что видит ребёнок, нажав паузу. */}
         {paused && (
           <div className="settings-actions">
             <PlushButton variant="primary" size="lg" onClick={() => setShowSettingsSubview(false)}>

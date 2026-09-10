@@ -86,12 +86,12 @@ const TRAIL_FRUITS: Array<{ z: number; side: number; color: number }> = [
   { z: -3.0, side: 1, color: 0xff6b6b },
   { z: -6.0, side: -1, color: 0xffa502 },
   { z: -9.0, side: 1, color: 0xff6b6b },
-  // Was -11.5: past the creek's near-bank fence (CREEK_Z + CREEK_HALF_WIDTH +
-  // 0.12 = -10.28, collider blocks standing around z≈-10.5) and outside the
-  // BRIDGE_GAP, so no reachable standing spot existed within the 1.6m 3D
-  // pickup radius — verified by exhaustive position sampling. -9.5 keeps this
-  // as the last fruit before the bridge gate (TRAIL_GATE_Z=-12) while staying
-  // on the reachable near side of the fence.
+  // Было −11.5: за оградой ближнего берега ручья (CREEK_Z + CREEK_HALF_WIDTH +
+  // 0.12 = −10.28, коллайдер не даёт стоять около z ≈ −10.5) и вне BRIDGE_GAP, —
+  // то есть ни одной достижимой точки стояния в пределах трёхмерного радиуса
+  // подбора 1.6 м не существовало; проверено полным перебором позиций. Значение
+  // −9.5 оставляет фрукт последним перед воротами моста (TRAIL_GATE_Z = −12) и при
+  // этом на достижимой стороне ограды.
   { z: -9.5, side: -1, color: 0xffa502 },
 ];
 const TRAIL_OFFSET = 3.2;
@@ -151,10 +151,10 @@ const sharedBeamMaterial = new THREE.MeshStandardMaterial({
 });
 
 /**
- * A fruit with a stem and a leaf, not a glowing sphere — the ring and beam
- * already say "quest target"; the mesh itself should say "fruit" on its own,
- * the way the dombra earlier in the season is built rather than a placeholder
- * box because it is the one prop a child has to recognise.
+ * Фрукт с черенком и листом, а не светящаяся сфера: кольцо и луч уже говорят
+ * «цель квеста», а сам меш должен сам по себе говорить «фрукт» — так же, как
+ * домбра раньше в сезоне собрана, а не заменена коробкой-заглушкой, потому что
+ * это тот единственный предмет, который ребёнок обязан узнать.
  */
 function makeFruit(pos: THREE.Vector3, kind: string, color = 0xff4757) {
   const g = new THREE.Group();
@@ -411,7 +411,7 @@ export class Level1Scene extends BaseLevelScene {
     this.praiseUntil = performance.now() + 900;
   }
 
-  /** Walk while trailing; Idle when she catches up. Cross-fade so it isn't a pop. */
+  /** Идёт, пока отстаёт, и стоит, когда догнала. С плавным переходом, чтобы не было щелчка. */
   private setAyaLocomotion(moving: boolean) {
     if (!this.aya || this.ayaMoving === moving) return;
     this.ayaMoving = moving;
@@ -578,13 +578,12 @@ export class Level1Scene extends BaseLevelScene {
 
     this.scene.add(spawnPad(0, 4));
 
-    // The creek used to be two flat blue planes sitting on top of flat
-    // ground — no bank, no depth, so the bridge floated over a puddle
-    // instead of spanning anything. Dig a real channel: a sloped bed that
-    // reaches the surrounding ground exactly at its rim (same y = 0, so
-    // there is no seam), with the bridge deck fixed at the height that used
-    // to be its whole world position and everything else in the level
-    // (spawn at z = 4, thicket at z = -29) far outside the band it touches.
+    // Ручей был двумя плоскими синими плоскостями поверх плоской земли: ни берега,
+    // ни глубины, — и мост висел над лужей, ничего не перекрывая. Копаем настоящее
+    // русло: наклонное дно, выходящее к окружающей земле ровно на своей кромке (та
+    // же y = 0, поэтому шва нет), с настилом моста на той высоте, которая раньше
+    // была всей его мировой позицией, — а всё прочее на уровне (появление на z = 4,
+    // чаща на z = −29) лежит далеко за полосой, которой русло касается.
     const creekDepthAt = (z: number) => {
       const d = Math.abs(z - CREEK_Z);
       if (d >= CREEK_HALF_WIDTH) return 0;
@@ -783,9 +782,9 @@ export class Level1Scene extends BaseLevelScene {
     // Фруктовая тропа первого акта.
     for (const t of TRAIL_FRUITS) {
       const x = trailBend(t.z) + t.side * TRAIL_OFFSET;
-      // groundHeightAt, not a bare 0.5: the creek bank slopes down toward the
-      // water, and an absolute y left fruit #5 floating 2m above the sunken
-      // bank (BUG-001) with fruit #4 only 0.56m from the same fate.
+      // groundHeightAt, а не голые 0.5: берег ручья уходит вниз к воде, и
+      // абсолютная y оставляла пятый фрукт висеть в двух метрах над просевшим
+      // берегом (BUG-001), а четвёртому до той же участи не хватало 0.56 м.
       const f = makeFruit(new THREE.Vector3(x, this.groundHeightAt(x, t.z) + 0.5, t.z), 'trail', t.color);
       this.trailFruits.push(f);
       this.fruits.push(f);
@@ -892,13 +891,12 @@ export class Level1Scene extends BaseLevelScene {
       { key: 'flowers', opts: { x: -6.5, z: -9.2, maxSize: 0.75 } },
       { key: 'flowers_tall', opts: { x: 5, z: -30, maxSize: 0.95 } },
     ]);
-    // `wood_bridge` and `bridge_mini` used to be placed here too, stacked
-    // within half a metre of each other and of the procedural bridge() a few
-    // lines up — three overlapping crossings at the same spot. The dug creek
-    // channel is now sized and shaded to match the procedural bridge and its
-    // support posts specifically; dropping either GLTF one back in without
-    // first checking its real footprint against the new banks would risk
-    // the same clutter again.
+    // Здесь же раньше ставились `wood_bridge` и `bridge_mini` — в полуметре друг от
+    // друга и от процедурного bridge() парой строк выше: три переправы внахлёст в
+    // одной точке. Вырытое русло теперь по размеру и оттенку подогнано именно под
+    // процедурный мост и его опорные столбы; вернуть любой из GLTF-мостов, не
+    // проверив сперва его настоящий след относительно новых берегов, значит
+    // рискнуть повторить ту же кашу.
     await placeAmbientCritters(this.scene, loader, [
       { key: 'frog', x: 4.5, z: -15.5, rotY: -2.0, h: 0.4 },
       { key: 'owl', x: 7, z: -35, rotY: -1.0, h: 0.7 },
@@ -924,8 +922,8 @@ export class Level1Scene extends BaseLevelScene {
     });
 
     this.hero.position.set(0, this.groundHeightAt(0, 4), 4);
-    // The wall. Planted last, so it can read the corridor and every room the
-    // level reserved and hug the outside of both.
+    // Стена. Ставится последней, чтобы прочитать и коридор, и все комнаты, которые
+    // зарезервировал уровень, и обойти их снаружи.
     await this.encloseLevel(loader);
     this.scene.add(this.hero);
     if (!(await this.loadHero(loader))) return;
@@ -1230,9 +1228,10 @@ export class Level1Scene extends BaseLevelScene {
         this.aya.position.y - this.groundHeightAt(this.aya.position.x, this.aya.position.z);
     }
 
-    // Cinematic intro only while the hero is still at spawn. As soon as the
-    // player walks (or QA teleports to a corner), follow — otherwise the hero
-    // leaves the locked intro frustum (`hero-off-frame` block at map edges).
+    // Кинематографическое интро — только пока герой стоит на месте появления. Как
+    // только игрок пошёл (или отладочный телепорт забросил его в угол), камера
+    // следует за ним, иначе герой уходит из запертого кадра интро и по краям карты
+    // появляется `hero-off-frame`.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [new THREE.Vector3(-12, 8, 20), new THREE.Vector3(-5, 6, 12), new THREE.Vector3(-1, 5.5, 8)];

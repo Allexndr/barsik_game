@@ -1,28 +1,28 @@
 /**
- * A face per friend, drawn as SVG.
+ * По одному лицу на друга, нарисованному в SVG.
  *
- * The collection screen used one paw icon for all nine, locked and unlocked
- * alike, so a screen whose whole job is "look what you have and what you are
- * missing" showed nine identical tiles. A collection where every item looks
- * the same is not a collection.
+ * Экран коллекции показывал всем девяти один и тот же значок лапы — и открытым, и
+ * закрытым, — то есть экран, вся работа которого «смотри, что у тебя есть и чего
+ * не хватает», показывал девять одинаковых плиток. Коллекция, где все предметы
+ * выглядят одинаково, — не коллекция.
  *
- * SVG rather than a render of the GLB: nine WebGL canvases on a meta screen is
- * a lot of context for nine thumbnails, the GLBs are megabytes each, and half
- * the roster has no model at all. These are cheap, sharp at any size, and —
- * more useful than either — they still read as a specific character when they
- * are flattened to a silhouette, which is what a locked slot needs to be.
+ * SVG, а не отрисовка GLB: девять полотен WebGL на мета-экране — многовато
+ * контекстов ради девяти миниатюр, каждый GLB весит мегабайты, а у половины
+ * состава модели нет вовсе. Эти дёшевы, чётки на любом размере и — что полезнее
+ * всего — остаются узнаваемым персонажем, даже когда сплющены в силуэт, а именно
+ * силуэтом и должна быть закрытая ячейка.
  */
 
 type Ears = 'round' | 'pointed' | 'tufted' | 'none';
 
 interface FriendFace {
-  /** Head fill, and the colour a locked silhouette ignores. */
+  /** Заливка головы; закрытый силуэт этот цвет игнорирует. */
   fur: string;
-  /** Muzzle / cheeks / belly patch. */
+  /** Морда, щёки, светлое пятно на животе. */
   light: string;
   ears: Ears;
   eye: string;
-  /** Head width relative to height; a snowman is round, a fox is narrow. */
+  /** Ширина головы относительно высоты: снеговик круглый, лис узкий. */
   aspect: number;
   markings?: 'spots' | 'spikes' | 'stitches' | 'none';
   hat?: 'cap' | 'leaf' | 'bucket' | 'hood' | 'none';
@@ -59,8 +59,8 @@ const FACES: Record<string, FriendFace> = {
   },
   ice_master: {
     fur: '#bcd8ea', light: '#e8f4fb', ears: 'none', eye: '#2f6f9f', aspect: 0.88,
-    // Beard in a blue-grey, not white: on a pale blue head, white beard on
-    // white background was invisible.
+    // Борода сине-серая, а не белая: на светло-голубой голове белая борода на
+    // белом фоне была не видна.
     hat: 'hood', hatColor: '#3f6698', accent: '#8fb4d4', beard: true, nose: 'button',
   },
   snowman: {
@@ -90,9 +90,9 @@ export function FriendPortrait({
   const rx = 30 * f.aspect;
   const ry = 30;
 
-  // A locked friend is the same face flattened to one tone. Keeping the shape
-  // is the point: "there is a spiky one I haven't met" is a reason to go and
-  // play, and a padlock is not.
+  // Закрытый друг — то же лицо, сведённое к одному тону. Смысл именно в сохранении
+  // формы: «есть какой-то колючий, с которым я ещё не знаком» — это повод пойти
+  // играть, а замочек — нет.
   const fur = locked ? 'var(--friend-silhouette, #b9c0cc)' : f.fur;
   const light = locked ? 'var(--friend-silhouette, #b9c0cc)' : f.light;
   const accent = locked ? 'var(--friend-silhouette, #b9c0cc)' : (f.accent ?? f.fur);
@@ -159,10 +159,10 @@ export function FriendPortrait({
         </g>
       )}
 
-      {/* Muzzle */}
+      {/* Морда */}
       <ellipse cx={50} cy={62} rx={rx * 0.5} ry={ry * 0.34} fill={light} />
 
-      {/* Eyes — whites only when the friend is known. */}
+      {/* Глаза: белки только у уже известного друга. */}
       <ellipse cx={50 - rx * 0.34} cy={47} rx={7} ry={7.6} fill={locked ? fur : '#ffffff'} />
       <ellipse cx={50 + rx * 0.34} cy={47} rx={7} ry={7.6} fill={locked ? fur : '#ffffff'} />
       <circle cx={50 - rx * 0.34} cy={48} r={4} fill={locked ? 'var(--friend-silhouette-eye, #97a1b0)' : f.eye} />
@@ -201,9 +201,9 @@ export function FriendPortrait({
         </>
       )}
       {f.hat === 'hood' && (
-        // A band around the crown with a peak, drawn as one closed path. The
-        // first version was two arcs of nearly equal radius, which collapsed
-        // into a crescent that read as hair falling over the face.
+        // Полоса вокруг макушки с острым верхом, нарисованная одним замкнутым
+        // контуром. В первой версии это были две дуги почти одинакового радиуса,
+        // схлопывавшиеся в полумесяц, который читался как волосы, падающие на лицо.
         <path
           d={
             `M${50 - rx * 1.12} 54 ` +

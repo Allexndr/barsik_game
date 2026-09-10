@@ -1,19 +1,19 @@
 /**
- * Identity of a spoken line, shared by the build script and the browser.
+ * Идентичность произносимой реплики, общая для скрипта сборки и браузера.
  *
- * The game currently speaks through `window.speechSynthesis`, which hands the
- * job to whatever voice the operating system happens to have. On a Kazakh
- * phrase that is usually nothing at all — Android ships no `kk-KZ` voice — so
- * half the audience gets silence or a Russian voice mangling Kazakh. Neither
- * is acceptable in a game whose players are five and cannot read the line
- * they are missing.
+ * Сейчас игра говорит через `window.speechSynthesis`, а тот отдаёт задачу тому
+ * голосу, который случайно оказался в системе. На казахской фразе это обычно
+ * вообще ничто: Android не поставляет голос `kk-KZ`, — и половина аудитории
+ * получает тишину или русский голос, коверкающий казахский. Ни то, ни другое
+ * недопустимо в игре, чьим игрокам пять лет и которые не могут прочитать
+ * пропущенную реплику.
  *
- * The lines are a fixed, known set, so they should be rendered once, checked
- * once, and shipped as files. This module is the contract between the two
- * halves of that: the extractor names a clip, the player looks up the same
- * name. It has no dependencies for exactly the reason the moderation filter
- * has none — a second copy of the naming rule that drifts from the first is
- * a bug that produces silence, and silence is hard to notice in a test.
+ * Набор реплик фиксирован и известен, поэтому их следует записать один раз,
+ * проверить один раз и поставлять файлами. Этот модуль — договор между двумя
+ * половинами: извлекатель даёт клипу имя, проигрыватель ищет по тому же имени.
+ * Зависимостей у него нет ровно по той же причине, что и у фильтра модерации:
+ * вторая копия правила именования, разошедшаяся с первой, — это ошибка, дающая
+ * тишину, а тишину в тесте трудно заметить.
  */
 
 /**
@@ -28,36 +28,35 @@
  */
 export function normalizeLine(input: string, nick?: string): string {
   let s = input;
-  // At build time the interpolation is still `${n}` and disappears with the
-  // rule below. At run time it is already the child's name, and nothing in
-  // the string marks it as one — so the caller has to say what the name is.
-  // Without this, every line that greets the player missed its clip and fell
-  // back to the browser: caught by fetching the bytes rather than trusting a
-  // 200, since a dev server answers 200 with index.html for anything.
+  // При сборке подстановка ещё выглядит как `${n}` и исчезает по правилу ниже. Во
+  // время работы там уже стоит имя ребёнка, и ничто в строке на это не указывает,
+  // — поэтому вызывающий обязан сказать, какое имя. Без этого каждая реплика,
+  // здоровающаяся с игроком, промахивалась мимо своего клипа и уходила в браузер;
+  // поймано загрузкой самих байтов, а не доверием к коду 200, потому что
+  // dev-сервер отвечает 200 с index.html на что угодно.
   if (nick && nick.trim().length > 1) {
     const esc = nick.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     s = s.replace(new RegExp(`(?<![\\p{L}])${esc}(?![\\p{L}])`, 'giu'), '');
   }
   return s
-    // Interpolations, both the source form and anything already substituted
-    // into a nickname slot.
+    // Подстановки — и в исходном виде, и то, что уже подставлено в место ника.
     .replace(/\$\{[^}]*\}/g, '')
-    // Punctuation left stranded by the removal: ", ." or " ,"
+    // Знаки препинания, осиротевшие после удаления: «, .» или « ,».
     .replace(/\s*,\s*([.!?])/g, '$1')
     .replace(/\s+,/g, ',')
     .replace(/,\s*$/g, '')
-    // Emoji and pictographs are on objectives, not on dialogue, but a stray
-    // one must not change a clip's identity.
+    // Эмодзи и пиктограммы стоят в заданиях, а не в диалогах, но случайно попавший
+    // символ не должен менять идентичность клипа.
     .replace(/[\p{Extended_Pictographic}️]/gu, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 /**
- * FNV-1a, 32-bit, hex. Small, dependency-free, identical in Node and the
- * browser. Collisions are checked for at extraction time rather than assumed
- * away — with a few hundred lines the odds are tiny, but a collision here is
- * one character saying another character's line.
+ * FNV-1a, 32 бита, в шестнадцатеричном виде. Маленький, без зависимостей,
+ * одинаковый в Node и в браузере. Коллизии проверяются при извлечении, а не
+ * объявляются невозможными: на нескольких сотнях реплик вероятность крошечная, но
+ * коллизия здесь — это один персонаж, произносящий реплику другого.
  */
 export function lineId(text: string, lang: 'ru' | 'kk', nick?: string): string {
   const key = `${lang}:${normalizeLine(text, nick).toLowerCase()}`;
@@ -69,12 +68,12 @@ export function lineId(text: string, lang: 'ru' | 'kk', nick?: string): string {
   return h.toString(16).padStart(8, '0');
 }
 
-/** Written by scripts/extract-voice-lines.mjs, read by AudioManager. */
+/** Пишется scripts/extract-voice-lines.mjs, читается AudioManager. */
 export interface VoiceManifest {
   version: number;
-  /** File extension the clips were rendered to, without the dot. */
+  /** Расширение файлов, в которые записаны клипы, без точки. */
   format: string;
-  /** id → the text it was rendered from, for debugging a wrong clip. */
+  /** Идентификатор и текст, из которого он записан, — чтобы разобраться с неверным клипом. */
   lines: Record<string, { lang: 'ru' | 'kk'; text: string }>;
 }
 
