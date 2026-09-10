@@ -9,17 +9,17 @@ import { CAST_PROP_GLB, KEY_ICE, writeFlag } from '../castModels';
 import { AudioManager } from '@/audio/AudioManager';
 
 /**
- * Level 13 «Ледяные скульптуры» — GDD Level 13.
+ * Уровень 13 «Ледяные скульптуры» — уровень 13 по GDD.
  *
- * Three acts rather than one flat fetch loop:
- *   learn  — one shard close by, master demonstrating;
- *   gather — four more from across a wide field, statue building 1/5→5/5;
- *   polish — circle the finished statue and work three faces, which shows
- *            it from every side and pays off with the ice key for L16.
+ * Три акта вместо одного плоского цикла «принеси»:
+ *   learn  — один осколок рядом, мастер показывает как;
+ *   gather — ещё четыре с широкого поля, скульптура растёт 1/5 → 5/5;
+ *   polish — обойти готовую скульптуру и обработать три грани, что показывает
+ *            её со всех сторон и окупается ледяным ключом для L16.
  *
- * The polish act deliberately uses a different verb from the two fetch
- * acts. Repeating "carry five more things" would have added minutes
- * without adding a second thing to learn.
+ * Акт полировки намеренно берёт глагол, отличный от двух актов «принеси».
+ * Повторённое «отнеси ещё пять предметов» добавило бы минут, но не добавило бы
+ * второй вещи, которой учатся.
  */
 
 export type L13Phase = 'intro' | 'learn' | 'gather' | 'polish' | 'outro';
@@ -34,16 +34,17 @@ export interface L13Hud extends BaseHud {
 
 /** Первый осколок рядом и на виду; до остальных надо идти. */
 /**
- * Legs of 13 to 15 metres, not 20 to 29.
+ * Плечи по 13–15 метров, а не по 20–29.
  *
- * The five shards used to sit 98 metres apart end to end — half a minute of
- * walking across empty snow with nothing between one and the next, which is
- * the same shape that made L3 the level children called «слишком тяжёлый».
- * Measured in a playthrough at 15 to 20 seconds per shard.
+ * Пять осколков раньше стояли на 98 метрах из конца в конец — полминуты ходьбы
+ * по пустому снегу, где между одним и следующим нет ничего, а это ровно та
+ * форма, из-за которой L3 стал уровнем, который дети назвали «слишком
+ * тяжёлый». Замерено в прохождении: 15–20 секунд на осколок.
  *
- * Still a zigzag that uses the width of the valley and still circles the
- * statue, but the next shard is visible from the one you just picked up.
- * Kept clear of the polishing stations so the two beats do not overlap.
+ * По-прежнему зигзаг, использующий всю ширину долины, и по-прежнему обход
+ * скульптуры, но следующий осколок виден с того места, где подобран
+ * предыдущий. Держится в стороне от станций полировки, чтобы два бита не
+ * накладывались.
  */
 const SHARDS: Array<[x: number, z: number]> = [
   [-6, -3],

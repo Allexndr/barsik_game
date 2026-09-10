@@ -89,12 +89,12 @@ const BLOCKED_ROOTS: readonly string[] = [
 ];
 
 /**
- * Latin roots, checked against a Latin-normalised copy.
+ * Латинские корни — сверяются с копией, нормализованной в латиницу.
  *
- * They cannot live in the Cyrillic list: folding is one-way and lossy, so
- * "fuck" lands on «фиск» while a hand-written «фуцк» expects u→у and c→ц. One
- * mapping cannot satisfy both, and guessing produced a list that matched
- * nothing. Two passes, each over the alphabet it was written for.
+ * В кириллическом списке им не место: свёртка односторонняя и с потерями,
+ * поэтому "fuck" приходит к «фиск», тогда как написанное от руки «фуцк» ждёт
+ * u→у и c→ц. Одно отображение не устраивает обоих, а попытки угадать давали
+ * список, не ловивший ничего. Два прохода, каждый по своему алфавиту.
  */
 const BLOCKED_LATIN: readonly string[] = [
   'fuck', 'fuk', 'shit', 'bitch', 'cunt', 'asshol', 'nigg', 'dick', 'whore',
@@ -119,10 +119,10 @@ function normalizeLatin(input: string): string {
 }
 
 /**
- * Words that contain a blocked root but are not the blocked word.
+ * Слова, содержащие запрещённый корень, но запрещённым словом не являющиеся.
  *
- * «Сукачёв» is a surname, «мудрость» is not «муда», and a filter that costs a
- * child their own name is a bug in the filter.
+ * «Сукачёв» — фамилия, «мудрость» — не «муда», а фильтр, стоящий ребёнку
+ * собственного имени, — это баг фильтра.
  */
 const ALLOW_LIST: readonly string[] = [
   'сукачев', 'сукал', 'сукно', 'сукин', // сук- family
@@ -133,11 +133,12 @@ const ALLOW_LIST: readonly string[] = [
 ];
 
 /**
- * Looks like a way to continue the conversation somewhere unmoderated.
+ * Похоже на попытку увести разговор туда, где нет модерации.
  *
- * Note the lookarounds instead of \b on the Cyrillic alternation: in
- * JavaScript \b is defined against [A-Za-z0-9_], so `\bтг\b` never matches
- * inside Russian text — «напиши в тг» passed the filter untouched.
+ * Обратить внимание на просмотры вместо \b в кириллическом перечислении: в
+ * JavaScript \b определён относительно [A-Za-z0-9_], поэтому `\bтг\b` внутри
+ * русского текста не срабатывает никогда — «напиши в тг» проходил фильтр
+ * нетронутым.
  */
 const CONTACT_PATTERNS: readonly RegExp[] = [
   /\d[\s\-()]*\d[\s\-()]*\d[\s\-()]*\d[\s\-()]*\d[\s\-()]*\d/, // шесть и более цифр

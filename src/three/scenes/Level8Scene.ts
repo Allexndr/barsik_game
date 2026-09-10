@@ -19,24 +19,25 @@ import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeAmbientCritters } from '../s1Place';
 
 /**
- * Level 9 «Лесной праздник» — GDD Chapter 1 Level 8.
+ * Уровень 9 «Лесной праздник» — уровень 8 главы 1 по GDD.
  *
- * Was a single `decorate` phase holding twelve identical interactions —
- * walk to a glowing ring, press E, twelve times — inside a 24×22 box where
- * every one of those rings was visible from the spawn pad. Nothing was found,
- * nothing was carried, and nothing changed except a counter.
+ * Была одна фаза `decorate` на двенадцать одинаковых взаимодействий — подойти
+ * к светящемуся кольцу, нажать E, двенадцать раз — внутри коробки 24×22, где
+ * все эти кольца видны прямо со стартовой площадки. Ничего не находилось,
+ * ничего не переносилось, и не менялось ничего, кроме счётчика.
  *
- * Rebuilt as three acts with three different verbs, along a 40-metre walk from
- * the forest edge to the festival glade:
+ * Пересобран в три акта с тремя разными глаголами, вдоль сорокаметрового пути
+ * от кромки леса к праздничной поляне:
  *
- *   1. LIGHT   — five lanterns along the path. Evening falls as they are lit,
- *                so the act has a visible consequence rather than a tally.
- *   2. HANG    — three garlands, each strung from its tree to the next, so the
- *                third one closes a triangle of lights around the glade.
- *   3. CARRY   — four fruits growing out in the forest, carried back one at a
- *                time and stacked on the table.
+ *   1. LIGHT   — пять фонарей вдоль тропы. По мере того как их зажигают,
+ *                наступает вечер, поэтому у акта есть видимое следствие, а не
+ *                итог в счётчике.
+ *   2. HANG    — три гирлянды, каждая натянута от своего дерева к следующему,
+ *                поэтому третья замыкает вокруг поляны треугольник огней.
+ *   3. CARRY   — четыре фрукта, растущие в лесу; их приносят по одному и
+ *                складывают на стол.
  *
- * Then the friends walk in out of the treeline and Путало takes the photo.
+ * Затем из-за деревьев выходят друзья, и Путало делает фотографию.
  */
 
 export type FestivalPhase =

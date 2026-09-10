@@ -93,12 +93,12 @@ function isSafeName(row: LeaderboardRow): boolean {
 }
 
 /**
- * Best row per player.
+ * Лучшая строка на игрока.
  *
- * The table has one row per submission rather than per player, so the same
- * name appears several times — «Гульмира» sat at ranks 3 and 4 with the same
- * 13 stars. Two rows for one child is not a ranking, and it pushes everyone
- * below them down a place for nothing.
+ * В таблице по строке на отправку, а не на игрока, поэтому одно имя встречается
+ * несколько раз — «Гульмира» стояла на 3-м и 4-м месте с одними и теми же
+ * 13 звёздами. Две строки на одного ребёнка — это не рейтинг, и всех, кто ниже,
+ * такая строка сдвигает на место вниз просто так.
  */
 function dedupeByName(rows: LeaderboardRow[]): LeaderboardRow[] {
   const best = new Map<string, LeaderboardRow>();

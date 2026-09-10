@@ -24,29 +24,30 @@ export function fitMaxSize(root: THREE.Object3D, s: number) {
 }
 
 /**
- * Height of the display plinth a generated character is standing on, as a
- * fraction of the model's total height. 0 when there is no plinth.
+ * Высота подставки, на которой стоит сгенерированный персонаж, — долей от
+ * полной высоты модели. Ноль, если подставки нет.
  *
- * Returned as a fraction on purpose: the mesh's world scale is not settled at
- * the point a loader wants this answer (the model is not in the scene graph
- * yet, so matrixWorld is stale), and reading it there silently mixes local and
- * world units. A fraction is the same number in both.
+ * Возвращается именно долей, и намеренно: мировой масштаб меша ещё не
+ * устоялся в тот момент, когда загрузчику нужен ответ (модель пока не в графе
+ * сцены, поэтому matrixWorld устарел), и чтение там молча смешивает локальные
+ * единицы с мировыми. Доля — одно и то же число и там, и там.
  *
- * Meshy hands back figures posed on a little presentation slab. It is welded
- * into the same mesh as the character, with the same material, so it cannot be
- * removed by deleting a child — and in game it reads as every friend standing
- * on a gold trophy base.
+ * Meshy отдаёт фигуры, поставленные на маленькую презентационную плиту. Она
+ * приварена к тому же мешу, что и персонаж, с тем же материалом, поэтому
+ * удалением ребёнка её не снять, — а в игре это читается так, будто каждый
+ * друг стоит на золотом пьедестале.
  *
- * Found by the *step* in vertex density, not by its level. A plinth is a few
- * quads spanning the full footprint, and it ends in a flat top, so the slab
- * above it jumps by an order of magnitude — Aya goes 154 → 1243 across that
- * line, Путало 82 → 1049. A real body has no such edge: the hedgehog's
- * densest bottom transition is 3× and the squirrel's is 1.5×.
+ * Находится по *скачку* плотности вершин, а не по её уровню. Подставка — это
+ * несколько квадов во всю опорную площадь, и заканчивается она плоским верхом,
+ * поэтому плита над ней прыгает на порядок: у Айи 154 → 1243 через эту линию,
+ * у Путало 82 → 1049. У настоящего тела такого перепада нет: у ежа самый
+ * плотный нижний переход — 3×, у белки — 1.5×.
  *
- * Absolute density alone does not separate them. The hedgehog's bottom slab is
- * as sparse as Aya's, so any threshold low enough to catch Путало's base also
- * buries the hedgehog to the knees. The width guard is kept as well: a plinth
- * spans the model's whole footprint, so a bird on thin legs cannot qualify.
+ * Одной абсолютной плотности недостаточно. Нижняя плита ежа так же разрежена,
+ * как у Айи, поэтому любой порог, достаточно низкий, чтобы поймать подставку
+ * Путало, закапывает ежа по колено. Проверка по ширине тоже оставлена:
+ * подставка занимает всю опорную площадь модели, поэтому птица на тонких
+ * лапах под неё не подойдёт.
  */
 export function measurePlinthFraction(root: THREE.Object3D): number {
   const meshes: THREE.Mesh[] = [];

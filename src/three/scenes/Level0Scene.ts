@@ -25,53 +25,52 @@ import {
 } from './level0/yurtInterior';
 
 /**
- * Level 0 «Тропа домбры» — the first three minutes of the game.
+ * Уровень 0 «Тропа домбры» — первые три минуты игры.
  *
- * This replaces «Первое утро» outright. Nothing of that level survives: not
- * waking up in bed, not the apple that falls and rolls away, not chasing it,
- * not picking fruit off branches, not the bird, and not the gardener's
- * fetch-three-apples errand. Those were one verb — walk up to a thing and
- * press — dressed four different ways, and the first level of a game is the
- * one place that cannot afford to be a tutorial with a story stapled on.
+ * Он целиком заменяет «Первое утро». От того уровня не осталось ничего: ни
+ * пробуждения в кровати, ни падающего и укатывающегося яблока, ни погони за
+ * ним, ни срывания фруктов с веток, ни птицы, ни поручения садовника принести
+ * три яблока. Всё это было одним глаголом — подойти к предмету и нажать, —
+ * одетым четырьмя разными способами, а первый уровень игры — единственное
+ * место, которое не может позволить себе быть туториалом с пришитой историей.
  *
- * ── What this level is about ─────────────────────────────────────────────
+ * ── О чём этот уровень ───────────────────────────────────────────────────
  *
- * Barsik is a snow leopard cub. Snow leopards live up in the mountains, and
- * the whole season ends by going back there — so the interesting fact about
- * him on his first morning is that **he does not belong here yet**. He is a
- * mountain animal standing in a fruit forest at the bottom of the world.
+ * Барсик — детёныш снежного барса. Снежные барсы живут высоко в горах, и весь
+ * сезон заканчивается возвращением туда, — поэтому самое интересное про него в
+ * это первое утро то, что **он здесь пока чужой**. Горный зверь стоит во
+ * фруктовом лесу на дне мира.
  *
- * A night wind has been through the forest. Somewhere ahead a dombra is
- * playing, and the melody keeps breaking off. Following it is the level.
- * Each time the music stops, the wind has done something that Barsik can put
- * right, and each thing he puts right teaches exactly one control:
+ * Ночью по лесу прошёл ветер. Где-то впереди играет домбра, и мелодия всё
+ * время обрывается. Идти на неё — и есть уровень. Каждый раз, когда музыка
+ * смолкает, ветер натворил что-то, что Барсик может поправить, и каждая такая
+ * поправка учит ровно одному управлению:
  *
- *   1. `follow`   — the dombra is the only thing telling you where to go, and
- *                   it gets louder as you close. Teaches: move, and that this
- *                   world answers being looked at and listened to.
- *   2. `lanterns` — the wind blew the path lanterns over. Stand three back up
- *                   and the path lights itself. Teaches: interact. It is
- *                   deliberately not collecting — nothing goes in a bag, the
- *                   world just gets better.
- *   3. `crossing` — the stream came up in the night. Stepping stones.
- *                   Teaches: jump, with a real consequence and no failure —
- *                   a miss is a splash, a shake, and a climb back out.
- *   4. `mend`     — the yurt's felt has torn loose and is flapping. Peg it
- *                   down. Teaches: that the point of this game is doing
- *                   something for someone else.
+ *   1. `follow`   — домбра — единственное, что говорит, куда идти, и звучит
+ *                   громче по мере приближения. Учит: двигаться и тому, что
+ *                   этот мир отвечает, когда на него смотрят и слушают.
+ *   2. `lanterns` — ветер повалил фонари вдоль тропы. Поставить три обратно —
+ *                   и тропа зажигается сама. Учит: взаимодействовать. И
+ *                   намеренно не сбору: ничего не кладётся в сумку, просто
+ *                   миру становится лучше.
+ *   3. `crossing` — за ночь поднялся ручей. Камни для переправы. Учит: прыгать
+ *                   с настоящим последствием и без проигрыша — промах это
+ *                   всплеск, встряска и подъём обратно.
+ *   4. `mend`     — войлок юрты оторвался и хлопает на ветру. Приколоть его.
+ *                   Учит: смысл этой игры — сделать что-то для другого.
  *
- * Then the dombra plays whole for the first time, the gardener looks up at
- * the mountains and names them, and the season has a destination.
+ * Потом домбра впервые играет целиком, садовник поднимает взгляд на горы и
+ * называет их, и у сезона появляется цель.
  *
- * No fail state anywhere, per canon: a mistake is a thing you learn from.
+ * Проигрыша нет нигде, по канону: ошибка — то, чему учатся.
  *
- * ── Why it is built on BaseLevelScene ────────────────────────────────────
+ * ── Почему он на BaseLevelScene ──────────────────────────────────────────
  *
- * The old Mission 0 was 2 405 lines carrying private copies of `bush`,
- * `tulip`, `spawnPad`, `pathArrow`, `groundY` and even its own `loadGlb` —
- * which is why every sweeping repair this season had to be applied to it
- * twice, and why it kept being the level that still had the bug. It shares
- * the base class now, like the other sixteen.
+ * Старая Mission 0 была на 2 405 строк и несла собственные копии `bush`,
+ * `tulip`, `spawnPad`, `pathArrow`, `groundY` и даже собственный `loadGlb` —
+ * поэтому каждую сквозную починку сезона приходилось применять к ней дважды, и
+ * поэтому она раз за разом оставалась тем уровнем, где баг ещё жив. Теперь она
+ * на общем базовом классе, как и остальные шестнадцать.
  */
 
 // ── Планировка ────────────────────────────────────────────────────────────

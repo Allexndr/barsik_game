@@ -128,12 +128,12 @@ function socketAt(parent: THREE.Object3D, x: number, y: number, z: number): THRE
 }
 
 /**
- * Push a sphere's vertices into a shape.
+ * Продавить вершины сферы в нужную форму.
  *
- * Scaling a sphere can only ever produce an ellipsoid, and an ellipsoid head
- * on an ellipsoid body is exactly the "колобок" read. Moving the vertices
- * themselves costs nothing at runtime — it happens once, at build — and is the
- * difference between a ball with a face drawn on it and a skull.
+ * Масштабированием из сферы получается только эллипсоид, а эллипсоидная голова
+ * на эллипсоидном теле — это ровно тот самый «колобок». Двигать сами вершины в
+ * рантайме ничего не стоит: это происходит один раз, при сборке, — и именно оно
+ * отличает череп от шарика с нарисованным лицом.
  */
 function deform(geo: THREE.BufferGeometry, fn: (v: THREE.Vector3) => void): THREE.BufferGeometry {
   const pos = geo.attributes.position as THREE.BufferAttribute;

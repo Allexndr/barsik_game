@@ -127,7 +127,7 @@ export function HubScreen({ embedded = false }: { embedded?: boolean } = {}) {
       scene.dispose();
     };
     // friendKey, не friends: ссылка массива меняется чаще, чем состав.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- friends read via friendKey
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- friends читаются через friendKey
   }, [lang, player?.nick, place, friendKey]);
 
   const phrases = useMemo(() => CHAT_PHRASES.filter((p) => p.group === group), [group]);

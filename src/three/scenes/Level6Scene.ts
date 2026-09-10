@@ -16,9 +16,10 @@ import { placeAmbientCritters, placeS1Char } from '../s1Place';
 import { makePutalo } from './Level7Scene';
 
 /**
- * Level 7 «Лесная загадка» — GDD Chapter 1 Level 6:
- * Choice mechanic. Three magic trees, a talking stump asks riddles.
- * Walk to the correct tree and press E. Wrong = gentle shake, right = bloom + star.
+ * Уровень 7 «Лесная загадка» — уровень 6 главы 1 по GDD:
+ * механика выбора. Три волшебных дерева, говорящий пень загадывает загадки.
+ * Подойти к нужному дереву и нажать E. Неверно — мягкая встряска, верно —
+ * цветение и звезда.
  */
 
 // ── Планировка ──────────────────────────────────────────────────
@@ -37,16 +38,15 @@ const STUMP = { x: 0, z: 2 };
 // загадку о самом высоком дереве нельзя ответить из-за деревьев, которые выше
 // всех трёх.
 /**
- * `nests` and `hedgehog` are the facts the riddles ask about, and both are
- * placed so that they cannot be seen from the stump.
+ * `nests` и `hedgehog` — те самые факты, о которых спрашивают загадки, и оба
+ * поставлены так, что от пня их не видно.
  *
- * That is the point of the rewrite. Two of the three riddles used to name
- * their own answer — «Какое дерево любит красные яблоки?» is answered
- * «Красное», and «На каком дереве птичка с жёлтым хвостом?» is answered
- * «Жёлтое» — so a child who never once looked at the forest scored two out of
- * three by matching a colour word in the question to a colour word in the
- * list. In a level called «Лесная загадка», whose whole mechanic is `choice`,
- * the choice carried no information.
+ * В этом и смысл переработки. Две загадки из трёх раньше называли собственный
+ * ответ: на «Какое дерево любит красные яблоки?» отвечали «Красное», на «На
+ * каком дереве птичка с жёлтым хвостом?» — «Жёлтое», — поэтому ребёнок, ни
+ * разу не посмотревший на лес, набирал две из трёх, сопоставляя слово-цвет из
+ * вопроса со словом-цветом из списка. В уровне под названием «Лесная загадка»,
+ * вся механика которого — `choice`, выбор не нёс никакой информации.
  */
 const TREES: Array<{
   x: number; z: number; color: number; label: string; height: number; bird: boolean;
@@ -287,10 +287,10 @@ export class Level6Scene extends BaseLevelScene {
   /** После неверного ответа нужно вернуться к пеньку. */
   private mustReturnToStump = false;
   /**
-   * The outro line promises «там за поляной кто-то фотографирует» — Putalo,
-   * met properly next level. Visible the whole level (see loop) rather than
-   * gated to outro, since outro itself is covered within one tick by
-   * MissionScreen's level-complete card.
+   * Реплика финала обещает «там за поляной кто-то фотографирует» — это Путало,
+   * с которым как следует знакомятся на следующем уровне. Виден весь уровень
+   * (см. loop), а не только в outro: сам outro в тот же тик перекрывается
+   * карточкой завершения уровня из MissionScreen.
    */
   private readonly putaloPos = { x: -5, z: -28 };
   private putaloGlimpse: THREE.Group | null = null;

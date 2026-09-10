@@ -8,16 +8,15 @@ import { placeAmbientCritters, placeS1Prop } from '../s1Place';
 import { AudioManager } from '@/audio/AudioManager';
 
 /**
- * Level 15 «Спасти снеговика» — GDD Level 15.
+ * Уровень 15 «Спасти снеговика» — уровень 15 по GDD.
  *
- * Structured as three acts so the soft timer has somewhere to build:
- *   first    — one drift close by, fully guided: learn carry and deliver;
- *   pressure — two more from across the field, sun out, timer biting;
- *   features — the snowman is stable, now give him his face back.
+ * Выстроен в три акта, чтобы мягкому таймеру было куда нарастать:
+ *   first    — один сугроб рядом, с полной подсказкой: учимся нести и отдавать;
+ *   pressure — ещё два с другого конца поля, солнце вышло, таймер поджимает;
+ *   features — снеговик устойчив, теперь вернуть ему лицо.
  *
- * The old version was one flat loop of three short round trips (~60s of
- * play against a 260s target) with the timer already at full pressure on
- * the very first pickup.
+ * Старая версия была одним плоским циклом из трёх коротких ходок (~60 с игры
+ * при плановых 260 с), причём таймер давил на полную уже на первом сугробе.
  */
 
 export type L15Phase = 'intro' | 'first' | 'pressure' | 'features' | 'outro';

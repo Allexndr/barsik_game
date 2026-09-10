@@ -17,14 +17,14 @@
  */
 
 /**
- * Everything that must be identical between "the text we rendered" and "the
- * text we are about to speak".
+ * Всё, что обязано совпадать между «текстом, который мы показали» и «текстом,
+ * который сейчас произнесём».
  *
- * Interpolations are dropped rather than rendered. `Собери печати, ${n}.`
- * cannot be one clip, because `n` is whatever the child typed at the start.
- * A recorded voice that skips the name is normal in children's games; the
- * alternative is falling back to the robot for every line that greets them,
- * which would be most of them.
+ * Подстановки отбрасываются, а не подставляются. `Собери печати, ${n}.` не
+ * может быть одним клипом: `n` — это то, что ребёнок ввёл в самом начале.
+ * Записанный голос, пропускающий имя, — норма для детских игр; иначе на
+ * робота пришлось бы откатываться в каждой реплике с обращением, а таких
+ * почти все.
  */
 export function normalizeLine(input: string, nick?: string): string {
   let s = input;

@@ -25,9 +25,9 @@ import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeAmbientCritters } from '../s1Place';
 
 /**
- * Level 4 «Потерявшийся ёжик» — GDD Chapter 1 Level 3:
- * Tracking. Follow the footprints from stop to stop; the last one has the
- * hedgehog, the rest hold a bonus star and a clue to the next.
+ * Уровень 4 «Потерявшийся ёжик» — уровень 3 главы 1 по GDD:
+ * выслеживание. Идти по следам от остановки к остановке; на последней ёжик,
+ * на остальных — бонусная звезда и подсказка к следующей.
  */
 
 // Поиск был тремя маркерами, которые можно нажимать в любом порядке, с
@@ -96,17 +96,17 @@ function makeQuestionBubble(x: number, z: number): THREE.Group {
 }
 
 /**
- * One footprint: a pad and three toes, turned to face the way it is going.
+ * Один отпечаток: подушечка и три пальца, повёрнутые по ходу движения.
  *
- * It used to be a flat 0.12m circle at y = 0.03 — a 24cm brown disc lying in
- * grass whose blades are taller than it is. Rendered from straight overhead at
- * 22 metres it was not visible at all, and at the level's own camera distance
- * it was two or three pixels. The whole level is «иди по следам», so a trail
- * the child cannot see is the level not working.
+ * Раньше это был плоский круг 0.12 м на y = 0.03 — коричневый диск 24 см,
+ * лежащий в траве, стебли которой выше него. С высоты 22 метров прямо сверху
+ * он не был виден вовсе, а с камерной дистанции самого уровня занимал два-три
+ * пикселя. Весь уровень — это «иди по следам», поэтому след, которого ребёнок
+ * не видит, — это неработающий уровень.
  *
- * A paw shape rather than a bigger dot, because the shape is what says
- * "an animal went through here", and pointing it along the route makes the
- * print itself the direction clue.
+ * Форма лапы, а не точка побольше, потому что именно форма говорит «здесь
+ * прошёл зверь», а разворот по маршруту делает сам отпечаток указателем
+ * направления.
  */
 function makeTrack(x: number, z: number, heading = 0): THREE.Group {
   const g = new THREE.Group();

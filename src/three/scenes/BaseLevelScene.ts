@@ -1438,12 +1438,12 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Place props and make them solid.
+   * Расставить пропсы и сделать их твёрдыми.
    *
-   * placeMany only ever added meshes to the scene, and colliders were pushed
-   * by hand for trees alone — so logs, benches, tents, tables and rocks were
-   * all walk-through. That is what "проваливаюсь сквозь текстуры" is: the
-   * hero passing straight into scenery that plainly looks solid.
+   * placeMany всегда только добавлял меши в сцену, а коллайдеры руками
+   * навешивались одним лишь деревьям — поэтому брёвна, лавки, палатки, столы и
+   * камни насквозь проходились. Именно это и есть «проваливаюсь сквозь
+   * текстуры»: герой входит прямо в декорацию, которая явно выглядит твёрдой.
    */
   protected async placeProps(
     loader: GLTFLoader,
@@ -1840,27 +1840,28 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Player-controlled camera orbit.
+   * Орбита камеры под управлением игрока.
    *
-   * Playtest with a child: "чтобы можно было ... ещё поворачивать". Every
-   * level drove a fixed follow camera, so the player could never look around
-   * a tree or check what was behind them.
+   * Плейтест с ребёнком: «чтобы можно было ... ещё поворачивать». Все уровни
+   * вели фиксированную камеру-преследователя, поэтому игрок не мог ни
+   * заглянуть за дерево, ни посмотреть, что позади.
    *
-   * Applied here rather than in each level's camera block: levels compute a
-   * position and lookAt of their own, and this rotates the finished result
-   * rigidly about the hero, so framing, pitch and distance are preserved and
-   * no level needed changing.
+   * Применяется здесь, а не в камерном блоке каждого уровня: уровни считают
+   * собственные position и lookAt, а это вращает готовый результат жёстко
+   * вокруг героя, поэтому кадрирование, наклон и дистанция сохраняются и ни
+   * один уровень править не пришлось.
    */
   /**
-   * Orbit as a view transform, applied at render and undone straight after.
+   * Орбита как видовое преобразование: применяется на отрисовке и сразу
+   * откатывается.
    *
-   * It used to rotate the camera's stored position and leave it rotated. Every
-   * level then lerped that already-rotated position back toward a target
-   * computed without the orbit, and the next frame rotated the result again by
-   * the full angle. So the rotation compounded while something pulled against
-   * it — which is what "очень резко и неровно" is. Saving and restoring keeps
-   * every level's own camera maths in un-orbited space, where it was written,
-   * and makes the orbit a pure look-around.
+   * Раньше она вращала сохранённую позицию камеры и оставляла её повёрнутой.
+   * Уровень затем лерпил эту уже повёрнутую позицию к цели, посчитанной без
+   * орбиты, а следующий кадр снова доворачивал результат на полный угол. Так
+   * поворот накапливался, пока что-то тянуло в обратную сторону, — это и есть
+   * «очень резко и неровно». Сохранение с восстановлением держит камерную
+   * математику каждого уровня в неповёрнутом пространстве, где её и писали, и
+   * делает орбиту чистым осмотром.
    */
   private withCameraOrbit(render: () => void) {
     if (Math.abs(this.camYaw) < 0.0005) {
@@ -2787,21 +2788,22 @@ export abstract class BaseLevelScene {
   }
 
   /**
-   * Should the opening dialogue get out of the way?
+   * Пора ли вступительному диалогу уйти с дороги?
    *
-   * Every level opens with a three-beat intro on a timer, and movement stays
-   * blocked until it ends — measured across the season at 4.7 to 7.8 seconds,
-   * while the HUD is already telling the child «Двигайся». Holding W for a
-   * second and a half in that window moves the hero exactly zero metres.
-   * Children on playtest read it as the game not listening to them, and said
-   * so; after the outright blockers it was the most common complaint.
+   * Каждый уровень открывается интро из трёх реплик по таймеру, и движение
+   * заблокировано до его конца — по сезону намерено от 4.7 до 7.8 секунды,
+   * причём HUD уже говорит ребёнку «Двигайся». Полтора секунды удержания W в
+   * этом окне двигают героя ровно на ноль метров. Дети на плейтесте читали это
+   * как «игра меня не слышит» и так и говорили; после прямых блокеров это была
+   * самая частая жалоба.
    *
-   * A child reaching for the stick has decided to play. Let them. The intro
-   * runs out on the spot rather than making them watch the rest of it.
+   * Ребёнок, потянувшийся к стику, уже решил играть. Пусть играет. Интро
+   * досрочно доигрывается на месте, вместо того чтобы заставлять досматривать
+   * остаток.
    *
-   * Gated on the first beat having been shown (`introI >= 1`), so a nudge in
-   * the opening moment cannot swallow the level's first line — which is
-   * usually the one naming the goal.
+   * Условие — первая реплика уже показана (`introI >= 1`), чтобы толчок в самый
+   * первый момент не проглотил первую фразу уровня: обычно именно она называет
+   * цель.
    */
   protected introRushed(introI: number): boolean {
     return introI >= 1 && this.dir().lengthSq() > 0.01;

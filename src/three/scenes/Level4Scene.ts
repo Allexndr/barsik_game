@@ -20,23 +20,22 @@ import { createRiverWater, type RiverWater } from '../RiverWater';
 import { NPC_PEER_HEIGHT } from '../worldScale';
 
 /**
- * Level 4 «Качающийся мостик» — GDD Chapter 1 Level 4, timing without a fail
- * state. Spec asks for 3–4 minutes; the first build was a straight walk over
- * five planks and was over in about forty seconds, because the gorge was
- * scenery and the bridge was a corridor with a metronome. Rebuilt as three
- * acts so the crossing is a journey rather than a hallway:
+ * Уровень 4 «Качающийся мостик» — уровень 4 главы 1 по GDD, тайминг без
+ * проигрыша. Спека просит 3–4 минуты; первая сборка была прямой прогулкой по
+ * пяти доскам и заканчивалась секунд за сорок, потому что ущелье было
+ * декорацией, а мост — коридором с метрономом. Пересобран в три акта, чтобы
+ * переправа стала путешествием, а не прихожей:
  *
- *   I  «Край ущелья» — the wind tore three planks off the deck and scattered
- *      them along the lip. Finding them makes the near bank a place, and the
- *      gaps in the bridge are visible from the start, so the goal explains
- *      itself without a line of dialogue.
- *   II «Переправа» — the timed sections, split by a rock pillar mid-gorge.
- *      The island is the breather that turns one long corridor into two
- *      spans, and it is the only spot from which the whole gorge is visible.
- *  III «Ворот» — a windlass on the far bank tightens the ropes for good. The
- *      child's mastery of the mechanic is spent removing the obstacle for
- *      somebody else: Aya has been stranded because she was too afraid to
- *      cross, and she only steps onto the deck once it stands still.
+ *   I  «Край ущелья» — ветер сорвал с настила три доски и разбросал их по
+ *      кромке. Их поиск делает ближний берег местом, а проёмы в мосту видны с
+ *      самого начала, поэтому цель объясняет себя без единой реплики.
+ *   II «Переправа» — участки на тайминге, разделённые скальным столбом
+ *      посреди ущелья. Островок — та передышка, что превращает один длинный
+ *      коридор в два пролёта, и единственная точка, откуда видно всё ущелье.
+ *  III «Ворот» — лебёдка на дальнем берегу натягивает канаты насовсем.
+ *      Освоенная механика тратится ребёнком на то, чтобы убрать препятствие
+ *      для другого: Айя застряла на берегу, потому что боялась переходить, и
+ *      ступает на настил только после того, как тот перестаёт качаться.
  */
 
 export type L4Phase =

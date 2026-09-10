@@ -24,11 +24,11 @@ import {
 } from './BaseLevelScene';
 
 /**
- * Level 2 «Первый друг» — Arc 1 canon (docs/BARSIK_ARC1_OUTLINE.md, BARSIK_GDD_v2.md):
- * apple trail → creek crossing → fruit stuck in a thicket → shy forest friend Айя
- * peeks out, Барсик frees the fruit and gives it to her, she agrees to move to the
- * Friends corner. Putalo's sticky threads appear only as a background hint here —
- * the soft-villain confrontation is a later episode.
+ * Уровень 2 «Первый друг» — канон арки 1 (docs/BARSIK_ARC1_OUTLINE.md,
+ * BARSIK_GDD_v2.md): яблочный след → переправа через ручей → фрукт застрял в
+ * зарослях → выглядывает застенчивая лесная подруга Айя, Барсик высвобождает
+ * фрукт и отдаёт ей, она соглашается перебраться в уголок друзей. Липкие нити
+ * Путало здесь только фоновый намёк — встреча с мягким «злодеем» будет позже.
  */
 export type L2Phase =
   | 'intro'
@@ -197,10 +197,10 @@ function makeFruit(pos: THREE.Vector3, kind: string, color = 0xff4757) {
 }
 
 /**
- * Sticky strand hint of Putalo — decorative foreshadow, not a full obstacle
- * yet. The brief calls these "странно красивые" (strangely beautiful), not a
- * trap: a flat grey cylinder read as a cage bar. A soft glow and one bead of
- * dew is the actual image — spider silk in morning light, not a snare.
+ * Липкая нить — намёк на Путало, декоративное предвестие, пока не полноценное
+ * препятствие. По брифу они «странно красивые», а не ловушка: плоский серый
+ * цилиндр читался как прут клетки. Настоящий образ — мягкое свечение и одна
+ * капля росы: паутина в утреннем свете, а не силок.
  */
 function stickyStrand(x: number, z: number, y: number, len: number, rot: number) {
   const g = new THREE.Group();
