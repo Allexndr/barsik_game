@@ -7,19 +7,19 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 
 export type QualityOptions = {
-  /** Soft bloom for emissive collectibles / windows. Keep low for kids UI readability. */
+  /** Мягкое свечение для светящихся предметов и окон. Держим слабым ради читаемости интерфейса. */
   bloomStrength?: number;
   bloomRadius?: number;
   bloomThreshold?: number;
   exposure?: number;
-  /** Use direct MSAA rendering on coarse-pointer / weak GPUs. */
+  /** На сенсорных устройствах и слабых видеокартах используем прямое сглаживание MSAA. */
   mobile?: boolean;
 };
 
 /**
- * Shared “premium frame” for Barsik levels:
- * ACES everywhere; subtle bloom + FXAA via EffectComposer on desktop.
- * Does not change gameplay — only the final look.
+ * Общий «премиальный кадр» для уровней Барсика: ACES везде, лёгкое свечение и
+ * FXAA через EffectComposer на десктопе. На геймплей не влияет — только на
+ * итоговую картинку.
  */
 export class QualityPipeline {
   readonly composer: EffectComposer | null;
@@ -38,8 +38,8 @@ export class QualityPipeline {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = opts.exposure ?? (mobile ? 1.0 : 1.12);
 
-    // Mobile already uses renderer MSAA. Avoid allocating composer render targets
-    // and running full-screen FXAA/Output passes on every frame.
+    // На мобильных уже включено MSAA самого отрисовщика. Не выделяем буферы
+    // композитора и не гоняем полноэкранные проходы FXAA и вывода каждый кадр.
     if (mobile) {
       this.composer = null;
       this.bloom = null;

@@ -8,12 +8,12 @@ import { formatPhoneDisplay, isPhoneComplete, phoneDigits } from '@/utils/phone'
 import './SoftGateModal.css';
 
 /**
- * A form asking for a child's phone/email needs an adult on the other side
- * of it, not just a skippable dialog a five-year-old can tap through same
- * as any other prompt. A one-off arithmetic check is the standard shape for
- * this — trivial for an adult, a real obstacle for someone who can't yet
- * add two single-digit numbers. Regenerated per gate open via `useMemo`
- * keyed on `gate`, so skipping and re-triggering doesn't reuse the answer.
+ * У формы, запрашивающей телефон или почту ребёнка, по ту сторону должен быть
+ * взрослый, а не пропускаемое окно, которое пятилетний прокликает так же, как
+ * любое другое. Одноразовая арифметическая проверка — стандартная форма для этого:
+ * для взрослого пустяк, для того, кто ещё не складывает два однозначных числа, —
+ * настоящее препятствие. Пересоздаётся при каждом открытии через `useMemo` с
+ * ключом по `gate`, поэтому пропуск и повторный вызов не переиспользуют ответ.
  */
 function useParentGateQuestion(gate: string | null) {
   return useMemo(() => {
@@ -119,7 +119,7 @@ export function SoftGateModal() {
         }),
       );
     } catch {
-      /* ignore */
+      /* не важно */
     }
     resetGateState();
     closeSoftGate();
@@ -176,10 +176,10 @@ export function SoftGateModal() {
           </>
         ) : (
           <>
-            {/* Parental gate: a form asking for a child's contact details
-                needs an adult answering it, not just whoever tapped
-                through the level-5 popup. Plain arithmetic — trivial for
-                an adult, a real obstacle for a pre-reading child. */}
+            {/* Родительский заслон: на форму с контактами ребёнка должен отвечать
+                взрослый, а не тот, кто прокликал окно после пятого уровня. Простая
+                арифметика — для взрослого пустяк, для нечитающего ребёнка
+                настоящее препятствие. */}
             <div className="soft-gate-icon">{isEmail ? <IconMail size={30} /> : <IconPhone size={30} />}</div>
             <h2>{lang === 'kk' ? 'Бұл ересектерге арналған' : 'Это для взрослых'}</h2>
             <p className="soft-gate-body">
