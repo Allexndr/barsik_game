@@ -60,7 +60,7 @@ function heroGlbCandidates(): string[] {
     return ['barsik_cool_rigged.glb', 'barsik_rigged.glb', 'barsik.glb'];
   }
   const params = new URLSearchParams(location.search);
-  // Pack / nude / costume looks removed from product — only cool (or explicit cool).
+  // Облики pack, nude и костюмы из продукта убраны — остался только cool.
   const look = params.get('look');
   if (look && look !== 'cool' && look !== 'glb') {
     console.warn(`[hero] look=${look} retired; using cool`);
@@ -72,7 +72,7 @@ const USE_GLB_HERO =
   typeof location === 'undefined'
   || new URLSearchParams(location.search).get('hero') !== 'avatar';
 
-// ─── Shared types ───────────────────────────────────────────────
+// ─── Общие типы ─────────────────────────────────────────────────
 export type Collider = 
   | { kind: 'aabb'; x: number; z: number; halfW: number; halfD: number }
   | { kind: 'circle'; x: number; z: number; r: number };
@@ -89,13 +89,13 @@ export interface BaseHud {
   outro: boolean;
 }
 
-// ─── Shared constants ───────────────────────────────────────────
+// ─── Общие константы ────────────────────────────────────────────
 export const CC0 = '/assets/models/cc0/';
 export const CHARS = '/assets/models/chars/';
 export const PROPS = '/assets/models/props/';
 export const PLAYER_RADIUS = 0.45;
 
-// ─── Shared utility functions ───────────────────────────────────
+// ─── Общие вспомогательные функции ──────────────────────────────
 export { fitHeight, groundY, disposeObject3DResources };
 
 export async function loadGlb(loader: GLTFLoader, url: string) {
@@ -154,7 +154,7 @@ export function resolveCollisions(nx: number, nz: number, colliders: Collider[])
   return { x: nx, z: nz };
 }
 
-// ─── Shared geometry factories ──────────────────────────────────
+// ─── Общие фабрики геометрии ────────────────────────────────────
 export function mountain(x: number, z: number, h: number, w: number) {
   const g = new THREE.Group();
   const height = h * 0.62;
@@ -166,8 +166,8 @@ export function mountain(x: number, z: number, h: number, w: number) {
   });
   const snowMat = new THREE.MeshStandardMaterial({ color: 0xeaf6ff, flatShading: true, roughness: 0.9 });
 
-  // A ridge of three offset peaks. One cone reads as a traffic cone on the
-  // horizon; overlapping peaks of different heights read as a mountain range.
+  // Гряда из трёх смещённых вершин. Один конус на горизонте читается дорожным
+  // конусом; перекрывающиеся вершины разной высоты читаются горным хребтом.
   const peaks: Array<[number, number, number]> = [
     [0, 1, 1],
     [-width * 0.78, 0.7, 0.72],
@@ -177,7 +177,7 @@ export function mountain(x: number, z: number, h: number, w: number) {
     const peakH = height * heightScale;
     const peakW = width * widthScale;
     const rock = new THREE.Mesh(new THREE.ConeGeometry(peakW, peakH, 6), mat);
-    // Sink into the horizon so it reads as a distant range, not a prop.
+    // Утапливается в горизонт, чтобы читаться дальним хребтом, а не реквизитом.
     rock.position.set(offsetX, peakH * 0.34, offsetX * 0.18);
     rock.rotation.y = Math.random() * Math.PI;
     const snow = new THREE.Mesh(new THREE.ConeGeometry(peakW * 0.4, peakH * 0.26, 6), snowMat);
@@ -248,11 +248,11 @@ export function spawnPad(x: number, z: number) {
   disc.castShadow = false; disc.receiveShadow = false;
   ring.castShadow = false; ring.receiveShadow = false;
   g.add(disc, ring);
-  // Rides the terrain. Nine levels corrected this at the call site and six did
-  // not — on L10 the ground at the spawn is 2.16 m up, so the pad the player
-  // is standing on was two metres underneath them on frame one. Both existing
-  // corrections stay safe: `pad.position.y = …` overwrites, and
-  // `snapToGround` measures the current world bottom, so it becomes a no-op.
+  // Садится на рельеф. Девять уровней правили это на месте вызова, шесть — нет:
+  // на L10 земля у точки появления поднята на 2.16 м, и площадка, на которой
+  // стоит игрок, на первом кадре была в двух метрах под ним. Обе существующие
+  // правки остаются безопасными: `pad.position.y = …` перезаписывает значение, а
+  // `snapToGround` меряет текущий низ в мире и превращается в пустую операцию.
   g.position.set(x, placementGround(x, z), z);
   return g;
 }
@@ -317,8 +317,8 @@ export function butterfly(x: number, z: number, color: number) {
   for (const side of [-1, 1]) {
     const hinge = new THREE.Group();
     const wing = new THREE.Mesh(WING_GEO, wingMat);
-    // Offset inside the hinge so `rotation.z` folds it about the body rather
-    // than spinning it about its own middle.
+    // Смещено внутри шарнира, чтобы `rotation.z` складывал крыло вокруг тела, а
+    // не крутил его вокруг собственной середины.
     wing.position.set(side * 0.15, 0, 0);
     wing.castShadow = false; wing.receiveShadow = false;
     hinge.add(wing);
@@ -338,8 +338,8 @@ export function butterfly(x: number, z: number, color: number) {
   g.userData.oz = z;
   g.userData.isButterfly = true;
   g.userData.hinges = hinges;
-  // Each one flaps at its own tempo; a meadow of synchronised butterflies
-  // reads as one object with many parts.
+  // Каждая машет в своём темпе: луг синхронных бабочек читается одним объектом со
+  // множеством частей.
   g.userData.flapRate = 9 + Math.random() * 5;
   return g;
 }
@@ -364,14 +364,14 @@ function hingeButterflyWings(root: THREE.Object3D): THREE.Group[] {
     const box = new THREE.Box3().setFromObject(mesh);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
-    // Wings are the wide thin-ish parts off the midline; skip the body capsule.
+    // Крылья — широкие тонковатые части в стороне от осевой линии; капсулу тела пропускаем.
     if (Math.max(size.x, size.z) < 0.04) continue;
     if (Math.abs(center.x) < 0.02 && size.x < size.y * 1.2) continue;
     const side: -1 | 1 = center.x >= 0 ? 1 : -1;
     picks.push({ mesh, side, cx: center.x });
   }
   if (picks.length < 2) {
-    // Fallback: take the two meshes farthest left/right.
+    // Запасной вариант: берём два меша, самых крайних слева и справа.
     const ranked = meshes
       .map((mesh) => {
         const c = new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3());
@@ -397,7 +397,7 @@ function hingeButterflyWings(root: THREE.Object3D): THREE.Group[] {
     if (!parent) continue;
     const hinge = new THREE.Group();
     hinge.userData.side = side;
-    // Pivot near the body: keep world position, then fold about local Z.
+    // Ось у тела: сохраняем мировое положение и складываем вокруг локальной Z.
     const worldPos = new THREE.Vector3();
     mesh.getWorldPosition(worldPos);
     parent.worldToLocal(worldPos);
@@ -425,10 +425,10 @@ const BUSH_MAT = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
 
 export function bush(x: number, z: number, scale = 1) {
   const g = new THREE.Group();
-  // One mesh, not four. Each bush used to be four separate spheres with its
-  // own material, and a meadow is seventy-odd bushes — measured at 293 meshes
-  // and 293 draw calls in level 0, by far the largest single source in the
-  // scene. Merging costs nothing visually: the lobes are already one colour.
+  // Один меш, а не четыре. Раньше каждый куст был четырьмя отдельными сферами со
+  // своим материалом, а луг — это семь десятков кустов: замерено 293 меша и 293
+  // вызова отрисовки на нулевом уровне, крупнейший единичный источник в сцене.
+  // Слияние ничего не стоит визуально: доли и так одного цвета.
   const lobes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 4; i++) {
     const geo = new THREE.SphereGeometry((0.45 + Math.random() * 0.25) * scale, 8, 8);
@@ -494,8 +494,8 @@ export function tulip(x: number, z: number, color: number) {
   stem.translate(0, height / 2, 0);
   parts.push(paintGeometry(stem, LEAF_GREEN));
 
-  // Petals are placed by baking the transform into the geometry rather than
-  // by nesting Object3Ds — a merged mesh has no children to carry a matrix.
+  // Лепестки расставляются запеканием преобразования в геометрию, а не
+  // вложенными Object3D: у слитого меша нет потомков, которые несли бы матрицу.
   const petalCount = 5;
   for (let i = 0; i < petalCount; i++) {
     const a = (i / petalCount) * Math.PI * 2;
@@ -578,9 +578,9 @@ export function bridge(
   railR.position.z = length * 0.48;
   g.add(railL, railR);
 
-  // Support posts, so the deck reads as spanning a gap rather than resting
-  // on the ground it was drawn a few centimetres above. One pair per end,
-  // reaching from just under the deck down to the bed the water sits in.
+  // Опорные столбы, чтобы настил читался перекинутым через разрыв, а не лежащим
+  // на земле, над которой он нарисован в паре сантиметров. По паре на каждый
+  // конец, от самого низа настила до дна, в котором стоит вода.
   const postMat = new THREE.MeshStandardMaterial({ color: 0x6d4c34, roughness: 1 });
   const postHeight = Math.max(0.2, deckY - bedY);
   const postZ = length * 0.42;
@@ -600,7 +600,8 @@ export function bridge(
 
 export function woodSign(x: number, z: number, rotY: number, color = 0xffeaa7) {
   const g = new THREE.Group();
-  // Post ~SIGN_HEIGHT (1.6 m) — was 1.2 m and read as shin-high next to the cub.
+  // Столб примерно SIGN_HEIGHT (1.6 м): было 1.2 м, и рядом с котёнком он читался
+  // по колено.
   const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.55, 6), new THREE.MeshStandardMaterial({ color: 0x6d4c41 }));
   post.position.y = 0.775;
   const board = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.5, 0.07), new THREE.MeshStandardMaterial({ color }));
@@ -612,7 +613,7 @@ export function woodSign(x: number, z: number, rotY: number, color = 0xffeaa7) {
   return g;
 }
 
-// ─── Texture generators ─────────────────────────────────────────
+// ─── Генераторы текстур ─────────────────────────────────────────
 /**
  * Анизотропия для земли.
  *
@@ -743,8 +744,9 @@ export interface HeroRig {
   avatar: BarsikAvatar | null;
 }
 
-// Prefer bipedal Meshy barsik.glb. Quad Meshy/TRELLIS reads as a cat on
-// all fours — skip until we have an upright hero. Missing → procedural plush.
+// Предпочитаем двуногий barsik.glb из Meshy. Четвероногие генерации Meshy и
+// TRELLIS читаются кошкой на четырёх лапах — пропускаем, пока нет прямоходящего
+// героя. Если файла нет — процедурный плюшевый.
 /**
  * Сначала со скелетом, потом статуя.
  *
@@ -787,20 +789,21 @@ export async function loadCharModel(
   if (!gltf) return null;
   void used;
   fitHeight(gltf.scene, height);
-  // Sink any presentation plinth below the ground, and grow the model back so
-  // the character itself — not the character plus its trophy base — is the
-  // requested height. fitHeight has already made the whole model `height`
-  // tall, so the plinth is `height * fraction` and the body is the rest.
+  // Утопить выставочный постамент под землю и увеличить модель обратно, чтобы
+  // заданной высоты был сам персонаж, а не персонаж вместе с подставкой.
+  // fitHeight уже сделал всю модель высотой `height`, поэтому постамент — это
+  // `height * fraction`, а тело — остальное.
   const plinthFraction = measurePlinthFraction(gltf.scene);
   if (plinthFraction > 0) {
     const grow = 1 / (1 - plinthFraction);
     gltf.scene.scale.multiplyScalar(grow);
     const box = new THREE.Box3().setFromObject(gltf.scene);
-    // Ground the model, then drop it by the plinth's new height plus half a
-    // measuring slab. The detector works at 1/20 of the model's height, so the
-    // top it reports can sit up to one slab low — and an under-measured plinth
-    // leaves a bright rim of slab showing wherever the ground dips under its
-    // corners. Half a slab covers the quantisation; it is under 3cm of foot.
+    // Посадить модель на землю, потом опустить на новую высоту постамента плюс
+    // половину измерительного слоя. Детектор работает с шагом в 1/20 высоты
+    // модели, поэтому найденный им верх может оказаться ниже на целый слой, а
+    // недомеренный постамент оставляет светлую кромку везде, где земля проседает
+    // под его углами. Половина слоя покрывает эту дискретность и составляет
+    // меньше трёх сантиметров у подошвы.
     gltf.scene.position.y -= box.min.y + height * (plinthFraction * grow + 0.025);
   }
   gltf.scene.traverse((obj) => {
@@ -815,15 +818,14 @@ export async function loadCharModel(
     }
   });
 
-  // Stand the character on its own origin.
+  // Поставить персонажа на его собственное начало координат.
   //
-  // fitHeight grounds the model by writing the offset into position.y — and
-  // every one of the seventeen call sites then does `position.set(x, 0, z)`,
-  // which throws that offset away. For a model whose pivot sits at its centre,
-  // like aya.glb, that buried the character to the shoulders: she was in the
-  // scene, lit, and visible, and still read as a rock from five metres off.
-  // Moving the offset inside a wrapper puts it somewhere position.set cannot
-  // reach, so y = 0 means "standing here" for every caller.
+  // fitHeight сажает модель на землю, записывая смещение в position.y, — а все
+  // семнадцать мест вызова потом делают `position.set(x, 0, z)` и это смещение
+  // выбрасывают. Для модели, у которой опорная точка в центре, как у aya.glb, это
+  // закапывало персонажа по плечи: она была в сцене, освещена и видима — и с пяти
+  // метров читалась камнем. Перенос смещения внутрь обёртки кладёт его туда, куда
+  // position.set не дотянется, и y = 0 означает «стоит здесь» для любого вызова.
   const attachClips = (host: THREE.Object3D, target: THREE.Object3D) => {
     if (!gltf.animations.length) return;
     const mixer = new THREE.AnimationMixer(target);
@@ -931,7 +933,7 @@ export async function placeWoodSign(
 }
 
 export async function loadBarsikHeroRig(loader: GLTFLoader, height = HERO_HEIGHT): Promise<HeroRig> {
-  // Optional GLB path (Tripo export / future photo→3D). Default = clothed avatar.
+  // Необязательный путь к GLB (экспорт Tripo или будущее фото→3D). По умолчанию — одетый аватар.
   if (USE_GLB_HERO) {
     const files = heroGlbCandidates().length ? heroGlbCandidates() : [...HERO_CANDIDATES];
     for (const file of files) {
@@ -976,7 +978,7 @@ export async function loadBarsikHeroRig(loader: GLTFLoader, height = HERO_HEIGHT
   };
 }
 
-// ─── Base scene class ───────────────────────────────────────────
+// ─── Базовый класс сцены ────────────────────────────────────────
 export abstract class BaseLevelScene {
   protected renderer: THREE.WebGLRenderer;
   protected scene = new THREE.Scene();
@@ -1115,18 +1117,17 @@ export abstract class BaseLevelScene {
   protected reserved: Array<{ x: number; z: number; r: number }> = [];
   private fpsSampler = createFpsSampler('level');
   private onVisibility = () => {
-    // Stopping the loop when the tab is hidden saves a phone's battery, but
-    // stopping it *silently* stranded the player: the scene froze while the
-    // HUD went on showing the level as though it were live, and nothing
-    // offered a way back. On a phone, which is the platform this is built
-    // for, one notification was enough to freeze the level until a reload.
+    // Остановка цикла на скрытой вкладке бережёт батарею телефона, но остановка
+    // *молча* бросала игрока: сцена замирала, а HUD продолжал показывать уровень
+    // как живой, и вернуться было некуда. На телефоне — а именно под него всё и
+    // сделано — одного уведомления хватало, чтобы уровень застыл до перезагрузки.
     //
-    // Both flags, because the resume control lives in SettingsPanel and that
-    // panel renders on `showSettings`, not on `paused` — which is why the
-    // pause *button* sets both. Setting `paused` alone reproduces the same
-    // soft-lock through a different door: loop stopped, no card, no way out.
-    // It deliberately does not resume by itself: dropping a child back into a
-    // timed bridge crossing they were not looking at loses it for them.
+    // Оба флага, потому что кнопка возврата живёт в SettingsPanel, а эта панель
+    // рисуется по `showSettings`, а не по `paused`, — из-за чего кнопка паузы и
+    // ставит оба. Установка одного `paused` воспроизводит тот же тупик через
+    // другую дверь: цикл стоит, карточки нет, выхода нет.
+    // Возобновляться само оно намеренно не будет: вернуть ребёнка в переправу по
+    // таймеру, на которую он не смотрел, — значит проиграть её за него.
     if (document.hidden) {
       const ui = useUIStore.getState();
       ui.setPaused(true);
@@ -1169,7 +1170,7 @@ export abstract class BaseLevelScene {
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 300);
   }
 
-  // ── Setup helpers ────────────────────────────────────────────
+  // ── Помощники настройки ──────────────────────────────────────
   /**
    * Ключевой, заполняющий и контровой свет в правильном соотношении.
    *
@@ -1182,8 +1183,9 @@ export abstract class BaseLevelScene {
    */
   protected setupLighting(fogColor: number, sunColor: number, sunIntensity = 2.35, hemiSky = 0xfff6e0, hemiGround = 0x3d8b40) {
     this.scene.background = new THREE.Color(fogColor);
-    // Fog starts inside the play area so distance actually reads. At near=58
-    // nothing in a ~50-unit level was ever touched by it.
+    // Туман начинается внутри игровой зоны, чтобы расстояние действительно
+    // читалось. При near = 58 на уровне размером около 50 единиц он не касался
+    // вообще ничего.
     this.scene.fog = new THREE.Fog(fogColor, 26, 150);
     const hemi = new THREE.HemisphereLight(hemiSky, hemiGround, 0.42);
     this.hemiLight = hemi;
@@ -1199,8 +1201,8 @@ export abstract class BaseLevelScene {
     sun.shadow.radius = 2.5;
     sun.shadow.camera.near = 1;
     sun.shadow.camera.far = 90;
-    // Tighter frustum than the play area is wide: shadow texels are spent on
-    // where the player actually is, so contact shadows stay crisp.
+    // Пирамида теней уже, чем игровая зона: тексели тратятся туда, где игрок
+    // реально находится, и тени касания остаются чёткими.
     sun.shadow.camera.left = -24;
     sun.shadow.camera.right = 24;
     sun.shadow.camera.top = 24;
@@ -1315,7 +1317,7 @@ export abstract class BaseLevelScene {
     const corridor = opts.corridor ?? this.pathCorridor ?? undefined;
     this.levelTerrain = createLevelTerrain({ corridorHalf: this.pathCorridorHalf, ...opts, corridor });
     this.groundHeightAt = this.levelTerrain.sampleHeight;
-    // Prop helpers position by (x, z) and derive y; point them at this terrain.
+    // Помощники расстановки задают (x, z) и выводят y; направляем их на этот рельеф.
     setPlacementGround(this.groundHeightAt);
     this.scene.add(this.levelTerrain.mesh);
     return this.levelTerrain;
@@ -1411,9 +1413,10 @@ export abstract class BaseLevelScene {
     } = {},
   ) {
     const {
-      // Denser field. Each blade is one triangle inside a single instanced
-      // draw call, so +60% density costs about 8 000 triangles against scene
-      // totals of 131 000–428 000, and not one extra draw call.
+      // Поле гуще. Каждая травинка — один треугольник внутри единственного
+      // инстансированного вызова, поэтому +60% плотности стоят примерно 8 000
+      // треугольников при общей сцене в 131 000–428 000 и ни одного лишнего
+      // вызова отрисовки.
       count = this.grassCountForTier(this.isMobile ? 8000 : 22000),
       area = { xMin: -34, xMax: 34, zMin: -46, zMax: 16 },
     } = opts;
@@ -1464,8 +1467,9 @@ export abstract class BaseLevelScene {
     for (const obj of objects) {
       new THREE.Box3().setFromObject(obj).getSize(size);
       if (size.y < minHeight) continue;
-      // 0.38 of the widest span: tight enough not to create invisible walls
-      // around a prop, wide enough that the hero never visibly clips it.
+      // 0.38 от самого широкого габарита: достаточно тесно, чтобы не создавать
+      // вокруг предмета невидимых стен, и достаточно широко, чтобы герой в него
+      // заметно не входил.
       const r = Math.max(size.x, size.z) * 0.38;
       if (r < 0.28) continue;
       this.colliders.push({ kind: 'circle', x: obj.position.x, z: obj.position.z, r });
@@ -1551,7 +1555,7 @@ export abstract class BaseLevelScene {
       if (!gltf) continue;
       fitMaxSize(gltf.scene, 0.42);
       const size = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3());
-      // Reject the flat "giant poster" failure mode from early exports.
+      // Отсекаем плоский «гигантский постер» — типичный сбой ранних экспортов.
       const flat = size.y < Math.max(size.x, size.z) * 0.12;
       const huge = Math.max(size.x, size.y, size.z) > 0.55;
       if (flat || huge) {
@@ -1563,7 +1567,7 @@ export abstract class BaseLevelScene {
         disposeObject3DResources(gltf.scene);
         continue;
       }
-      // Rest lowest point near local zero so flight height stays consistent.
+      // Нижняя точка покоя около локального нуля, чтобы высота полёта была одинаковой.
       const box = new THREE.Box3().setFromObject(gltf.scene);
       gltf.scene.position.y -= box.min.y;
       templates.push(gltf.scene);
@@ -1578,8 +1582,8 @@ export abstract class BaseLevelScene {
       const old = procedural[i];
       const tpl = templates[i % templates.length];
       const clone = tpl.clone(true);
-      // Keep the same Group so levels that hold `this.butterflies` references
-      // keep animating the right object after the swap.
+      // Оставляем ту же Group, чтобы уровни, держащие ссылки в `this.butterflies`,
+      // после подмены продолжали анимировать нужный объект.
       while (old.children.length) {
         const child = old.children[0];
         old.remove(child);
@@ -1602,12 +1606,12 @@ export abstract class BaseLevelScene {
    */
   protected async loadWinterDecor(loader: GLTFLoader, count = 22, centerZ = -20) {
     const kit = this.assetKit(loader);
-    // Same follow-camera gap as `loadTrees` (see its comment for the full
-    // reasoning) — this scatter needs the identical camera-corridor
-    // exclusion. Confirmed live on L16 (2026-08-29): `tree-snow-a` clipping
-    // the camera at spots the tree's-own-position `isReserved` check has no
-    // way to see, since the camera parks ~9m further down the reachable area
-    // than wherever the hero actually is.
+    // Тот же зазор под камеру следования, что и в `loadTrees` (полное объяснение
+    // — в его комментарии): этому разбросу нужно такое же исключение коридора
+    // камеры. Подтверждено вживую на L16 (29.08.2026): `tree-snow-a` резал камеру
+    // в точках, которых проверка `isReserved` по собственной позиции дерева
+    // увидеть не может, поскольку камера стоит примерно на 9 м дальше по
+    // достижимой зоне, чем сам герой.
     const CAMERA_TRAIL_Z = 9;
 
     const trees: Array<{ x: number; z: number; height: number }> = [];
@@ -1624,12 +1628,12 @@ export abstract class BaseLevelScene {
       if (Math.hypot(clamped.x - x, clamped.z - camZ) < margin) continue;
       trees.push({ x, z, height });
     }
-    // Snow variants only: the plain green fir reads as a Christmas tree
-    // dropped into the Ice Valley.
+    // Только заснеженные варианты: обычная зелёная ель читается новогодним
+    // деревом, занесённым в Ледяную долину.
     for (const tree of await kit.scatter('holiday', ['tree-snow-a', 'tree-snow-b', 'tree-snow-c'], trees)) {
       this.snapToGround(tree);
-      // Winter firs sway less: they are stiffer, and snow-laden branches that
-      // wave like summer foliage read as wrong before they read as alive.
+      // Зимние ели качаются меньше: они жёстче, и заснеженные ветви, машущие как
+      // летняя листва, читаются сначала неправильными, а уже потом живыми.
       this.markSwaying(tree, 0.55);
       this.scene.add(tree);
       this.colliders.push({ kind: 'circle', x: tree.position.x, z: tree.position.z, r: 1.4 });
@@ -1692,8 +1696,9 @@ export abstract class BaseLevelScene {
   ) {
     this.footstepSurface = opts.ground === 'ice' ? 'stone' : 'snow';
     const sky = opts.sky ?? (['#4a6a8a', '#8ab0c8', '#d0e8f0'] as [string, string, string]);
-    // Snow bounces a lot of light, so the sky term sits higher here than in
-    // the forest; the key still has to out-punch it or drifts read as paper.
+    // Снег отражает много света, поэтому небесная составляющая здесь выше, чем в
+    // лесу; ключевой свет всё равно обязан её перебивать, иначе сугробы читаются
+    // бумагой.
     this.setupLighting(
       0xc2d4de,
       opts.sunColor ?? 0xfff3e0,
@@ -1704,9 +1709,9 @@ export abstract class BaseLevelScene {
     if (opts.terrain === false) {
       this.setupGround(opts.ground === 'ice' ? makeIceTexture() : makeSnowTexture());
     } else {
-      // Keep the gameplay area flat by default: Ice Valley levels place their
-      // props, NPCs and quest zones by hand at y=0, and relief under them
-      // would tilt quest markers and bury collectibles.
+      // Игровая зона по умолчанию плоская: уровни Ледяной долины ставят
+      // предметы, персонажей и квестовые зоны вручную на y = 0, и рельеф под ними
+      // накренил бы маркеры и закопал подбираемое.
       this.setupSculptedGround({
         biome: opts.ground === 'ice' ? 'ice' : 'snow',
         relief: 0.85,
@@ -1715,8 +1720,8 @@ export abstract class BaseLevelScene {
         ...opts.terrain,
       });
     }
-    // Named so a level that moves the player somewhere else can hide the
-    // outdoors and keep the sky. Level 0 sees it through a smoke hole.
+    // Названо, чтобы уровень, переносящий игрока в другое место, мог скрыть улицу
+    // и оставить небо. Нулевой уровень видит его через дымовое отверстие.
     void sky;
     this.setupSky();
     this.setupClouds(opts.clouds ?? 5, 26, 50);
@@ -1869,9 +1874,9 @@ export abstract class BaseLevelScene {
     const offset = pos.clone().sub(this.hero.position).applyQuaternion(q);
     this.camera.position.copy(this.hero.position).add(offset);
     this.camera.quaternion.premultiply(q);
-    // The orbit is a temporary render transform. A confined level can clamp
-    // that *final* camera pose here without corrupting the un-orbited follow
-    // camera stored for the next simulation frame.
+    // Орбита — временное преобразование отрисовки. Замкнутый уровень может
+    // ограничить здесь то *итоговое* положение камеры, не портя неповёрнутую
+    // камеру следования, сохранённую для следующего кадра симуляции.
     this.beforeRenderCamera();
     render();
     this.camera.position.copy(pos);
@@ -1887,25 +1892,25 @@ export abstract class BaseLevelScene {
 
   /** Перетаскивание указателем; поворот намеренно не ограничен ради полной орбиты 360°. */
   protected updateCameraOrbit(dt: number) {
-    // No auto-recenter: the camera is free, and stays wherever the player
-    // left it. It used to ease back to behind-the-hero the moment a key or
-    // drag released, which is an automatic rotation toward Barsik's heading
-    // in every way that matters to the person holding the phone — turn to
-    // look at something, and the view yanks itself back the instant you let
-    // go. Position still tracks the hero; orbit angle only moves on input.
-    // Do not clamp to a front-facing arc. The previous ±135° stop was only a
-    // 270° camera and made the last quarter-turn physically impossible.
-    // Keep values numerically small after complete turns without changing the
-    // rendered heading or introducing a discontinuity between target/current.
+    // Без автоцентрирования: камера свободна и остаётся там, где её оставил
+    // игрок. Раньше она плавно возвращалась за спину герою, едва отпускали
+    // клавишу или палец, — а это, с точки зрения человека с телефоном в руках,
+    // и есть автоматический поворот к направлению Барсика: повернулся посмотреть
+    // на что-то, и вид дёргается обратно, стоит отпустить. Положение по-прежнему
+    // следует за героем; угол орбиты движется только от ввода.
+    // Не ограничивать дугой «лицом вперёд». Прежний стоп на ±135° давал камеру
+    // всего на 270° и делал последнюю четверть оборота физически невозможной.
+    // Значения держим численно небольшими после полных оборотов, не меняя
+    // отрисованного направления и не создавая разрыва между целью и текущим.
     if (!this.orbitDragging && Math.abs(this.camYawTarget) > Math.PI * 4) {
       const turns = Math.trunc(this.camYawTarget / (Math.PI * 2));
       const wrappedTurns = turns * Math.PI * 2;
       this.camYawTarget -= wrappedTurns;
       this.camYaw -= wrappedTurns;
     }
-    // The angle itself is eased rather than set. Pressing a key used to move
-    // the view by a fixed step every frame, which starts and stops dead — the
-    // camera has weight now, so it accelerates in and settles out.
+    // Сам угол не задаётся, а сглаживается. Раньше нажатие клавиши сдвигало вид на
+    // фиксированный шаг каждый кадр, что начинается и обрывается резко; теперь у
+    // камеры есть вес: она разгоняется и мягко останавливается.
     this.camYaw += (this.camYawTarget - this.camYaw) * (1 - Math.pow(0.0005, dt));
   }
 
@@ -2230,8 +2235,8 @@ export abstract class BaseLevelScene {
   protected deriveCorridorFromRooms(spawn: { x: number; z: number }, half = 3.4) {
     if (this.reserved.length === 0) return;
     const byZ = [...this.reserved].sort((a, b) => b.z - a.z);
-    // One waypoint per z, so two rooms at the same depth do not make the route
-    // jump sideways and back inside a metre.
+    // По одной путевой точке на z, чтобы две комнаты на одной глубине не
+    // заставляли маршрут метнуться вбок и обратно в пределах метра.
     const pts: Array<{ x: number; z: number }> = [{ x: spawn.x, z: spawn.z }];
     for (const room of byZ) {
       const last = pts[pts.length - 1];
@@ -2273,16 +2278,17 @@ export abstract class BaseLevelScene {
     const base = this.playPathHalf + this.corridorSlack;
 
     const plantAt = (px: number, pz: number, nx: number, nz: number, sign: number) => {
-      // Step outward until we clear whatever is here, rather than giving up.
+      // Шагаем наружу, пока не обойдём то, что здесь стоит, вместо того чтобы
+      // сдаться.
       //
-      // Rooms bulge off the route — level 4's near bank is a fifteen-metre
-      // circle around a three-metre path — and simply skipping a reserved
-      // spot left that whole bank unwalled: forty trees for the level. The
-      // wall has to go round the outside of the room, not stop at it.
-      // Capped, and a failure to clear means plant nothing rather than plant
-      // far away. Beside a gorge the keep-clear strip runs eighty-eight metres
-      // across, and an uncapped probe walked right past the end of the level
-      // to put trees sixty metres out where nobody will ever see them.
+      // Комнаты выпирают за маршрут — ближний берег четвёртого уровня это
+      // пятнадцатиметровый круг вокруг трёхметровой тропы, — и простой пропуск
+      // зарезервированной точки оставлял весь берег без стены: сорок деревьев на
+      // уровень. Стена обязана обойти комнату снаружи, а не остановиться у неё.
+      // С ограничением: если обойти не удалось, лучше не сажать ничего, чем
+      // сажать далеко. У ущелья запретная полоса тянется на восемьдесят восемь
+      // метров, и проба без ограничения уходила за конец уровня, расставляя
+      // деревья в шестидесяти метрах, где их никто никогда не увидит.
       let start = -1;
       for (let probe = base + 1.4; probe < base + 20; probe += 1.6) {
         if (!this.isReserved(px + nx * probe * sign, pz + nz * probe * sign, 0.8)) {
@@ -2320,7 +2326,7 @@ export abstract class BaseLevelScene {
         for (const sign of [-1, 1]) plantAt(px, pz, nx, nz, sign);
       }
     }
-    // Caps, so the route has a back and a front rather than an invisible wall.
+    // Торцы: у маршрута появляется зад и перёд вместо невидимой стены.
     for (const [end, other] of [[pts[0], pts[1]], [pts[pts.length - 1], pts[pts.length - 2]]] as const) {
       const len = Math.hypot(end.x - other.x, end.z - other.z) || 1;
       const dx = (end.x - other.x) / len;
@@ -2358,7 +2364,7 @@ export abstract class BaseLevelScene {
     const placements: Array<{ names: string[]; x: number; z: number; height: number }> = [];
     for (let row = 0; row < rows; row++) {
       const radius = arena.r + this.corridorSlack + 1.4 + row * 2.6;
-      // Constant arc spacing, so the outer rings are not sparse.
+      // Постоянный шаг по дуге, чтобы внешние кольца не выходили редкими.
       const count = Math.max(8, Math.round((2 * Math.PI * radius) / 3.2));
     for (let i = 0; i < count; i++) {
         const a = (i / count) * Math.PI * 2 + Math.random() * 0.12;
@@ -2387,9 +2393,9 @@ export abstract class BaseLevelScene {
    * Вызывать последним, после коридора и всех `reserve`.
    */
   protected async encloseLevel(loader: GLTFLoader, pad = 8) {
-    // Planting five hundred trees for a level React discarded two seconds ago
-    // is the single most expensive thing an abandoned `init` still does, and
-    // switching levels does it every time.
+    // Посадка пятисот деревьев для уровня, который React выбросил две секунды
+    // назад, — самое дорогое, что ещё делает брошенный `init`, и при каждой смене
+    // уровня это происходит заново.
     if (this.disposed) return;
     if (!this.pathCorridor || this.reserved.length === 0) return;
     let zMin = Infinity;
@@ -2398,18 +2404,18 @@ export abstract class BaseLevelScene {
       zMin = Math.min(zMin, room.z - room.r);
       zMax = Math.max(zMax, room.z + room.r);
     }
-    // The forest wall only ever grew along the sides of the corridor as z
-    // moves; nothing stopped a player walking off the near or far end of it.
-    // These are what clampToPlayArea now holds z inside.
+    // Лесная стена росла только по бокам коридора вдоль z; уйти за его ближний
+    // или дальний конец игроку ничто не мешало. Именно в этих границах
+    // clampToPlayArea теперь и держит z.
     this.corridorZMin = zMin - pad;
     this.corridorZMax = zMax + pad;
 
-    // A level whose spawn sits outside its own walkable range is unfinishable,
-    // and silently so: the first step teleports the hero to the corridor edge.
-    // L5 shipped like that — one reserved room at the burrow (z −71) against a
-    // spawn at z +4, so the escort's squirrel was left 62 m behind on frame one
-    // and the level could never be completed. This is cheap to check and the
-    // failure is invisible without it, so it is checked on every level, always.
+    // Уровень, точка появления которого лежит вне его же проходимого диапазона,
+    // непроходим — и молча: первый шаг телепортирует героя к краю коридора. L5
+    // именно так и вышел в сборку: одна зарезервированная комната у норки (z −71)
+    // против появления на z +4, и белочка сопровождения оставалась в 62 метрах
+    // позади на первом же кадре, а уровень пройти было нельзя. Проверка дешёвая,
+    // а без неё сбой невидим, поэтому она делается на каждом уровне, всегда.
     if (import.meta.env.DEV) {
       const z = this.hero.position.z;
       if (z < this.corridorZMin || z > this.corridorZMax) {
@@ -2471,7 +2477,7 @@ export abstract class BaseLevelScene {
         const dz = Math.abs(z - room.z);
         const r = room.r + this.corridorSlack;
         if (dz >= r) continue;
-        // Half-chord of the room circle at this z.
+        // Половина хорды круга комнаты на этой z.
         const half = Math.sqrt(r * r - dz * dz);
         const roomEdge = room.x + sign * half;
         if (sign > 0 ? roomEdge > edge : roomEdge < edge) edge = roomEdge;
@@ -2491,9 +2497,8 @@ export abstract class BaseLevelScene {
           out = Math.max(out, minOutFromEdge(jz, sign, edge));
           const x = edge + sign * out;
           if (this.isReserved(x, jz, 0.8) || this.isInsidePlayArea(x, jz)) continue;
-          // A wall of forest is still a wall of trees, and trees do not grow
-          // in a river. Where the water reaches the treeline the water is the
-          // wall instead.
+          // Лесная стена — это всё-таки стена из деревьев, а деревья в реке не
+          // растут. Там, где вода доходит до кромки леса, стеной служит она.
           if (this.isUnderwater(x, jz) || blocksRiverView(x, jz)) continue;
           const names = row === 0 ? near : row === 1 ? mid : far;
           placements.push({ names, x, z: jz, height: forestRowHeight(row) });
@@ -2501,10 +2506,10 @@ export abstract class BaseLevelScene {
       }
     }
 
-    // End caps. The sides alone leave a corridor open at both ends, and the
-    // z clamp there is an invisible wall — the player walks three metres past
-    // the spawn pad and stops against nothing. Close both ends with the same
-    // treeline so the level reads as a place with a back to it.
+    // Торцы. Одни бока оставляют коридор открытым с двух концов, а ограничение по
+    // z там — невидимая стена: игрок отходит на три метра от площадки появления и
+    // упирается в ничто. Закрываем оба конца той же кромкой леса, чтобы уровень
+    // читался местом, у которого есть задняя сторона.
     for (const [endZ, dir] of [[lo - 3, -1], [hi + 3, 1]] as const) {
       const left = reachAt(endZ, -1);
       const right = reachAt(endZ, 1);
@@ -2553,8 +2558,8 @@ export abstract class BaseLevelScene {
     for (const [name, list] of byName) {
       const template = await kit.spawn('nature', name, { maxSize: 1 });
       if (!template) continue;
-      // A kit tree is a couple of meshes (trunk, canopy); each becomes one
-      // InstancedMesh carrying every copy of that tree in the wall.
+      // Дерево из набора — это пара мешей, ствол и крона; каждый становится одним
+      // InstancedMesh, несущим все копии этого дерева в стене.
       const parts: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material; local: THREE.Matrix4 }> = [];
       template.updateMatrixWorld(true);
       template.traverse((o) => {
@@ -2564,8 +2569,8 @@ export abstract class BaseLevelScene {
       });
       if (!parts.length) continue;
 
-      // `maxSize: 1` normalised the template, so a placement's height is its
-      // scale directly.
+      // `maxSize: 1` нормализовал шаблон, поэтому высота расстановки — это прямо
+      // её масштаб.
       for (const part of parts) {
         const inst = new THREE.InstancedMesh(part.geo, part.mat, list.length);
         inst.castShadow = false;      // a treeline shadowing itself costs more
@@ -2589,9 +2594,9 @@ export abstract class BaseLevelScene {
       }
       disposeObject3DResources(template);
     }
-    // No colliders: the movement clamp already stops the player short of the
-    // treeline, and a few hundred circle colliders would cost more than they
-    // buy.
+    // Без коллайдеров: ограничение движения и так останавливает игрока, не доходя
+    // до кромки леса, а несколько сотен круговых коллайдеров стоили бы дороже, чем
+    // дают.
   }
 
   protected async loadTrees(loader: GLTFLoader, count: number, radius: number, centerZ = -18, heightBase = 5.0) {
@@ -2600,20 +2605,21 @@ export abstract class BaseLevelScene {
     const mid = ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_default', 'tree_pineRoundA', 'tree_pineRoundC'];
     const small = ['tree_small', 'tree_pineSmallA', 'tree_pineSmallC', 'tree_simple'];
 
-    // Every level's follow camera trails the hero by roughly this much in z,
-    // at close to the same x (confirmed live in L3/L6's own camera code).
-    // A canopy can clear the walkable-area check at its own position and
-    // still sit exactly where the camera parks itself once the hero is this
-    // far further down the path — confirmed live (2026-08-29): random trees
-    // from this method clipping the camera on L6/L7/L9/L16.
+    // Камера следования на любом уровне отстаёт от героя примерно на столько по z
+    // при почти том же x (подтверждено кодом камер L3 и L6). Крона может пройти
+    // проверку проходимой зоны в своей точке и всё равно стоять ровно там, где
+    // камера паркуется, когда герой ушёл по тропе на это расстояние, —
+    // подтверждено вживую 29.08.2026: случайные деревья из этого метода резали
+    // камеру на L6, L7, L9 и L16.
     //
-    // `clampToPlayArea`, not `isReserved`, is the right test: it's the same
-    // function real movement uses, so it's correct under all three of its
-    // branches (linear `pathCorridor`, `playPath`, circular `playArena`) —
-    // `isReserved` only ever answers the first one. `isReserved` alone missed
-    // every L16 hit, because L16 walks players with `playArena`, not a
-    // corridor, and reused it anyway on the other three; `clampToPlayArea`
-    // gets all four confirmed levels with one check.
+    // Правильная проверка — `clampToPlayArea`, а не `isReserved`: это та же
+    // функция, которой пользуется настоящее движение, поэтому она верна во всех
+    // трёх своих ветках (линейный `pathCorridor`, `playPath`, круговая
+    // `playArena`), тогда как `isReserved` отвечает только за первую. Один
+    // `isReserved` пропускал все попадания на L16, потому что L16 водит игроков
+    // через `playArena`, а не коридор, — и всё равно давал ложные срабатывания на
+    // остальных трёх; `clampToPlayArea` покрывает все четыре подтверждённых
+    // уровня одной проверкой.
     const CAMERA_TRAIL_Z = 9;
 
     const placements: Array<{ names: string[]; x: number; z: number; height: number }> = [];
@@ -2672,9 +2678,9 @@ export abstract class BaseLevelScene {
     centerZ = -22,
     heightAt: (x: number, z: number) => number = this.groundHeightAt,
   ) {
-    // `size` fits the largest dimension, `height` fits vertically. Wide, flat
-    // models (rocks, logs) must use `size` or uniform scaling inflates them
-    // into boulders far larger than intended.
+    // `size` подгоняет по наибольшему габариту, `height` — по вертикали. Широкие
+    // плоские модели (камни, брёвна) обязаны использовать `size`, иначе равномерное
+    // масштабирование раздувает их в валуны много больше задуманного.
     const near = [
       { names: ['grass', 'grass_large', 'grass_leafs', 'grass_leafsLarge'], items: 5, extent: 0.55, fit: 'size' as const, spread: 1.0 },
       { names: ['flower_redA', 'flower_purpleB', 'flower_yellowC', 'flower_redC'], items: 5, extent: 0.5, fit: 'height' as const, spread: 1.1 },
@@ -2697,8 +2703,8 @@ export abstract class BaseLevelScene {
       await this.placePatch(loader, anchor, { ...spec, heightAt });
     }
 
-    // A handful of boulders, spaced far apart, to break the treeline
-    // silhouette. Any more and they stop being landmarks.
+    // Несколько валунов, расставленных далеко друг от друга, чтобы разбить силуэт
+    // кромки леса. Больше — и они перестают быть ориентирами.
     const boulders = this.ringAnchors(3, radius + spread * 0.5, radius + spread, centerZ + 6);
     for (const spot of boulders) {
       if (this.isReserved(spot.x, spot.z, 2.4)) continue;
@@ -2714,7 +2720,7 @@ export abstract class BaseLevelScene {
     }
   }
 
-  // ── Spark/particle effects ───────────────────────────────────
+  // ── Искры и частицы ──────────────────────────────────────────
   /**
    * Пиковая непрозрачность полноэкранной вспышки.
    *
@@ -2728,7 +2734,7 @@ export abstract class BaseLevelScene {
   }
 
   protected spawnSparks(at: THREE.Vector3, count = 12, colors: [number, number] = [0xf1c40f, 0xe84393]) {
-    // Fewer particles when motion is reduced, for the same reason.
+    // При уменьшенном движении частиц меньше, по той же причине.
     if (this.prefersReducedMotion) count = Math.max(3, Math.round(count * 0.35));
     for (let i = 0; i < count; i++) {
       const s = new THREE.Mesh(
@@ -2744,14 +2750,14 @@ export abstract class BaseLevelScene {
     }
   }
 
-  // ── Input ────────────────────────────────────────────────────
+  // ── Ввод ─────────────────────────────────────────────────────
   setJoystick(x: number, y: number) { this.joy = { x, y }; }
 
   protected bindKeys() {
     const down = (e: KeyboardEvent) => {
-      // Let focused controls keep their native keyboard behavior: Space must
-      // activate buttons and arrows must adjust sliders. Game movement is
-      // handled only when focus is outside an interactive control.
+      // Элементы в фокусе сохраняют своё обычное поведение с клавиатуры: пробел
+      // обязан нажимать кнопки, стрелки — двигать ползунки. Игровое движение
+      // обрабатывается, только когда фокус вне интерактивного элемента.
       if (e.target instanceof HTMLElement && e.target.matches(
         'button, a, input, select, textarea, [contenteditable="true"], [role="button"]',
       )) return;
@@ -2760,8 +2766,8 @@ export abstract class BaseLevelScene {
         e.preventDefault();
         this.tryInteract();
       }
-      // Space jumps when there is nothing to interact with, so the key keeps
-      // its old meaning next to an objective but is a jump the rest of the time.
+      // Пробел прыгает, когда взаимодействовать не с чем: рядом с целью клавиша
+      // сохраняет прежний смысл, а всё остальное время это прыжок.
       if (e.code === 'Space') {
         e.preventDefault();
         if (this.interactTarget) this.tryInteract();
@@ -2832,7 +2838,7 @@ export abstract class BaseLevelScene {
     );
   }
 
-  // ── Movement ─────────────────────────────────────────────────
+  // ── Движение ─────────────────────────────────────────────────
   /**
    * Удерживает героя внутри уровня, где «уровень» — это тропа с комнатами вдоль
    * неё, а не прямоугольник.
@@ -2875,7 +2881,7 @@ export abstract class BaseLevelScene {
       const d = Math.hypot(dx, dz);
       const r = a.r + this.corridorSlack;
       if (d <= r) return { x, z };
-      // Rooms may still poke out of the arena — an alcove off the clearing.
+      // Комнаты всё ещё могут выступать за арену — ниша сбоку от поляны.
       for (const room of this.reserved) {
         const rd = Math.hypot(x - room.x, z - room.z);
         if (rd <= room.r + this.corridorSlack) return { x, z };
@@ -2884,11 +2890,11 @@ export abstract class BaseLevelScene {
     }
     if (!this.pathCorridor) return { x, z };
 
-    // Hold z inside the level's own declared range first. A room can never
-    // legitimately sit outside it — the range is derived from the rooms
-    // themselves, with slack to spare — so this only ever bites on a z the
-    // level has nothing at, and it does so before pathCorridor(z) is even
-    // evaluated (a periodic corridor has no natural edge to catch it on).
+    // Сначала держим z внутри объявленного уровнем диапазона. Комната не может
+    // законно оказаться вне него — диапазон и выводится из самих комнат, с запасом,
+    // — поэтому проверка срабатывает только на такой z, где у уровня ничего нет, и
+    // делает это ещё до вычисления pathCorridor(z): у периодического коридора нет
+    // естественного края, на котором его можно поймать.
     let cz = z;
     if (this.corridorZMin !== null) cz = Math.max(this.corridorZMin, cz);
     if (this.corridorZMax !== null) cz = Math.min(this.corridorZMax, cz);
@@ -2899,8 +2905,8 @@ export abstract class BaseLevelScene {
 
     let bestX = cx + Math.sign(x - cx || 1) * half;
     let bestZ = cz;
-    // How far outside the corridor we are; any room that holds this point,
-    // or holds it less far outside, wins.
+    // Насколько мы вне коридора; побеждает любая комната, которая содержит эту
+    // точку или выводит её наружу меньше.
     let bestPush = Math.abs(x - cx) - half;
 
     for (const room of this.reserved) {
@@ -2973,9 +2979,9 @@ export abstract class BaseLevelScene {
         h = top;
         continue;
       }
-      // Over a pad but below its lip — snap up unless we're clearly under it
-      // (side-swim elevator). Stepping stones are tall cylinders; the hero was
-      // tracking the river bed and rendering halfway through the mesh.
+      // Над площадкой, но ниже её кромки — подтягиваем вверх, кроме случая, когда
+      // мы явно под ней (тот самый «лифт вплавь сбоку»). Камни переправы — высокие
+      // цилиндры, и герой шёл по дну реки, отрисовываясь наполовину внутри меша.
       const drop = top - fromY;
       if (dist <= p.radius * 0.82 && drop <= 2 * p.top + 0.55) h = top;
     }
@@ -3022,8 +3028,7 @@ export abstract class BaseLevelScene {
             ? 'stepStone'
             : 'stepGrass',
       );
-      // On the same beat as the sound: a print that drifts out of step with
-      // the footfall reads as somebody else's.
+      // В такт со звуком: след, разошедшийся с шагом, читается как чужой.
       this.dropFootprint();
     }
     if (moving && !this.hasTakenFirstStep) {
@@ -3054,24 +3059,23 @@ export abstract class BaseLevelScene {
       this.idleAction?.reset().fadeIn(0.15).play();
     }
 
-    // Height is settled every frame, not only while moving. A platform can
-    // move out from under a hero who is standing perfectly still — which is
-    // precisely what the sinking stones do, and standing still is exactly
-    // when a child does it.
+    // Высота пересчитывается каждый кадр, а не только в движении. Платформа может
+    // уйти из-под героя, который стоит совершенно неподвижно, — именно это и
+    // делают тонущие камни, и стоит на них ребёнок как раз неподвижно.
     //
-    // Eased rather than snapped so crossing a ridge does not pop the camera,
-    // which tracks hero.y. Skipped mid-jump, where the arc owns the height.
+    // Сглаживается, а не переставляется, чтобы переход через гребень не дёргал
+    // камеру, следящую за hero.y. В прыжке пропускается: там высотой владеет дуга.
     if (!this.airborne) {
       const h = this.hero.position;
       const terrain = this.groundHeightAt(h.x, h.z);
       const stand = this.standHeightAt(h.x, h.z, h.y);
       const onPlatform = stand > terrain + 0.01;
       if (this.groundedOnPlatform && !onPlatform && h.y - stand > this.ledgeFallDrop) {
-        // Walked off a platform. Gravity owns it from here.
+        // Сошёл с платформы. Дальше высотой распоряжается гравитация.
         this.airborne = true;
         this.jumpVelocity = 0;
       } else if (onPlatform && stand > h.y + 0.02) {
-        // Step onto a pad immediately — easing through it reads as clipping.
+        // На площадку встаём сразу: плавный въезд читается как проваливание сквозь неё.
         h.y = stand;
         this.lastGroundedAt = now;
       } else {
@@ -3113,8 +3117,8 @@ export abstract class BaseLevelScene {
   protected tryJump() {
     if (this.paused) return;
     if (this.airborne) {
-      // Coyote time: only on the way down, and only just after leaving solid
-      // ground, so this can never become a double jump.
+      // «Койот-тайм»: только на спуске и только сразу после схода с твёрдой земли,
+      // чтобы это никогда не превратилось в двойной прыжок.
       const late = performance.now() - this.lastGroundedAt;
       if (this.jumpVelocity > 0 || late > this.coyoteMs) return;
     }
@@ -3136,8 +3140,8 @@ export abstract class BaseLevelScene {
     const prevY = this.hero.position.y;
     this.jumpVelocity -= this.gravity * dt;
     this.hero.position.y += this.jumpVelocity * dt;
-    // Swept against the height the hero came *from*, so a stone still catches
-    // a fall that a slow frame dropped clean past its top.
+    // Проверяется по той высоте, *с которой* герой пришёл, чтобы камень поймал
+    // падение, пронесённое медленным кадром мимо его верха.
     const ground = this.standHeightAt(this.hero.position.x, this.hero.position.z, prevY);
     if (this.hero.position.y <= ground) {
       this.hero.position.y = ground;
@@ -3145,8 +3149,8 @@ export abstract class BaseLevelScene {
       this.airborne = false;
       this.lastGroundedAt = performance.now();
       this.groundedOnPlatform = ground > this.groundHeightAt(this.hero.position.x, this.hero.position.z) + 0.01;
-      // A press made just before touching down still counts, so a hurried
-      // child chains hops instead of stopping dead on every stone.
+      // Нажатие перед самым касанием земли засчитывается, и торопливый ребёнок
+      // связывает прыжки цепочкой, а не замирает на каждом камне.
       if (this.lastGroundedAt - this.jumpRequestedAt < this.bufferMs) {
         this.tryJump();
         return;
@@ -3158,7 +3162,7 @@ export abstract class BaseLevelScene {
     }
   }
 
-  // ── Animation updates ────────────────────────────────────────
+  // ── Обновление анимаций ──────────────────────────────────────
   protected updateAmbient(dt: number, now: number) {
     this.fpsSampler.frame(now);
     this.updateCameraOrbit(dt);
@@ -3167,9 +3171,9 @@ export abstract class BaseLevelScene {
     this.updateSway(now);
     const motionScale = this.prefersReducedMotion ? 0.25 : 1;
 
-    // Wings. Collected from the scene once rather than threaded through
-    // seven levels that each keep their own butterfly array — the flap is a
-    // property of the butterfly, not of any level.
+    // Крылья. Собираются из сцены один раз, а не протягиваются через семь
+    // уровней, каждый со своим массивом бабочек: взмах — свойство бабочки, а не
+    // уровня.
     if (!this.butterfliesQualityTried) {
       this.butterfliesQualityTried = true;
       void this.upgradeButterfliesToQualityGlb();
@@ -3184,24 +3188,24 @@ export abstract class BaseLevelScene {
       const hinges = (b.userData.hinges as THREE.Group[] | undefined) ?? [];
       const beat = Math.sin(now * 0.001 * (b.userData.flapRate as number) + (b.userData.phase as number));
       if (hinges.length) {
-        // Up to nearly vertical, down to almost flat: a shallow flap looks like
-        // a twitch, and a full fold makes the butterfly vanish edge-on.
+        // Вверх почти до вертикали, вниз почти до плоскости: мелкий взмах выглядит
+        // подёргиванием, а полное складывание заставляет бабочку исчезнуть с ребра.
         const fold = (0.55 + beat * 0.75) * motionScale;
         for (const h of hinges) h.rotation.z = -(h.userData.side as number) * fold;
       } else {
-        // Quality GLB butterflies: gentle bob + yaw instead of hinged fold.
+        // У качественных бабочек из GLB — мягкое покачивание и поворот вместо складывания.
         b.position.y = 1.15 + beat * 0.12 * motionScale;
         b.rotation.y = now * 0.0012 + (b.userData.phase as number);
       }
-      // Bank into the turn, so drifting sideways looks like flying.
+      // Крен в поворот, чтобы боковое смещение выглядело полётом.
       b.rotation.z = Math.sin(now * 0.0008 + (b.userData.phase as number)) * 0.25 * motionScale;
     }
-    // Only the next few arrows stay lit. A long emissive trail piles up at the
-    // vanishing point and bloom fuses it into one glowing blob on the horizon.
+    // Горят только ближайшие несколько стрелок. Длинная светящаяся цепочка
+    // скапливается в точке схода, и свечение сплавляет её в одно пятно на горизонте.
     for (const a of this.pathArrows) {
-      // Bob above the terrain, not above world zero. This line runs every
-      // frame, so grounding the arrow when it is built would be undone on the
-      // next one — the height has to be recomputed here.
+      // Покачивается над рельефом, а не над мировым нулём. Эта строка выполняется
+      // каждый кадр, поэтому посадка стрелки на землю при её создании была бы
+      // отменена на следующем: высоту надо пересчитывать здесь.
       a.position.y =
         this.groundHeightAt(a.position.x, a.position.z) +
         0.08 +
@@ -3251,9 +3255,9 @@ export abstract class BaseLevelScene {
     }
     for (const m of this.npcMixerCache) m.update(dt);
     if (this.heroAvatar) {
-      // Pose follows what the hero is actually doing, so the rig never claims
-      // to be walking while the character stands still — the exact mismatch
-      // that made the old static model read as broken.
+      // Поза следует за тем, что герой действительно делает, и скелет никогда не
+      // утверждает, будто идёт, пока персонаж стоит, — именно это несовпадение и
+      // делало прежнюю статичную модель похожей на сломанную.
       this.heroAvatar.setPose(
         this.airborne ? 'jump'
           : this.praiseUntil > now ? 'cheer'
@@ -3276,8 +3280,8 @@ export abstract class BaseLevelScene {
     const show = !!obj && !hiddenPhases.includes(this.currentPhase()) && !this.interactTarget;
     this.guideArrow.visible = show;
     if (!show || !obj) {
-      // The beacon follows the arrow's visibility exactly. Without this it
-      // keeps burning at the last objective through the outro.
+      // Маяк повторяет видимость стрелки в точности. Без этого он продолжает
+      // гореть над последней целью весь финал.
       this.hideObjectiveBeacon();
       return;
     }
@@ -3290,9 +3294,9 @@ export abstract class BaseLevelScene {
     }
     aimGuideArrow(this.guideArrow, this.hero, obj, now);
 
-    // The arrow gives a heading; the beacon gives a destination. Only worth
-    // showing once the objective is far enough that "which way" stops being
-    // the same question as "where" — under four metres it is already on screen.
+    // Стрелка даёт направление, маяк — точку назначения. Показывать его стоит
+    // только когда цель достаточно далеко, чтобы «куда идти» перестало быть тем же
+    // вопросом, что «где это»: ближе четырёх метров она и так на экране.
     const beacon = this.objectiveBeacon;
     if (!beacon) return;
     if (dist < 4) {
@@ -3357,15 +3361,15 @@ export abstract class BaseLevelScene {
   protected updateCamera(target: THREE.Vector3, look: THREE.Vector3, lerp = 0.0015, dt = 0.016) {
     this.camera.position.lerp(target, 1 - Math.pow(lerp, dt));
     if (!this.camLook) this.camLook = look.clone();
-    // Only the height is smoothed. Smoothing the whole aim point was a
-    // regression: the original design lags the camera's position but snaps
-    // its aim, which is what keeps the hero centred while the camera trails
-    // behind. Lagging both let the hero slide out of frame whenever he moved
-    // steadily — the camera looked at where he had been.
+    // Сглаживается только высота. Сглаживание всей точки прицела было регрессией:
+    // исходная схема отстаёт положением камеры, но прицел переставляет мгновенно, —
+    // именно это держит героя в центре, пока камера догоняет. Отставание обоих
+    // выпускало героя из кадра при любом равномерном движении: камера смотрела
+    // туда, где он был.
     //
-    // The pitch swing this was meant to fix is entirely vertical: stepping
-    // onto a slope moves the aim point up or down instantly while the camera
-    // is still climbing, and the frame tips. So y trails and x/z do not.
+    // Качание наклона, ради которого всё затевалось, целиком вертикальное: выход на
+    // склон мгновенно двигает точку прицела вверх или вниз, пока камера ещё
+    // поднимается, и кадр заваливает. Поэтому y отстаёт, а x и z — нет.
     this.camLook.x = look.x;
     this.camLook.z = look.z;
     this.camLook.y += (look.y - this.camLook.y) * (1 - Math.pow(0.02, dt));
@@ -3410,10 +3414,10 @@ export abstract class BaseLevelScene {
   protected cameraFraming() {
     switch (this.viewport) {
       case 'portrait':
-        // Lower and further back, aimed further ahead: fills a tall frame.
+        // Ниже и дальше назад, прицел дальше вперёд: заполняет высокий кадр.
         return { heightMul: 0.86, backAdd: 1.5, lookUp: 0.9, lookAhead: 2.2, lateral: 0.8 };
       case 'phone-landscape':
-        // Flatter still; the frame is short, so pitch is what costs view.
+        // Ещё положе: кадр низкий, и обзор съедает именно наклон.
         return { heightMul: 0.74, backAdd: 1.8, lookUp: 0.6, lookAhead: 1.6, lateral: 0 };
       default:
         return { heightMul: 1, backAdd: 0, lookUp: 0, lookAhead: 0, lateral: 0 };
@@ -3428,7 +3432,7 @@ export abstract class BaseLevelScene {
     return this.isPortraitViewport() ? amount : 0;
   }
 
-  // ── Abstract methods ─────────────────────────────────────────
+  // ── Абстрактные методы ───────────────────────────────────────
   protected abstract currentPhase(): string;
   abstract tryInteract(): void;
   abstract init(nick: string, lang: 'ru' | 'kk', onHud: (h: BaseHud) => void): Promise<void>;
@@ -3446,10 +3450,10 @@ export abstract class BaseLevelScene {
     }
     this.demoteSmallShadowCasters();
     document.addEventListener('visibilitychange', this.onVisibility);
-    // Dev QA handle. The completion plan asks for a way to check a level's
-    // later acts without replaying the earlier ones, and `?at=` only moves the
-    // hero — it cannot advance a phase or read back what the scene thinks is
-    // true. Guarded by import.meta.env.DEV, so it is absent from a build.
+    // Ручка для отладки и QA. План завершения требует способа проверять поздние
+    // акты уровня, не переигрывая ранние, а `?at=` только переносит героя: он не
+    // умеет ни продвинуть фазу, ни прочитать, что сцена считает истиной. Закрыто
+    // import.meta.env.DEV, поэтому в сборке этого нет.
     if (import.meta.env.DEV) {
       (window as unknown as { __level?: BaseLevelScene }).__level = this;
     }
@@ -3474,7 +3478,7 @@ export abstract class BaseLevelScene {
     this.hasTakenFirstStep = true;
   }
 
-  // ── Resize ───────────────────────────────────────────────────
+  // ── Изменение размера ────────────────────────────────────────
   /**
    * Форма экрана, в который сейчас рисует сцена.
    *
@@ -3490,8 +3494,8 @@ export abstract class BaseLevelScene {
     const h = p?.clientHeight || innerHeight;
     this.isMobile = window.matchMedia('(pointer: coarse)').matches || w < 768;
 
-    // Keyed off height, not `orientation`: a small desktop window is also
-    // "landscape" but wants the desktop framing, not the phone one.
+    // Определяется по высоте, а не по `orientation`: маленькое окно на десктопе
+    // тоже «ландшафт», но ему нужна десктопная подача, а не телефонная.
     this.viewport = h > w * 1.15
       ? 'portrait'
       : (h <= 480 && this.isMobile) ? 'phone-landscape' : 'wide';
@@ -3499,13 +3503,13 @@ export abstract class BaseLevelScene {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.renderQuality.maxPixelRatio));
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / Math.max(h, 1);
-    // Vertical FOV. A held-sideways phone is short, so a narrower vertical
-    // angle over a wide aspect is what actually widens the view rather than
-    // squashing the horizon into a letterbox.
-    // Portrait was 61deg, which put the bottom of the frame into the ground
-    // about five units in front of the camera — a dead band of foreground
-    // under the hero that no look target could recover. A narrower vertical
-    // angle pushes that intersection out past the play area.
+    // Вертикальный угол обзора. Телефон, лежащий боком, даёт низкий кадр, поэтому
+    // именно узкий вертикальный угол при широком соотношении сторон расширяет вид,
+    // а не сплющивает горизонт в почтовую щель.
+    // У портрета был 61 градус, из-за чего низ кадра упирался в землю примерно в
+    // пяти единицах перед камерой — мёртвая полоса переднего плана под героем,
+    // которую не спасала никакая точка прицела. Более узкий вертикальный угол
+    // выталкивает это пересечение за пределы игровой зоны.
     this.camera.fov = this.viewport === 'portrait'
       ? 54
       : this.viewport === 'phone-landscape' ? 46 : 53;
@@ -3531,7 +3535,7 @@ export abstract class BaseLevelScene {
     };
   }
 
-  // ── Dispose ──────────────────────────────────────────────────
+  // ── Освобождение ресурсов ────────────────────────────────────
   private disposeSceneResources() {
     disposeObject3DResources(this.scene);
     for (const grass of this.windGrass) grass.dispose();
@@ -3586,7 +3590,7 @@ export abstract class BaseLevelScene {
     });
   }
 
-  // ── Wind sway ────────────────────────────────────────────────
+  // ── Качание на ветру ─────────────────────────────────────────
   private swayCache: THREE.Object3D[] | null = null;
 
   /**
@@ -3606,7 +3610,7 @@ export abstract class BaseLevelScene {
   protected markSwaying(object: THREE.Object3D, strength = 1) {
     object.userData.sway = {
       phase: Math.random() * Math.PI * 2,
-      // Spread the rates so a stand of trees does not breathe in unison.
+      // Скорости разнесены, чтобы группа деревьев не дышала в унисон.
       rate: 0.45 + Math.random() * 0.35,
       amp: (0.009 + Math.random() * 0.007) * strength,
       baseZ: object.rotation.z,
@@ -3628,14 +3632,14 @@ export abstract class BaseLevelScene {
     for (const o of this.swayCache) {
       const s = o.userData.sway as { phase: number; rate: number; amp: number; baseZ: number; baseX: number };
       const a = s.amp * scale;
-      // Two axes at different rates, so the lean traces a slow figure rather
-      // than a metronome swing in one plane.
+      // Две оси с разной скоростью: наклон описывает медленную фигуру, а не
+      // качается метрономом в одной плоскости.
       o.rotation.z = s.baseZ + Math.sin(t * s.rate + s.phase) * a;
       o.rotation.x = s.baseX + Math.sin(t * s.rate * 0.73 + s.phase * 1.7) * a * 0.6;
     }
   }
 
-  // ── Footprints ───────────────────────────────────────────────
+  // ── Следы лап ────────────────────────────────────────────────
   /**
    * Лапа: подушечка и три пальца, плашмя на земле.
    *
@@ -3668,8 +3672,8 @@ export abstract class BaseLevelScene {
   private ensureFootprints() {
     if (this.footprints) return this.footprints;
     const capacity = BaseLevelScene.FOOTPRINT_CAPACITY;
-    // Snow takes a bluish dent; soil takes a darker scuff. Stone takes
-    // nothing, and callers skip it before reaching here.
+    // На снегу остаётся синеватая вмятина, на земле — тёмная потёртость. Камень не
+    // берёт ничего, и вызывающие отсеивают его до этого места.
     const snow = this.footstepSurface === 'snow';
     const mat = new THREE.MeshBasicMaterial({
       color: snow ? 0x8fa8c0 : 0x5a4632,
@@ -3682,15 +3686,15 @@ export abstract class BaseLevelScene {
     const mesh = new THREE.InstancedMesh(BaseLevelScene.pawGeometry(), mat, capacity);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     mesh.frustumCulled = false;
-    // Park every slot at zero scale until it is used, so the pool starts invisible.
+    // Все слоты стоят с нулевым масштабом, пока не понадобятся: пул начинается невидимым.
     const m = new THREE.Matrix4().makeScale(0, 0, 0);
     for (let i = 0; i < capacity; i++) mesh.setMatrixAt(i, m);
     mesh.instanceMatrix.needsUpdate = true;
 
     this.footprints = mesh;
     this.footprintAge = new Float32Array(capacity);
-    // x, y, z, yaw per slot, so the fade can rebuild each matrix without
-    // reading back from the GPU buffer.
+    // По x, y, z и повороту на слот, чтобы затухание могло пересобрать каждую
+    // матрицу, не вычитывая обратно из буфера видеопамяти.
     this.footprintPose = new Float32Array(capacity * 4);
     this.scene.add(mesh);
     return mesh;
@@ -3712,8 +3716,8 @@ export abstract class BaseLevelScene {
     this.footprintNext++;
     this.footprintFoot = -this.footprintFoot;
 
-    // Beside the centre line, on the side of whichever foot is falling, and a
-    // little behind the hero so the print appears under him rather than ahead.
+    // Сбоку от осевой линии, со стороны той лапы, которая опускается, и чуть
+    // позади героя, чтобы след появлялся под ним, а не впереди.
     const side = this.footprintFoot * 0.13;
     const cos = Math.cos(this.yaw);
     const sin = Math.sin(this.yaw);
@@ -3758,9 +3762,8 @@ export abstract class BaseLevelScene {
     for (let i = 0; i < age.length; i++) {
       if (age[i] <= 0) continue;
       age[i] = Math.max(0, age[i] - step);
-      // Hold near full size for the first stretch, then shrink away, so a
-      // print reads as settled snow rather than as something deflating from
-      // the moment it lands.
+      // Сначала держится почти в полный размер, потом уменьшается: след читается
+      // осевшим снегом, а не чем-то, что сдувается с момента появления.
       this.writeFootprint(mesh, i, Math.min(1, age[i] * 1.9));
       dirty = true;
     }
