@@ -15,17 +15,16 @@ const TABS: Array<WardrobeCategory | 'all'> = [
 ];
 
 /**
- * The dressing room.
+ * Примерочная.
  *
- * The old shop sold five city decorations from a list of names: a child could
- * not see what they were buying, and nothing they bought ever appeared on
- * *them*. It is a wardrobe now — forty-four items, and tapping one puts it on
- * the character straight away whether or not it has been bought. Trying before
- * buying is the whole point, so the price only comes up once the child decides
- * to keep the look.
+ * Прежний магазин продавал пять городских украшений списком названий: ребёнок не
+ * видел, что покупает, и ничто из купленного не появлялось на *нём самом*. Теперь
+ * это гардероб — сорок четыре вещи, и нажатие сразу надевает вещь на персонажа,
+ * куплена она или нет. Примерить до покупки — в этом весь смысл, поэтому цена
+ * возникает только когда ребёнок решает оставить образ.
  *
- * Meshy full-body look swaps (pack / nude / explorer / …) were removed: they
- * put a different character on the stand and read as a broken Barsik.
+ * Смена образа целиком через модели Meshy — pack, nude, explorer и прочие —
+ * убрана: она ставила на подиум другого персонажа и читалась сломанным Барсиком.
  */
 export function ShopScreen() {
   const stars = useGameStore((s) => s.stars);
@@ -37,7 +36,7 @@ export function ShopScreen() {
 
   const [tab, setTab] = useState<WardrobeCategory | 'all'>('all');
   const [toast, setToast] = useState<string | null>(null);
-  /** What the child is looking at right now — owned or not. */
+  /** То, что ребёнок рассматривает сейчас, — купленное или нет. */
   const [tryOn, setTryOn] = useState<string[]>(outfit);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -76,7 +75,7 @@ export function ShopScreen() {
     window.setTimeout(() => setToast(null), 2400);
   }, []);
 
-  /** Tap to try. One item per slot; tapping the worn one takes it off. */
+  /** Нажатие примеряет. По одной вещи на гнездо; нажатие на надетую снимает её. */
   const toggleTry = useCallback((id: string) => {
     const item = WARDROBE_BY_ID.get(id);
     if (!item) return;
@@ -85,7 +84,7 @@ export function ShopScreen() {
       const sameSlot = current.filter((x) => {
         const other = WARDROBE_BY_ID.get(x);
         if (!other) return false;
-        // Hoodie + jeans share category `body` but stack together.
+        // Худи и джинсы относятся к категории `body`, но надеваются вместе.
         if (item.category === 'body' && other.category === 'body') {
           const conflict =
             (!!item.bodyWear?.hoodie && !!other.bodyWear?.hoodie)
@@ -131,9 +130,9 @@ export function ShopScreen() {
   return (
     <div className="screen screen-shop screen-meta">
       {/*
-        No star chip here. The app header carries the balance on every screen,
-        and putting a second identical «★ 200» fifty pixels below the first one
-        cost a phone a whole row before the child saw a single item.
+        Плашки со звёздами здесь нет. Баланс несёт шапка приложения на каждом
+        экране, и второе такое же «★ 200» в пятидесяти пикселях под первым стоило
+        телефону целого ряда до того, как ребёнок увидит хоть одну вещь.
       */}
       <header className="meta-screen-header">
         <div>

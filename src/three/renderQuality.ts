@@ -4,19 +4,20 @@ export interface RenderQualityProfile {
   tier: RenderQualityTier;
   maxPixelRatio: number;
   shadowMapSize: number;
-  /** false picks a single-tap shadow filter — much cheaper than PCF-soft on weak GPUs. */
+  /** false выбирает однопроходный фильтр теней — на слабых видеокартах он много дешевле мягкого PCF. */
   shadowSoft: boolean;
-  /** Renderer-level MSAA. Off on low tier: the composer is already off there too, so
-   *  there is no AA-quality tradeoff being made, only a GPU cost being avoided. */
+  /** Сглаживание на уровне отрисовщика. На низком качестве выключено: композитор там
+   *  тоже выключен, поэтому качеством сглаживания никто не жертвует — экономится
+   *  только нагрузка на видеокарту. */
   antialias: boolean;
   useComposer: boolean;
   bloomStrength: number;
   bloomRadius: number;
   bloomThreshold: number;
   exposure: number;
-  /** Min bounding-box dimension (m) below which a shadow caster is demoted
-   *  to non-casting — see `demoteSmallShadowCasters` in BaseLevelScene. Higher
-   *  on `low` to cut more small casters out of the shadow pass on weak GPUs. */
+  /** Наименьший габарит в метрах, ниже которого объект перестаёт отбрасывать тень —
+   *  см. `demoteSmallShadowCasters` в BaseLevelScene. На низком качестве значение
+   *  выше, чтобы убрать из теневого прохода больше мелких объектов. */
   shadowCasterMinHeight: number;
 }
 
@@ -30,10 +31,10 @@ function normalizeTier(raw: string | null): RenderQualityTier | null {
 }
 
 /**
- * Cheap, best-effort signal that a phone is low-end: `deviceMemory` and
- * `hardwareConcurrency` are the only device hints the web gives us without a
- * benchmark. Kept mobile-only — plenty of desktops/laptops report 4 cores
- * too, and those are not the devices this is meant to catch.
+ * Дешёвый и приблизительный признак слабого телефона: `deviceMemory` и
+ * `hardwareConcurrency` — единственные подсказки об устройстве, которые веб даёт
+ * без замеров производительности. Только для мобильных: четыре ядра сообщают и
+ * многие настольные машины с ноутбуками, а ловить эта проверка должна не их.
  */
 function isWeakMobileDevice(): boolean {
   if (typeof navigator === 'undefined') return false;

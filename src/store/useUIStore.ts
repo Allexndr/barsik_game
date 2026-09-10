@@ -77,12 +77,12 @@ export interface UIState {
   muted: boolean;
   volume: number;
   ttsEnabled: boolean;
-  /** Narrator gender pack: f → voice/{lang}/, m → voice/m/{lang}/. */
+  /** Пакет голоса рассказчика: f — voice/{lang}/, m — voice/m/{lang}/. */
   voiceGender: VoiceGender;
   freeChatEnabled: boolean;
   showSettings: boolean;
   paused: boolean;
-  /** Changes on every mission start so replaying the same level remounts it. */
+  /** Меняется при каждом старте миссии, чтобы повтор того же уровня заново его монтировал. */
   episodeRunId: number;
 
   setScreen: (screen: UIState['currentScreen']) => void;
@@ -152,7 +152,7 @@ export const useUIStore = create<UIState>((set) => ({
     document.documentElement.lang = lang === 'kk' ? 'kk' : 'ru';
     document.title = translate(lang, 'doc.title');
     set({ lang });
-    // Keep player profile in sync so clouds/reload keep language
+    // Держим профиль игрока в согласии, чтобы язык переживал облако и перезагрузку.
     try {
       const raw = localStorage.getItem('barsik_player');
       if (raw) {
@@ -163,7 +163,7 @@ export const useUIStore = create<UIState>((set) => ({
         }
       }
     } catch {
-      /* ignore */
+      /* не важно */
     }
   },
   toggleMuted: () =>
@@ -172,7 +172,7 @@ export const useUIStore = create<UIState>((set) => ({
       try {
         localStorage.setItem(MUTED_KEY, muted ? '1' : '0');
       } catch {
-        /* ignore */
+        /* не важно */
       }
       return { muted };
     }),
@@ -180,7 +180,7 @@ export const useUIStore = create<UIState>((set) => ({
     try {
       localStorage.setItem(VOL_KEY, String(v));
     } catch {
-      /* ignore */
+      /* не важно */
     }
     set({ volume: v });
   },
@@ -190,7 +190,7 @@ export const useUIStore = create<UIState>((set) => ({
       try {
         localStorage.setItem(TTS_KEY, ttsEnabled ? '1' : '0');
       } catch {
-        /* ignore */
+        /* не важно */
       }
       return { ttsEnabled };
     }),
@@ -198,7 +198,7 @@ export const useUIStore = create<UIState>((set) => ({
     try {
       localStorage.setItem(VOICE_GENDER_KEY, g);
     } catch {
-      /* ignore */
+      /* не важно */
     }
     set({ voiceGender: g });
   },
@@ -207,7 +207,7 @@ export const useUIStore = create<UIState>((set) => ({
       try {
         localStorage.setItem(FREE_CHAT_KEY, v ? '1' : '0');
       } catch {
-        /* ignore */
+        /* не важно */
       }
       return { freeChatEnabled: v };
     }),
@@ -215,9 +215,9 @@ export const useUIStore = create<UIState>((set) => ({
   setPaused: (v) => set({ paused: v }),
 }));
 
-// QA: same dev-only exposure pattern as `window.__gameStore` in
-// useGameStore.ts — lets QA trigger soft-gates etc. directly instead of
-// waiting out real session-time thresholds.
+// Для проверки: та же схема отладочного доступа, что и у `window.__gameStore` в
+// useGameStore.ts, — позволяет вызывать мягкие гейты напрямую, а не высиживать
+// настоящие пороги по времени сессии.
 if (import.meta.env.DEV && typeof window !== 'undefined') {
   (window as unknown as { __uiStore?: typeof useUIStore }).__uiStore = useUIStore;
 }

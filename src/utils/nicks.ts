@@ -2,7 +2,7 @@ import type { Lang } from '@/i18n';
 import { t } from '@/i18n';
 import { checkText, moderationMessage } from './moderation';
 
-/** Soft nick uniqueness via local cache (device). Later: Supabase unique check. */
+/** Мягкая проверка уникальности ника по локальному кешу устройства. Позже — проверка в Supabase. */
 
 const NICKS_KEY = 'barsik_nicks_cache';
 
@@ -25,7 +25,7 @@ export function isNickTaken(nick: string, exceptId?: string): boolean {
   const n = normalizeNick(nick);
   if (n.length < 2) return false;
   const list = getCachedNicks();
-  // Also check current player slot
+  // Проверяем и текущий слот игрока.
   try {
     const playerRaw = localStorage.getItem('barsik_player');
     if (playerRaw) {
@@ -33,7 +33,7 @@ export function isNickTaken(nick: string, exceptId?: string): boolean {
       if (p?.id !== exceptId && normalizeNick(p.nick || '') === n) return true;
     }
   } catch {
-    /* ignore */
+    /* не важно */
   }
   return list.includes(n);
 }
@@ -68,9 +68,9 @@ export function validateNick(
   if (!/^[\p{L}\p{N}_ -]+$/u.test(trimmed)) {
     return { ok: false, message: t(lang, 'nick.chars') };
   }
-  // The nickname is shown to other children on the leaderboard, and until now
-  // nothing looked at what it said. Length and character class are not a
-  // content check.
+  // Ник показывается другим детям в таблице результатов, и до сих пор никто не
+  // смотрел, что в нём написано. Длина и класс символов содержательной проверкой не
+  // являются.
   const safety = checkText(trimmed, { minLength: 2, maxLength: 16 });
   if (!safety.ok) {
     return { ok: false, message: moderationMessage(safety.reason, lang === 'kk' ? 'kk' : 'ru') };
