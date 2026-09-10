@@ -1,51 +1,50 @@
 import * as THREE from 'three';
 
 /**
- * Configurable sculpted ground for every level.
+ * Настраиваемая скульптурная земля для всех уровней.
  *
- * Mission 0 once used a bespoke valley terrain helper; levels now share this
- * hard-coded to that one layout, so levels 2-16 could not reuse it and fell
- * back to a flat PlaneGeometry. A flat plane is the single loudest "cheap"
- * signal in the game: no horizon shaping, no depth cues, props sitting on a
- * billiard table. This module gives each level the same sculpted look with its
- * own corridor and features.
+ * У нулевой миссии когда-то был собственный помощник для долины, жёстко
+ * привязанный к её планировке, — уровни со второго по шестнадцатый им
+ * воспользоваться не могли и откатывались к плоской PlaneGeometry. Плоскость —
+ * самый громкий сигнал дешевизны в игре: горизонт не вылеплен, глубины нет,
+ * предметы стоят на бильярдном столе. Этот модуль даёт каждому уровню тот же
+ * скульптурный вид с его собственным коридором и особенностями.
  *
- * The walkable corridor is deliberately carved flat — gameplay stays
- * predictable while the land around it rolls and rises toward the rim.
+ * Проходимый коридор намеренно вырезан плоским: геймплей остаётся предсказуемым,
+ * пока земля вокруг него перекатывается и поднимается к краю.
  */
 
 export type TerrainBiome = 'forest' | 'snow' | 'ice';
 
 export type TerrainFeature =
-  /** Depression: pond bed, hollow, crater. */
+  /** Впадина: дно пруда, лощина, кратер. */
   | { kind: 'basin'; x: number; z: number; r: number; depth: number }
-  /** Raised knoll, readable as a landmark from a distance. */
+  /** Поднятый холмик, читаемый ориентиром издалека. */
   | { kind: 'mound'; x: number; z: number; r: number; height: number }
-  /** Flat raised shelf for a house, podium, clearing. */
+  /** Ровная приподнятая площадка под дом, подиум, поляну. */
   | { kind: 'plateau'; x: number; z: number; halfW: number; halfD: number; height: number }
-  /** Flatten an area completely — arenas, festival grounds, chest clearings. */
+  /** Полностью выровнять область — арены, праздничные поляны, площадки с сундуком. */
   | { kind: 'flat'; x: number; z: number; r: number }
   /**
-   * Rectangular flatten with a soft edge — exactly zero inside the rectangle.
+   * Прямоугольное выравнивание с мягким краем: внутри прямоугольника ровно ноль.
    *
-   * A disc cannot hold a level whose authored content runs in a strip: `flat`
-   * scales the height by the distance to its centre, so a chain of discs
-   * leaves a low hump between every pair of them, and any prop authored at
-   * y = 0 ends up buried in one. This returns a true zero across the whole
-   * rectangle, which is what lets a level built flat keep every position it
-   * was authored with while the ground outside it rolls.
+   * Диск не удержит уровень, содержимое которого расставлено полосой: `flat`
+   * масштабирует высоту по расстоянию до центра, поэтому цепочка дисков оставляет
+   * между каждой парой невысокий бугор, и любой предмет, поставленный на y = 0, в
+   * нём закапывается. Здесь по всему прямоугольнику возвращается настоящий ноль —
+   * это и позволяет уровню, собранному плоским, сохранить все свои координаты,
+   * пока земля снаружи перекатывается.
    */
   | { kind: 'flatRect'; x: number; z: number; halfW: number; halfD: number; falloff?: number }
   /**
-   * A rectangular cut that the path corridor cannot fill back in: river beds,
-   * ravines, moats — anything the route has to be crossed rather than walked.
+   * Прямоугольный вырез, который коридор тропы не может засыпать обратно: русла
+   * рек, овраги, рвы — всё, что маршрут должен пересекать, а не идти по нему.
    *
-   * A `basin` will not do this job. Basins are applied before the corridor
-   * carve, and that carve multiplies the height by 0.08 at the centre line,
-   * so a three-metre basin under the path came out half a metre deep — a
-   * puddle with dry banks either side, which is exactly what the first
-   * crossing looked like. Trenches are applied after the corridor for that
-   * reason: water cuts the road, not the other way round.
+   * `basin` для этого не годится. Впадины применяются до вырезания коридора, а оно
+   * умножает высоту на 0.08 у осевой линии, поэтому трёхметровая впадина под тропой
+   * выходила глубиной в полметра — лужа с сухими берегами по бокам, ровно так
+   * первая переправа и выглядела. Траншеи поэтому применяются после коридора: вода
+   * режет дорогу, а не наоборот.
    */
   | { kind: 'trench'; x: number; z: number; halfW: number; halfD: number; depth: number };
 
@@ -53,21 +52,21 @@ export interface LevelTerrainOptions {
   size?: number;
   segments?: number;
   biome?: TerrainBiome;
-  /** Centre line of the walkable route: x for a given z. */
+  /** Осевая линия проходимого маршрута: x для заданного z. */
   corridor?: (z: number) => number;
-  /** Half-width of the carved-flat corridor. */
+  /** Половина ширины вырезанного плоского коридора. */
   corridorHalf?: number;
-  /** Draw a tinted trail stripe along the corridor. */
+  /** Нарисовать вдоль коридора подкрашенную полосу тропы. */
   corridorTint?: boolean;
   features?: TerrainFeature[];
-  /** Amplitude of the rolling base relief. */
+  /** Амплитуда базового перекатывающегося рельефа. */
   relief?: number;
-  /** Half-extent of the play area; beyond it the rim lifts to close the vista. */
+  /** Половина размера игровой зоны; за ней край поднимается и закрывает вид. */
   playHalfExtent?: number;
-  /** How far in from the rim the lift begins. */
+  /** На каком расстоянии от края начинается подъём. */
   rimFalloff?: number;
   rimHeight?: number;
-  /** Varies the noise so neighbouring levels do not share a silhouette. */
+  /** Меняет шум, чтобы у соседних уровней не совпадал силуэт. */
   seed?: number;
 }
 
@@ -177,8 +176,8 @@ function mottle(x: number, z: number): number {
 }
 
 /**
- * Build the height function first, so props, grass and the hero can all query
- * the same surface the mesh was displaced with.
+ * Сначала строится функция высоты, чтобы предметы, трава и герой спрашивали ту же
+ * поверхность, по которой смещался меш.
  */
 export function createTerrainSampler(opts: LevelTerrainOptions = {}) {
   const {
@@ -193,8 +192,9 @@ export function createTerrainSampler(opts: LevelTerrainOptions = {}) {
   } = opts;
 
   return function sampleHeight(x: number, z: number): number {
-    // Three offset sine octaves read as gentle rolling ground and cost far
-    // less than real noise, which matters because grass queries this per blade.
+    // Три смещённые синусоидальные октавы читаются мягко перекатывающейся землёй и
+    // стоят куда меньше настоящего шума, а это важно: трава спрашивает эту функцию
+    // на каждую травинку.
     let h =
       Math.sin(x * 0.07 + 1.2 + seed) * 1.1 +
       Math.cos(z * 0.05 - 0.4 + seed * 0.7) * 0.9 +
@@ -226,7 +226,7 @@ export function createTerrainSampler(opts: LevelTerrainOptions = {}) {
       else h *= 1 - falloff; // 'flat'
     }
 
-    // Carve the corridor last so nothing above can re-tilt the walkable route.
+    // Коридор вырезается последним, чтобы ничто выше не накренило проходимый маршрут.
     if (corridor) {
       const d = Math.abs(x - corridor(z));
       if (d < corridorHalf + 4) {
@@ -235,16 +235,17 @@ export function createTerrainSampler(opts: LevelTerrainOptions = {}) {
       }
     }
 
-    // Lift the rim so the level closes on hills instead of running to a
-    // hard fog line — the classic "world ends here" tell.
+    // Край поднимается, чтобы уровень закрывался холмами, а не упирался в резкую
+    // границу тумана — классический признак «мир кончается здесь».
     const edge = playHalfExtent - Math.max(Math.abs(x), Math.abs(z));
     if (edge < rimFalloff) {
       const t = THREE.MathUtils.clamp((rimFalloff - edge) / rimFalloff, 0, 1);
       h += t * t * rimHeight;
     }
 
-    // Authored flats beat corridor carve and rim lift (L0 yurt terrace), but
-    // not water: a flatRect that covers a play strip must not refill a moat.
+    // Заданные вручную ровные площадки важнее вырезания коридора и подъёма края
+    // (терраса юрты на L0), но не важнее воды: flatRect, накрывающий игровую полосу,
+    // не должен засыпать ров.
     for (const f of features) {
       if (f.kind === 'flat') {
         const dist = Math.hypot(x - f.x, z - f.z);
@@ -262,7 +263,8 @@ export function createTerrainSampler(opts: LevelTerrainOptions = {}) {
       }
     }
 
-    // Water digs last so a river/moat stays cut even under a play-strip flat.
+    // Вода копает последней, чтобы река или ров остались вырезанными даже под
+    // ровной игровой полосой.
     for (const f of features) {
       if (f.kind !== 'trench') continue;
       const dx = Math.abs(x - f.x) - f.halfW;

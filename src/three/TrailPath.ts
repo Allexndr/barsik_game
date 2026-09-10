@@ -1,37 +1,37 @@
 import * as THREE from 'three';
 
 /**
- * A curved walkable route with a generated ribbon surface.
+ * Изогнутый проходимый маршрут с построенной лентой поверхности.
  *
- * Levels that need a defined path were building it out of a row of identical
- * boxes down -Z, which reads as a corridor rather than a trail and makes the
- * "rule of three" (straight → turn → full run) impossible to express. A curve
- * gives bends, a continuous surface, and cheap "am I on the path?" queries.
+ * Уровни, которым нужна выраженная тропа, собирали её из ряда одинаковых
+ * коробок вдоль −Z: это читается коридором, а не тропой, и не позволяет выразить
+ * «правило трёх» — прямая, поворот, полный разгон. Кривая даёт изгибы, сплошную
+ * поверхность и дешёвый ответ на вопрос «я на тропе?».
  */
 
 export interface TrailPathOptions {
-  /** Route control points, in order. */
+  /** Опорные точки маршрута, по порядку. */
   waypoints: Array<[x: number, z: number]>;
-  /** Half-width of the walkable surface. May vary along the route. */
+  /** Половина ширины проходимой поверхности. Может меняться вдоль маршрута. */
   halfWidth?: number | ((t: number) => number);
-  /** Samples along the curve; higher = smoother bends. */
+  /** Число выборок вдоль кривой: больше — плавнее повороты. */
   divisions?: number;
-  /** Surface height above ground. */
+  /** Высота поверхности над землёй. */
   y?: number;
-  /** Ground height, so the ribbon follows sculpted terrain. */
+  /** Высота земли, чтобы лента шла по скульптурному рельефу. */
   heightAt?: (x: number, z: number) => number;
 }
 
 export interface TrailProjection {
-  /** Normalised position along the route, 0..1. */
+  /** Нормированное положение вдоль маршрута, 0…1. */
   t: number;
-  /** Perpendicular distance from the centre line. */
+  /** Расстояние по перпендикуляру от осевой линии. */
   lateral: number;
-  /** Closest point on the centre line. */
+  /** Ближайшая точка на осевой линии. */
   point: THREE.Vector3;
-  /** Half-width of the trail at this point. */
+  /** Половина ширины тропы в этой точке. */
   halfWidth: number;
-  /** True when the query point is off the walkable surface. */
+  /** Истина, когда запрошенная точка вне проходимой поверхности. */
   offTrail: boolean;
 }
 
@@ -60,48 +60,49 @@ export class TrailPath {
       total += this.samples[i].distanceTo(this.samples[i - 1]);
       this.cumulative.push(total);
     }
-    // Normalise to 0..1 so callers can reason in fractions of the route.
+    // Нормируем к 0…1, чтобы вызывающие рассуждали в долях маршрута.
     for (let i = 0; i < this.cumulative.length; i++) this.cumulative[i] /= total || 1;
   }
 
   /**
-   * Re-point the trail at a ground sampler.
+   * Переподключить тропу к сэмплеру земли.
    *
-   * A level needs the route's x/z to carve its terrain corridor, but the
-   * terrain does not exist yet at that moment. Build the trail flat, let the
-   * terrain use it, then attach the finished ground here so the surface and
-   * rails are generated flush with the land instead of hovering over it.
+   * Уровню нужны x и z маршрута, чтобы вырезать коридор в рельефе, но самого
+   * рельефа в этот момент ещё нет. Тропа строится плоской, рельеф ею пользуется, а
+   * потом готовая земля подключается здесь — и поверхность с бортиками строятся
+   * вровень с ней, а не висят над.
    */
   setHeightSampler(heightAt: (x: number, z: number) => number) {
     this.heightAt = heightAt;
   }
 
   /**
-   * Centre-line point ignoring ground height.
+   * Точка осевой линии без учёта высоты земли.
    *
-   * Terrain carving asks the trail where the route runs, and the trail asks
-   * the terrain how high the ground is. Anything called from inside a terrain
-   * sampler must use this, not `pointAt`, or the two recurse into each other.
+   * Вырезание рельефа спрашивает у тропы, где идёт маршрут, а тропа спрашивает у
+   * рельефа, какова высота земли. Всё, что вызывается изнутри сэмплера рельефа,
+   * обязано использовать эту функцию, а не `pointAt`, иначе они уйдут в взаимную
+   * рекурсию.
    */
   flatPointAt(t: number) {
     return this.curve.getPointAt(THREE.MathUtils.clamp(t, 0, 1)).clone();
   }
 
-  /** Centre-line point at normalised distance t, sitting on the ground. */
+  /** Точка осевой линии на нормированном расстоянии t, лежащая на земле. */
   pointAt(t: number) {
     const p = this.flatPointAt(t);
     p.y = this.heightAt(p.x, p.z);
     return p;
   }
 
-  /** Direction of travel at t, on the ground plane. */
+  /** Направление движения в точке t, по плоскости земли. */
   tangentAt(t: number) {
     const d = this.curve.getTangentAt(THREE.MathUtils.clamp(t, 0, 1)).clone();
     d.y = 0;
     return d.normalize();
   }
 
-  /** Point offset sideways from the centre line — for props, rails, crystals. */
+  /** Точка со смещением вбок от осевой линии — для предметов, бортиков, кристаллов. */
   offsetAt(t: number, lateral: number) {
     const p = this.pointAt(t);
     const tan = this.tangentAt(t);
@@ -113,7 +114,7 @@ export class TrailPath {
     return this.halfWidthFn(THREE.MathUtils.clamp(t, 0, 1));
   }
 
-  /** Nearest point on the route to a world position. */
+  /** Ближайшая к мировой точке точка маршрута. */
   project(pos: THREE.Vector3): TrailProjection {
     let bestI = 0;
     let bestDist = Infinity;
@@ -126,8 +127,8 @@ export class TrailPath {
       }
     }
 
-    // Refine against the two adjacent segments so the result is continuous
-    // rather than quantised to sample points.
+    // Уточняем по двум соседним отрезкам, чтобы результат был непрерывным, а не
+    // квантованным по точкам выборки.
     let point = this.samples[bestI].clone();
     let t = this.cumulative[bestI];
     let lateral = Math.sqrt(bestDist);
@@ -156,8 +157,8 @@ export class TrailPath {
   }
 
   /**
-   * Ribbon surface following the curve. Built as a triangle strip rather than
-   * a chain of boxes so bends are continuous and there are no seams.
+   * Лента поверхности вдоль кривой. Собрана полосой треугольников, а не цепочкой
+   * коробок, поэтому повороты непрерывны и швов нет.
    */
   buildSurface(material: THREE.Material, opts: { segments?: number; yOffset?: number } = {}) {
     const { segments = 140, yOffset = this.opts.y ?? 0.06 } = opts;
@@ -195,7 +196,7 @@ export class TrailPath {
     return mesh;
   }
 
-  /** Glowing kerb along one edge, marking where the walkable surface ends. */
+  /** Светящийся бортик вдоль края: показывает, где заканчивается проходимая поверхность. */
   buildEdgeRail(material: THREE.Material, side: 1 | -1, opts: { segments?: number; height?: number; thickness?: number } = {}) {
     const { segments = 140, height = 0.3, thickness = 0.12 } = opts;
     const positions: number[] = [];
