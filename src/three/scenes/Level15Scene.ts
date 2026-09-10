@@ -32,7 +32,7 @@ export interface L15Hud extends BaseHud {
   timerSec: number;
 }
 
-/** Pieces of the snowman's face, and where they sit once returned. */
+/** Части лица снеговика и их места, когда они возвращены. */
 const FEATURES: Array<{
   key: 'carrot' | 'winter_hat' | 'scarf' | 'pinecone';
   id: string;
@@ -55,7 +55,7 @@ const FEATURES: Array<{
   { key: 'pinecone', id: 'buttons', x: 10.5, z: -7.5, size: 0.5, slot: [0, 1.2, 0.55] },
 ];
 
-/** Drifts: the first sits close, the rest are a real walk away. */
+/** Сугробы: первый рядом, до остальных надо идти. */
 const DRIFTS: Array<[x: number, z: number]> = [
   [-6, -4],
   [14, -14],
@@ -100,7 +100,7 @@ export class Level15Scene extends BaseLevelScene {
     this.pushHud();
   }
 
-  /** Timer eases in: forgiving on the first run, tighter once melting bites. */
+  /** Таймер входит мягко: на первом рейсе прощает, а когда таяние началось — жёстче. */
   private get chunkTimeLimit() {
     return this.phase === 'first' ? 45 : 32;
   }
@@ -168,7 +168,7 @@ export class Level15Scene extends BaseLevelScene {
       return;
     }
 
-    // Feature: attach it to the snowman where it belongs.
+    // Деталь лица: крепим снеговику туда, где ей место.
     this.featuresDelivered++;
     this.stars += 4;
     if (this.snowman && item.slot) {
@@ -235,7 +235,7 @@ export class Level15Scene extends BaseLevelScene {
     this.scene.add(pad);
     this.scene.add(await placeWoodSign(loader, -3, 4, 0.3, 0xe1f5fe));
 
-    // ── Snowman ──────────────────────────────────────────────────
+    // ── Снеговик ─────────────────────────────────────────────────
     this.snowmanPos.y = this.groundHeightAt(0, -12);
     const snowGlb = await loadPropModel(loader, 'snowman.glb', { height: 3.0 });
     this.snowman = snowGlb ?? this.makeSnowman();
@@ -248,8 +248,8 @@ export class Level15Scene extends BaseLevelScene {
     this.snowmanMarker.position.copy(this.snowmanPos);
     this.scene.add(this.snowmanMarker);
 
-    // Shaft of sunlight that appears when the melt accelerates — the level
-    // states its own pressure instead of only saying it in the HUD.
+    // Столб солнечного света появляется, когда таяние ускоряется: уровень
+    // проговаривает своё давление сам, а не только строкой в HUD.
     this.sunbeam = new THREE.Mesh(
       new THREE.CylinderGeometry(2.6, 1.4, 14, 16, 1, true),
       new THREE.MeshBasicMaterial({
@@ -261,7 +261,7 @@ export class Level15Scene extends BaseLevelScene {
     this.sunbeam.visible = false;
     this.scene.add(this.sunbeam);
 
-    // ── Snow drifts ──────────────────────────────────────────────
+    // ── Сугробы ──────────────────────────────────────────────────
     for (const [x, z] of DRIFTS) {
       const y = this.groundHeightAt(x, z);
       const mesh = new THREE.Mesh(
@@ -277,14 +277,14 @@ export class Level15Scene extends BaseLevelScene {
       const marker = questMarker(0xe3f2fd, 0x90caf9);
       marker.position.set(x, y, z);
       marker.scale.setScalar(0.6);
-      // Hidden until it is the nearest live objective — five lit beams at once
-      // turn the field into a forest of lollipops and point nowhere.
+      // Скрыт, пока не станет ближайшей активной целью: пять горящих лучей разом
+      // превращают поле в лес леденцов и не указывают никуда.
       marker.visible = false;
       this.items.push({ root: mesh, marker, kind: 'chunk', id: `chunk_${x}_${z}`, delivered: false });
       this.scene.add(mesh, marker);
     }
 
-    // ── Scattered features, revealed in the last act ─────────────
+    // ── Разбросанные детали лица, открываются в последнем акте ───
     for (const f of FEATURES) {
       const obj = await placeS1Prop(loader, f.key, { x: f.x, z: f.z, maxSize: f.size });
       if (!obj) continue;
@@ -326,9 +326,9 @@ export class Level15Scene extends BaseLevelScene {
     ]);
 
     this.hero.position.set(0, this.groundHeightAt(0, 6), 6);
-    // This level is a serpentine, not a field: its beats sit alternately left
-    // and right going down. Drawing that as an actual route, then walling it,
-    // is what stops it reading as a clearing with things scattered in it.
+    // Уровень — серпантин, а не поле: биты идут вниз попеременно слева и справа.
+    // Если проложить это настоящим маршрутом и обнести стенами, он перестаёт
+    // читаться поляной с разбросанными предметами.
     this.derivePathFromRooms({ x: 0, z: 6 });
     await this.enclosePath(loader);
 
@@ -428,14 +428,14 @@ export class Level15Scene extends BaseLevelScene {
       timerSec: Math.ceil(this.chunkTimer),
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),
-      // Not 'intro': `isCarryPhase` (first/pressure/features) is canMove's gate.
+      // Не 'intro': ворота canMove — это `isCarryPhase` (first, pressure, features).
       showMoveHint: !this.hasTakenFirstStep && p === 'first',
       showActionHint: Boolean(this.interactTarget),
       outro: p === 'outro',
     });
   }
 
-  /** Only the items the current act is about are pickable. */
+  /** Подбирается только то, о чём идёт текущий акт. */
   private activeItems() {
     const wantFeature = this.phase === 'features';
     return this.items.filter((i) => !i.delivered && (i.kind === 'feature') === wantFeature);
@@ -485,7 +485,7 @@ export class Level15Scene extends BaseLevelScene {
     this.updateMovement(dt, canMove, this.baseSpeed, -30, 30, -36, 10);
 
     if (this.phase === 'first' || this.phase === 'pressure') {
-      // Melt only bites once the sun is out; the first run stays gentle.
+      // Таяние кусается только после выхода солнца; первый рейс остаётся мягким.
       const meltRate = this.phase === 'pressure' ? 0.016 : 0.005;
       this.meltLevel = Math.min(0.8, this.meltLevel + dt * meltRate);
       this.updateSnowmanScale();
@@ -498,7 +498,7 @@ export class Level15Scene extends BaseLevelScene {
           this.pushHud();
         }
         if (this.chunkTimer <= 0) {
-          // No fail: the snow melts in your paws and the drift comes back.
+          // Проигрыша нет: снег тает в лапах, а сугроб возвращается.
           const dropped = this.carrying;
           this.carrying = null;
           this.timerActive = false;
@@ -514,7 +514,7 @@ export class Level15Scene extends BaseLevelScene {
       }
     }
 
-    // Carried item rides above the hero so the state is always visible.
+    // Несомая вещь едет над героем, чтобы состояние всегда было видно.
     if (this.carrying) {
       this.carrying.root.visible = true;
       this.carrying.root.position.set(
@@ -536,8 +536,8 @@ export class Level15Scene extends BaseLevelScene {
         + 0.3 + Math.sin(now * 0.003 + item.root.position.x) * 0.04;
     }
 
-    // Light only the beam the player is being sent to, and only while they
-    // are not already carrying something.
+    // Горит только тот луч, к которому ведут сейчас, и только пока в лапах ничего
+    // нет.
     const objective = this.objectiveWorldPos();
     for (const item of this.items) {
       if (!item.marker) continue;
@@ -560,9 +560,9 @@ export class Level15Scene extends BaseLevelScene {
 
     this.updateAmbient(dt, now);
 
-    // Cinematic only until the first step, same fix as L2/L8/L16 — without
-    // the guard the camera stays locked to this fixed path for the whole
-    // intro timer even after the hero starts moving.
+    // Кинематографично только до первого шага — та же правка, что на L2, L8 и L16.
+    // Без этой проверки камера остаётся на фиксированном пути весь таймер интро,
+    // даже когда герой уже пошёл.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [new THREE.Vector3(0, 8, 18), new THREE.Vector3(-3, 6.5, 8), new THREE.Vector3(0, 5.5, 12)];
