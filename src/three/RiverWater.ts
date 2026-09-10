@@ -1,30 +1,28 @@
 import * as THREE from 'three';
 
 /**
- * Stylised river water: summed directional waves, depth tinting, shore foam,
- * and foam collars round anything standing in it.
+ * Стилизованная речная вода: сумма направленных волн, тонировка по глубине,
+ * пена у берега и пенные воротники вокруг всего, что стоит в воде.
  *
- * ── Where the technique comes from ───────────────────────────────────────
+ * ── Откуда взята техника ─────────────────────────────────────────────────
  *
- * The wave summation and the idea of driving foam from water *depth* rather
- * than from a texture are taken from Tidewright (MIT, © winchxyz,
- * github.com/winchxyz/tidewright), which does it for a beach. Its version
- * sums five Gerstner waves with breaking, shoaling and a steepness budget,
- * against a live GPU depth field.
+ * Суммирование волн и идея вести пену от *глубины* воды, а не от текстуры взяты
+ * из Tidewright (MIT, © winchxyz, github.com/winchxyz/tidewright), где это
+ * сделано для пляжа. Там суммируются пять волн Герстнера с обрушением, наката́ми
+ * и бюджетом крутизны против живого поля глубины на видеокарте.
  *
- * This is a deliberately smaller thing. Three waves, no breaking, no
- * steepness solve, and the depth is baked into a vertex attribute at build
- * time because a river bed does not move. That is not laziness — it is the
- * difference between an ocean simulation and a stream in a children's game
- * that has to hold sixty frames on a cheap phone, and the flat pastel art
- * would be actively hurt by photoreal water.
+ * Здесь намеренно сделано меньше. Три волны, без обрушения и без решения по
+ * крутизне, а глубина запечена в вершинный атрибут при сборке, потому что дно
+ * реки не двигается. Это не лень — это разница между симуляцией океана и ручьём
+ * в детской игре, которая обязана держать шестьдесят кадров на дешёвом телефоне;
+ * плоской пастельной картинке фотореалистичная вода только навредила бы.
  *
- * ── What it replaces ─────────────────────────────────────────────────────
+ * ── Что это заменило ─────────────────────────────────────────────────────
  *
- * Level 0's river was a `MeshStandardMaterial` plane whose vertex positions
- * were rewritten in JavaScript every frame — 595 vertices, on the main
- * thread, to produce one sine ripple. This does more on the GPU and nothing
- * per frame beyond setting a uniform.
+ * Река нулевого уровня была плоскостью с `MeshStandardMaterial`, у которой
+ * позиции вершин переписывались на JavaScript каждый кадр: 595 вершин, в главном
+ * потоке, ради одной синусоидальной ряби. Здесь делается больше — но на
+ * видеокарте, и покадрово не делается ничего, кроме записи одной униформы.
  */
 
 export type RiverWater = {
@@ -33,19 +31,19 @@ export type RiverWater = {
   dispose(): void;
 };
 
-/** How many obstacles can carry a foam collar. Level 0 has twelve stones. */
+/** Сколько препятствий могут нести пенный воротник. На нулевом уровне двенадцать камней. */
 const MAX_OBSTACLES = 16;
 
 export function createRiverWater(opts: {
   width: number;
   length: number;
-  /** World position of the plane's centre. */
+  /** Мировое положение центра плоскости. */
   centre: { x: number; z: number };
-  /** Surface height. */
+  /** Высота поверхности. */
   y: number;
-  /** Bed height at a world point — the terrain sampler. */
+  /** Высота дна в мировой точке — сэмплер рельефа. */
   bedAt: (x: number, z: number) => number;
-  /** Things standing in the water that should have foam round them. */
+  /** То, что стоит в воде и вокруг чего должна быть пена. */
   obstacles?: Array<{ x: number; z: number; r: number }>;
   segments?: number;
   colour?: { deep: number; shallow: number; foam: number };
@@ -55,14 +53,13 @@ export function createRiverWater(opts: {
   const segZ = Math.max(8, Math.round(opts.length / seg));
   const geo = new THREE.PlaneGeometry(opts.width, opts.length, segX, segZ);
 
-  // Depth, baked once. The bed is terrain and terrain does not move, so the
-  // one thing the shader most needs is also the one thing it never has to
-  // recompute.
+  // Глубина запекается один раз. Дно — это рельеф, а рельеф не двигается, поэтому
+  // то, что шейдеру нужнее всего, ему же и не приходится пересчитывать.
   const pos = geo.attributes.position as THREE.BufferAttribute;
   const depth = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
-    // The plane is built in XY and laid down by the caller's rotation, so its
-    // local y is world −z.
+    // Плоскость строится в XY и укладывается поворотом вызывающего, поэтому её
+    // локальная y — это мировая −z.
     const wx = opts.centre.x + pos.getX(i);
     const wz = opts.centre.z - pos.getY(i);
     depth[i] = Math.max(0, opts.y - opts.bedAt(wx, wz));
@@ -77,9 +74,9 @@ export function createRiverWater(opts: {
     obstacleData[i * 3 + 2] = obstacles[i].r;
   }
 
-  // Pastel, not photoreal. The first pass used a proper ocean blue and the
-  // river came out near navy — technically better water, visibly the wrong
-  // game. Depth reads through hue and foam, not through darkness.
+  // Пастель, а не фотореализм. В первом варианте был честный океанский синий, и
+  // река выходила почти тёмно-синей: технически вода лучше, а игра явно не та.
+  // Глубина читается оттенком и пеной, а не темнотой.
   const c = opts.colour ?? { deep: 0x2f9fd0, shallow: 0x86e0f2, foam: 0xf2fcff };
 
   const mat = new THREE.ShaderMaterial({
@@ -98,10 +95,9 @@ export function createRiverWater(opts: {
       varying float vCrest;
       varying vec2 vLocal;
 
-      // Three directional waves, summed. Amplitude is scaled by depth so the
-      // water lies down as it reaches the bank instead of sawing through it —
-      // the same shoaling idea a beach shader uses, run the other way for a
-      // shallow stream.
+      // Три направленные волны в сумме. Амплитуда масштабируется глубиной, чтобы у
+      // берега вода ложилась, а не пилила его насквозь, — та же идея наката, что и в
+      // пляжном шейдере, применённая наоборот для мелкого ручья.
       void wave(vec2 dir, float len, float amp, float speed, vec2 p, inout float h, inout float crest) {
         float k = 6.28318 / len;
         float ph = dot(normalize(dir) * k, p) - uTime * speed;
@@ -136,18 +132,18 @@ export function createRiverWater(opts: {
       varying vec2 vLocal;
 
       void main() {
-        // Colour by depth. A river that is one flat blue reads as a painted
-        // floor; the gradient is what says "this has a bottom".
+        // Цвет по глубине. Река одного плоского синего читается крашеным полом;
+        // именно градиент говорит, что у неё есть дно.
         float deep = smoothstep(0.15, 1.6, vDepth) * 0.8;
         vec3 col = mix(uShallow, uDeep, deep);
 
-        // Shore lace: foam gathers where the water runs out.
+        // Кружево у берега: пена собирается там, где вода кончается.
         float shore = smoothstep(0.42, 0.06, vDepth);
         float ripple = 0.5 + 0.5 * sin(vLocal.x * 3.1 + vLocal.y * 2.3 + uTime * 1.9);
         float foam = shore * (0.55 + 0.45 * ripple);
 
-        // A collar round anything standing in the water. Twelve stepping
-        // stones with no disturbance round them look painted on.
+        // Воротник вокруг всего, что стоит в воде. Двенадцать камней переправы без
+        // возмущения вокруг выглядят нарисованными.
         for (int i = 0; i < ${MAX_OBSTACLES}; i++) {
           if (i >= uObstacleCount) break;
           vec3 o = uObstacles[i];
@@ -156,7 +152,7 @@ export function createRiverWater(opts: {
           foam = max(foam, ring * (0.6 + 0.4 * sin(uTime * 2.6 + d * 6.0)));
         }
 
-        // And on the wave crests themselves.
+        // И на самих гребнях волн.
         foam = max(foam, smoothstep(0.055, 0.12, vCrest) * 0.5);
 
         col = mix(col, uFoam, clamp(foam, 0.0, 1.0) * 0.85);

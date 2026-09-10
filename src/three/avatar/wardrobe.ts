@@ -2,16 +2,16 @@ import * as THREE from 'three';
 import type { AvatarSocket } from './BarsikAvatar';
 
 /**
- * Everything a child can put on Barsik.
+ * Всё, что ребёнок может надеть на Барсика.
  *
- * Built in code rather than loaded as GLBs, for three reasons that all matter
- * more than fidelity here: try-on has to be instant (a shop where each item
- * costs a download is a shop nobody browses), forty small models would add
- * megabytes to a build already at 34 MB, and a procedural item can be
- * recoloured into a whole family from one builder.
+ * Сделано кодом, а не загружено GLB, по трём причинам, каждая из которых здесь
+ * важнее точности модели: примерка обязана быть мгновенной — магазин, где каждая
+ * вещь стоит загрузки, никто не листает; сорок мелких моделей добавили бы
+ * мегабайты к сборке, которая и так весит 34 МБ; и процедурную вещь одним
+ * строителем можно перекрасить в целое семейство.
  *
- * Every item declares the socket it belongs to, so the rig decides where it
- * sits and it stays attached while the body moves.
+ * Каждая вещь объявляет своё гнездо, поэтому где ей сидеть, решает скелет, и она
+ * остаётся на месте, пока тело движется.
  */
 
 export type WardrobeCategory = 'head' | 'face' | 'neck' | 'body' | 'back' | 'hands' | 'feet' | 'tail' | 'color';
@@ -21,14 +21,14 @@ export interface WardrobeItem {
   name: { ru: string; kk: string };
   category: WardrobeCategory;
   socket: AvatarSocket | null;
-  /** Stars. Free items are the starter set every child owns. */
+  /** Звёзды. Бесплатные вещи — стартовый набор, который есть у каждого. */
   cost: number;
   rarity: 'common' | 'rare' | 'epic';
-  /** Builds the mesh. Absent for recolour items, which change the look instead. */
+  /** Строит меш. У перекрасок его нет: они меняют облик. */
   build?: () => THREE.Object3D;
-  /** Recolour items patch the avatar's palette. */
+  /** Перекраски правят палитру аватара. */
   look?: { fur?: number; hoodie?: number; trousers?: number; spots?: number };
-  /** Toggle procedural body garments (hoodie / jeans). */
+  /** Переключает процедурную одежду на теле: худи и джинсы. */
   bodyWear?: { hoodie?: boolean; jeans?: boolean };
 }
 
@@ -44,7 +44,7 @@ function grp(...objs: THREE.Object3D[]): THREE.Group {
   return g;
 }
 
-// ── Builders, each parameterised so one shape makes a family ──
+// ── Строители: каждый параметризован так, что одна форма даёт семейство ──
 
 function cap(color: number, peak = 0xffffff): THREE.Group {
   const crown = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat(color));
@@ -55,7 +55,7 @@ function cap(color: number, peak = 0xffffff): THREE.Group {
   return grp(crown, brim);
 }
 
-/** Brand canon tubeteika — `photos/` trio cool Barsik. */
+/** Тюбетейка по канону бренда — из тройки cool в `photos/`. */
 function tubeteika(base: number, gold: number): THREE.Group {
   const dome = new THREE.Mesh(
     new THREE.SphereGeometry(0.17, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55),
@@ -345,16 +345,16 @@ function partyHat(a: number, b: number): THREE.Group {
 }
 
 /**
- * The catalogue. Forty items across eight slots, priced so the first few are
- * reachable after a level or two and the epics are a season-long goal.
+ * Каталог. Сорок вещей на восемь гнёзд, с ценами, при которых первые несколько
+ * доступны через уровень-другой, а редкие остаются целью на весь сезон.
  */
 export const WARDROBE: WardrobeItem[] = [
-  // ── Head ────────────────────────────────────────────────
+  // ── Голова ──────────────────────────────────────────────
   { id: 'cap_green', name: { ru: 'Зелёная кепка', kk: 'Жасыл кепка' }, category: 'head', socket: 'head', cost: 0, rarity: 'common', build: () => cap(0x3dcc6e, 0x2fae5b) },
   { id: 'cap_red', name: { ru: 'Красная кепка', kk: 'Қызыл кепка' }, category: 'head', socket: 'head', cost: 12, rarity: 'common', build: () => cap(0xe74c3c, 0xc0392b) },
-  /** Packaging / client 26.08: red tubeteika with gold trim — free starter. */
+  /** Упаковка и правка заказчика от 26.08: красная тюбетейка с золотой отделкой, бесплатный старт. */
   { id: 'tubeteika_red', name: { ru: 'Красная тюбетейка', kk: 'Қызыл төбетей' }, category: 'head', socket: 'head', cost: 0, rarity: 'common', build: () => tubeteika(0xc0392b, 0xf0d24a) },
-  /** Alternate trio look: blue tubeteika. */
+  /** Второй облик из тройки: синяя тюбетейка. */
   { id: 'tubeteika_blue', name: { ru: 'Синяя тюбетейка', kk: 'Көк төбетей' }, category: 'head', socket: 'head', cost: 0, rarity: 'common', build: () => tubeteika(0x1a3a6e, 0xf0d24a) },
   { id: 'cap_blue', name: { ru: 'Синяя кепка', kk: 'Көк кепка' }, category: 'head', socket: 'head', cost: 12, rarity: 'common', build: () => cap(0x4a90d9, 0x2e6fb0) },
   { id: 'beanie_yellow', name: { ru: 'Жёлтая шапочка', kk: 'Сары бөрік' }, category: 'head', socket: 'head', cost: 18, rarity: 'common', build: () => beanie(0xf1c40f, 0xfff3b0) },
@@ -366,22 +366,22 @@ export const WARDROBE: WardrobeItem[] = [
   { id: 'headphones', name: { ru: 'Наушники', kk: 'Құлаққап' }, category: 'head', socket: 'head', cost: 38, rarity: 'rare', build: () => headphones(0xe74c3c, 0x2d3436) },
   { id: 'crown_gold', name: { ru: 'Золотая корона', kk: 'Алтын тәж' }, category: 'head', socket: 'head', cost: 120, rarity: 'epic', build: () => crown(0xf1c40f, 0x74b9ff) },
 
-  // ── Face ────────────────────────────────────────────────
-  /** Packaging: clear lenses like on the box. */
+  // ── Лицо ────────────────────────────────────────────────
+  /** По упаковке: прозрачные линзы, как на коробке. */
   { id: 'glasses_clear', name: { ru: 'Прозрачные очки', kk: 'Мөлдір көзілдірік' }, category: 'face', socket: 'face', cost: 0, rarity: 'common', build: () => glasses(0xdfe6ed, 0xf5fbff, 0.14) },
   { id: 'glasses_yellow', name: { ru: 'Жёлтые очки', kk: 'Сары көзілдірік' }, category: 'face', socket: 'face', cost: 0, rarity: 'common', build: () => glasses(0xf1c40f, 0xfff8d0, 0.4) },
   { id: 'glasses_round', name: { ru: 'Круглые очки', kk: 'Дөңгелек көзілдірік' }, category: 'face', socket: 'face', cost: 20, rarity: 'common', build: () => glasses(0xb0834a, 0xeaf6ff, 0.3) },
   { id: 'sunglasses', name: { ru: 'Тёмные очки', kk: 'Қара көзілдірік' }, category: 'face', socket: 'face', cost: 30, rarity: 'rare', build: () => glasses(0x2d3436, 0x1e272e, 0.85) },
   { id: 'glasses_star', name: { ru: 'Звёздные очки', kk: 'Жұлдызды көзілдірік' }, category: 'face', socket: 'face', cost: 55, rarity: 'epic', build: () => glasses(0xfd79a8, 0xffd6f0, 0.5) },
 
-  // ── Neck ────────────────────────────────────────────────
+  // ── Шея ─────────────────────────────────────────────────
   { id: 'scarf_red', name: { ru: 'Красный шарф', kk: 'Қызыл орамал' }, category: 'neck', socket: 'neck', cost: 15, rarity: 'common', build: () => scarf(0xe74c3c) },
   { id: 'scarf_blue', name: { ru: 'Синий шарф', kk: 'Көк орамал' }, category: 'neck', socket: 'neck', cost: 15, rarity: 'common', build: () => scarf(0x4a90d9, 0xffffff) },
   { id: 'scarf_stripe', name: { ru: 'Полосатый шарф', kk: 'Жолақты орамал' }, category: 'neck', socket: 'neck', cost: 28, rarity: 'common', build: () => scarf(0x2ecc71, 0xf1c40f) },
   { id: 'bowtie', name: { ru: 'Бабочка', kk: 'Көбелек галстук' }, category: 'neck', socket: 'neck', cost: 25, rarity: 'common', build: () => bowTie(0xe84393) },
   { id: 'medal_gold', name: { ru: 'Золотая медаль', kk: 'Алтын медаль' }, category: 'neck', socket: 'neck', cost: 90, rarity: 'epic', build: () => medal(0x4a90d9, 0xf1c40f) },
 
-  // ── Back ────────────────────────────────────────────────
+  // ── Спина ───────────────────────────────────────────────
   { id: 'backpack_green', name: { ru: 'Зелёный рюкзак', kk: 'Жасыл рюкзак' }, category: 'back', socket: 'back', cost: 30, rarity: 'common', build: () => backpack(0x2ecc71, 0x27ae60) },
   { id: 'backpack_orange', name: { ru: 'Оранжевый рюкзак', kk: 'Қызғылт сары рюкзак' }, category: 'back', socket: 'back', cost: 30, rarity: 'common', build: () => backpack(0xe67e22, 0xd35400) },
   { id: 'wings_white', name: { ru: 'Белые крылья', kk: 'Ақ қанаттар' }, category: 'back', socket: 'back', cost: 110, rarity: 'epic', build: () => wings(0xfdfdfd) },
@@ -389,7 +389,7 @@ export const WARDROBE: WardrobeItem[] = [
   { id: 'balloon_red', name: { ru: 'Красный шарик', kk: 'Қызыл шар' }, category: 'back', socket: 'back', cost: 24, rarity: 'common', build: () => balloon(0xe74c3c) },
   { id: 'balloon_blue', name: { ru: 'Синий шарик', kk: 'Көк шар' }, category: 'back', socket: 'back', cost: 24, rarity: 'common', build: () => balloon(0x74b9ff) },
 
-  // ── Hands ───────────────────────────────────────────────
+  // ── Лапы ────────────────────────────────────────────────
   { id: 'lollipop', name: { ru: 'Леденец', kk: 'Кәмпит' }, category: 'hands', socket: 'handR', cost: 10, rarity: 'common', build: () => lollipop(0xe84393, 0xffffff) },
   { id: 'lollipop_lime', name: { ru: 'Лаймовый леденец', kk: 'Лайм кәмпит' }, category: 'hands', socket: 'handR', cost: 10, rarity: 'common', build: () => lollipop(0x9ee493, 0xffffff) },
   { id: 'icecream', name: { ru: 'Мороженое', kk: 'Балмұздақ' }, category: 'hands', socket: 'handR', cost: 20, rarity: 'common', build: () => iceCream(0xd2a24c, 0xfff0f5, 0xffb7c5) },
@@ -398,16 +398,16 @@ export const WARDROBE: WardrobeItem[] = [
   { id: 'mittens_red', name: { ru: 'Варежки', kk: 'Биялай' }, category: 'hands', socket: 'handL', cost: 18, rarity: 'common', build: () => mittens(0xe74c3c) },
   { id: 'mittens_blue', name: { ru: 'Синие варежки', kk: 'Көк биялай' }, category: 'hands', socket: 'handL', cost: 18, rarity: 'common', build: () => mittens(0x4a90d9) },
 
-  // ── Feet ────────────────────────────────────────────────
+  // ── Ступни ──────────────────────────────────────────────
   { id: 'boots_brown', name: { ru: 'Ботинки', kk: 'Бәтеңке' }, category: 'feet', socket: 'footL', cost: 28, rarity: 'common', build: () => boots(0x8a5a2b, 0x4e342e) },
   { id: 'sneakers_white', name: { ru: 'Кроссовки', kk: 'Кроссовка' }, category: 'feet', socket: 'footL', cost: 34, rarity: 'common', build: () => boots(0xf5f5f5, 0xe74c3c) },
   { id: 'skates', name: { ru: 'Коньки', kk: 'Коньки' }, category: 'feet', socket: 'footL', cost: 70, rarity: 'rare', build: () => skates(0x4a90d9) },
 
-  // ── Tail ────────────────────────────────────────────────
+  // ── Хвост ───────────────────────────────────────────────
   { id: 'tail_bow_pink', name: { ru: 'Бантик на хвост', kk: 'Құйрыққа бантик' }, category: 'tail', socket: 'tail', cost: 14, rarity: 'common', build: () => tailBow(0xfd79a8) },
   { id: 'tail_bow_gold', name: { ru: 'Золотой бантик', kk: 'Алтын бантик' }, category: 'tail', socket: 'tail', cost: 48, rarity: 'rare', build: () => tailBow(0xf1c40f) },
 
-  // ── Body (procedural garments on fur base) ──────────────
+  // ── Тело: процедурная одежда поверх меха ────────────────
   { id: 'hoodie_red', name: { ru: 'Красное худи', kk: 'Қызыл худи' }, category: 'body', socket: null, cost: 0, rarity: 'common', bodyWear: { hoodie: true }, look: { hoodie: 0xe74c3c } },
   { id: 'hoodie_green', name: { ru: 'Зелёное худи', kk: 'Жасыл худи' }, category: 'body', socket: null, cost: 0, rarity: 'common', bodyWear: { hoodie: true }, look: { hoodie: 0x3dcc6e } },
   { id: 'jeans_blue', name: { ru: 'Синие джинсы', kk: 'Көк джинсы' }, category: 'body', socket: null, cost: 0, rarity: 'common', bodyWear: { jeans: true }, look: { trousers: 0x4a6fa5 } },
@@ -415,8 +415,8 @@ export const WARDROBE: WardrobeItem[] = [
   { id: 'hoodie_orange', name: { ru: 'Оранжевая толстовка', kk: 'Қызғылт сары толстовка' }, category: 'body', socket: null, cost: 22, rarity: 'common', bodyWear: { hoodie: true }, look: { hoodie: 0xe67e22 } },
   { id: 'hoodie_pink', name: { ru: 'Розовая толстовка', kk: 'Қызғылт толстовка' }, category: 'body', socket: null, cost: 22, rarity: 'common', bodyWear: { hoodie: true }, look: { hoodie: 0xfd79a8 } },
 
-  // ── Colours ─────────────────────────────────────────────
-  // Recolours rather than meshes: the same rig, a different Barsik.
+  // ── Цвета ───────────────────────────────────────────────
+  // Перекраски, а не меши: тот же скелет, другой Барсик.
   { id: 'fur_snow', name: { ru: 'Снежная шубка', kk: 'Қарлы жүн' }, category: 'color', socket: null, cost: 60, rarity: 'rare', look: { fur: 0xffffff, spots: 0xbcd3e6 } },
   { id: 'fur_sand', name: { ru: 'Песочная шубка', kk: 'Құмды жүн' }, category: 'color', socket: null, cost: 60, rarity: 'rare', look: { fur: 0xf0d9b5, spots: 0xb08a5a } },
   { id: 'fur_night', name: { ru: 'Ночная шубка', kk: 'Түнгі жүн' }, category: 'color', socket: null, cost: 140, rarity: 'epic', look: { fur: 0x6c7a9c, spots: 0x2d3550 } },
@@ -436,6 +436,6 @@ export const CATEGORY_LABEL: Record<WardrobeCategory, { ru: string; kk: string }
   color: { ru: 'Цвета', kk: 'Түстер' },
 };
 
-/** Items that take both feet, so the pair is applied together. */
+/** Вещи, занимающие обе лапы: пара надевается целиком. */
 export const PAIRED_FEET = new Set(['boots_brown', 'sneakers_white', 'skates']);
 export const PAIRED_HANDS = new Set(['mittens_red', 'mittens_blue']);
