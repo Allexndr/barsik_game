@@ -1,6 +1,6 @@
 /**
- * Concise S1 prop / ambient placement helpers.
- * Laconic: 2–6 landmarks per level, not clutter.
+ * Компактные помощники расстановки реквизита и окружения первого сезона.
+ * Лаконично: два-шесть ориентиров на уровень, а не свалка.
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -16,18 +16,18 @@ export type PlaceOpts = {
   height?: number;
   maxSize?: number;
   scale?: number;
-  /** Ambient decoration should use the static LOD, never the rigged variant. */
+  /** Фоновому декору положен статичный вариант модели, а не вариант со скелетом. */
   preferStatic?: boolean;
 };
 
 /**
- * Ground height for the level currently being built.
+ * Высота земли для уровня, который строится сейчас.
  *
- * Every call site here positions props by (x, z) and lets the helper work out
- * y. Once levels sit on sculpted terrain rather than a plane, that y has to
- * come from the terrain or props hover and sink. Threading a sampler through
- * ~200 call sites would be noise, so the active scene registers one here and
- * clears it on dispose; only one level is ever live at a time.
+ * Все вызовы здесь задают предмету (x, z) и оставляют вычисление y помощнику. Как
+ * только уровни встали на скульптурный рельеф вместо плоскости, эта y обязана
+ * приходить от рельефа, иначе предметы висят и тонут. Протаскивать сэмплер через
+ * примерно двести мест вызова было бы шумом, поэтому активная сцена регистрирует
+ * его здесь и очищает при удалении: одновременно жив всегда только один уровень.
  */
 let groundSampler: ((x: number, z: number) => number) | null = null;
 
@@ -36,12 +36,13 @@ export function setPlacementGround(sampler: ((x: number, z: number) => number) |
 }
 
 /**
- * Terrain height for helpers that build their own geometry rather than loading
- * a model — `bush`, `tulip` and friends in BaseLevelScene, which each end with
- * `position.set(x, 0, z)` and so sat at absolute world zero.
+ * Высота рельефа для помощников, которые строят собственную геометрию, а не
+ * грузят модель, — `bush`, `tulip` и подобные в BaseLevelScene: каждый
+ * заканчивался на `position.set(x, 0, z)` и потому стоял на абсолютном мировом
+ * нуле.
  *
- * Returns 0 when no scene has registered a sampler, which is exactly the old
- * behaviour on a flat level.
+ * Возвращает 0, если сэмплер не зарегистрирован ни одной сценой, — то есть ровно
+ * прежнее поведение на плоском уровне.
  */
 export function placementGround(x: number, z: number): number {
   return groundSampler ? groundSampler(x, z) : 0;
@@ -66,8 +67,8 @@ async function placeFile(
   if (!obj) return null;
   if (opts.scale !== undefined) obj.scale.multiplyScalar(opts.scale);
   const base = groundSampler ? groundSampler(opts.x, opts.z) : 0;
-  // An explicit y is a height above the ground, not an absolute world y —
-  // floating props (lanterns, snowflakes) must ride the terrain too.
+  // Явно заданная y — это высота над землёй, а не абсолютная мировая: парящие
+  // предметы вроде фонарей и снежинок тоже должны идти по рельефу.
   obj.position.set(opts.x, base + (opts.y ?? 0), opts.z);
   if (opts.rotY !== undefined) obj.rotation.y = opts.rotY;
   if (opts.y === undefined) groundY(obj, base);
@@ -75,33 +76,34 @@ async function placeFile(
 }
 
 /**
- * Triangles one placed prop may cost.
+ * Сколько треугольников может стоить один поставленный предмет.
  *
- * Higher than the critter budget because a prop is usually something you walk
- * up to, and low enough to catch the one asset that dwarfs everything else.
+ * Выше, чем бюджет зверьков, потому что к предмету обычно подходят, и достаточно
+ * низко, чтобы поймать тот единственный ассет, который превосходит всё остальное.
  */
 const PROP_TRIANGLE_BUDGET = 20_000;
 
 /**
- * Kit stand-ins for props that blow the budget.
+ * Замены из наборов для предметов, вылетающих за бюджет.
  *
- * Skipping is right for a rabbit in the grass and wrong for a three-metre
- * tree: the rabbit is not missed, the hole in the treeline is. So an
- * over-budget prop is *replaced* rather than dropped.
+ * Пропустить — верное решение для зайца в траве и неверное для трёхметрового
+ * дерева: зайца никто не хватится, а дыру в кромке леса заметят все. Поэтому
+ * предмет, вышедший за бюджет, *заменяется*, а не выбрасывается.
  *
- * `s1_pine_tree.glb` is 1.25 MB and **68 000 triangles** — for a background
- * conifer. Twenty-one of them are placed across seven levels, which is 1.43
- * million triangles of scenery nobody interacts with, and it is why level 15
- * draws 382k triangles against level 13's 137k. The kit's pine is 10.7 KB:
- * one hundred and seventeen times smaller, and at the distance these are
- * placed nobody can tell them apart.
+ * `s1_pine_tree.glb` весит 1.25 МБ и содержит **68 000 треугольников** — ради
+ * фоновой хвои. Двадцать одна такая расставлена по семи уровням, то есть 1.43
+ * миллиона треугольников декора, с которым никто не взаимодействует; отсюда и 382
+ * тысячи треугольников на пятнадцатом уровне против 137 тысяч на тринадцатом.
+ * Сосна из набора весит 10.7 КБ — в сто семнадцать раз меньше, и на том
+ * расстоянии, где их ставят, отличить их невозможно.
  */
 const PROP_SUBSTITUTE: Partial<Record<keyof typeof CAST_PROP_GLB, string>> = {
   pine_tree: '/assets/models/kits/nature/tree_pineTallA_detailed.glb',
 };
 
-/** Prefer remeshed soft-3D quality props when present on disk.
- *  Only small Blender-authored assets — Meshy landmark mush (yurt/berry/…) quarantined. */
+/** Предпочитать перестроенные мягкие качественные предметы, если они есть на диске.
+ *  Только небольшие ассеты, сделанные в Blender: каша из ориентиров Meshy — юрта,
+ *  ягода и подобные — отправлена в карантин. */
 const PROP_QUALITY: Partial<Record<keyof typeof CAST_PROP_GLB, string>> = {
   apple: 's1_quality_apple.glb',
   apple_gold: 's1_quality_apple.glb',
@@ -111,11 +113,11 @@ const PROP_QUALITY: Partial<Record<keyof typeof CAST_PROP_GLB, string>> = {
 };
 
 /**
- * Place a model by absolute URL rather than by prop-directory name.
+ * Ставит модель по абсолютному адресу, а не по имени в каталоге реквизита.
  *
- * `loadPropModel` prepends the props path, and a kit stand-in does not live
- * there. Everything after the load is the same, so it reuses the same sizing
- * and grounding rules a real prop gets.
+ * `loadPropModel` подставляет путь к реквизиту впереди, а замена из набора там не
+ * лежит. Всё после загрузки одинаково, поэтому используются те же правила размера
+ * и посадки на землю, что и у настоящего предмета.
  */
 async function placeAbsolute(
   loader: GLTFLoader,
@@ -140,7 +142,7 @@ async function placeAbsolute(
   return obj;
 }
 
-/** Load a cast prop, preferring remeshed quality GLBs when mapped in PROP_QUALITY. */
+/** Загружает предмет из общего набора, предпочитая перестроенные качественные GLB, указанные в PROP_QUALITY. */
 export async function loadCastPropModel(
   loader: GLTFLoader,
   key: keyof typeof CAST_PROP_GLB,
@@ -192,7 +194,7 @@ export async function placeS1Char(
   });
 }
 
-/** Place several props; skips missing files. Returns added objects. */
+/** Ставит несколько предметов, пропуская отсутствующие файлы. Возвращает добавленные объекты. */
 export async function placeMany(
   scene: THREE.Scene,
   loader: GLTFLoader,
@@ -209,7 +211,7 @@ export async function placeMany(
   return out;
 }
 
-/** Triangles a piece of scenery may cost before it stops being worth it. */
+/** Сколько треугольников может стоить декорация, прежде чем перестанет себя оправдывать. */
 const AMBIENT_TRIANGLE_BUDGET = 12_000;
 
 function triangleCount(root: THREE.Object3D): number {
@@ -224,18 +226,17 @@ function triangleCount(root: THREE.Object3D): number {
 }
 
 /**
- * Scenery: a squirrel on a stump, a rabbit in the grass. Nobody interacts with
- * these, and nobody misses one that is not there.
+ * Декор: белка на пеньке, заяц в траве. С ними никто не взаимодействует, и
+ * отсутствия одного из них никто не заметит.
  *
- * Which is why they get a budget. `s1_rabbit.glb` is **126 898 triangles** —
- * measured in a running level, where that one decorative rabbit accounted for
- * 47% of everything the level drew. On a phone that is the difference between
- * a game that runs and a game that stutters, and it buys a rabbit nobody
- * looks at twice.
+ * Поэтому у них есть бюджет. `s1_rabbit.glb` — это **126 898 треугольников**,
+ * замерено в работающем уровне, где один этот декоративный заяц составлял 47%
+ * всего, что уровень рисовал. На телефоне это разница между игрой, которая идёт, и
+ * игрой, которая рвётся, — и куплена она зайцем, на которого не смотрят дважды.
  *
- * Skipping is the right call here precisely because this is decoration. The
- * real repair is a remesh of the model — `scripts/probe-glb.mjs` flags it —
- * but until then the level should not pay for it.
+ * Пропустить здесь — верное решение именно потому, что это декорация. Настоящая
+ * починка — перестроить модель, `scripts/probe-glb.mjs` её помечает, — но до тех
+ * пор уровень платить за неё не должен.
  */
 export async function placeAmbientCritters(
   scene: THREE.Scene,
@@ -259,8 +260,8 @@ export async function placeAmbientCritters(
           `${AMBIENT_TRIANGLE_BUDGET} budget. Remesh it and it comes back.`,
         );
       }
-      // The model was loaded only to measure it. Do not leave its geometry,
-      // materials, and textures retained when a decorative LOD is rejected.
+      // Модель загружали только чтобы её измерить. Не оставлять её геометрию,
+      // материалы и текстуры в памяти, если декоративный вариант отклонён.
       disposeObject3DResources(o);
       continue;
     }
