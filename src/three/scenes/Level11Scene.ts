@@ -9,17 +9,17 @@ import { AudioManager } from '@/audio/AudioManager';
 import { NPC_PEER_HEIGHT } from '../worldScale';
 
 /**
- * Level 11 «Первые снежинки» — GDD Level 11.
+ * Уровень 11 «Первые снежинки» — уровень 11 по GDD.
  *
- * One mechanic, escalated three times:
- *   first  — two slow flakes that sit a long while on the snow;
- *   build  — five more at normal pace, the snowman growing with each;
- *   golden — golden flakes that only count if caught in mid-air, which is
- *            where the jump finally becomes a skill rather than a toy.
+ * Одна механика, усиленная трижды:
+ *   first  — две медленные снежинки, подолгу лежащие на снегу;
+ *   build  — ещё пять в обычном темпе, снеговик растёт с каждой;
+ *   golden — золотые снежинки, которые засчитываются только в полёте, и вот
+ *            здесь прыжок наконец становится умением, а не игрушкой.
  *
- * The old version had no timing at all despite the level being named for
- * it: flakes were collected by walking near them where they lay, and the
- * whole thing resolved in about ninety seconds.
+ * В старой версии тайминга не было вовсе, хотя уровень назван именно им:
+ * снежинки собирались проходом рядом с местом, где они лежат, и всё
+ * заканчивалось секунд за девяносто.
  */
 
 export type L11Phase = 'intro' | 'first' | 'build' | 'golden' | 'finish' | 'outro';

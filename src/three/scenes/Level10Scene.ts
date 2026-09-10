@@ -24,9 +24,9 @@ import { makePutalo } from './Level7Scene';
 import { placeAmbientCritters } from '../s1Place';
 
 /**
- * Level 11 «Прощание с лесом» — GDD Level 10:
- * Explore + farewell. Visit 4 familiar places, say goodbye to NPCs.
- * Circular route with bonus stars.
+ * Уровень 11 «Прощание с лесом» — уровень 10 по GDD:
+ * исследование и прощание. Обойти 4 знакомых места, попрощаться с NPC.
+ * Кольцевой маршрут с бонусными звёздами.
  */
 
 export type L11Phase = 'intro' | 'gifts' | 'farewell' | 'leaving' | 'outro';

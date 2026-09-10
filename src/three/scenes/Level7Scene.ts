@@ -13,9 +13,9 @@ import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeAmbientCritters } from '../s1Place';
 
 /**
- * Level 8 «Встреча с Путало» — GDD Chapter 1 Level 7:
- * Stealth + dialogue. Approach Putalo slowly (walking, not running).
- * If you run, Putalo hides behind the rock. Two dialogue choices, both positive.
+ * Уровень 8 «Встреча с Путало» — уровень 7 главы 1 по GDD:
+ * скрытность и диалог. Подходить к Путало медленно, шагом, а не бегом.
+ * Побежишь — Путало спрячется за камень. Два варианта в диалоге, оба добрые.
  */
 
 // ── Планировка ──────────────────────────────────────────────────
@@ -36,19 +36,19 @@ const NOTICE = 10;
 const CLOSE = 4.5;
 
 /**
- * The watch cycle — «море волнуется раз», with a camera.
+ * Цикл наблюдения — «море волнуется раз», только с фотоаппаратом.
  *
- * Trust used to fill on one condition: stand within 4.5m and do not hold
- * Shift. Two and a half seconds later the hide was over. Nothing happened
- * during those seconds, there was nothing to read and nothing to react to, and
- * a level budgeted at 300s finished in about 70.
+ * Доверие раньше набиралось по одному условию: стой ближе 4.5 м и не жми Shift.
+ * Через две с половиной секунды пряталки заканчивались. За эти секунды не
+ * происходило ничего, читать было нечего, реагировать не на что, и уровень с
+ * бюджетом в 300 с заканчивался примерно за 70.
  *
- * Now he is doing what the fiction says he is doing. While his eye is at the
- * viewfinder he is absorbed and you can close the distance. When he lowers the
- * camera and looks round, you have to be still — moving while he looks costs
- * the trust you have built. It is the oldest playground game there is, it is
- * legible to a five-year-old without a word of explanation, and it turns the
- * approach into something you play rather than something you wait out.
+ * Теперь он делает то, что по вымыслу и делает. Пока глаз у видоискателя, он
+ * поглощён, и дистанцию можно сокращать. Когда он опускает камеру и
+ * оглядывается, надо замереть: движение под его взглядом стоит набранного
+ * доверия. Это древнейшая дворовая игра, она понятна пятилетнему без единого
+ * слова объяснения, и она превращает подход в то, во что играют, а не в то,
+ * что пережидают.
  */
 const SHOOTING_MS: [number, number] = [2600, 4200];
 /** Он опускает камеру. Предупреждение, чтобы попадаться не было неожиданностью. */

@@ -11,17 +11,17 @@ import { CAST_PROP_GLB } from '../castModels';
 import { AudioManager } from '@/audio/AudioManager';
 
 /**
- * Level 14 «Поделись теплом» — GDD Level 14.
+ * Уровень 14 «Поделись теплом» — уровень 14 по GDD.
  *
- * Three acts around one resource:
- *   warm     — meet a shivering Aya, learn that warmth drains away from
- *              fire and comes back at it;
- *   search   — hunt the scarf across a wide field, with campfires as
- *              waypoints so the meter shapes the route instead of punishing;
- *   firewood — the scarf alone does not fix cold, so build her own fire.
+ * Три акта вокруг одного ресурса:
+ *   warm     — встретить дрожащую Айю и узнать, что тепло утекает вдали от
+ *              огня и возвращается у него;
+ *   search   — искать шарф по широкому полю, где костры служат опорными
+ *              точками, поэтому шкала задаёт маршрут, а не наказывает;
+ *   firewood — одним шарфом холод не лечится, поэтому сложить ей свой костёр.
  *
- * The old version put the scarf in the drift nearest spawn, so the whole
- * level resolved in about ten seconds and the warmth meter never mattered.
+ * В старой версии шарф лежал в ближайшем к спавну сугробе, поэтому весь
+ * уровень решался секунд за десять, а шкала тепла ни на что не влияла.
  */
 
 export type L14Phase = 'intro' | 'warm' | 'search' | 'firewood' | 'outro';

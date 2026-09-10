@@ -15,8 +15,9 @@ import { AudioManager } from '@/audio/AudioManager';
 import { useGameStore } from '@/store/useGameStore';
 
 /**
- * Level 16 «Зимний QR-сундук» — GDD Level 16:
- * Ice key opens snowflake lock. Group photo finale. Season 1 complete → Chapter 3 teaser.
+ * Уровень 16 «Зимний QR-сундук» — уровень 16 по GDD:
+ * ледяной ключ открывает снежинковый замок. Финал — общая фотография.
+ * Сезон 1 завершён → тизер главы 3.
  */
 
 /** Пещера — в конце подъёма, а не в четырёх метрах от точки появления. */

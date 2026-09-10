@@ -74,14 +74,14 @@ export function resolveKey(key: string): KeyState {
 export const INTRO_DONE_KEY = 'barsik_mission0_done';
 
 /**
- * Has the player finished the opening mission?
+ * Прошёл ли игрок вступительную миссию?
  *
- * Third instance of the same shape as the two keys above: a bare flag outside
- * `barsik_progress`, so nothing versions it and nothing rebuilds it. It is not
- * a soft-lock — the tutorial can be replayed and replaying rewrites the flag —
- * but a save that lost it put a child who is on level 9 back in the tutorial
- * when they pressed «Продолжить». Level 0 in the save is the copy that
- * survives a migration, so ask that first.
+ * Третий случай той же формы, что и два ключа выше: голый флаг снаружи
+ * `barsik_progress`, поэтому его никто не версионирует и никто не пересобирает.
+ * Это не софт-лок — туториал можно пройти заново, и повтор перезапишет флаг, —
+ * но сейв, потерявший его, возвращал ребёнка с девятого уровня в туториал по
+ * нажатию «Продолжить». Уровень 0 в сейве — это та копия, что переживает
+ * миграцию, поэтому спрашивать надо сначала её.
  */
 export function hasFinishedIntro(): boolean {
   if (readFlag(INTRO_DONE_KEY)) return true;

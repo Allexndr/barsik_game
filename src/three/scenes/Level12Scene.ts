@@ -14,16 +14,17 @@ import { CAST_PROP_GLB, CAST_CHAR_GLB } from '../castModels';
 import { AudioManager } from '@/audio/AudioManager';
 
 /**
- * Level 12 «Ледяная тропа» — GDD Level 12.
+ * Уровень 12 «Ледяная тропа» — уровень 12 по GDD.
  *
- * Rule of three, expressed in the route itself rather than in text:
- *   learn — a short, wide, forgiving straight;
- *   turn  — the first bend, where inertia starts to matter;
- *   run   — five narrowing checkpoints with crystals off the racing line.
+ * Правило трёх, выраженное самим маршрутом, а не текстом:
+ *   learn — короткая, широкая, прощающая прямая;
+ *   turn  — первый поворот, где инерция начинает значить;
+ *   run   — пять сужающихся контрольных точек с кристаллами в стороне от
+ *           гоночной траектории.
  *
- * The trail is a curve, not a row of boxes: bends are what make sliding a
- * skill instead of holding one direction, and a straight corridor cannot
- * teach the mechanic the level is named after.
+ * Тропа — кривая, а не ряд коробок: именно повороты делают скольжение умением,
+ * а не удержанием одного направления, и прямой коридор не может научить
+ * механике, именем которой назван уровень.
  */
 
 export type L12Phase = 'intro' | 'learn' | 'turn' | 'run' | 'drop' | 'outro';
@@ -36,8 +37,7 @@ export interface L12Hud extends BaseHud {
 }
 
 /**
- * Route down the valley: straight, then bends of increasing bite, then the
- * drop.
+ * Маршрут вниз по долине: прямая, затем всё более злые повороты, затем спуск.
  *
  * Долина кончалась на z = −39: 55 м осевой линии при плановых 300 с — самый
  * короткий маршрут главы при самой высокой планке. Продлена до −64 четвёртым
@@ -113,12 +113,12 @@ export class Level12Scene extends BaseLevelScene {
   tryInteract() {}
 
   /**
-   * Fraction of velocity retained per *second* (applied as `inertia ** dt`
-   * each frame — see the `sliding` block). Tightens as the level
-   * progresses: `learn` stops in well under a second so a first-timer
-   * keeps control; `drop` holds speed for over a second, so the turn
-   * has to start earlier, same as before — only the numbers changed, not
-   * the intent (see `Спуск` comment below).
+   * Доля скорости, сохраняемая за *секунду* (применяется как `inertia ** dt`
+   * каждый кадр — см. блок `sliding`). Ужимается по ходу уровня: на `learn`
+   * герой останавливается заметно быстрее секунды, чтобы новичок сохранял
+   * контроль; на `drop` скорость держится больше секунды, поэтому поворот
+   * приходится начинать раньше. Как и прежде: изменились числа, а не замысел
+   * (см. комментарий `Спуск` ниже).
    */
   private get inertia() {
     if (this.phase === 'learn') return 0.02;

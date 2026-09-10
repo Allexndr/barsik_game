@@ -34,9 +34,9 @@ import {
   orchardTreeHeight,
 } from '../worldScale';
 /**
- * Level 3 «Яблоневый сад» — GDD Chapter 1 Level 2:
- * Apple orchard sorting. Collect apples, sort into colored baskets.
- * Mechanic: collect + sort (throw fruit into correct basket).
+ * Уровень 3 «Яблоневый сад» — уровень 2 главы 1 по GDD:
+ * сортировка в яблоневом саду. Собрать яблоки, разложить по цветным корзинам.
+ * Механика: сбор и сортировка (бросить фрукт в правильную корзину).
  */
 
 export type L3Phase =

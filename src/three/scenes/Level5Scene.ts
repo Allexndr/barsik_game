@@ -22,26 +22,26 @@ import { CAST_PROP_GLB, KEY_ACORN, writeFlag } from '../castModels';
 import { placeS1Prop } from '../s1Place';
 
 /**
- * Level 5 «Корзина для белочки» — GDD Chapter 1 Level 5.
+ * Уровень 5 «Корзина для белочки» — уровень 5 главы 1 по GDD.
  *
- * The spec calls the new mechanic «помоги NPC нести предмет» and asks for
- * three to four minutes in the shape 1) short stretch 2) three stones and two
- * roots 3) the long path to the burrow. The first build was a fifty-second
- * walk down a straight corridor in which nothing was ever carried: the
- * squirrel outpaced nobody, the seven "obstacles" sat a metre off a route the
- * hero could stroll around without noticing, and the escort radius never
- * engaged because a child holding forward is three times her speed.
+ * Спека называет новую механику «помоги NPC нести предмет» и просит три-четыре
+ * минуты в форме 1) короткий отрезок 2) три камня и два корня 3) долгий путь к
+ * норе. Первая сборка была пятидесятисекундной прогулкой по прямому коридору,
+ * в котором никто ничего не нёс: белочка никого не обгоняла, семь
+ * «препятствий» стояли в метре от маршрута, который герой обходил не замечая,
+ * а радиус сопровождения не включался ни разу, потому что ребёнок, зажавший
+ * «вперёд», втрое быстрее неё.
  *
- * Rebuilt to the spec's own three parts:
- *   I   «Знакомство» — a short stretch that teaches walking beside her, with
- *       the hearts and the ring as the whole feedback loop.
- *   II  «Завал» — the path is genuinely blocked: three stones, then two low
- *       roots. She cannot pass; Barsik clears them while she waits. This is
- *       where escorting stops being a walk and becomes a job.
- *   III «Долгий путь» — she is spent, so Barsik takes the basket. The roles
- *       swap for the last stretch: unburdened, she keeps up with him, and the
- *       radius that constrained the whole level quietly stops mattering. That
- *       is the reward for solving it.
+ * Пересобран по тем самым трём частям из спеки:
+ *   I   «Знакомство» — короткий отрезок, обучающий идти рядом с ней; сердечки
+ *       и кольцо — вся обратная связь.
+ *   II  «Завал» — путь перекрыт по-настоящему: три камня, затем два низких
+ *       корня. Ей не пройти; Барсик разбирает завал, пока она ждёт. Здесь
+ *       сопровождение перестаёт быть прогулкой и становится работой.
+ *   III «Долгий путь» — она выдохлась, поэтому корзину берёт Барсик. На
+ *       последнем отрезке роли меняются: без ноши она не отстаёт от него, и
+ *       радиус, сковывавший весь уровень, тихо перестаёт что-либо значить. Это
+ *       и есть награда за решение.
  */
 
 export type L6Phase =

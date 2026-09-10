@@ -20,9 +20,9 @@ import { CAST_PROP_GLB, KEY_ACORN } from '../castModels';
 import { resolveKey } from '../inventory';
 
 /**
- * Level 10 «QR-сундук» — GDD Chapter 1 Level 9:
- * Puzzle/reward mechanic. Use the acorn key (from Level 5) to open the chest.
- * Inside: stars, rare friend "Ягодка", and map to Chapter 2.
+ * Уровень 10 «QR-сундук» — уровень 9 главы 1 по GDD:
+ * механика загадки и награды. Жёлудь-ключ (с уровня 5) открывает сундук.
+ * Внутри: звёзды, редкая подруга «Ягодка» и карта главы 2.
  */
 
 // ── Планировка ──────────────────────────────────────────────────
