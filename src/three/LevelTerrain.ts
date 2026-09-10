@@ -202,7 +202,7 @@ export function createTerrainSampler(opts: LevelTerrainOptions = {}) {
     h *= relief;
 
     for (const f of features) {
-      if (f.kind === 'trench') continue; // applied after the corridor, below
+      if (f.kind === 'trench') continue; // применяется после коридора, ниже
       if (f.kind === 'plateau') {
         const dx = Math.abs(x - f.x) - f.halfW;
         const dz = Math.abs(z - f.z) - f.halfD;
@@ -223,7 +223,7 @@ export function createTerrainSampler(opts: LevelTerrainOptions = {}) {
       const falloff = 1 - dist / f.r;
       if (f.kind === 'basin') h -= f.depth * falloff * falloff;
       else if (f.kind === 'mound') h += f.height * falloff * falloff;
-      else h *= 1 - falloff; // 'flat'
+      else h *= 1 - falloff; // вариант 'flat'
     }
 
     // Коридор вырезается последним, чтобы ничто выше не накренило проходимый маршрут.

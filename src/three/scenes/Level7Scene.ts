@@ -372,11 +372,11 @@ export class Level7Scene extends BaseLevelScene {
       this.scene.add(p);
     }
 
-    // HIDES[2] is the one he names out loud — «Здесь моё самое тихое место» —
-    // but nothing there used to look different from the other three transient
-    // hiding spots. A moss nest and his best photographs kept close, at a
-    // consistent gallery height instead of the trail's random scatter, so the
-    // line has somewhere real to land.
+    // HIDES[2] — то место, которое он называет вслух: «Здесь моё самое тихое
+    // место», — но раньше оно ничем не отличалось от трёх остальных временных
+    // укрытий. Моховое гнездо и лучшие его снимки держатся рядом, на одной
+    // выставочной высоте вместо случайного разброса вдоль тропы, — и реплике
+    // становится куда приземлиться.
     {
       const denX = HIDES[2].x - 2.2;
       const denZ = HIDES[2].z + 0.4;

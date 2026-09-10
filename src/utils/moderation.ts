@@ -62,8 +62,8 @@ export function normalizeForMatch(input: string): string {
     const folded = FOLD[ch];
     if (folded !== undefined) out += folded;
     else if (/[а-яa-z0-9]/.test(ch)) out += ch;
-    // Everything else — spaces, dashes, dots, emoji — is dropped, so
-    // "х-у-й" and "х у й" collapse to the same string as the plain word.
+    // Всё прочее — пробелы, дефисы, точки, эмодзи — выбрасывается, поэтому
+    // «х-у-й» и «х у й» сворачиваются в ту же строку, что и слово без разделителей.
   }
   // Stretched letters: "ссссука" -> "сука".
   return out.replace(/(.)\1{1,}/g, '$1');
@@ -140,7 +140,7 @@ const ALLOW_LIST: readonly string[] = [
  * inside Russian text — «напиши в тг» passed the filter untouched.
  */
 const CONTACT_PATTERNS: readonly RegExp[] = [
-  /\d[\s\-()]*\d[\s\-()]*\d[\s\-()]*\d[\s\-()]*\d[\s\-()]*\d/, // 6+ digits
+  /\d[\s\-()]*\d[\s\-()]*\d[\s\-()]*\d[\s\-()]*\d[\s\-()]*\d/, // шесть и более цифр
   /@[a-zа-я0-9_]{3,}/i,
   /https?:\/\//i,
   /(?:www\.|t\.me|vk\.com|wa\.me)/i,

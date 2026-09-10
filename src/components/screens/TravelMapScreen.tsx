@@ -528,9 +528,9 @@ export function TravelMapScreen() {
   // рисовался наполовину за экраном. Уменьшение с привязкой к кончику, который и
   // так стоит прямо на пине, оставляет кончик на месте и ужимает только тот
   // пузырь, который всё равно был бы обрезан.
-  const HERE_TIP_ABOVE_PIN = 14; // badge's tip sits 14px above the pin
-  const HERE_BUBBLE_SPAN = 42; // tip to bubble top, at scale 1
-  const HERE_FLOAT_AMPLITUDE = 6; // `pin-here-float` bobs up this far — stay clear at the peak too
+  const HERE_TIP_ABOVE_PIN = 14; // кончик значка стоит на 14 пикселей выше пина
+  const HERE_BUBBLE_SPAN = 42; // от кончика до верха пузыря при масштабе 1
+  const HERE_FLOAT_AMPLITUDE = 6; // `pin-here-float` поднимается на столько — запас нужен и на пике
   const hereTopBound = wide ? 0 : portraitBounds.y0;
   const hereScale = Math.min(
     1,

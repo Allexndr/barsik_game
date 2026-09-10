@@ -113,7 +113,7 @@ function makeSigil(kind: Sigil, size = 1): THREE.Mesh {
   else if (kind === 'drop') geo = new THREE.ConeGeometry(0.2 * size, 0.46 * size, 12);
   else geo = new THREE.TetrahedronGeometry(0.28 * size);
   const mesh = new THREE.Mesh(geo, mat);
-  if (kind === 'drop') mesh.rotation.x = Math.PI; // point down, like a drop
+  if (kind === 'drop') mesh.rotation.x = Math.PI; // остриём вниз, как капля
   return mesh;
 }
 

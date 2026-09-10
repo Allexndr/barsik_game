@@ -402,7 +402,7 @@ function hingeButterflyWings(root: THREE.Object3D): THREE.Group[] {
     mesh.getWorldPosition(worldPos);
     parent.worldToLocal(worldPos);
     hinge.position.copy(worldPos);
-    hinge.position.x *= 0.15; // pull hinge toward spine
+    hinge.position.x *= 0.15; // подтянуть шарнир к хребту
     parent.add(hinge);
     parent.remove(mesh);
     hinge.attach(mesh);
@@ -2573,8 +2573,8 @@ export abstract class BaseLevelScene {
       // её масштаб.
       for (const part of parts) {
         const inst = new THREE.InstancedMesh(part.geo, part.mat, list.length);
-        inst.castShadow = false;      // a treeline shadowing itself costs more
-        inst.receiveShadow = false;   // than it shows at this distance
+        inst.castShadow = false;      // кромка леса, затеняющая сама себя, стоит дороже,
+        inst.receiveShadow = false;   // чем показывает на такой дистанции
         const m = new THREE.Matrix4();
         const place = new THREE.Matrix4();
         for (let i = 0; i < list.length; i++) {
@@ -2589,7 +2589,7 @@ export abstract class BaseLevelScene {
           inst.setMatrixAt(i, m);
         }
         inst.instanceMatrix.needsUpdate = true;
-        inst.frustumCulled = false;   // the wall surrounds the player anyway
+        inst.frustumCulled = false;   // стена и так окружает игрока
         this.scene.add(inst);
       }
       disposeObject3DResources(template);
@@ -3658,7 +3658,7 @@ export abstract class BaseLevelScene {
       }
     };
     disc(0, 0.045, 0.075, 0.058);            // pad
-    disc(-0.06, -0.055, 0.031, 0.031);       // toes
+    disc(-0.06, -0.055, 0.031, 0.031);       // пальцы
     disc(0, -0.075, 0.031, 0.031);
     disc(0.06, -0.055, 0.031, 0.031);
     const g = new THREE.BufferGeometry();

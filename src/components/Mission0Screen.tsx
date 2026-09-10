@@ -123,17 +123,17 @@ export function Mission0Screen() {
     setLoading(true);
     setAssetsReady(false);
     let active = true;
-    // The store may hydrate just after this screen mounts. Do not restart the
-    // live scene when that happens: it can race the loading CTA and resurrect
-    // the overlay after the player already pressed "Играть".
+    // Хранилище может наполниться сразу после монтирования этого экрана. Живую
+    // сцену при этом перезапускать нельзя: это гонка с кнопкой загрузки, и экран
+    // загрузки способен вернуться после того, как игрок уже нажал «Играть».
     const nickAtStart = useGameStore.getState().player?.nick || '';
     void scene.init(nickAtStart, lang, setHud).then(() => {
       if (!active) return;
       if (useUIStore.getState().paused) scene.setPaused(true);
-      // The level does not actually start until the loading screen's own
-      // "Играть" is pressed — see handlePlayFromLoading below. Finishing
-      // early just means there is time to keep playing the runner instead
-      // of staring at a full progress bar.
+      // Уровень не начинается, пока не нажата собственная кнопка «Играть» на
+      // экране загрузки — см. handlePlayFromLoading ниже. Ранняя готовность значит
+      // лишь, что есть время поиграть в раннер, а не смотреть на заполненную
+      // полосу.
       setAssetsReady(true);
     });
     return () => {

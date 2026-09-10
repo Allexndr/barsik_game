@@ -48,7 +48,7 @@ export function createRiverWater(opts: {
   segments?: number;
   colour?: { deep: number; shallow: number; foam: number };
 }): RiverWater {
-  const seg = opts.segments ?? 1.6; // metres per quad
+  const seg = opts.segments ?? 1.6; // метров на квад
   const segX = Math.max(8, Math.round(opts.width / seg));
   const segZ = Math.max(8, Math.round(opts.length / seg));
   const geo = new THREE.PlaneGeometry(opts.width, opts.length, segX, segZ);

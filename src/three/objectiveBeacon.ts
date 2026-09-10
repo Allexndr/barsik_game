@@ -21,7 +21,7 @@ const COLUMN_RADIUS = 0.42;
 
 export function createObjectiveBeacon(): THREE.Group {
   const group = new THREE.Group();
-  group.userData.isGuideArrow = true; // audits treat it as guidance, not a prop
+  group.userData.isGuideArrow = true; // аудит считает это указателем, а не реквизитом
   group.renderOrder = 790;
   group.visible = false;
 

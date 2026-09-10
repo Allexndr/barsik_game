@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { useUIStore } from '@/store/useUIStore';
 
-const PHONE_MS = 60_000; // ~1 minute of play
+const PHONE_MS = 60_000; // примерно минута игры
 const EMAIL_LEVELS = 8;
 
 /**

@@ -588,19 +588,19 @@ export class Level1Scene extends BaseLevelScene {
       const d = Math.abs(z - CREEK_Z);
       if (d >= CREEK_HALF_WIDTH) return 0;
       const t = d / CREEK_HALF_WIDTH;
-      const ease = t * t * (3 - 2 * t); // smoothstep: 1 at the rim, 0 at the centre
+      const ease = t * t * (3 - 2 * t); // smoothstep: 1 у кромки, 0 в центре
       return -CREEK_DEPTH * (1 - ease);
     };
     const bankY = 0;
     const bedY = -CREEK_DEPTH;
     const waterY = bedY + Math.max(0.35, (bankY - bedY) * 0.42);
     const BRIDGE_HALF_X = BRIDGE_GAP;
-    const BRIDGE_DECK_Y = 0.25; // matches bridge()'s own plank height, so the deck and the hero's feet agree
+    const BRIDGE_DECK_Y = 0.25; // совпадает с высотой доски в самой bridge(), поэтому настил и лапы героя сходятся
 
-    // Bed geometry: flat in X (a straight ditch, matching the wide collider
-    // band below), sloped in Z. Vertex colour fades from bank grass to wet
-    // creek soil with depth, so the rim blends into the lawn instead of
-    // reading as a dropped-in brown patch.
+    // Геометрия русла: плоское по X — прямая канава, совпадающая с широкой полосой
+    // коллайдера ниже, — и наклонное по Z. Вершинный цвет с глубиной переходит от
+    // травы берега к мокрой земле ручья, поэтому кромка сливается с лужайкой, а не
+    // читается брошенным коричневым пятном.
     // Русло было 40 м в ширину и вода 36 — при мосте в 3.2 м это линейка
     // поперёк всего мира. Теперь оно кончается ровно на границе плоской
     // полосы, а дальше берега поднимаются рельефом: ручей течёт между
@@ -619,9 +619,9 @@ export class Level1Scene extends BaseLevelScene {
     const soilColor = new THREE.Color(0x6b5637);
     const colors: number[] = [];
     for (let i = 0; i < posAttr.count; i++) {
-      const localZ = posAttr.getY(i); // pre-rotation Y is world Z offset from centre
+      const localZ = posAttr.getY(i); // до поворота Y, в мире это смещение по Z от центра
       const depth = creekDepthAt(CREEK_Z + localZ);
-      posAttr.setZ(i, depth); // pre-rotation Z becomes world height after rotation.x = -90°
+      posAttr.setZ(i, depth); // до поворота Z, после rotation.x = -90° становится мировой высотой
       const t = CREEK_DEPTH > 0 ? Math.min(1, -depth / CREEK_DEPTH) : 0;
       const c = grassColor.clone().lerp(soilColor, t);
       colors.push(c.r, c.g, c.b);
