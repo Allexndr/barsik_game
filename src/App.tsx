@@ -219,9 +219,10 @@ export function App() {
     if (progress) {
       try {
         const migrated = migrateProgress(JSON.parse(progress));
-        // Heal: currentLevel must be at least one past the highest completed
-        // level. Older saves / aborted outros could leave the pointer on a
-        // finished mission, so «Продолжить» restarted that same level.
+        // Починка: currentLevel обязан быть хотя бы на единицу дальше самого
+        // высокого пройденного уровня. Старые сейвы и оборванные финалы могли
+        // оставить указатель на уже законченной миссии, и «Продолжить»
+        // перезапускало тот же самый уровень.
         const highestDone = Math.max(
           -1,
           ...migrated.unlockedLevels,

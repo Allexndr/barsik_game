@@ -340,7 +340,7 @@ function makeYurt(): THREE.Group {
   const seamCount = 9;
   for (let i = 0; i < seamCount; i++) {
     const a = (i / seamCount) * Math.PI * 2 + 0.18;
-    if (Math.abs(Math.sin(a)) < 0.32 && Math.cos(a) > 0) continue; // leave the door face clear
+    if (Math.abs(Math.sin(a)) < 0.32 && Math.cos(a) > 0) continue; // оставляем свободной сторону с дверью
     const seam = new THREE.Mesh(new THREE.BoxGeometry(0.045, 1.86, 0.05), seamMat);
     seam.position.set(Math.sin(a) * 2.95, 0.95, Math.cos(a) * 2.95);
     seam.rotation.y = a;
@@ -843,7 +843,7 @@ export class Level0Scene extends BaseLevelScene {
 
     // ── Внутри: ответ на кюй ─────────────────────────────────────
     if (this.phase === 'inside' && t.userData.isStringPad) {
-      if (this.kuiListening) return; // still being played to; pressing does nothing
+      if (this.kuiListening) return; // фраза ещё играется, нажатие ничего не делает
       this.pressPad(t.userData.index as number, now);
     }
   }
@@ -1101,7 +1101,7 @@ export class Level0Scene extends BaseLevelScene {
 
       const bed = this.groundHeightAt(spec.x, spec.z);
       holder.position.set(spec.x, bed, spec.z);
-      holder.rotation.z = spec.rotZ;   // knocked over
+      holder.rotation.z = spec.rotZ;   // опрокинут
       // fitHeight сажает меш на землю стоя; после опрокидывания приподнимаем,
       // чтобы самая нижняя точка по-прежнему лежала на рельефе.
       holder.updateMatrixWorld(true);
@@ -1132,7 +1132,7 @@ export class Level0Scene extends BaseLevelScene {
       const x = YURT.x + Math.cos(s.angle) * stakeR;
       const z = YURT.z + Math.sin(s.angle) * stakeR;
       // Дуга у входа пропускается, чтобы колья не стояли на красном коврике.
-      const doorAng = Math.PI / 2; // +z entrance
+      const doorAng = Math.PI / 2; // вход со стороны +z
       const dAng = Math.abs(Math.atan2(Math.sin(s.angle - doorAng), Math.cos(s.angle - doorAng)));
       if (dAng < 0.55) continue;
       const stake = makePeg(pegTpl);
@@ -1393,7 +1393,7 @@ export class Level0Scene extends BaseLevelScene {
           const px = routeX(z + dir * dz) + ox;
           const pz = z + dir * dz;
           if (this.groundHeightAt(px, pz) <= waterY + 0.02) continue;
-          if (this.clampToPlayArea(px, pz).x !== px) continue; // must be somewhere you may stand
+          if (this.clampToPlayArea(px, pz).x !== px) continue; // точка обязана быть там, где можно стоять
           best = Math.min(best, Math.hypot(px - x, pz - z));
         }
       }

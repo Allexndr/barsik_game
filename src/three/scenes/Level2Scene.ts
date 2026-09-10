@@ -1502,8 +1502,8 @@ export class Level2Scene extends BaseLevelScene {
     }
 
     // Диски зон.
-    this.scene.add(zoneDisc(0, 4, 7, 0x66bb6a, 0.025)); // start
-    this.scene.add(zoneDisc(0, -12, 12, 0xffeaa7, 0.02)); // orchard center
+    this.scene.add(zoneDisc(0, 4, 7, 0x66bb6a, 0.025)); // старт
+    this.scene.add(zoneDisc(0, -12, 12, 0xffeaa7, 0.02)); // центр сада
 
     // Площадка появления.
     this.scene.add(spawnPad(0, 4));
@@ -1560,12 +1560,11 @@ export class Level2Scene extends BaseLevelScene {
     // Указатель у входа.
     this.scene.add(await placeWoodSign(loader, -2.5, 0, 0.3, 0xffeaa7));
 
-    // Second threshold: the garden gate, between meeting the gardener and
-    // the orchard proper. One archway alone made the whole level read as a
-    // single room — meeting Жұлдыз and sorting apples happened in the same
-    // undivided field. This does not gate movement or story (both sides are
-    // already reachable), it gives the eye a second "you have arrived
-    // somewhere new" beat the way the arch gives the first.
+    // Второй порог: садовая калитка между встречей с садовником и собственно
+    // садом. С одной аркой весь уровень читался единой комнатой — знакомство с
+    // Жұлдыз и сортировка яблок происходили в одном неразделённом поле. Движение и
+    // сюжет это не перекрывает: обе стороны и так достижимы, — но даёт глазу
+    // второй такт «ты пришёл в новое место», как арка даёт первый.
     const gateGroup = new THREE.Group();
     const fenceMat = new THREE.MeshStandardMaterial({ color: 0x7a5c3e, roughness: 1 });
     const fenceH = 1.85;
@@ -1699,18 +1698,18 @@ export class Level2Scene extends BaseLevelScene {
       this.scene.add(tulip(x, z, [0xe74c3c, 0xf1c40f, 0xe67e22, 0xfd79a8, 0xa29bfe][i % 5]));
     }
 
-    // The old oak from L3, seen from a distance here first. The orchard used
-    // to be one sealed room with nothing past its own task — this is the
-    // level's own outro line ("у старого дуба потерялся ёжик") made into
-    // something the player can actually see, not just be told about, and it
-    // is the same landmark prop L3 stands the whole level in and L10
-    // revisits — one tree, three levels, instead of three unrelated oaks.
+    // Тот самый старый дуб с L3, впервые увиденный отсюда издалека. Сад был
+    // замкнутой комнатой, за пределами собственной задачи которой ничего не было;
+    // это финальная реплика самого уровня («у старого дуба потерялся ёжик»),
+    // превращённая в то, что игрок действительно видит, а не только слышит. И это
+    // тот же ориентир, в котором L3 стоит весь уровень и к которому возвращается
+    // L10: одно дерево на три уровня вместо трёх несвязанных дубов.
     //
-    // Visible the whole level, on purpose: it used to carry a questMarker
-    // beacon gated to phase==='outro', but MissionScreen covers the canvas
-    // with the level-complete card the same tick outro starts, so that
-    // beacon — promising an interaction the oak doesn't have — could never
-    // actually be seen. The tree alone, always there, is the real payoff.
+    // Виден весь уровень, и намеренно: раньше на нём висел маяк questMarker,
+    // привязанный к phase === 'outro', но MissionScreen накрывает канвас карточкой
+    // «уровень пройден» в тот же такт, когда начинается финал, — и этот маяк,
+    // обещавший взаимодействие, которого у дуба нет, увидеть было невозможно.
+    // Само дерево, стоящее там всегда, и есть настоящая награда.
     const oak = makeOldOak(1.5, -31);
     oak.scale.setScalar(0.85);
     this.scene.add(oak);

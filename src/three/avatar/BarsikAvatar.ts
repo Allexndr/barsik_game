@@ -63,7 +63,7 @@ export const DEFAULT_LOOK: AvatarLook = {
   spots: 0x5a6e82, // clearer leopard rosettes (client: пятнистость барса)
   nose: 0xf8a4c0,
   eye: 0x3d7ab8,
-  hoodie: 0xe74c3c, // packaging red
+  hoodie: 0xe74c3c, // красный с упаковки
   trousers: 0x4a6fa5,
 };
 
@@ -151,7 +151,7 @@ function deform(geo: THREE.BufferGeometry, fn: (v: THREE.Vector3) => void): THRE
 /** Плоская макушка, широкие щёки, узкий подбородок, приплюснутый затылок. */
 function shapeSkull(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   return deform(geo, (v) => {
-    const up = v.y / 0.265; // −1 at the chin, +1 at the crown
+    const up = v.y / 0.265; // −1 у подбородка, +1 на макушке
     // Макушка приплюснута: идеальный купол превращает голову в ёлочный шар.
     v.y *= 1.0 - Math.max(0, up) * 0.07;
     // Шире всего на скулах, сужается к подбородку.
@@ -180,7 +180,7 @@ function tile(source: THREE.Texture, x: number, y: number): THREE.Texture {
 /** Torso: plush-chubbier chest/belly (client: плотнее как на упаковке). */
 function shapeTorso(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   return deform(geo, (v) => {
-    const up = v.y / 0.19; // −1 at the hem, +1 at the collar
+    const up = v.y / 0.19; // −1 у подола, +1 у воротника
     const chest = 1 + 0.14 * Math.exp(-((up - 0.35) ** 2) / 0.55);
     const belly = 1 + 0.12 * Math.exp(-((up + 0.15) ** 2) / 0.45);
     const waist = 1 - 0.04 * Math.exp(-((up + 0.55) ** 2) / 0.3);

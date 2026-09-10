@@ -559,7 +559,7 @@ export class Level4Scene extends BaseLevelScene {
       });
     }
     for (const [i, rock] of (await kit.scatter('nature', ['rock_largeD', 'stone_largeB', 'rock_tallC'], faceRocks)).entries()) {
-      if (Math.abs(rock.position.x) < 3) continue; // never over the bridge line
+      if (Math.abs(rock.position.x) < 3) continue; // никогда над линией моста
       rock.position.y = -1.4 - (i % 3) * 1.3;
       this.scene.add(rock);
     }
@@ -909,7 +909,7 @@ export class Level4Scene extends BaseLevelScene {
     const ayaGlb = await loadCharModel(loader, 'aya.glb', NPC_PEER_HEIGHT);
     const ayaGroup = ayaGlb ?? createPlushCharacter(AYA_LOOK);
     ayaGroup.position.set(0, 0, AYA_Z);
-    ayaGroup.rotation.y = Math.PI; // face the bridge, and the arriving player
+    ayaGroup.rotation.y = Math.PI; // лицом к мосту и к приходящему игроку
     this.aya = ayaGroup;
     this.scene.add(ayaGroup);
     // Ждёт на дальнем берегу, «видна с самого начала» — как сказано в

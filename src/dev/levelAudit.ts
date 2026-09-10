@@ -171,7 +171,7 @@ export async function auditLevel(opts: { grid?: number } = {}): Promise<AuditRep
   const off: string[] = [];
   for (const o of L.scene.children) {
     if (!o.visible || o.children.length === 0) continue;
-    if (Math.abs(o.position.x) > 60 || Math.abs(o.position.z) > 70) continue;   // backdrop
+    if (Math.abs(o.position.x) > 60 || Math.abs(o.position.z) > 70) continue;   // задник
     const g = L.groundHeightAt(o.position.x, o.position.z);
     const gap = o.position.y - g;
     // Небо, облака и лучи целей парят законно; ошибка — это то, что стоит ровно на

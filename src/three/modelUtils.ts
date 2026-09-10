@@ -54,7 +54,7 @@ export function measurePlinthFraction(root: THREE.Object3D): number {
     const m = o as THREE.Mesh;
     if (m.isMesh && m.geometry?.attributes?.position) meshes.push(m);
   });
-  if (meshes.length !== 1) return 0; // a separable base is not this problem
+  if (meshes.length !== 1) return 0; // отделяемая подставка — это уже другая задача
 
   const mesh = meshes[0];
   const pos = mesh.geometry.attributes.position as THREE.BufferAttribute;
@@ -75,7 +75,7 @@ export function measurePlinthFraction(root: THREE.Object3D): number {
   }
 
   const widest = Math.max(...widths);
-  const maxSlab = Math.floor(SLABS * 0.3); // a plinth is never a third of a character
+  const maxSlab = Math.floor(SLABS * 0.3); // постамент никогда не занимает трети персонажа
 
   // Накопительно, а не послойно. Коробка постамента оставляет между нижней и
   // верхней гранью целые пустые слои, и послойные отношения принимают эти пропуски

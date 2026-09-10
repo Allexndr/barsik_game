@@ -30,18 +30,19 @@ import { placeAmbientCritters } from '../s1Place';
  * hedgehog, the rest hold a bonus star and a clue to the next.
  */
 
-// The search was three markers you could press in any order, with a gate that
-// refused the right one until you had checked two wrong ones — so a player who
-// went straight to the log was told «Пока рано…» for no reason they could see,
-// which reads as the game being broken rather than as a clue.
+// Поиск был тремя маркерами, которые можно нажимать в любом порядке, с
+// проверкой, отказывавшей верному, пока не проверены два неверных: игрок,
+// пошедший сразу к бревну, получал «Пока рано…» без видимой причины, и это
+// читалось поломкой игры, а не подсказкой.
 //
-// The clue text already described a trail ("свежие следы уходят вправо"), so
-// the trail is now real: one sector at a time, each one pointing at the next.
-// One tracking phase with a leg counter, not one phase per leg. `track1 |
-// track2 | track3` fixed the trail at three stops in the type system: the
-// clue copy indexed a three-element array by trailIndex and the objective
-// said «1/3» in a string literal, so adding a stop meant an out-of-bounds
-// read and a lie in the HUD. The leg is data; the phase is not.
+// В тексте подсказки уже был описан след («свежие следы уходят вправо»), поэтому
+// теперь след настоящий: по одному сектору за раз, и каждый указывает на
+// следующий. Одна фаза выслеживания со счётчиком отрезков, а не по фазе на
+// отрезок. Запись `track1 | track2 | track3` закрепляла три остановки прямо в
+// системе типов: текст подсказки индексировал массив из трёх элементов по
+// trailIndex, а в задании стояло «1/3» строковым литералом, — и добавление
+// остановки означало выход за границы массива и ложь в интерфейсе. Отрезок — это
+// данные, а фаза — нет.
 export type L4Phase = 'intro' | 'tracking' | 'found' | 'outro';
 
 export interface L4Hud extends BaseHud {
@@ -373,8 +374,8 @@ export class Level3Scene extends BaseLevelScene {
     }
 
     // Диски зон.
-    this.scene.add(zoneDisc(0, 4, 7, 0x66bb6a, 0.025)); // start
-    this.scene.add(zoneDisc(0, -12, 14, 0x81c784, 0.02)); // search area
+    this.scene.add(zoneDisc(0, 4, 7, 0x66bb6a, 0.025)); // старт
+    this.scene.add(zoneDisc(0, -12, 14, 0x81c784, 0.02)); // зона поиска
 
     // Площадка появления.
     this.scene.add(spawnPad(0, 4));
@@ -440,20 +441,19 @@ export class Level3Scene extends BaseLevelScene {
     ]);
     this.colliders.push({ kind: 'circle', x: -11, z: -8, r: 1.6 });
 
-    // Five search sectors, zigzagging — but a walk, not a march.
+    // Пять секторов поиска зигзагом — но прогулкой, а не маршем.
     //
-    // These were spread to the corners of the clamp to stop the search from
-    // hugging the path, which was the right problem to fix. It overshot: the
-    // legs came out 27 to 36 metres each, 111 metres in total, with nothing
-    // between one sector and the next. Playtesting with children put this
-    // level top of the "слишком тяжёлый" list and one of them said plainly
-    // that they did not know where to go — thirty-five seconds of walking
-    // across open ground between two events is not a search, it is a commute.
+    // Их разнесли по углам ограничения, чтобы поиск не жался к тропе, и это была
+    // верная задача. Только перестарались: отрезки вышли по 27–36 метров, 111
+    // метров в сумме, и между одним сектором и другим не было ничего. На тестах с
+    // детьми этот уровень возглавил список «слишком тяжёлый», и один из них прямо
+    // сказал, что не знает, куда идти: тридцать пять секунд ходьбы по открытому
+    // полю между двумя событиями — это не поиск, а дорога на работу.
     //
-    // Legs are now 12 to 17 metres: still a zigzag that uses the width of the
-    // board and still five stops, but the next sector is in sight from the
-    // last. Kept clear of the four hills and the old oak so nothing buries a
-    // stop; the hedgehog's log stays exactly where it was.
+    // Теперь отрезки по 12–17 метров: всё тот же зигзаг во всю ширину площадки и
+    // всё те же пять остановок, но следующий сектор виден с предыдущего. Держатся
+    // в стороне от четырёх холмов и старого дуба, чтобы ничто не завалило
+    // остановку; бревно ёжика осталось ровно там, где было.
     const sectorData = [
       { x: -9, z: -5, hasHedgehog: false, label: 'bushes' },
       { x: 6, z: -13, hasHedgehog: false, label: 'rocks' },
@@ -503,12 +503,12 @@ export class Level3Scene extends BaseLevelScene {
       const bubble = makeQuestionBubble(sd.x, sd.z);
       this.scene.add(bubble);
 
-      // Footprints leading to this sector *from the previous one*.
+      // Следы, ведущие к этому сектору *от предыдущего*.
       //
-      // Every set used to start at (0, -8), so at the spawn the player saw
-      // three fans of prints radiating from one point with nothing to choose
-      // between them — a trail that cannot be followed, under a clue line
-      // that says «свежие следы уходят вправо». Chained, they are the trail.
+      // Раньше каждый набор начинался в (0, −8), и на старте игрок видел три веера
+      // следов, расходящихся из одной точки, между которыми нечего выбрать: след,
+      // по которому нельзя идти, под подсказкой «свежие следы уходят вправо».
+      // Сцепленные в цепочку, они и есть след.
       const tracks: THREE.Group[] = [];
       const from = index === 0
         ? { x: 0, z: -8 }
@@ -680,10 +680,10 @@ export class Level3Scene extends BaseLevelScene {
     }
 
     if (performance.now() < this.clueUntil && this.isTracking() && this.lastClue) {
-      // Direction read off the route, not written into the string. «Свежие
-      // следы уходят вправо» was hardcoded, and on a trail that zigzags it
-      // was wrong at half the stops — a clue that points the wrong way is
-      // worse than no clue.
+      // Направление берётся из маршрута, а не вписано в строку. «Свежие следы
+      // уходят вправо» стояло жёстко, и на зигзагообразном следе оказывалось
+      // неверным на половине остановок, — а подсказка, указывающая не туда, хуже,
+      // чем её отсутствие.
       const from = this.sectors[this.trailIndex - 1];
       const to = this.currentSector();
       const dx = to && from ? to.x - from.x : 0;

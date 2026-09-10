@@ -691,13 +691,13 @@ export class Level10Scene extends BaseLevelScene {
         const d = hp.distanceTo(spot.pos);
         if (d < bestD) { bestD = d; best = spot.pos.clone(); }
       }
-      // Empty-handed with gifts still to give: the pile is the answer.
+      // Лапы пусты, а дарить ещё есть кому: ответ — корзина.
       //
-      // Every branch above skips a spot that needs a gift the player is not
-      // carrying, so once the last one was handed over the arrow went out
-      // entirely — in the middle of a level still asking for «Прощание: 2/5».
-      // A blank arrow is the one thing this level cannot afford: its five
-      // stops are scattered over thirty metres and the pile is behind you.
+      // Каждая ветка выше пропускает место, которому нужен подарок, если игрок его
+      // не несёт, — и после передачи последнего стрелка гасла совсем, посреди
+      // уровня, всё ещё требующего «Прощание: 2/5». Пустая стрелка — единственное,
+      // чего этот уровень позволить себе не может: его пять остановок разбросаны на
+      // тридцать метров, а корзина остаётся за спиной.
       if (!best && !this.basketTaken && this.giftPile) {
         return this.giftPile.position.clone();
       }

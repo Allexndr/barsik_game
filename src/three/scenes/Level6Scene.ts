@@ -872,9 +872,9 @@ export class Level6Scene extends BaseLevelScene {
       this.hedgehog.rotation.y += Math.sin(now * 0.0006) * dt * 0.35;
     }
 
-    // Putalo, working the treeline all level — a periodic camera-flash
-    // pulse is what makes «кто-то фотографирует» read as an event rather
-    // than a figure that just happens to be standing in the trees.
+    // Путало работает у кромки леса весь уровень: именно периодическая вспышка
+    // фотоаппарата превращает «кто-то фотографирует» в событие, а не в фигуру,
+    // которая просто стоит между деревьями.
     if (this.putaloGlimpse) {
       this.putaloGlimpse.rotation.y = Math.sin(now * 0.0004) * 0.25;
       if (this.putaloFlash) {

@@ -54,10 +54,9 @@ export function LeaderboardScreen() {
   // Кто прямо выше и на сколько: цель работает лучше неподвижной таблицы.
   const ahead = others[youIndex - 1];
   const gap = ahead ? scoreOf(ahead) - stars : 0;
-  // Only promise an overtake that is actually within reach. A whole-season
-  // level is worth 10–30 stars, so about two levels' worth is a goal; the top
-  // of this table currently holds an impossible 1486, and «набери ещё 1366»
-  // is not encouragement, it is a wall.
+  // Обещать обгон только тот, который действительно достижим. Уровень сезона стоит
+  // 10–30 звёзд, поэтому цель — примерно два уровня; на вершине этой таблицы сейчас
+  // невозможные 1486, и «набери ещё 1366» — это не поощрение, а стена.
   const REACHABLE = 60;
   const canCatch = Boolean(ahead) && gap <= REACHABLE;
 
