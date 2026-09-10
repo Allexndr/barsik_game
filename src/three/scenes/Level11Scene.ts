@@ -40,7 +40,7 @@ interface Snowflake {
   gold: boolean;
 }
 
-/** Reach above the hero's feet — a jump has to actually get you there. */
+/** Досягаемость над лапами героя: прыжок обязан реально доносить туда. */
 const CATCH_REACH = 2.3;
 
 export class Level11Scene extends BaseLevelScene {
@@ -137,8 +137,7 @@ export class Level11Scene extends BaseLevelScene {
       ayaGlb.lookAt(0, ayaGlb.position.y, -12);
       this.aya = ayaGlb;
       this.scene.add(ayaGlb);
-      // Only the snowman had a collider — the standing character next to
-      // it didn't.
+      // Коллайдер был только у снеговика; у стоящего рядом персонажа — нет.
       this.colliders.push({ kind: 'circle', x: ayaGlb.position.x, z: ayaGlb.position.z, r: 0.55 });
     }
 
@@ -161,9 +160,10 @@ export class Level11Scene extends BaseLevelScene {
     ]);
 
     this.hero.position.set(0, this.groundHeightAt(0, 5), 5);
-    // One room, not one road. A corridor here would put a wall through the
-    // middle of the only space the level has.
-    // Taken from the movement bounds the level already declares: x ±24, z −30..8.
+    // Одна комната, а не дорога. Коридор здесь провёл бы стену через середину
+    // единственного пространства уровня.
+    // Размеры взяты из границ движения, которые уровень и так объявляет:
+    // x ±24, z −30…8.
     this.playArena = { x: 0, z: -11, r: 31 };
     await this.encloseArena(loader);
 
@@ -199,11 +199,11 @@ export class Level11Scene extends BaseLevelScene {
   }
 
   /**
-   * Snowman grows in three readable steps, not a continuous scale creep a
-   * five-year-old can't track (plan §6, D/L11 "grows in readable stages"):
-   * base ball → +torso → +head, one new part per third of the build act.
-   * A GLB snowman has no separable parts, so it pops through the same three
-   * steps as fixed scale jumps instead.
+   * Снеговик растёт тремя читаемыми шагами, а не непрерывным подрастанием, за
+   * которым пятилетний не уследит (план §6, D/L11 «растёт читаемыми стадиями»):
+   * нижний ком → плюс туловище → плюс голова, по одной новой части на треть акта
+   * сборки. У снеговика из GLB отдельных частей нет, поэтому он проходит те же три
+   * шага фиксированными скачками масштаба.
    */
   private updateSnowman() {
     if (!this.snowman) return;
@@ -232,8 +232,8 @@ export class Level11Scene extends BaseLevelScene {
   }
 
   private spawnSnowflake(gold: boolean) {
-    // Golden flakes spawn nearer the hero: they must be caught mid-air, so
-    // the player needs a fair chance to get under one before it lands.
+    // Золотые снежинки появляются ближе к герою: их надо ловить в воздухе, и у
+    // игрока должен быть честный шанс оказаться под одной до её приземления.
     const cx = gold ? this.hero.position.x : 0;
     const cz = gold ? this.hero.position.z : -8;
     const spread = gold ? 7 : 20;
@@ -257,7 +257,7 @@ export class Level11Scene extends BaseLevelScene {
     this.scene.add(mesh);
     this.snowflakes.push({
       mesh,
-      // Slow and forgiving in the first act, brisk once it is a golden catch.
+      // В первом акте медленно и снисходительно, в золотом — бодро.
       vy: (this.phase === 'first' ? 0.55 : gold ? 1.5 : 0.95) + Math.random() * 0.25,
       grounded: false,
       groundedAt: 0,
@@ -361,7 +361,7 @@ export class Level11Scene extends BaseLevelScene {
       goldenTarget: this.goldenTarget,
       stars: this.stars,
       canInteract: p === 'finish' && this.hero.position.distanceTo(this.snowmanPos) < 3,
-      // Not 'intro': updateMovement gates it out (phase !== 'intro' check above).
+      // Не 'intro': updateMovement её и так исключает проверкой phase !== 'intro' выше.
       showMoveHint: !this.hasTakenFirstStep && p === 'first',
       showActionHint: p === 'finish',
       outro: p === 'outro',
@@ -398,7 +398,7 @@ export class Level11Scene extends BaseLevelScene {
       this.pushHud();
     }
 
-    // ── Spawning ─────────────────────────────────────────────────
+    // ── Появление ────────────────────────────────────────────────
     if (this.isCatching && now > this.nextSpawn) {
       const live = this.snowflakes.filter((s) => !s.caught).length;
       const cap = this.phase === 'first' ? 3 : this.phase === 'golden' ? 4 : 6;
@@ -410,7 +410,7 @@ export class Level11Scene extends BaseLevelScene {
       }
     }
 
-    // ── Flakes ───────────────────────────────────────────────────
+    // ── Снежинки ─────────────────────────────────────────────────
     for (const sf of this.snowflakes) {
       if (sf.caught) continue;
       const ground = this.groundHeightAt(sf.mesh.position.x, sf.mesh.position.z) + 0.3;
@@ -421,8 +421,8 @@ export class Level11Scene extends BaseLevelScene {
         sf.mesh.rotation.y += dt * 1.2;
         sf.mesh.position.x += Math.sin(now * 0.001 + sf.mesh.position.z) * dt * 0.35;
 
-        // Mid-air catch: the hero's head has to reach it. This is the whole
-        // point of the golden act, and a free bonus during the earlier ones.
+        // Ловля в воздухе: голова героя должна до неё дотянуться. В этом весь смысл
+        // золотого акта, а в предыдущих — бесплатный бонус.
         const flat = Math.hypot(
           sf.mesh.position.x - this.hero.position.x,
           sf.mesh.position.z - this.hero.position.z,
@@ -437,7 +437,7 @@ export class Level11Scene extends BaseLevelScene {
           sf.grounded = true;
           sf.groundedAt = now;
           sf.mesh.position.y = ground;
-          // A golden flake that lands is spent — that is the timing pressure.
+          // Упавшая золотая снежинка потрачена — в этом всё давление по времени.
           if (sf.gold) {
             sf.caught = true;
             this.scene.remove(sf.mesh);
@@ -453,7 +453,7 @@ export class Level11Scene extends BaseLevelScene {
         this.catchFlake(sf, false);
         continue;
       }
-      // Dissolve if left too long, so the field never silts up.
+      // Растворяется, если пролежала слишком долго, чтобы поле не заиливалось.
       const life = this.phase === 'first' ? 9000 : 6000;
       if (now - sf.groundedAt > life) {
         sf.caught = true;
@@ -479,9 +479,9 @@ export class Level11Scene extends BaseLevelScene {
     this.updateGuideArrow(now, obj, ['intro', 'outro']);
     this.updateAmbient(dt, now);
 
-    // Cinematic only until the first step, same fix as L2/L8/L16 — without
-    // the guard the camera stays locked to this fixed path for the whole
-    // intro timer even after the hero starts moving.
+    // Кинематографично только до первого шага — та же правка, что на L2, L8 и L16.
+    // Без этой проверки камера остаётся на фиксированном пути весь таймер интро,
+    // даже когда герой уже пошёл.
     if (this.phase === 'intro' && !this.hasTakenFirstStep) {
       const idx = Math.min(this.introI, 2);
       const introPos = [
@@ -498,8 +498,8 @@ export class Level11Scene extends BaseLevelScene {
       this.camera.lookAt(introLook[idx]);
     } else {
       const f = this.cameraFraming();
-      // Golden act pulls back and up a little: you need to see flakes above
-      // you to line a jump up at all.
+      // В золотом акте камера отходит и поднимается: чтобы вообще прицелиться
+      // прыжком, надо видеть снежинки над собой.
       const lift = this.phase === 'golden' ? 1.1 : 0;
       const target = new THREE.Vector3(
         this.cameraLateral(this.hero.position.x) + f.lateral,

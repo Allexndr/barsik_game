@@ -1,30 +1,29 @@
 import * as THREE from 'three';
 
 /**
- * Measure a level instead of guessing at it.
+ * Измерять уровень, а не гадать о нём.
  *
- * Six level revisions this season each turned up the same handful of defect
- * shapes, and every one of them was found by hand, late, and usually by
- * noticing something odd in a screenshot:
+ * Шесть переработок уровней за сезон дали одну и ту же горстку форм дефектов, и
+ * каждая находилась вручную, поздно и обычно по чему-то странному на скриншоте:
  *
- *   * an interactable that no standing position can reach — L3's last
- *     search stop, unreachable because the distance was measured in 3D to a
- *     point two metres below the terrain;
- *   * props at absolute world zero over sculpted ground — L2's apples buried,
- *     twenty of L10's bushes underground;
- *   * a mesh with no material, which three.js renders pure black;
- *   * the hero walking out of frame, because fifteen scenes followed only a
- *     fraction of his sideways movement.
+ *   * интерактивный объект, до которого не дотянуться ни из одной точки, — на L3
+ *     последняя остановка поиска была недостижима, потому что расстояние мерилось
+ *     в 3D до точки на два метра ниже рельефа;
+ *   * предметы на абсолютном мировом нуле над скульптурной землёй — закопанные
+ *     яблоки на L2, двадцать кустов под землёй на L10;
+ *   * меш без материала, который three.js рисует чисто чёрным;
+ *   * герой, уходящий из кадра, потому что пятнадцать сцен следовали лишь за
+ *     долей его бокового смещения.
  *
- * Finding those one level at a time is the expensive way. Each check below is
- * generic — none of them know anything about a particular level — so the whole
- * season can be swept in one pass and the work ordered by what is actually
- * broken rather than by which level I looked at last.
+ * Искать это по одному уровню — дорогой путь. Каждая проверка ниже универсальна:
+ * ни одна ничего не знает про конкретный уровень, — поэтому весь сезон
+ * прочёсывается за один проход, и работа выстраивается по тому, что действительно
+ * сломано, а не по тому, какой уровень я смотрел последним.
  *
- * Usage, in the browser with a level open (dev build only):
+ * Использование в браузере с открытым уровнем (только в отладочной сборке):
  *
  *   await window.__audit()
- *   await window.__audit({ grid: 1.5 })   // finer sweep, slower
+ *   await window.__audit({ grid: 1.5 })   // мельче шаг, медленнее
  */
 
 export interface AuditFinding {
@@ -41,7 +40,7 @@ export interface AuditReport {
   findings: AuditFinding[];
 }
 
-/** The scene shape the audit needs. Deliberately loose — this is a dev tool. */
+/** Тот вид сцены, который нужен аудиту. Намеренно нестрогий: это отладочный инструмент. */
 interface AuditableScene {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
@@ -55,13 +54,12 @@ interface AuditableScene {
 }
 
 /**
- * The area the player actually uses, taken from where the level put the things
- * it wants interacted with — plus a margin to walk round them.
+ * Область, которой игрок реально пользуется: берётся из того, куда уровень
+ * поставил объекты для взаимодействия, плюс запас, чтобы их обойти.
  *
- * Not from every child in the scene: the first version did that and got
- * x −56…54, which is the mountain backdrop. Everything downstream then
- * measured the wrong place — the reachability sweep spent its budget on
- * hillside, and the camera test walked the hero out past the rim.
+ * Не по всем потомкам сцены: первая версия делала именно так и получала x −56…54,
+ * то есть горный задник. После этого всё дальше мерило не то место — перебор
+ * достижимости тратил бюджет на склон, а проверка камеры уводила героя за край.
  */
 function bounds(scene: THREE.Scene, hero: THREE.Object3D) {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -76,12 +74,12 @@ function bounds(scene: THREE.Scene, hero: THREE.Object3D) {
 }
 
 /**
- * Everything the level treats as interactable, found without asking the level
- * what those are: sweep standing positions across the play area, ask
- * `nearestInteract()` at each, and collect whatever comes back.
+ * Всё, что уровень считает интерактивным, найденное без вопроса к самому уровню:
+ * перебираем позиции стояния по игровой зоне, в каждой спрашиваем
+ * `nearestInteract()` и собираем то, что вернулось.
  *
- * Anything carrying an `is…` flag that never comes back from anywhere is
- * something a player cannot reach.
+ * Всё, что несёт флаг `is…` и не возвращается ниоткуда, — это то, до чего игрок
+ * дойти не может.
  */
 function sweepInteractables(L: AuditableScene, step: number) {
   const b = bounds(L.scene, L.hero);
@@ -103,7 +101,7 @@ function sweepInteractables(L: AuditableScene, step: number) {
   return { reachable, swept, unsupported: false };
 }
 
-/** Objects the level flagged as interactive, by convention: userData.isSomething. */
+/** Объекты, помеченные уровнем как интерактивные по соглашению userData.isЧтоТо. */
 function declaredInteractables(scene: THREE.Scene) {
   const out: THREE.Object3D[] = [];
   scene.traverse((o) => {
@@ -114,7 +112,7 @@ function declaredInteractables(scene: THREE.Scene) {
   return out;
 }
 
-/** The `isSomething` flag an object carries, e.g. `isClue`. */
+/** Флаг вида `isЧтоТо`, который несёт объект, например `isClue`. */
 function interactKind(o: THREE.Object3D): string | null {
   for (const k of Object.keys(o.userData)) {
     if (/^is[A-Z]/.test(k) && o.userData[k] === true) return k;
@@ -131,12 +129,13 @@ export async function auditLevel(opts: { grid?: number } = {}): Promise<AuditRep
   const b = bounds(L.scene, L.hero);
   const area = Math.round((b.maxX - b.minX) * (b.maxZ - b.minZ));
 
-  // ── Reachability ───────────────────────────────────────────────
+  // ── Достижимость ───────────────────────────────────────────────
   const { reachable, unsupported } = sweepInteractables(L, step);
   const declared = declaredInteractables(L.scene);
-  // Reachability is per phase: in L6's `seek` only clues answer, so the trees
-  // are legitimately not targets and flagging them was a false alarm. Restrict
-  // the check to the kinds this phase actually offered.
+  // Достижимость считается по фазам: в фазе `seek` на L6 отвечают только улики,
+  // поэтому деревья законно не являются целями, и отметка о них была ложной
+  // тревогой. Ограничиваем проверку теми видами, которые эта фаза действительно
+  // предлагала.
   const liveKinds = new Set([...reachable].map(interactKind).filter(Boolean));
   const missed = declared.filter(
     (o) => !reachable.has(o) && o.userData.done !== true && o.visible
@@ -145,14 +144,14 @@ export async function auditLevel(opts: { grid?: number } = {}): Promise<AuditRep
   if (unsupported) {
     findings.push({ kind: 'no-sweep', severity: 'low', detail: 'scene has no nearestInteract()' });
   } else if (reachable.size === 0 && declared.length > 0) {
-    // `missed` filters by `liveKinds`, which comes from `reachable` — so an
-    // empty `reachable` silently makes `missed` empty too, reporting a clean
-    // "0 unreachable" that actually means "checked nothing meaningful in
-    // this phase." BUG-001 (L1's unreachable trail fruit) went unnoticed
-    // this way: it lived in the 'trail' phase, and every audit call ran
-    // during 'intro', where nothing was live yet. This can't force other
-    // phases generically (level-specific phase names aren't known here),
-    // but it can stop the report from reading as clean when it isn't.
+    // `missed` фильтруется по `liveKinds`, который берётся из `reachable`, —
+    // поэтому пустой `reachable` молча делает пустым и `missed`, и отчёт
+    // показывает чистые «0 недостижимых», что на деле означает «в этой фазе не
+    // проверено ничего осмысленного». Так и остался незамеченным BUG-001 —
+    // недостижимый фрукт на тропе L1: он жил в фазе 'trail', а каждый вызов
+    // аудита приходился на 'intro', где ещё ничего не активно. Заставить
+    // переключиться в другие фазы универсально нельзя — имена фаз здесь
+    // неизвестны, — но можно не дать отчёту выглядеть чистым, когда он не чист.
     findings.push({
       kind: 'phase-scoped-sweep', severity: 'low',
       detail: `${declared.length} is*-flagged object(s) exist in the scene but none were ` +
@@ -168,15 +167,15 @@ export async function auditLevel(opts: { grid?: number } = {}): Promise<AuditRep
     });
   }
 
-  // ── Grounding ──────────────────────────────────────────────────
+  // ── Посадка на землю ───────────────────────────────────────────
   const off: string[] = [];
   for (const o of L.scene.children) {
     if (!o.visible || o.children.length === 0) continue;
     if (Math.abs(o.position.x) > 60 || Math.abs(o.position.z) > 70) continue;   // backdrop
     const g = L.groundHeightAt(o.position.x, o.position.z);
     const gap = o.position.y - g;
-    // Sky, clouds and quest beams legitimately float; anything sitting at
-    // exactly world zero over raised ground is the bug.
+    // Небо, облака и лучи целей парят законно; ошибка — это то, что стоит ровно на
+    // мировом нуле над поднятой землёй.
     if (Math.abs(o.position.y) < 1e-6 && Math.abs(g) > 0.4) {
       off.push(`(${o.position.x.toFixed(0)},${o.position.z.toFixed(0)}) ground ${g.toFixed(1)}`);
     } else if (gap < -0.5 && gap > -8) {
@@ -190,19 +189,19 @@ export async function auditLevel(opts: { grid?: number } = {}): Promise<AuditRep
     });
   }
 
-  // ── Black materials ────────────────────────────────────────────
+  // ── Чёрные материалы ───────────────────────────────────────────
   let black = 0;
   L.scene.traverse((o) => {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
     for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
-      // Any metal at all, not just the loader's default: there is no
-      // environment map in this game, so a metallic surface has nothing to
-      // reflect and renders black. Every CC0 model ships metallicFactor 1.
-      // Except: a non-black emissive is the established fix for exactly
-      // this (L4/L9/L16 this season) — carries the surface's colour without
-      // needing a reflection. Without this exclusion, every fixed instance
-      // re-triggers the same finding forever.
+      // Любой металл вообще, а не только значение по умолчанию у загрузчика: карты
+      // окружения в игре нет, металлической поверхности нечего отражать, и она
+      // рисуется чёрной. Все модели CC0 приходят с metallicFactor 1.
+      // Исключение: ненулевое свечение — это признанная правка ровно этой проблемы
+      // (L4, L9 и L16 в этом сезоне), оно несёт цвет поверхности, не требуя
+      // отражения. Без такого исключения каждый уже починенный случай вечно
+      // всплывал бы той же находкой.
       const std = mat as THREE.MeshStandardMaterial;
       const emissiveCompensated = !!std?.emissive
         && (std.emissive.r > 0 || std.emissive.g > 0 || std.emissive.b > 0)
@@ -213,9 +212,9 @@ export async function auditLevel(opts: { grid?: number } = {}): Promise<AuditRep
   });
   if (black) findings.push({ kind: 'black-material', severity: 'high', detail: `${black} mesh(es)` });
 
-  // ── Camera keeps the hero ──────────────────────────────────────
-  // Walk to the far corners of the play area and watch how close to the edge
-  // of frame the hero gets. 1.0 is the edge.
+  // ── Камера не теряет героя ─────────────────────────────────────
+  // Обходим дальние углы игровой зоны и смотрим, насколько близко герой подходит к
+  // краю кадра. 1.0 — это край.
   const realDelta = L.clock.getDelta;
   L.clock.getDelta = () => 1 / 60;
   let worst = 0;
@@ -233,11 +232,11 @@ export async function auditLevel(opts: { grid?: number } = {}): Promise<AuditRep
     }
   }
   L.clock.getDelta = realDelta;
-  // `worst > 0.85` is false for NaN, same trap as everywhere else in JS —
-  // a degenerate camera projection (e.g. a zero-length look direction)
-  // would silently report a clean level instead of a failed measurement.
-  // Confirmed live: one run hit exactly this after an unrelated mid-escort
-  // teleport left the camera in a degenerate state.
+  // `worst > 0.85` ложно для NaN — та же ловушка, что и везде в JS: вырожденная
+  // проекция камеры, например направление взгляда нулевой длины, молча дала бы
+  // чистый уровень вместо провалившегося замера. Подтверждено вживую: один прогон
+  // попал ровно в это после постороннего телепорта посреди сопровождения, который
+  // оставил камеру в вырожденном состоянии.
   if (Number.isNaN(worst)) {
     findings.push({ kind: 'audit-error', severity: 'block',
       detail: 'hero-off-frame measurement produced NaN — camera projection failed, not a clean result' });
