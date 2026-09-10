@@ -6,10 +6,11 @@ const PHONE_MS = 60_000; // ~1 minute of play
 const EMAIL_LEVELS = 8;
 
 /**
- * Soft progressive profile gates:
- * 1) after ~1 min play → phone (skippable)
- * 2) after 5 levels if still no phone → phone again (skippable)
- * 3) after phone + more progress → email (skippable)
+ * Мягкие постепенные запросы данных профиля:
+ * 1) примерно через минуту игры — телефон, можно пропустить;
+ * 2) после пяти уровней, если телефона всё ещё нет, — снова телефон, можно
+ *    пропустить;
+ * 3) после телефона и дальнейшего прогресса — почта, можно пропустить.
  */
 export function SoftGateController() {
   const player = useGameStore((s) => s.player);
@@ -22,7 +23,7 @@ export function SoftGateController() {
   const phone5Shown = useRef(false);
   const emailShown = useRef(false);
 
-  // Tick session play time while game is open
+  // Считаем время игры в сессии, пока игра открыта.
   useEffect(() => {
     if (!player) return;
     const id = window.setInterval(() => addSessionPlayMs(1000), 1000);
@@ -36,24 +37,24 @@ export function SoftGateController() {
     const hasEmail = Boolean(player.email?.trim());
     const levels = unlockedLevels.length;
 
-    // Gate 1: ~1 minute
+    // Первый запрос: примерно через минуту.
     if (!hasPhone && !player.phoneAskedAt && sessionPlayMs >= PHONE_MS && !phone1minShown.current) {
       phone1minShown.current = true;
       openSoftGate('phone_1min');
       return;
     }
 
-    // Gate 2: after 5 levels, if still no phone (even if skipped before).
-    // Same PHONE_MS session-time floor as Gate 1 — without it, a returning
-    // player who already has 5+ levels unlocked from a past session sees
-    // this the instant the game loads, 0 seconds into the current session.
+    // Второй запрос: после пяти уровней, если телефона всё ещё нет, даже если его
+    // уже пропускали. Тот же нижний порог времени сессии PHONE_MS, что и у первого:
+    // без него вернувшийся игрок, у которого с прошлой сессии открыто пять и более
+    // уровней, увидит это в момент загрузки, на нулевой секунде текущей.
     if (!hasPhone && levels >= 5 && sessionPlayMs >= PHONE_MS && !phone5Shown.current) {
       phone5Shown.current = true;
       openSoftGate('phone_5levels');
       return;
     }
 
-    // Gate 3: email later
+    // Третий запрос: почта, позже.
     if (
       hasPhone &&
       !hasEmail &&

@@ -6,14 +6,14 @@ import { getRenderQualityProfile, resolveRenderQualityTier } from '../renderQual
 import { createGameGltfLoader } from '../createGameGltfLoader';
 
 /**
- * Turntable viewer for a collected Season 1 friend.
+ * Просмотр собранного друга первого сезона на поворотном круге.
  *
- * Same job as the shop AvatarPreview, but the cast is Meshy/Tripo GLBs
- * (or a soft capsule stand-in), not the procedural wardrobe Barsik.
+ * Та же задача, что у AvatarPreview в магазине, но здесь состав — это GLB из Meshy
+ * и Tripo (или мягкая капсула-заглушка), а не процедурный Барсик из гардероба.
  */
 
 export interface FriendPreview {
-  /** Swap the shown friend. Resolves when the mesh is on the turntable. */
+  /** Меняет показываемого друга. Завершается, когда меш встал на круг. */
   setFriend(id: string): Promise<void>;
   spinBy(delta: number): void;
   resize(width: number, height: number): void;
@@ -21,7 +21,7 @@ export interface FriendPreview {
   dispose(): void;
 }
 
-/** Char file under /chars, or absolute prop URL for snowman etc. */
+/** Файл персонажа в /chars или абсолютный адрес предмета — например, для снеговика. */
 function friendModelSpec(id: string): { kind: 'char'; file: string } | { kind: 'prop'; url: string } | null {
   const char = CAST_CHAR_GLB[id as keyof typeof CAST_CHAR_GLB];
   if (char) return { kind: 'char', file: char };
@@ -130,14 +130,14 @@ export function createFriendPreview(canvas: HTMLCanvasElement): FriendPreview {
     if (disposed || token !== loadToken) return;
     if (!model) model = makeStandIn();
 
-    // Prefer Idle if the wrapper already has a mixer from loadCharModel.
+    // Предпочитаем Idle, если у обёртки уже есть микшер от loadCharModel.
     const hostMixer = model.userData.animMixer as THREE.AnimationMixer | undefined;
     if (hostMixer) mixers.push(hostMixer);
 
     groundY(model, 0);
     turntable.add(model);
     current = model;
-    // Frame camera on the figure after scale.
+    // После масштабирования строим кадр по фигуре.
     const box = new THREE.Box3().setFromObject(model);
     const size = new THREE.Vector3();
     box.getSize(size);

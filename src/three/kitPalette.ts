@@ -1,21 +1,21 @@
 import * as THREE from 'three';
 
 /**
- * Re-tint CC0 kit models into the game's world palette.
+ * Перекрашивает модели наборов CC0 в мировую палитру игры.
  *
- * Kenney's nature kit is authored in turquoise and peach: foliage is #6fe5d5
- * cyan, bark #f1bc9c peach, stone a pale blue-white. The Barsik valley is a
- * warm yellow-green (#4e8f45 to #8fc46e ground, #c9a86a trail). Dropped in
- * unchanged, every kit prop reads as a foreign object placed on the grass
- * rather than as part of the landscape — which is what makes a scene look
- * littered no matter how carefully the props are positioned.
+ * Природный набор Kenney сделан в бирюзе и персике: листва — голубой #6fe5d5,
+ * кора — персиковый #f1bc9c, камень — бледный голубовато-белый. Долина Барсика —
+ * тёплая жёлто-зелёная: земля от #4e8f45 до #8fc46e, тропа #c9a86a. Поставленный
+ * без изменений, любой предмет набора читается чужеродным объектом, положенным на
+ * траву, а не частью пейзажа, — именно от этого сцена выглядит замусоренной, как
+ * бы аккуратно ни были расставлены предметы.
  *
- * The kit names its materials semantically (`leafsGreen`, `woodBark`, `stone`)
- * and reuses those names across all 329 models, so remapping by name
- * harmonises the entire library in one pass.
+ * Набор называет свои материалы осмысленно (`leafsGreen`, `woodBark`, `stone`) и
+ * переиспользует эти имена во всех 329 моделях, поэтому переназначение по имени
+ * приводит к общему виду сразу всю библиотеку.
  *
- * Foliage is deliberately kept a little deeper and cooler than the meadow so
- * trees and bushes still read against the ground instead of merging into it.
+ * Листва намеренно оставлена чуть темнее и холоднее луга, чтобы деревья и кусты
+ * читались на фоне земли, а не сливались с ней.
  */
 const WORLD_PALETTE: Record<string, number> = {
   leafsGreen: 0x5f9e46,
@@ -37,15 +37,15 @@ const WORLD_PALETTE: Record<string, number> = {
 };
 
 /**
- * Apply the world palette to one material.
- * Returns true when the material was re-tinted, so callers can skip any
- * further colour tweaks of their own.
+ * Применяет мировую палитру к одному материалу.
+ * Возвращает true, если материал был перекрашен, чтобы вызывающий мог пропустить
+ * собственные правки цвета.
  */
 export function harmonizeKitMaterial(material: THREE.Material): boolean {
   const standard = material as THREE.MeshStandardMaterial;
   if (!standard.color) return false;
-  // Textured models (the shared `colormap` atlas packs) use `color` as a
-  // multiplier, so re-tinting them would stain the whole atlas.
+  // Текстурированные модели — наборы с общим атласом `colormap` — используют
+  // `color` как множитель, поэтому их перекраска запачкала бы весь атлас.
   if (standard.map) return false;
   const target = WORLD_PALETTE[material.name];
   if (target === undefined) return false;
@@ -55,15 +55,15 @@ export function harmonizeKitMaterial(material: THREE.Material): boolean {
 }
 
 /**
- * Make a CC0 kit material renderable under this project's lighting, and put it
- * in the world palette. Every path that loads a kit model must go through
- * this — the packs are unusable raw.
+ * Делает материал набора CC0 пригодным к отрисовке при освещении этого проекта и
+ * переводит его в мировую палитру. Любой путь, загружающий модель из набора,
+ * обязан пройти через это: в исходном виде наборы непригодны.
  *
- * Kenney's 2020-era packs ship `metallicFactor: 1` with no environment map in
- * the scene, which renders as near-black plastic; that alone made the flagship
- * level's whole treeline look like silhouettes. Newer packs share one
- * `colormap` atlas where linear magnification bleeds neighbouring palette
- * cells into each other.
+ * Наборы Kenney образца 2020 года приходят с `metallicFactor: 1`, а карты
+ * окружения в сцене нет — и они рисуются почти чёрным пластиком; одного этого
+ * хватило, чтобы вся кромка леса на главном уровне выглядела силуэтами. Более
+ * новые наборы делят один атлас `colormap`, где при линейном увеличении соседние
+ * ячейки палитры затекают друг в друга.
  */
 export function normalizeKitMaterial(material: THREE.Material): void {
   const standard = material as THREE.MeshStandardMaterial;
