@@ -2,28 +2,28 @@ import * as THREE from 'three';
 import type { AssetKit, KitPack } from './AssetKit';
 
 /**
- * Layout primitives shared by every scene, so decoration is composed the same
- * way everywhere instead of each level inventing its own scatter loop.
+ * Примитивы компоновки, общие для всех сцен: декор собирается везде одинаково, а
+ * не каждым уровнем по-своему.
  *
- * The rule these encode: props belong to patches, and patches sit on a
- * deliberate grid. Placing each model independently at a random polar
- * coordinate gives every square metre the same density and the same mix,
- * which reads as an asset dump rather than a landscape.
+ * Правило, которое они выражают: предметы принадлежат пятнам, а пятна стоят по
+ * осмысленной сетке. Расстановка каждой модели независимо, в случайной полярной
+ * координате, даёт каждому квадратному метру одинаковую плотность и одинаковый
+ * состав — это читается свалкой ассетов, а не пейзажем.
  */
 
 export interface Anchor {
   x: number;
   z: number;
-  /** 0 at the inner edge of the ring, 1 at the outer edge. Use to grade detail by depth. */
+  /** 0 у внутреннего края кольца, 1 у внешнего. Нужно, чтобы менять детализацию с глубиной. */
   t: number;
 }
 
 /**
- * Evenly spread anchors over an annulus, without clumping.
+ * Равномерно раскидывает якоря по кольцу, без сгустков.
  *
- * The golden angle keeps successive anchors far apart in bearing, and the
- * square-root radius keeps density constant per unit area. Both are
- * deterministic, so a scene composes identically on every load.
+ * Золотой угол разводит соседние якоря по направлению, а радиус по корню держит
+ * плотность постоянной на единицу площади. Оба детерминированы, поэтому сцена
+ * собирается одинаково при каждой загрузке.
  */
 export function ringAnchors(count: number, inner: number, outer: number, centerZ = 0): Anchor[] {
   const anchors: Anchor[] = [];
@@ -38,31 +38,32 @@ export function ringAnchors(count: number, inner: number, outer: number, centerZ
 
 export interface PatchSpec {
   names: readonly string[];
-  /** Props in this patch. Two to five reads as a clump; more fuses into a blob. */
+  /** Предметов в пятне. Два-пять читаются группой; больше сливается в пятно. */
   items: number;
-  /** Target size in metres — largest dimension for `size`, height for `height`. */
+  /** Целевой размер в метрах: наибольший габарит для `size`, высота для `height`. */
   extent: number;
   /**
-   * `size` fits the largest dimension, `height` fits vertically. Wide flat
-   * models (rocks, logs) must use `size`, or uniform scaling inflates them
-   * into boulders.
+   * `size` подгоняет по наибольшему габариту, `height` — по вертикали. Широкие
+   * плоские модели вроде камней и брёвен обязаны использовать `size`, иначе
+   * равномерное масштабирование раздувает их в валуны.
    */
   fit: 'height' | 'size';
-  /** Radius the patch occupies around its anchor. */
+  /** Радиус, который пятно занимает вокруг своего якоря. */
   spread: number;
   pack?: KitPack;
 }
 
 export interface PatchContext {
-  /** Terrain height, added after the model is grounded to y=0. */
+  /** Высота рельефа, добавляется после посадки модели на y = 0. */
   heightAt?: (x: number, z: number) => number;
-  /** Gameplay areas decoration must not enter. */
+  /** Игровые зоны, в которые декору заходить нельзя. */
   isBlocked?: (x: number, z: number, pad: number) => boolean;
 }
 
 /**
- * Grow one themed patch of props around an anchor and add it to the scene.
- * Returns the placed objects so callers can register colliders.
+ * Выращивает вокруг якоря одно тематическое пятно предметов и добавляет его в
+ * сцену. Возвращает расставленные объекты, чтобы вызывающий мог навесить
+ * коллайдеры.
  */
 export async function placePatch(
   scene: THREE.Object3D,
@@ -73,8 +74,8 @@ export async function placePatch(
 ): Promise<THREE.Object3D[]> {
   const placements: Array<{ x: number; z: number; height?: number; maxSize?: number }> = [];
   for (let i = 0; i < spec.items; i++) {
-    // Items ring the anchor instead of stacking on it, so a patch reads as
-    // several separate plants growing together.
+    // Предметы стоят кольцом вокруг якоря, а не громоздятся на нём: пятно читается
+    // несколькими отдельными растениями, растущими вместе.
     const angle = (i / spec.items) * Math.PI * 2 + anchor.x;
     const distance = spec.spread * (0.35 + (i % 3) * 0.28);
     const x = anchor.x + Math.cos(angle) * distance;
