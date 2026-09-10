@@ -24,7 +24,7 @@ export interface ILevelScene {
   setPaused(value: boolean): void;
   tryInteract(): void;
   dispose(): void;
-  /** How many times the level forgave the player. See BaseLevelScene.mistakes. */
+  /** Сколько раз уровень простил игрока. См. BaseLevelScene.mistakes. */
   readonly mistakeCount?: number;
 }
 
@@ -72,7 +72,7 @@ export function MissionScreen({
   const addFriend = useGameStore((s) => s.addFriend);
   const completeLevel = useGameStore((s) => s.completeLevel);
 
-  /** Persist as soon as the level is won — not only when the CTA is pressed. */
+  /** Сохранять сразу при победе, а не только при нажатии кнопки. */
   const persistWin = () => {
     if (savedOutroRef.current) return;
     savedOutroRef.current = true;
@@ -89,9 +89,9 @@ export function MissionScreen({
       });
     }
     const earnedStars = rewardStars + hud.stars;
-    // A clean run is the level's second thing to say besides "passed". The
-    // canon keeps no fail state, so a stumble still costs nothing — it just
-    // does not earn this.
+    // Чистое прохождение — вторая фраза уровня помимо «пройден». Проигрыша по
+    // канону нет, поэтому оступание по-прежнему ничего не стоит: оно просто не
+    // приносит этой отметки.
     const clean = (sceneRef.current?.mistakeCount ?? 0) === 0;
     completeLevel(levelId, { stars: earnedStars, friendId: rewardFriendId, clean });
     void syncCompletedLevel(levelId, earnedStars, rewardFriendId);
@@ -108,7 +108,7 @@ export function MissionScreen({
 
   useEffect(() => {
     if (hud.outro) persistWin();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- save once when outro flips on
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- сохраняем один раз, когда включился финал
   }, [hud.outro]);
 
   useEffect(() => {
@@ -126,7 +126,7 @@ export function MissionScreen({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    // Init audio on first user interaction (autoplay policy)
+    // Инициализируем звук на первом действии игрока — требование политики автовоспроизведения.
     const initAudio = () => {
       AudioManager.init();
       AudioManager.unlockFromGesture();
@@ -140,10 +140,10 @@ export function MissionScreen({
     setAssetsReady(false);
     setInitError(false);
     let active = true;
-    // Read the nickname at mount time, but do not make scene lifetime depend
-    // on a late player-store hydration. If the store fills after the mission
-    // mounted, re-running this effect can dispose a scene after its loading
-    // button was pressed and bring the loading overlay back mid-level.
+    // Ник читаем при монтировании, но не привязываем время жизни сцены к позднему
+    // наполнению хранилища игрока. Если оно заполнится уже после монтирования
+    // миссии, повторный запуск этого эффекта может удалить сцену после нажатия
+    // кнопки загрузки и вернуть экран загрузки посреди уровня.
     const nickAtStart = useGameStore.getState().player?.nick || '';
     void scene.init(nickAtStart, lang, setHud)
       .then(() => {
@@ -176,8 +176,8 @@ export function MissionScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelId]);
 
-  // Settings must not recreate a live 3D scene. The scene keeps its current
-  // phase and position while future HUD lines use the selected language.
+  // Настройки не должны пересоздавать живую 3D-сцену. Сцена сохраняет текущую фазу
+  // и положение, а следующие строки HUD берут выбранный язык.
   useEffect(() => {
     sceneRef.current?.setLanguage(lang);
   }, [lang]);
@@ -274,7 +274,7 @@ export function MissionScreen({
     };
   }, []);
 
-  // Sync muted state from UI store
+  // Синхронизируем отключение звука с хранилищем интерфейса.
   const muted = useUIStore((s) => s.muted);
   const volume = useUIStore((s) => s.volume);
   const ttsEnabled = useUIStore((s) => s.ttsEnabled);
@@ -299,13 +299,13 @@ export function MissionScreen({
     AudioManager.setVoiceGender(voiceGender);
   }, [voiceGender]);
 
-  // Pause: stop TTS when paused
+  // Пауза: на паузе останавливаем речь.
   useEffect(() => {
     if (paused) AudioManager.stopTts();
     sceneRef.current?.setPaused(paused);
   }, [paused, lang, loading]);
 
-  // TTS on HUD line change + SFX on phase change
+  // Речь при смене строки HUD и звук при смене фазы.
   const prevPhase = useRef('');
   useEffect(() => {
     if (loading || paused) return;
@@ -319,7 +319,7 @@ export function MissionScreen({
     }
   }, [hud.line, hud.phase, loading, lang, paused, player?.nick]);
 
-  // SFX on stars change
+  // Звук при изменении числа звёзд.
   const prevStars = useRef(0);
   useEffect(() => {
     if (hud.stars > prevStars.current) {
@@ -328,7 +328,7 @@ export function MissionScreen({
     prevStars.current = hud.stars;
   }, [hud.stars]);
 
-  // SFX on interact availability
+  // Звук при появлении возможности взаимодействовать.
   const prevCanInteract = useRef(false);
   useEffect(() => {
     if (hud.canInteract && !prevCanInteract.current) {

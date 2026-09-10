@@ -3,16 +3,16 @@ import * as THREE from 'three';
 export type WindGrassOptions = {
   count: number;
   area: { xMin: number; xMax: number; zMin: number; zMax: number };
-  /** Return true to skip a blade at (x, z) — path, pond, house, etc. */
+  /** Вернуть true, чтобы пропустить травинку в (x, z): тропа, пруд, дом и прочее. */
   exclude?: (x: number, z: number) => boolean;
   rootColor?: number;
   tipColor?: number;
-  /** Warm golden tint mixed per-blade for a painterly field. */
+  /** Тёплый золотой оттенок, подмешиваемый в каждую травинку ради живописности поля. */
   tipWarmColor?: number;
-  /** Return terrain Y at (x, z) for blade root. */
+  /** Вернуть высоту рельефа в (x, z) для основания травинки. */
   heightAt?: (x: number, z: number) => number;
   bladeHeight?: [min: number, max: number];
-  /** Must match the scene fog, or far grass stays vivid while the world fades. */
+  /** Обязано совпадать с туманом сцены, иначе дальняя трава останется яркой, пока мир выцветает. */
   fogColor?: number;
   fogNear?: number;
   fogFar?: number;
@@ -20,26 +20,27 @@ export type WindGrassOptions = {
 
 export type WindGrass = {
   mesh: THREE.Mesh;
-  /** t — seconds. */
+  /** t — секунды. */
   update(t: number): void;
   dispose(): void;
 };
 
 /**
- * Painterly wind-reactive grass: one instanced draw call, all motion on GPU.
- * No textures, no assets — vertex-shader sway + root→tip gradient
- * (same technique as the viral “one HTML file” Three.js field demos).
- * Colors are converted to linear because the scene renders through
- * EffectComposer + OutputPass (tone map happens at the end of the frame).
+ * Живописная трава, реагирующая на ветер: один инстансированный вызов отрисовки,
+ * всё движение на видеокарте. Ни текстур, ни ассетов — качание в вершинном шейдере
+ * и градиент от корня к кончику (та же техника, что в известных демо поля на
+ * Three.js «в одном HTML-файле»).
+ * Цвета переводятся в линейное пространство, потому что сцена рисуется через
+ * EffectComposer и OutputPass: тональная компрессия происходит в конце кадра.
  */
 export function createWindGrass(opts: WindGrassOptions): WindGrass {
   const {
     count,
     area,
     exclude,
-    // Root sits close to the terrain's own green. The old 0x3e7a35 crushed
-    // to near-black through ACES, so the field read as dark scratches lying
-    // on the ground rather than as grass growing out of it.
+    // Корень взят близко к собственному зелёному цвету рельефа. Прежний 0x3e7a35
+    // после ACES проваливался почти в чёрное, и поле читалось тёмными царапинами,
+    // лежащими на земле, а не травой, растущей из неё.
     rootColor = 0x5e9a4a,
     tipColor = 0xa2d46b,
     tipWarmColor = 0xe0cf7c,
@@ -50,9 +51,9 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
     fogFar = 155,
   } = opts;
 
-  // Single tapered triangle per blade — cheapest silhouette that still sways.
-  // Half-width 0.035 was under a pixel past ~15 units, which aliased every
-  // distant blade into a hard dark speck.
+  // По одному сужающемуся треугольнику на травинку — самый дешёвый силуэт, который
+  // всё ещё качается. Полуширина 0.035 дальше примерно пятнадцати единиц была
+  // меньше пикселя, и каждая дальняя травинка превращалась в жёсткую тёмную точку.
   const base = new THREE.BufferGeometry();
   base.setAttribute(
     'position',
@@ -80,7 +81,7 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
     offsets[placed * 3 + 2] = z;
     scales[placed] = bladeHeight[0] + Math.random() * (bladeHeight[1] - bladeHeight[0]);
     phases[placed] = Math.random();
-    // Mostly green field with scattered golden tips (painterly variation)
+    // В основном зелёное поле с рассыпанными золотыми кончиками — живописная вариация.
     tints[placed] = Math.random() < 0.3 ? 0.45 + Math.random() * 0.55 : Math.random() * 0.22;
     placed++;
   }
@@ -142,7 +143,7 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
         float sa = sin(ang);
         p.xz = mat2(ca, -sa, sa, ca) * p.xz;
         p *= scale;
-        // Two wind octaves: local flutter + slow travelling gust
+        // Две октавы ветра: местное дрожание и медленно бегущий порыв.
         float sway = sin(uTime * 1.7 + offset.x * 0.45 + offset.z * 0.3 + phase * 6.28318);
         float gust = sin(uTime * 0.6 + offset.x * 0.07 + offset.z * 0.11);
         float bend = (sway * 0.10 + gust * 0.20) * vY * vY;
@@ -166,14 +167,14 @@ export function createWindGrass(opts: WindGrassOptions): WindGrass {
       void main() {
         vec3 tip = mix(uTip, uTipWarm, vTint);
         vec3 col = mix(uRoot, tip, smoothstep(0.03, 1.0, vY));
-        // Blades are unlit geometry; a gentle tip lift stands in for the sun
-        // so the field has form instead of reading as flat cutouts.
+        // Травинки — неосвещаемая геометрия; лёгкое высветление кончиков заменяет
+        // солнце, чтобы у поля была форма, а не вид плоских вырезок.
         col *= 0.9 + 0.28 * vY;
         float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
         gl_FragColor = vec4(mix(col, fogColor, fogFactor), 1.0);
-        // The same two steps every standard material ends with. Without them
-        // the field was the one thing in the scene that skipped ACES and the
-        // sRGB transform, and it blew out to white.
+        // Те же два шага, которыми заканчивается любой стандартный материал. Без них
+        // поле было единственным в сцене, что пропускало ACES и преобразование sRGB,
+        // и выбеливалось.
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }
