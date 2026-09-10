@@ -1,0 +1,130 @@
+{
+ "version": 2,
+ "friends": [
+  {
+   "id": "gardener",
+   "name": "Садовник",
+   "description": "Друг сезона 1",
+   "rarity": "common",
+   "chapter": 1,
+   "unlocked": true,
+   "asset": ""
+  },
+  {
+   "id": "aya",
+   "name": "Айя",
+   "description": "Друг сезона 1",
+   "rarity": "common",
+   "chapter": 1,
+   "unlocked": true,
+   "asset": ""
+  },
+  {
+   "id": "hedgehog",
+   "name": "Ёжик",
+   "description": "Друг сезона 1",
+   "rarity": "common",
+   "chapter": 1,
+   "unlocked": true,
+   "asset": ""
+  },
+  {
+   "id": "squirrel",
+   "name": "Белочка",
+   "description": "Друг сезона 1",
+   "rarity": "common",
+   "chapter": 1,
+   "unlocked": true,
+   "asset": ""
+  },
+  {
+   "id": "putalo",
+   "name": "Путало",
+   "description": "Друг сезона 1",
+   "rarity": "common",
+   "chapter": 1,
+   "unlocked": true,
+   "asset": ""
+  },
+  {
+   "id": "yagodka_rare",
+   "name": "Ягодка",
+   "description": "Друг сезона 1",
+   "rarity": "common",
+   "chapter": 1,
+   "unlocked": true,
+   "asset": ""
+  },
+  {
+   "id": "ice_master",
+   "name": "Мастер льда",
+   "description": "Друг сезона 1",
+   "rarity": "common",
+   "chapter": 2,
+   "unlocked": true,
+   "asset": ""
+  },
+  {
+   "id": "snowman",
+   "name": "Снеговик",
+   "description": "Друг сезона 1",
+   "rarity": "common",
+   "chapter": 2,
+   "unlocked": true,
+   "asset": ""
+  },
+  {
+   "id": "ice_friend_rare",
+   "name": "Ледяной друг",
+   "description": "Друг сезона 1",
+   "rarity": "common",
+   "chapter": 2,
+   "unlocked": true,
+   "asset": ""
+  }
+ ],
+ "unlockedLevels": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16
+ ],
+ "currentLevel": 16,
+ "levelStars": {
+  "0": 10,
+  "1": 15,
+  "2": 12,
+  "3": 20,
+  "4": 15,
+  "5": 18,
+  "6": 16,
+  "7": 25,
+  "8": 20,
+  "9": 30,
+  "10": 15,
+  "11": 18,
+  "12": 20,
+  "13": 16,
+  "14": 22,
+  "15": 20,
+  "16": 30
+ },
+ "levelClean": {},
+ "stars": 322,
+ "cityObjects": {},
+ "outfit": {},
+ "season1Complete": true
+}

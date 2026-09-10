@@ -1,11 +1,11 @@
 /**
- * Supabase connection.
+ * Подключение к Supabase.
  *
- * The anon key is meant to be public — every Supabase browser app ships it,
- * and the table is protected by row-level security, not by hiding this
- * string. It was still hardcoded, which meant rotating it took a source edit
- * and a redeploy rather than an environment change; the literals below are
- * only a fallback so a checkout without an env file still runs.
+ * Анонимный ключ и должен быть публичным: его поставляет любое браузерное
+ * приложение на Supabase, а таблицу защищает построчная безопасность, а не
+ * сокрытие этой строки. При этом он был вшит в код, и его смена требовала правки
+ * исходников и повторной выкладки вместо изменения окружения; литералы ниже — лишь
+ * запасной вариант, чтобы копия без файла окружения всё-таки запускалась.
  */
 const SUPABASE_URL =
   import.meta.env.VITE_SUPABASE_URL ?? 'https://vsuqaatpzyatzhmmdmug.supabase.co';
@@ -51,26 +51,27 @@ export function scoreOf(row: LeaderboardRow): number {
   return levels * POINTS_PER_LEVEL + friends * POINTS_PER_FRIEND + stars * POINTS_PER_STAR;
 }
 
-/** Season 1 ships 17 levels and 9 friends — see levels.ts / season1Friends.ts. */
+/** В первом сезоне 17 уровней и 9 друзей — см. levels.ts и season1Friends.ts. */
 const SEASON1_LEVELS = 17;
 const SEASON1_FRIEND_COUNT = 9;
 
 /**
- * Drop rows the game could not have produced.
+ * Отбрасывает строки, которые игра не могла породить.
  *
- * `barsik_leaderboard` is a view over `barsik_saves`, and until the RLS fix
- * (`supabase/fix_leaderboard_rls.sql`, 2026-08-04) anon held full write access
- * to that table. Rows from that window are still in there — the top one claims
- * 1486 stars across **91 levels** with **18 friends**, in a season that has 17
- * and 9. It sits at rank 1 and every child sees it as the score to beat.
+ * `barsik_leaderboard` — представление над `barsik_saves`, и до починки прав
+ * (`supabase/fix_leaderboard_rls.sql`, 04.08.2026) у анонимного клиента был полный
+ * доступ на запись в эту таблицу. Строки того периода в ней остались: верхняя
+ * заявляет 1486 звёзд за **91 уровень** и **18 друзей** в сезоне, где их 17 и 9.
+ * Она стоит на первом месте, и каждый ребёнок видит её как результат, который надо
+ * побить.
  *
- * The test is structural, not a guessed score ceiling: a run cannot finish more
- * levels than exist or collect more friends than were written. That catches the
- * corrupt row without risking a real high scorer, whose star total depends on
- * in-level pickups and has no clean upper bound to compare against.
+ * Проверка структурная, а не по угаданному потолку очков: пройти больше уровней,
+ * чем существует, или собрать больше друзей, чем написано, невозможно. Это ловит
+ * испорченную строку, не рискуя настоящим рекордсменом, чья сумма звёзд зависит от
+ * подобранного на уровнях и чистой верхней границы не имеет.
  *
- * Client-side because the view is read-only from here by design; the rows
- * themselves need a migration, which is the owner's to run.
+ * На клиенте, потому что представление отсюда по замыслу только читается; самим
+ * строкам нужна миграция, а её запускает владелец.
  */
 function isPlausible(row: LeaderboardRow): boolean {
   const levels = Number(row.levels);
@@ -84,7 +85,7 @@ function isPlausible(row: LeaderboardRow): boolean {
   return score >= 0 && score <= maxSeasonScore();
 }
 
-/** Hide rows whose nicknames would fail the same child-safety check as signup. */
+/** Прячет строки, чьи ники не прошли бы ту же детскую проверку, что и при регистрации. */
 function isSafeName(row: LeaderboardRow): boolean {
   const name = typeof row.name === 'string' ? row.name.trim() : '';
   if (!name) return false;
@@ -110,8 +111,8 @@ function dedupeByName(rows: LeaderboardRow[]): LeaderboardRow[] {
 }
 
 export async function fetchLeaderboard(limit = 20): Promise<LeaderboardRow[]> {
-  // Over-fetch, because de-duplicating after the fact shrinks the list and a
-  // short board looks broken.
+  // Берём с запасом: удаление дублей уже после выборки укорачивает список, а
+  // короткая таблица выглядит сломанной.
   const url = `${SUPABASE_URL}/rest/v1/barsik_leaderboard?select=name,stars,total_stars,levels,friends&order=total_stars.desc&limit=${limit * 3}`;
   const res = await fetch(url, { headers: headers() });
   if (!res.ok) {

@@ -1,16 +1,16 @@
 /**
- * Browser-safe loading progress state.
+ * Состояние прогресса загрузки, безопасное для браузера.
  *
- * Kept separate from Three.js' LoadingManager so the app shell and loading
- * overlay do not pull the 554 kB Three vendor chunk onto the first route.
+ * Отделено от LoadingManager из Three.js, чтобы оболочка приложения и экран
+ * загрузки не тянули на первый маршрут 554 КБ стороннего чанка Three.
  */
 
 export interface LoadProgress {
   loaded: number;
   total: number;
-  /** 0..1. Stays below 1 until the manager reports completion. */
+  /** 0…1. Остаётся ниже единицы, пока менеджер не сообщит о завершении. */
   ratio: number;
-  /** Child-facing description of what is arriving right now. */
+  /** Понятное ребёнку описание того, что грузится прямо сейчас. */
   label: string;
   done: boolean;
 }
@@ -21,7 +21,7 @@ const listeners = new Set<Listener>();
 let state: LoadProgress = { loaded: 0, total: 0, ratio: 0, label: '', done: false };
 let lang: 'ru' | 'kk' = 'ru';
 
-/** Asset filenames mean nothing to a five-year-old, so translate them into actions. */
+/** Имена файлов пятилетнему ничего не говорят, поэтому переводим их в действия. */
 function friendlyLabel(url: string): string {
   const file = url.split('/').pop()?.replace('.glb', '') ?? '';
   const ru: Array<[RegExp, string]> = [
@@ -70,7 +70,7 @@ export function resetLoadProgress() {
   for (const listener of listeners) listener(state);
 }
 
-/** Adapter called by the Three.js LoadingManager without exposing Three here. */
+/** Переходник, который вызывает LoadingManager из Three.js, не притаскивая сюда сам Three. */
 export function reportLoadProgress(url: string, loaded: number, total: number) {
   emit({
     loaded,
