@@ -18,7 +18,7 @@ import { SettingsPanel } from '@/components/ui/SettingsPanel';
 import './Mission0Screen.css';
 import { syncCompletedLevel } from '@/net/progression';
 
-/** Level 1 is the first of 5 story chapters shown as journey dots on the outro card. */
+/** Первый уровень — первая из пяти глав истории, показанных точками пути на финальной карточке. */
 const JOURNEY_TOTAL_CHAPTERS = 5;
 
 const emptyHud: L0Hud = {
@@ -66,7 +66,7 @@ export function Mission0Screen() {
   const addFriend = useGameStore((s) => s.addFriend);
   const completeLevel = useGameStore((s) => s.completeLevel);
 
-  /** Persist the win as soon as outro starts — leaving via settings/reload must keep it. */
+  /** Сохранять победу сразу с началом финала: выход через настройки или перезагрузку не должен её терять. */
   const persistWin = () => {
     if (savedOutroRef.current) return;
     savedOutroRef.current = true;
@@ -97,7 +97,7 @@ export function Mission0Screen() {
 
   useEffect(() => {
     if (hud.outro) persistWin();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- save once when outro flips on
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- сохраняем один раз, когда включился финал
   }, [hud.outro]);
 
   const handlePlayFromLoading = () => {
@@ -145,13 +145,13 @@ export function Mission0Screen() {
       window.removeEventListener('pointerdown', initAudio);
       window.removeEventListener('keydown', initAudio);
     };
-  // `lang` is intentionally excluded: changing language must update the
-  // live scene, not tear it down and restart the mission from spawn.
+  // `lang` исключён намеренно: смена языка должна обновлять живую сцену, а не
+  // разрушать её и начинать миссию заново с точки появления.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Language changes are presentation-only while a mission is running. Keep
-  // the current phase/position instead of reloading the scene from spawn.
+  // Пока идёт миссия, смена языка касается только подачи. Сохраняем текущую фазу и
+  // положение вместо перезагрузки сцены с точки появления.
   useEffect(() => {
     sceneRef.current?.setLanguage(lang);
   }, [lang]);
@@ -250,8 +250,8 @@ export function Mission0Screen() {
   const nick = player?.nick || '';
   const showKeys = hud.showMoveHint;
   const showStick = !hud.outro && hud.phase !== 'intro';
-  // One chip that shows whatever the current beat is counting, instead of a
-  // bag of apples that only two phases ever filled.
+  // Одна плашка показывает то, что считает текущий бит, вместо мешка яблок,
+  // который наполняли только две фазы.
   const beatCount =
     hud.phase === 'inside' || hud.phase === 'song'
       ? `${hud.kuiRound}/${hud.kuiTotal}`
@@ -259,17 +259,18 @@ export function Mission0Screen() {
         ? `${hud.pegsDone}/${hud.pegsTotal}`
         : hud.phase === 'lanterns'
           ? `${hud.lanternsUp}/${hud.lanternsTotal}`
-          // Following the sound: a listening meter, so a child on a muted phone
-          // still gets the "warmer / colder" the level is built on.
+          // Идём на звук: шкала слуха, чтобы ребёнок с выключенным звуком всё равно
+          // получал «теплее — холоднее», на котором построен уровень.
           : `${Math.round(hud.nearness * 100)}%`;
 
   return (
     <div className="m0-screen">
       <canvas ref={canvasRef} className="m0-canvas" />
 
-      {/* Start the one-time rotate timer only when the child can actually see
-          it. Mounting it under the loading overlay spent its entire 6–12 s
-          lifetime invisibly and could mark the hint as already seen. */}
+      {/* Одноразовый таймер подсказки о повороте запускается только когда
+          ребёнок действительно её видит. Смонтированная под экраном загрузки, она
+          тратила все свои 6–12 секунд невидимо и могла пометить подсказку как уже
+          показанную. */}
       {!loading ? <RotateHint lang={lang} /> : null}
       {!loading ? <CameraLookHint lang={lang} /> : null}
 
@@ -362,9 +363,9 @@ export function Mission0Screen() {
         </button>
       ) : null}
 
-      {/* Jump has been Space-only, which on a phone means no jump at all —
-          and the crossing cannot be done without one. Sits opposite the
-          stick so it falls under the right thumb. */}
+      {/* Прыжок был только по пробелу, а на телефоне это значит, что прыжка нет
+          вовсе, — а без него переправу не пройти. Стоит напротив стика, чтобы
+          попадать под правый большой палец. */}
       {showStick ? (
         <button
           type="button"
@@ -423,8 +424,8 @@ export function Mission0Screen() {
         </div>
       ) : null}
 
-      {/* The doorway. Drawn over everything including the HUD, because the
-          point of it is that the two locations never share a frame. */}
+      {/* Дверной проём. Рисуется поверх всего, включая HUD: весь его смысл в том,
+          что две локации никогда не попадают в один кадр. */}
       {hud.fade > 0.002 ? (
         <div className="m0-blackout" style={{ opacity: hud.fade }} aria-hidden />
       ) : null}

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-/** Scale a loaded model so its bounding box height matches `h`, then rest it on y=0. */
+/** Масштабирует загруженную модель так, чтобы высота её габаритов совпала с `h`, и ставит на y = 0. */
 export function fitHeight(root: THREE.Object3D, h: number) {
   const box = new THREE.Box3().setFromObject(root);
   const size = box.getSize(new THREE.Vector3());
@@ -10,9 +10,9 @@ export function fitHeight(root: THREE.Object3D, h: number) {
 }
 
 /**
- * Scale so the object's largest dimension matches `s`.
- * Use this for wide, flat models such as rocks and logs: fitting those by
- * height alone scales them uniformly into cliff-sized boulders.
+ * Масштабирует так, чтобы наибольший габарит объекта совпал с `s`.
+ * Использовать для широких плоских моделей — камней, брёвен: подгонка по одной
+ * высоте раздувает их до размеров утёса.
  */
 export function fitMaxSize(root: THREE.Object3D, s: number) {
   const box = new THREE.Box3().setFromObject(root);
@@ -77,31 +77,31 @@ export function measurePlinthFraction(root: THREE.Object3D): number {
   const widest = Math.max(...widths);
   const maxSlab = Math.floor(SLABS * 0.3); // a plinth is never a third of a character
 
-  // Cumulative, not per-slab. A slab box leaves whole empty layers between its
-  // bottom face and its top one, and per-slab ratios read those gaps as the
-  // step: Aya's 2-vertex layer scored 77× against her real edge of 8×.
+  // Накопительно, а не послойно. Коробка постамента оставляет между нижней и
+  // верхней гранью целые пустые слои, и послойные отношения принимают эти пропуски
+  // за ступеньку: слой Айи из двух вершин дал 77× против её настоящей границы в 8×.
   let top = 0;
   let below = 0;
   for (let i = 1; i <= maxSlab; i++) {
     const next = below + counts[i - 1];
     if (next > pos.count * 0.04) break;
-    // Empty layers carry no width to judge, so they are skipped rather than
-    // failing the test.
+    // У пустых слоёв нет ширины, по которой можно судить, поэтому они пропускаются,
+    // а не проваливают проверку.
     if (counts[i - 1] > 0 && widths[i - 1] < widest * 0.6) break;
     below = next;
     top = i;
   }
   if (top === 0) return 0;
 
-  // The layer above must be dramatically denser than the base's own average —
-  // that edge is what a flat plinth top is, and what a body never has.
+  // Слой выше обязан быть заметно плотнее среднего по подставке: такая граница и
+  // есть плоский верх постамента, и её никогда не бывает у тела.
   if (counts[top] < 5 * (below / top)) return 0;
 
   const fraction = top / SLABS;
   return fraction < 0.05 ? 0 : fraction;
 }
 
-/** Sit an object's lowest point on `base` (terrain height, or 0 for a plane). */
+/** Ставит нижнюю точку объекта на `base` — высоту рельефа или 0 для плоскости. */
 export function groundY(o: THREE.Object3D, base = 0) {
   const b = new THREE.Box3().setFromObject(o);
   o.position.y += base - b.min.y;
@@ -135,21 +135,21 @@ export function disposeObject3DResources(root: THREE.Object3D) {
 }
 
 /**
- * Rescue a mesh that arrived with no material at all.
+ * Спасает меш, приехавший вообще без материала.
  *
- * A glTF primitive may omit `material`, and GLTFLoader then hands it three.js's
- * default: `MeshStandardMaterial` with **`metalness: 1`** and no environment
- * map. A fully metallic surface shows only what it reflects, and with nothing
- * to reflect it renders pure black. Two of the season's characters ship that
- * way — `s1_owl.glb` and `s1_rabbit.glb` both report `materials: 0,
- * textures: 0` — so instead of an owl the level showed a black silhouette
- * standing in the grass, which is exactly as unsettling in a game for
- * five-year-olds as it sounds.
+ * Примитив glTF может не указывать `material`, и тогда GLTFLoader выдаёт ему
+ * значение по умолчанию из three.js: `MeshStandardMaterial` с **`metalness: 1`**
+ * и без карты окружения. Полностью металлическая поверхность показывает только то,
+ * что отражает, а отражать нечего — и она рисуется чисто чёрной. Двое персонажей
+ * сезона приходят именно такими: у `s1_owl.glb` и `s1_rabbit.glb` значится
+ * `materials: 0, textures: 0`, — и вместо совы уровень показывал чёрный силуэт,
+ * стоящий в траве, что в игре для пятилетних выглядит ровно так тревожно, как
+ * звучит.
  *
- * The test is deliberately narrow: metalness exactly 1, roughness exactly 1,
- * white base colour, and no maps of any kind is the loader's default and not
- * something an artist authors. Code-built metals in this project (the golden
- * seals, the chest trim) never pass through here.
+ * Проверка намеренно узкая: металличность ровно 1, шероховатость ровно 1, белый
+ * базовый цвет и полное отсутствие карт — это значение по умолчанию у загрузчика,
+ * а не то, что задаёт художник. Металлы, собранные кодом в этом проекте — золотые
+ * печати, отделка сундука, — сюда не попадают.
  */
 export function repairDefaultMaterial(mesh: THREE.Mesh) {
   const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -157,30 +157,30 @@ export function repairDefaultMaterial(mesh: THREE.Mesh) {
     const std = mat as THREE.MeshStandardMaterial;
     if (!std?.isMeshStandardMaterial) continue;
 
-    // Decided before anything is changed. The clamp below zeroes metalness,
-    // and this test asks whether metalness *was* 1 — reading it afterwards
-    // would mean it never fires again.
+    // Решение принимается до любых изменений. Ограничение ниже обнуляет
+    // металличность, а эта проверка спрашивает, *была* ли она равна 1: прочитанная
+    // после, она не сработала бы больше никогда.
     const bare =
       std.metalness === 1 &&
       std.roughness === 1 &&
       !std.map && !std.metalnessMap && !std.roughnessMap && !std.normalMap &&
       std.color.getHex() === 0xffffff;
 
-    // ── Metal with nothing to reflect ────────────────────────────
-    // There is no environment map anywhere in this game, so a metallic
-    // surface reflects nothing and renders black or near-black. Every CC0
-    // and Kenney model in the project ships `metallicFactor: 1` — verified
-    // by reading the glTF material blocks — and that is why a black
-    // silhouette kept appearing in the grass.
+    // ── Металл, которому нечего отражать ─────────────────────────
+    // Карты окружения в этой игре нет нигде, поэтому металлическая поверхность
+    // ничего не отражает и рисуется чёрной или почти чёрной. Все модели CC0 и
+    // Kenney в проекте приходят с `metallicFactor: 1` — проверено чтением блоков
+    // материалов glTF, — и именно поэтому в траве раз за разом появлялся чёрный
+    // силуэт.
     //
-    // AssetKit and Mission 0 have each been clamping this for a while via
-    // `normalizeKitMaterial`. `loadGlb`, which loads every prop and
-    // character in levels 1–16, was not. The colour and every texture are
-    // left exactly as authored; only the reflectivity changes.
-    // A metalness *map* does not save it. The map modulates the factor, and
-    // with no environment to reflect the lit result is still dark — which is
-    // how the talking stump in L6 ended up a black sliver despite carrying
-    // four textures. Nothing in this game is meant to look like metal.
+    // AssetKit и нулевая миссия давно ограничивают это через
+    // `normalizeKitMaterial`. А `loadGlb`, который грузит весь реквизит и всех
+    // персонажей на уровнях 1–16, — нет. Цвет и все текстуры остаются ровно такими,
+    // как их сделали; меняется только отражательность.
+    // Карта металличности не спасает: она лишь модулирует коэффициент, и без
+    // окружения, которое можно отразить, освещённый результат всё равно тёмный, —
+    // так говорящий пенёк на L6 и оказался чёрной щепкой при четырёх текстурах. В
+    // этой игре ничто не должно выглядеть металлом.
     if (std.metalness > 0 && !std.envMap) {
       std.metalness = 0;
       if (std.roughness > 0.95) std.roughness = 0.85;
@@ -188,9 +188,8 @@ export function repairDefaultMaterial(mesh: THREE.Mesh) {
     }
 
     if (!bare) continue;
-    // Matte and off-white: it reads as an untextured toy rather than as a
-    // hole in the world, and it stays obviously a placeholder to anyone
-    // looking for one.
+    // Матовый и не совсем белый: читается нетекстурированной игрушкой, а не дырой в
+    // мире, и при этом остаётся очевидной заглушкой для того, кто её ищет.
     std.metalness = 0;
     std.roughness = 0.85;
     std.color.setHex(0xd8cfc2);

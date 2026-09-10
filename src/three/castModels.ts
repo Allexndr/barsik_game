@@ -1,6 +1,7 @@
 /**
- * Season 1 cast → Meshy / public GLB filenames under /assets/models/chars|props.
- * Used by levels, city, and finale group photo so NPCs share one mapping.
+ * Состав первого сезона в соответствии с именами файлов GLB из Meshy и public,
+ * лежащих в /assets/models/chars и /props. Используется уровнями, городом и общим
+ * фото финала, чтобы у персонажей было одно общее соответствие.
  */
 // Без аннотации `Record<string, string>` намеренно: с ней `keyof typeof`
 // вырождается в `string`, и опечатка в ключе расстановки проходит
@@ -19,12 +20,12 @@ export const CAST_CHAR_GLB = {
   aibek: 'aibek.glb',
   bird: 'bird.glb',
   ice_friend_rare: 'aibek.glb',
-  /** Discover extras (ambient / city / L10 farewell). */
+  /** Дополнительные модели из Discover: окружение, город, прощание на L10. */
   fox: 's1_fox.glb',
   rabbit: 's1_rabbit.glb',
   owl: 's1_owl.glb',
   frog: 's1_frog.glb',
-  /** Kenney pets kit — ambient critters. */
+  /** Набор питомцев Kenney — фоновые зверьки. */
   deer: 'pets/s1_kit_deer.glb',
   beaver: 'pets/s1_kit_beaver.glb',
   penguin: 'pets/s1_kit_penguin.glb',
@@ -35,8 +36,8 @@ export const CAST_CHAR_GLB = {
 };
 
 /**
- * When Meshy `*_rigged.glb` lands, `loadCharModel` prefers it automatically
- * for any plain `name.glb` cast entry above.
+ * Когда появляется `*_rigged.glb` из Meshy, `loadCharModel` автоматически
+ * предпочитает его для любой записи вида `name.glb` выше.
  */
 
 // Без аннотации `Record<string, string>` намеренно: с ней `keyof typeof`
@@ -46,14 +47,14 @@ export const CAST_CHAR_GLB = {
 export const CAST_PROP_GLB = {
   snowman: 'snowman.glb',
   ice_rabbit: 'ice_rabbit.glb',
-  /** Prefer Discover cartoon sign; fall back to original Meshy sign in placeWoodSign. */
+  /** Предпочитаем мультяшный указатель из Discover; в placeWoodSign запасной — исходный из Meshy. */
   wood_sign: 'wood_sign_cartoon.glb',
   stump: 's1_stump_moss.glb',
   treasure_chest: 'treasure_chest.glb',
   golden_key: 'golden_key.glb',
   cabin: 'cabin.glb',
   treehouse: 'treehouse.glb',
-  /** Season 1 unique props (Discover + Text-to-3D). */
+  /** Уникальный реквизит первого сезона: Discover и генерация по тексту. */
   apple: 's1_gen_apple.glb',
   apple_gold: 's1_gen_apple_gold.glb',
   apple_discover: 's1_apple.glb',
@@ -76,7 +77,7 @@ export const CAST_PROP_GLB = {
   snowflake: 's1_gen_snowflake.glb',
   map_scroll: 's1_gen_map_scroll.glb',
   wood_bridge: 's1_gen_wood_bridge.glb',
-  /** Kenney kit fill; Meshy scarf wired when present. */
+  /** Заполнение из набора Kenney; шарф из Meshy подключается, если он есть. */
   fence: 's1_kit_fence.glb',
   fence_gate: 's1_kit_fence_gate.glb',
   bench: 'town/s1_kit_bench.glb',
@@ -104,7 +105,7 @@ export const CAST_PROP_GLB = {
   flower_red: 's1_kit_flower_red.glb',
 };
 
-/** Inventory keys (localStorage) shared across levels. */
+/** Ключи инвентаря в localStorage, общие для всех уровней. */
 export const KEY_ACORN = 'barsik_acorn_key';
 export const KEY_ICE = 'barsik_ice_key';
 
@@ -121,6 +122,6 @@ export function writeFlag(key: string, on = true): void {
     if (on) localStorage.setItem(key, '1');
     else localStorage.removeItem(key);
   } catch {
-    /* ignore */
+    /* не важно */
   }
 }

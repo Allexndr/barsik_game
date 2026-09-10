@@ -4,9 +4,9 @@ import { disposeObject3DResources, fitHeight, fitMaxSize, groundY, repairDefault
 import { normalizeKitMaterial } from './kitPalette';
 
 /**
- * CC0 model kits (Kenney) that make up the Barsik world.
- * Every pack shares one stylized low-poly language, so mixing packs
- * within a scene still reads as a single art direction.
+ * Наборы моделей CC0 (Kenney), из которых собран мир Барсика.
+ * У всех наборов один стилизованный низкополигональный язык, поэтому их смешение
+ * в одной сцене всё равно читается единым художественным решением.
  */
 export type KitPack =
   | 'nature'
@@ -22,15 +22,15 @@ export type KitPack =
 const KIT_BASE = '/assets/models/kits/';
 
 export interface SpawnOptions {
-  /** Scale the model so its bounding box height matches this value. */
+  /** Масштабировать модель так, чтобы высота её габаритов совпала с этим значением. */
   height?: number;
-  /** Scale so the largest dimension matches this value. Prefer for rocks and logs. */
+  /** Масштабировать так, чтобы наибольший габарит совпал с этим значением. Предпочтительно для камней и брёвен. */
   maxSize?: number;
-  /** Uniform scale applied when neither `height` nor `maxSize` is given. */
+  /** Равномерный масштаб, применяемый, если не заданы ни `height`, ни `maxSize`. */
   scale?: number;
   position?: [number, number, number];
   rotationY?: number;
-  /** Rest the model on y=0 after scaling. Defaults to true. */
+  /** После масштабирования поставить модель на y = 0. По умолчанию включено. */
   ground?: boolean;
   castShadow?: boolean;
   receiveShadow?: boolean;
@@ -43,9 +43,9 @@ function prepareKitModel(root: THREE.Object3D) {
     if (!mesh.isMesh) return;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    // The kit loader does not go through `loadGlb`, so a primitive with no
-    // material would keep the loader's metalness-1 default and render black
-    // here even though it is repaired everywhere else.
+    // Загрузчик наборов не проходит через `loadGlb`, поэтому примитив без материала
+    // сохранил бы металличность 1 по умолчанию и рисовался бы здесь чёрным, хотя
+    // везде остальное это уже чинится.
     repairDefaultMaterial(mesh);
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     for (const material of materials) {
@@ -57,9 +57,9 @@ function prepareKitModel(root: THREE.Object3D) {
 }
 
 /**
- * Per-scene model cache. Each model file is fetched and normalised once,
- * then handed out as clones that share geometry, materials and textures.
- * Owned by the scene: `dispose()` releases every template it loaded.
+ * Кеш моделей на сцену. Каждый файл загружается и нормализуется один раз, а потом
+ * выдаётся клонами, которые делят геометрию, материалы и текстуры. Принадлежит
+ * сцене: `dispose()` освобождает все загруженные шаблоны.
  */
 export class AssetKit {
   private templates = new Map<string, Promise<THREE.Object3D | null>>();
@@ -96,12 +96,12 @@ export class AssetKit {
     return pending;
   }
 
-  /** Warm the cache before a level starts so first placement does not stutter. */
+  /** Прогреть кеш до старта уровня, чтобы первая расстановка не дала рывка. */
   async preload(models: Array<[KitPack, string]>) {
     await Promise.all(models.map(([pack, name]) => this.template(pack, name)));
   }
 
-  /** A placed clone of a kit model, or null when the file is unavailable. */
+  /** Поставленный клон модели из набора или null, если файла нет. */
   async spawn(pack: KitPack, name: string, opts: SpawnOptions = {}): Promise<THREE.Object3D | null> {
     const template = await this.template(pack, name);
     if (!template) return null;
@@ -127,8 +127,8 @@ export class AssetKit {
   }
 
   /**
-   * Repeated scatter (trees, rocks, grass) sharing one template per name.
-   * Returns the placed clones so callers can register colliders.
+   * Массовый разброс — деревья, камни, трава — с одним шаблоном на имя.
+   * Возвращает поставленные клоны, чтобы вызывающий мог навесить коллайдеры.
    */
   async scatter(
     pack: KitPack,
