@@ -22,7 +22,7 @@ export function OverviewPanel({ onError }: { onError: (e: unknown) => void }) {
       .catch(onError)
       .finally(() => { if (alive) setBusy(false); });
     return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- зависимости намеренно неполные
   }, []);
 
   if (busy) return <div className="adm-card">Считаю…</div>;

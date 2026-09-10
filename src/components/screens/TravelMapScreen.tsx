@@ -368,7 +368,7 @@ export function TravelMapScreen() {
     } else {
       setCenter({ x: currentPin.x, y: currentPin.y });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- зависимости намеренно неполные
   }, [currentLevel, wide]);
 
   useEffect(() => {

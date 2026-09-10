@@ -25,7 +25,7 @@ interface DotsProps {
   className?: string;
 }
 
-/** Visual step progress (journey dots) — used instead of fake precise fractions on Level 1 outro. */
+/** Пошаговый прогресс точками пути — вместо мнимо точных долей в финале первого уровня. */
 export function StepDots({ total, filled, className = '' }: DotsProps) {
   return (
     <div className={`ui-dots ${className}`} role="img" aria-label={`${filled}/${total}`}>

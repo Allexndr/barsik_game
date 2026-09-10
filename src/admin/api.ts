@@ -42,7 +42,7 @@ export function clearCredentials() {
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(ACTOR_KEY);
   } catch {
-    /* ignore */
+    /* не важно */
   }
 }
 

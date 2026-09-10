@@ -108,7 +108,7 @@ export function MissionScreen({
 
   useEffect(() => {
     if (hud.outro) persistWin();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- сохраняем один раз, когда включился финал
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- зависимости намеренно неполные -- сохраняем один раз, когда включился финал
   }, [hud.outro]);
 
   useEffect(() => {
@@ -173,7 +173,7 @@ export function MissionScreen({
       window.removeEventListener('pointerdown', initAudio);
       window.removeEventListener('keydown', initAudio);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- зависимости намеренно неполные
   }, [levelId]);
 
   // Настройки не должны пересоздавать живую 3D-сцену. Сцена сохраняет текущую фазу

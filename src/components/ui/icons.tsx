@@ -1,6 +1,6 @@
 /**
- * BARSIK icon set — inline SVG, brand-consistent, no emoji.
- * Single source for every pictogram used across HUD / Hub / Settings.
+ * Набор значков BARSIK: встроенный SVG, в стиле бренда, без эмодзи.
+ * Единый источник всех пиктограмм интерфейса уровня, хаба и настроек.
  */
 import type { SVGProps } from 'react';
 

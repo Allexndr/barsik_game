@@ -721,7 +721,7 @@ export class Level5Scene extends BaseLevelScene {
     });
   }
 
-  // ── HUD ──────────────────────────────────────────────────────
+  // ── Интерфейс уровня ─────────────────────────────────────────
   private pushHud() {
     const n = this.nick;
     let speaker = 'Барсик';
