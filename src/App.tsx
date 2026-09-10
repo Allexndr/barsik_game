@@ -74,8 +74,9 @@ export function migrateProgress(raw: unknown) {
     Object.fromEntries(
       unlockedLevels.map((levelId) => [levelId, LEVEL_CONFIGS[levelId]?.reward.stars ?? 0]),
     );
-  // Clean-run marks. Older saves have none, which reads as "no level cleared
-   // cleanly yet" — correct, and it fills in as the player replays.
+  // Отметки о чистом прохождении. В старых сейвах их нет, и это читается как «ни
+   // один уровень пока не пройден чисто» — верно, и заполнится при повторных
+   // прохождениях.
   const levelClean =
     data.levelClean && typeof data.levelClean === 'object'
       ? Object.fromEntries(
@@ -125,9 +126,9 @@ export function migrateProgress(raw: unknown) {
   return {
     friends,
     unlockedLevels,
-    // A pointer is not proof of completion. Cap it at the first level after
-    // confirmed progress, so a damaged value such as 9999 cannot skip the
-    // season or make the UI claim that the finale was completed.
+    // Указатель не доказывает прохождение. Ограничиваем его первым уровнем после
+    // подтверждённого прогресса, чтобы испорченное значение вроде 9999 не
+    // перескочило сезон и не заставило интерфейс заявить, что финал пройден.
     currentLevel: highestDone >= 0
       ? Math.min(requestedLevel, Math.min(17, highestDone + 1))
       : 0,
@@ -138,15 +139,15 @@ export function migrateProgress(raw: unknown) {
       data.cityObjects && typeof data.cityObjects === 'object'
         ? (data.cityObjects as Record<string, boolean>)
         : {},
-    // Saves written before the wardrobe existed have no outfit; those players
-    // get the starter cap and glasses rather than a bare Barsik. Without this
-    // the outfit was persisted correctly and then thrown away on every
-    // reload, because whatever this function omits is left at its default.
+    // В сейвах, написанных до появления гардероба, наряда нет; таким игрокам
+    // выдаётся стартовая кепка с очками, а не голый Барсик. Без этого наряд
+    // корректно сохранялся и выбрасывался при каждой перезагрузке: всё, что эта
+    // функция не перечислит, остаётся значением по умолчанию.
     outfit: Array.isArray(data.outfit)
       ? (() => {
           const ids = data.outfit.filter((id): id is string => typeof id === 'string');
           const cool = ['hoodie_green', 'jeans_blue', 'tubeteika_blue', 'glasses_yellow'];
-          // Retired red pack (client cut) → cool green.
+          // Снятый с производства красный набор (правка заказчика) — в зелёный cool.
           const redPack = ['hoodie_red', 'jeans_blue', 'tubeteika_red', 'glasses_clear'];
           if (
             ids.length === redPack.length
@@ -160,8 +161,8 @@ export function migrateProgress(raw: unknown) {
           return ids.length ? ids : cool;
         })()
       : ['hoodie_green', 'jeans_blue', 'tubeteika_blue', 'glasses_yellow'],
-    // Completion is derived from the canonical final level, never from a
-    // user-editable pointer or a stale boolean flag in localStorage.
+    // Завершение сезона выводится из канонического последнего уровня, а не из
+    // редактируемого пользователем указателя или устаревшего флага в localStorage.
     season1Complete: unlockedLevels.includes(16),
   };
 }
@@ -174,12 +175,12 @@ export function App() {
   const episodeRunId = useUIStore((s) => s.episodeRunId);
 
   useEffect(() => {
-    // Language first: stored preference, then player's lang if returning
+    // Сначала язык: сохранённый выбор, затем язык игрока, если он возвращается.
     applyLang(readStoredLang());
 
-    // Fetch the voice manifest early, so the first line of the first level is
-    // already a rendered clip rather than the browser's synthesiser. Costs one
-    // request, and a 404 leaves the old behaviour untouched.
+    // Манифест озвучки запрашивается заранее, чтобы первая реплика первого уровня
+    // была уже записанным клипом, а не синтезом браузера. Стоит одного запроса, а
+    // 404 оставляет прежнее поведение нетронутым.
     void AudioManager.loadVoicePack().catch((error) => {
       console.warn('[audio] voice_pack_unavailable', { error });
     });
@@ -197,8 +198,9 @@ export function App() {
         useGameStore.setState({ player });
         applyLang(player.lang);
         useUIStore.setState({
-          // The welcome page is the public front door for new and returning
-          // players. A saved player gets a prominent Continue action there.
+          // Приветственная страница — парадный вход и для новых, и для
+          // возвращающихся игроков. Тому, у кого есть сохранение, там показывается
+          // заметная кнопка продолжения.
           currentScreen: 'welcome',
           sessionPlayMs: 0,
         });
@@ -237,7 +239,7 @@ export function App() {
             JSON.stringify({ version: GAME_SAVE_VERSION, ...migrated }),
           );
         } catch {
-          /* ignore */
+          /* не важно */
         }
       } catch (e) {
         console.error('Failed to load progress', e);
@@ -245,8 +247,8 @@ export function App() {
       }
     }
 
-    // Development-only direct mission launcher for repeatable desktop/mobile QA:
-    // http://127.0.0.1:5174/?mission=4&lang=kk
+    // Прямой запуск миссии только в отладочной сборке, для повторяемых проверок на
+    // десктопе и телефоне: http://127.0.0.1:5174/?mission=4&lang=kk
     if (import.meta.env.DEV) {
       const params = new URLSearchParams(window.location.search);
       const missionParam = params.get('mission');
@@ -287,18 +289,18 @@ export function App() {
         useUIStore.getState().setScreen('hub');
       }
 
-      // Switch levels without a page reload, so a QA pass over all seventeen
-      // is one script instead of seventeen navigations. Reloading each time
-      // is how a sweep across every level ends up never actually being run.
+      // Смена уровня без перезагрузки страницы: проход по всем семнадцати — это
+      // один скрипт вместо семнадцати переходов. Перезагрузка каждый раз — верный
+      // способ добиться того, чтобы сквозной прогон так и не был проведён.
       (window as unknown as { __goto?: (n: number) => void }).__goto = (n: number) => {
         (window as unknown as { __level?: unknown }).__level = undefined;
         useUIStore.getState().startEpisode(n);
       };
 
-      // `?tab=shop` opens a navbar page directly. The meta screens sit behind
-      // the welcome flow, so checking one otherwise means clicking through
-      // onboarding every time — which in practice means they get checked far
-      // less often than the levels do.
+      // `?tab=shop` открывает страницу меню напрямую. Мета-экраны спрятаны за
+      // приветственным потоком, и проверить один из них иначе значит каждый раз
+      // прокликивать онбординг, — а на практике это значит, что их проверяют
+      // заметно реже, чем уровни.
       const tab = params.get('tab');
       const tabs = ['travel', 'friends', 'city', 'shop', 'leaderboard', 'qr'] as const;
       type Tab = (typeof tabs)[number];

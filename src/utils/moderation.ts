@@ -1,22 +1,21 @@
 /**
- * Text safety for anything a child types that another person will see.
+ * Проверка текста, который ребёнок вводит и который увидит другой человек.
  *
- * Today that is the nickname: it is free text with no check at all —
- * `normalizeNick` only trims and lowercases — and it is displayed publicly on
- * the leaderboard. In a product for five- to twelve-year-olds that is already
- * a channel to other users, and it is unmoderated.
+ * Сегодня это ник: свободный текст вообще без проверок — `normalizeNick` только
+ * обрезает пробелы и приводит к нижнему регистру, — и он публично показывается в
+ * таблице результатов. В продукте для детей пяти-двенадцати лет это уже канал к
+ * другим пользователям, и он немодерируем.
  *
- * Tomorrow it is the city chat. The rules live here, in one module with no
- * browser dependencies, precisely so the server-side filter can import the
- * same file. **The client-side call is a courtesy, not a control**: Supabase
- * Realtime broadcasts client to client, so a filter that runs only in the
- * browser is bypassed by anyone who opens the console. Chat must call this
- * from an edge function before the message is broadcast.
+ * Завтра это чат в городе. Правила живут здесь, в одном модуле без зависимостей
+ * от браузера, именно чтобы серверный фильтр мог импортировать тот же файл.
+ * **Вызов на клиенте — вежливость, а не контроль**: Supabase Realtime вещает от
+ * клиента к клиенту, и фильтр, работающий только в браузере, обходит любой, кто
+ * откроет консоль. Чат обязан вызывать это из edge-функции до рассылки сообщения.
  *
- * Two things are checked, and the second matters more than the first for
- * child safety: abusive words, and anything that looks like a way to move the
- * conversation off-platform (a phone number, a handle, a link). Grooming
- * starts with "add me on".
+ * Проверяются две вещи, и вторая для детской безопасности важнее первой:
+ * бранные слова и всё, что похоже на попытку увести разговор за пределы
+ * площадки, — номер телефона, ник в другом сервисе, ссылка. Груминг начинается с
+ * «добавь меня там-то».
  */
 
 export type ModerationReason =
@@ -31,15 +30,15 @@ export type ModerationVerdict =
   | { ok: false; reason: ModerationReason };
 
 /**
- * Fold the tricks people use to slip a word past a substring match:
- * homoglyphs between Latin and Cyrillic, digits standing in for letters,
- * padding characters, and stretched repeats.
+ * Сворачивает приёмы, которыми слово протаскивают мимо поиска по подстроке:
+ * похожие буквы латиницы и кириллицы, цифры вместо букв, разделители и
+ * растянутые повторы.
  *
- * Everything ends up in Cyrillic, because that is the alphabet the blocked
- * roots are written in and the one both site languages use.
+ * Всё приводится к кириллице: на ней написаны запрещённые корни, и её же
+ * используют оба языка сайта.
  */
 const FOLD: Record<string, string> = {
-  // Latin letters that look like Cyrillic ones.
+  // Латинские буквы, похожие на кириллические.
   a: 'а', b: 'в', c: 'с', e: 'е', h: 'н', k: 'к', m: 'м', o: 'о', p: 'р',
   t: 'т', x: 'х', y: 'у', u: 'и', i: 'и', j: 'й', g: 'г', d: 'д', z: 'з',
   n: 'н', s: 'с', f: 'ф', r: 'р', l: 'л', v: 'в', w: 'ш', q: 'к',
@@ -48,14 +47,14 @@ const FOLD: Record<string, string> = {
   // «бл9ть» through.
   '0': 'о', '1': 'и', '3': 'е', '4': 'ч', '5': 'с', '6': 'б', '7': 'т',
   '9': 'я', '@': 'а', '$': 'с', '!': 'и', '*': '', '.': '', ',': '',
-  // Cyrillic variants that should not create a second spelling.
+  // Кириллические варианты, которые не должны порождать второе написание.
   ё: 'е', й: 'и', ъ: '', ь: '',
-  // Kazakh letters folded to their nearest Russian base, so a blocked root
-  // written with them is still caught.
+  // Казахские буквы сворачиваются к ближайшей русской основе, чтобы запрещённый
+  // корень, написанный ими, всё равно ловился.
   ә: 'а', ғ: 'г', қ: 'к', ң: 'н', ө: 'о', ұ: 'у', ү: 'у', һ: 'х', і: 'и',
 };
 
-/** Canonical form used for matching only — never shown to anyone. */
+/** Каноническая форма только для сопоставления — никому не показывается. */
 export function normalizeForMatch(input: string): string {
   const lowered = input.toLowerCase().normalize('NFKC');
   let out = '';
@@ -71,21 +70,21 @@ export function normalizeForMatch(input: string): string {
 }
 
 /**
- * Blocked roots, already in folded form.
+ * Запрещённые корни, уже в свёрнутой форме.
  *
- * Roots rather than whole words, because Russian inflects and the point is to
- * catch the stem wherever it appears. Kept deliberately short: this list is
- * checked as a substring, so a loose entry blocks innocent words, and a child
- * who cannot enter their own name because of a filter is a worse outcome than
- * a rude nickname. Anything ambiguous belongs in a review queue, not here.
+ * Именно корни, а не слова целиком: русский язык склоняется, и задача — поймать
+ * основу везде, где она встретится. Список намеренно короткий: он проверяется как
+ * подстрока, поэтому неаккуратная запись блокирует невинные слова, а ребёнок,
+ * который не может ввести собственное имя из-за фильтра, — исход хуже, чем грубый
+ * ник. Всё спорное место не здесь, а в очереди на ручной разбор.
  */
 const BLOCKED_ROOTS: readonly string[] = [
-  // ru — obscene stems
+  // Русские нецензурные основы.
   'хуи', 'хуе', 'хуя', 'пизд', 'ебат', 'ебан', 'ебал', 'ебуч', 'ебло',
   'бляд', 'блят', 'муда', 'гандо', 'пидор', 'пидар', 'долбое', 'залуп',
   'дроч', 'манда', 'сука', 'сучка', 'шлюх', 'шалав', 'выеб', 'заеб',
   'наеб', 'уеба', 'отъеб', 'отьеб', 'ебыр', 'жопа', 'срака', 'говн',
-  // slurs and hate terms, ru
+  // Оскорбления и язык вражды, русский.
   'жид', 'хохол', 'чурк', 'даун', 'дебил', 'урод',
 ];
 
@@ -102,7 +101,7 @@ const BLOCKED_LATIN: readonly string[] = [
   'cyka', 'suka', 'blyat', 'blyad', 'pizd', 'xyi', 'huy', 'pidor', 'mudak',
 ];
 
-/** Latin-side canonical form: digits and padding folded, repeats collapsed. */
+/** Каноническая форма для латиницы: цифры и разделители свёрнуты, повторы схлопнуты. */
 function normalizeLatin(input: string): string {
   const lowered = input.toLowerCase().normalize('NFKC');
   let out = '';
@@ -152,7 +151,7 @@ const CONTACT_PATTERNS: readonly RegExp[] = [
 export interface ModerationOptions {
   minLength?: number;
   maxLength?: number;
-  /** Chat allows spaces and punctuation; a nickname does not. */
+  /** В чате допустимы пробелы и знаки препинания, в нике — нет. */
   allowPunctuation?: boolean;
 }
 
@@ -195,9 +194,9 @@ const MESSAGES: Record<ModerationReason, { ru: string; kk: string }> = {
     ru: 'Только буквы, цифры и дефис',
     kk: 'Тек әріптер, сандар және сызықша',
   },
-  // Deliberately gentle and non-specific. A child who typed something rude on
-  // a dare should get a shrug, not a lecture; a child who tripped the filter
-  // by accident should not be told they said something bad.
+  // Намеренно мягко и без конкретики. Ребёнок, написавший грубость на спор,
+  // должен получить пожатие плечами, а не нотацию; ребёнку, случайно задевшему
+  // фильтр, нельзя сообщать, будто он сказал что-то плохое.
   profanity: {
     ru: 'Давай выберем другое слово',
     kk: 'Басқа сөз таңдайық',
