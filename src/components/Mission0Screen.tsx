@@ -274,10 +274,10 @@ export function Mission0Screen() {
       {!loading ? <RotateHint lang={lang} /> : null}
       {!loading ? <CameraLookHint lang={lang} /> : null}
 
-      {/* Mission 0 is the heaviest scene and the first thing anyone sees, so
-          it gets the same real-progress screen as the rest, not a spinner.
-          The level itself does not start until "Играть" is pressed here —
-          assetsReady only unlocks the button, it does not skip it. */}
+      {/* Нулевая миссия — самая тяжёлая сцена и первое, что видит игрок, поэтому
+          здесь, как и в остальных миссиях, показывается реальный прогресс, а не
+          бесконечный спиннер. Уровень начинается только после нажатия «Играть»:
+          готовность ассетов лишь разблокирует кнопку, но не пропускает старт. */}
       {loading ? (
         <LoadingOverlay lang={lang} assetsReady={assetsReady} onPlay={handlePlayFromLoading} />
       ) : null}

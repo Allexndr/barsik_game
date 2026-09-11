@@ -17,8 +17,8 @@ import './SoftGateModal.css';
  */
 function useParentGateQuestion(gate: string | null) {
   return useMemo(() => {
-    const a = 2 + Math.floor(Math.random() * 6); // 2..7
-    const b = 2 + Math.floor(Math.random() * 6); // 2..7
+    const a = 2 + Math.floor(Math.random() * 6); // значения от 2 до 7
+    const b = 2 + Math.floor(Math.random() * 6); // значения от 2 до 7
     const correct = a + b;
     const distractors = new Set<number>();
     while (distractors.size < 2) {
