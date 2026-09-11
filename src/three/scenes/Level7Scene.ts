@@ -320,7 +320,37 @@ export class Level7Scene extends BaseLevelScene {
     });
 
     this.reserve(0, SPAWN_Z, 5);
-    for (const h of HIDES) this.reserve(h.x, h.z, 5);
+    for (const h of HIDES) {
+      this.reserve(h.x, h.z, 5);
+      // Укрытия стоят в стороне от центральной тропы, чтобы игроку было что
+      // исследовать. Соединяем их короткими площадками: одной комнаты в конце
+      // недостаточно, потому что ограничитель движения не умеет перепрыгивать
+      // через разрыв между коридором и комнатой.
+      const corridorX = routeX(h.z);
+      for (let step = 1; step < 5; step += 1) {
+        const t = step / 5;
+        this.reserve(
+          corridorX + (h.x - corridorX) * t,
+          SPAWN_Z + (h.z - SPAWN_Z) * t,
+          3.6,
+        );
+      }
+    }
+    for (const spot of LOST_PHOTOS) {
+      this.reserve(spot.x, spot.z, 3);
+      // Фотографии — отдельные точки сбора, а не часть укрытий. Им тоже нужен
+      // проход от тропы, иначе финальная половина уровня заканчивалась бы
+      // невидимой стеной у дальней фотографии.
+      const corridorX = routeX(spot.z);
+      for (let step = 1; step < 5; step += 1) {
+        const t = step / 5;
+        this.reserve(
+          corridorX + (spot.x - corridorX) * t,
+          SPAWN_Z + (spot.z - SPAWN_Z) * t,
+          3.6,
+        );
+      }
+    }
 
     const pad = spawnPad(0, SPAWN_Z);
     pad.position.y = this.groundHeightAt(0, SPAWN_Z) + 0.01;
@@ -700,8 +730,8 @@ export class Level7Scene extends BaseLevelScene {
         if (d < bestD) { bestD = d; best = p; }
       }
       if (best) return best;
-      // Only once all three are in hand, so «отдать» never competes with
-      // «подобрать» for the same button.
+      // Отдавать можно только после сбора всех трёх снимков: кнопка не должна
+      // одновременно означать «отдать» и «подобрать».
       if (this.putalo && this.photosFound >= this.photosTotal
         && hp.distanceTo(this.putalo.position) < 2.8) {
         return this.putalo;
@@ -774,7 +804,9 @@ export class Level7Scene extends BaseLevelScene {
         && this.heroSpeed > STILL_SPEED
         && now > this.caughtUntil
       ) {
-        this.trust = Math.max(0, this.trust - 0.34);
+        // Обычный шаг не должен обнулять весь прогресс: ребёнок видит реакцию
+        // Путало, но продолжает понимать, что делает успехи.
+        this.trust = Math.max(0, this.trust - 0.08);
         this.caughtUntil = now + 900;
         this.putaloState = 'peeking';
         this.scatterButterflies();
@@ -797,13 +829,12 @@ export class Level7Scene extends BaseLevelScene {
         }
       } else if (!spooked) {
         if (distToPutalo < CLOSE) {
-          // Только пока его глаз в видоискателе, и примерно шесть секунд, а не
-          // две с половиной. С перерывами на поднятые глаза укрытие стало
-          // двадцатью с лишним секундами игры вместо ожидания.
+          // Спокойная ходьба рядом постепенно возвращает доверие. Раньше шкала
+          // росла только в короткое окно, когда Путало смотрел в видоискатель,
+          // и ребёнку приходилось одновременно угадывать таймер и силу стика.
+          // Теперь таймер остаётся частью анимации, а не скрытым условием победы.
           const before = this.trust;
-          if (this.watch === 'shooting') {
-            this.trust = Math.min(1, this.trust + dt * 0.16);
-          }
+          this.trust = Math.min(1, this.trust + dt * 0.18);
           if (this.putaloState !== 'out') {
             this.putaloState = 'out';
             this.phase = 'slow';
