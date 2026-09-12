@@ -1281,7 +1281,11 @@ export class Level2Scene extends BaseLevelScene {
       this.snapToGround(tree);
       this.markSwaying(tree, 0.8);
       this.scene.add(tree);
-      this.colliders.push({ kind: 'circle', x: tree.position.x, z: tree.position.z, r: 1.05 });
+      // Рядовые яблони — фон сада, а не препятствия. Полный радиус кроны
+      // перекрывал прямой подход к створке арыка, хотя стрелка уже вела туда;
+      // ребёнок упирался в дерево и принимал это за сломанный уровень. Ствол
+      // остаётся ощутимым, но оставляет проход вокруг декора.
+      this.colliders.push({ kind: 'circle', x: tree.position.x, z: tree.position.z, r: 0.42 });
       const height = placements[i].height;
       canopies.push(
         fruitGeometry(tree.position.x, tree.position.y + height * 0.62, tree.position.z, height * 0.26, 7),
@@ -1613,7 +1617,10 @@ export class Level2Scene extends BaseLevelScene {
     ];
     for (const b of this.baskets) {
       this.scene.add(b.group);
-      this.colliders.push({ kind: 'circle', x: b.x, z: b.z, r: 0.8 });
+      // Корзина — цель действия, а не стена. Три корзины стоят рядом, поэтому
+      // коллайдеры заставляли ребёнка, несущего яблоко, упираться в соседнюю
+      // корзину по дороге к правильной. Действие уже ограничено цветом выше;
+      // физически обходить реквизит для сортировки не нужно.
     }
     this.demoBasket = this.baskets.find((basket) => basket.color === 'red') ?? null;
 
@@ -1882,6 +1889,10 @@ export class Level2Scene extends BaseLevelScene {
         }
       } else if (this.phase === 'sort') {
         for (const b of this.baskets) {
+          // Пока в лапах яблоко одного цвета, соседняя корзина не должна
+          // становиться интерактивной только потому, что она ближе. HUD уже
+          // подсказывает нужный цвет — действие обязано следовать той же цели.
+          if (b.color !== this.carryingColor) continue;
           // По плоскости земли — как и у яблок парой веток выше. Трёхмерное
           // расстояние до точки, прибитой к y = 0, засчитывает игроку подъём, и
           // до корзины на возвышении приходится доходить вплотную.

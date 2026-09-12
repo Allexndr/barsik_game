@@ -243,15 +243,42 @@ export class Level11Scene extends BaseLevelScene {
     const mesh = new THREE.Mesh(
       // Снежинку надо успеть поймать в воздухе — значит, её надо сначала
       // увидеть. Радиус 0.2 на фоне снега это точка.
-      new THREE.OctahedronGeometry(gold ? 0.38 : 0.3),
+      new THREE.OctahedronGeometry(gold ? 0.44 : 0.42),
       new THREE.MeshStandardMaterial({
-        color: gold ? 0xffe27a : 0xffffff,
-        emissive: gold ? 0xf1c40f : 0xe1f5fe,
-        emissiveIntensity: gold ? 0.8 : 0.4,
+        // Обычная снежинка получает холодно-голубой цвет и свечение: белый
+        // объект на белой долине терялся даже при увеличенном размере.
+        color: gold ? 0xffe27a : 0x8edcff,
+        emissive: gold ? 0xf1c40f : 0x1976b8,
+        emissiveIntensity: gold ? 0.9 : 0.75,
         transparent: true,
         opacity: 0.95,
       }),
     );
+    const halo = new THREE.Mesh(
+      new THREE.OctahedronGeometry(gold ? 0.7 : 0.64),
+      new THREE.MeshBasicMaterial({
+        color: gold ? 0xffd54f : 0x29b6f6,
+        transparent: true,
+        opacity: gold ? 0.2 : 0.32,
+        wireframe: true,
+        depthWrite: false,
+      }),
+    );
+    mesh.add(halo);
+    const landingRing = new THREE.Mesh(
+      new THREE.RingGeometry(gold ? 0.58 : 0.7, gold ? 0.78 : 0.95, 18),
+      new THREE.MeshBasicMaterial({
+        color: gold ? 0xffd54f : 0x29b6f6,
+        transparent: true,
+        opacity: 0.75,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    );
+    landingRing.rotation.x = -Math.PI / 2;
+    landingRing.visible = false;
+    mesh.add(landingRing);
+    mesh.userData.landingRing = landingRing;
     mesh.position.set(x, this.groundHeightAt(x, z) + 8.5 + Math.random() * 1.5, z);
     mesh.castShadow = true;
     this.scene.add(mesh);
@@ -437,6 +464,11 @@ export class Level11Scene extends BaseLevelScene {
           sf.grounded = true;
           sf.groundedAt = now;
           sf.mesh.position.y = ground;
+          const landingRing = sf.mesh.userData.landingRing as THREE.Mesh | undefined;
+          if (landingRing) {
+            landingRing.visible = true;
+            landingRing.position.y = 0.03;
+          }
           // Упавшая золотая снежинка потрачена — в этом всё давление по времени.
           if (sf.gold) {
             sf.caught = true;
@@ -449,6 +481,11 @@ export class Level11Scene extends BaseLevelScene {
       }
 
       if (!this.isCatching) continue;
+      const landingRing = sf.mesh.userData.landingRing as THREE.Mesh | undefined;
+      if (landingRing) {
+        landingRing.visible = true;
+        landingRing.position.y = ground - sf.mesh.position.y + 0.03;
+      }
       if (this.hero.position.distanceTo(sf.mesh.position) < 1.6) {
         this.catchFlake(sf, false);
         continue;

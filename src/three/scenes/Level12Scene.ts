@@ -124,15 +124,18 @@ export class Level12Scene extends BaseLevelScene {
     if (this.phase === 'learn') return 0.02;
     if (this.phase === 'turn') return 0.06;
     // Спуск: лёд держит скорость дольше, поэтому поворот надо начинать раньше.
-    return this.phase === 'drop' ? 0.22 : 0.12;
+    return this.phase === 'drop' ? 0.16 : 0.12;
   }
 
   private static halfWidthAt(t: number) {
     // Широко, пока учишься; уже на поворотах; совсем узко на спуске.
     if (t < 0.13) return 1.95;
     if (t < 0.25) return 1.75;
-    if (t < DROP_T) return THREE.MathUtils.lerp(1.6, 1.25, (t - 0.25) / (DROP_T - 0.25));
-    return THREE.MathUtils.lerp(1.25, 0.95, (t - DROP_T) / (1 - DROP_T));
+    if (t < DROP_T) return THREE.MathUtils.lerp(1.7, 1.4, (t - 0.25) / (DROP_T - 0.25));
+    // На быстром спуске полоса остаётся заметно шире Барсика. Раньше первый
+    // левый поворот после арки давал меньше секунды на коррекцию и превращал
+    // обучение инерции в повторяющийся возврат к воротам.
+    return THREE.MathUtils.lerp(1.4, 1.15, (t - DROP_T) / (1 - DROP_T));
   }
 
   async init(nick: string, lang: 'ru' | 'kk', onHud: (h: L12Hud) => void) {
@@ -389,7 +392,10 @@ export class Level12Scene extends BaseLevelScene {
       );
     } else if (p === 'run') {
       if (this.slipped && performance.now() < this.slipMsgUntil) {
-        line = this.copy('Ой! Снова на тропу — попробуй ещё.', 'Ой! Қайта жолға — тағы байқап көр.');
+        line = this.copy(
+          'Ой! Ты снова у ворот. Держи стик в сторону синей стрелки и не дёргай его.',
+          'Ой! Қақпаға қайта келдің. Көк көрсеткі жаққа тұтқаны жайлап ұста.',
+        );
       } else {
         line = this.copy('Тропа сужается. Собирай кристаллы!', 'Жол тарылады. Кристалдарды жина!');
       }
@@ -399,7 +405,10 @@ export class Level12Scene extends BaseLevelScene {
       );
     } else if (p === 'drop') {
       if (this.slipped && performance.now() < this.slipMsgUntil) {
-        line = this.copy('Ой! Здесь лёд быстрее. Тормози заранее.', 'Ой! Мұнда мұз жылдамырақ. Алдын ала баяула.');
+        line = this.copy(
+          'Ой! Ты снова у ворот. Сначала держи стик к синей стрелке, потом начинай поворот заранее.',
+          'Ой! Қақпаға қайта келдің. Алдымен көк көрсеткіге қарай ұста, кейін ертерек бұрыл.',
+        );
       } else if (performance.now() < this.turnHintUntil) {
         line = this.copy(
           'Дальше лёд скользкий по-настоящему — поворачивай раньше!',
@@ -449,6 +458,13 @@ export class Level12Scene extends BaseLevelScene {
   }
 
   private nextCrystalPos(): THREE.Vector3 | null {
+    // После соскальзывания ближайшая задача — снова пройти контрольные ворота.
+    // Кристалл сбоку в этот момент противоречил бы сообщению «вернись на
+    // тропу» и подталкивал ребёнка повторно уходить с безопасной линии.
+    if (performance.now() < this.slipMsgUntil
+      && this.segmentsCrossed < this.segmentsTotal) {
+      return this.trail.pointAt(CHECKPOINTS[this.segmentsCrossed]);
+    }
     for (const c of this.crystalMeshes) {
       if (!c.userData.collected) return c.position.clone();
     }
