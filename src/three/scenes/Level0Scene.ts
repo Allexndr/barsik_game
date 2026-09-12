@@ -136,7 +136,7 @@ const RIVER_HALF_WIDTH = 26;
 const RIVER_BANK_CLEAR = 4;
 
 /** Радиус площадки. Намеренно широкий: пятилетний целится в камень, а не в точку. */
-const STONE_R = 1.35;
+const STONE_R = 1.55;
 
 /**
  * Камни зигзагом по расширенному руслу. Прыжки от центра к центру около 3.7 м,
@@ -650,16 +650,26 @@ export class Level0Scene extends BaseLevelScene {
     this.noteMistake();
     AudioManager.sfx('stumble');
     this.spawnSparks(h.clone(), 18, [0x2aa8d8, 0xffffff]);
-    h.z = CROSSING_FROM + 2.6;
-    h.x = routeX(h.z);
-    h.y = this.groundHeightAt(h.x, h.z);
+    // Ошибка не должна стирать всю переправу. Возвращаемся на последний
+    // достигнутый камень, а не на берег: ребёнок повторяет один прыжок, а не
+    // заново проходит уже освоенную половину уровня.
+    const recovery = this.stones[this.furthestStoneIdx];
+    if (recovery) {
+      const platform = this.platforms.find((p) => p.obj === recovery);
+      h.x = recovery.position.x;
+      h.z = recovery.position.z;
+      h.y = recovery.position.y + (platform?.top ?? 0.6) + 0.04;
+    } else {
+      h.z = CROSSING_FROM + 2.6;
+      h.x = routeX(h.z);
+      h.y = this.groundHeightAt(h.x, h.z);
+    }
     this.jumpVelocity = 0;
     this.airborne = false;
     if (this.phase === 'crossing') {
-      // Герой снова на стартовом берегу: стрелка обязана указывать на камень 0,
-      // а не оставаться там, куда дошли раньше, — иначе это тот же BUG-013,
-      // только наоборот.
-      this.furthestStoneIdx = -1;
+      // Камни снова поднимаются, но достигнутый индекс сохраняется: стрелка
+      // ведёт на следующий камень, а не заставляет ребёнка начинать переправу
+      // сначала.
       for (const s of this.stones) {
         s.userData.sunk = 0;
         s.position.y = s.userData.restY as number;
@@ -987,7 +997,11 @@ export class Level0Scene extends BaseLevelScene {
       this.reserve(routeX(z), z, RIVER_HALF_WIDTH);
     }
     for (const l of LANTERNS) this.reserve(l.x, l.z, 2.5);
-    for (const p of PEGS) this.reserve(p.x, p.z, 2);
+    // Комната у каждого полотнища должна соединяться с основной тропой. Радиус
+    // 2 м оставлял между коридором и правой панелью разрыв, поэтому герой видел
+    // цель, но упирался в лес на подходе. Широкое резервирование — это не
+    // декоративная пустота, а короткий безопасный карман для взаимодействия.
+    for (const p of PEGS) this.reserve(p.x, p.z, 5);
 
     // ── Уровень воды ─────────────────────────────────────────────
     // Выводится из построенного рельефа, а не из константы. В первой попытке
@@ -1160,7 +1174,6 @@ export class Level0Scene extends BaseLevelScene {
     // объявляет это место местом, а не пятачком травы, куда что-то уронили.
     const doorFront = YURT.z + 3.6;
     const porchZ = YURT.z + 3.1;
-    const gx = YURT.x - 1.6;
     const dx = YURT.x - 0.9;
 
     const mat = new THREE.Mesh(
@@ -1197,8 +1210,8 @@ export class Level0Scene extends BaseLevelScene {
     this.dombra.position.set(dx, this.groundHeightAt(dx, porchZ + 0.3), porchZ + 0.3);
     this.dombra.rotation.set(0.22, 0.55, -0.08);
     this.scene.add(this.dombra);
-    // Твёрдая. Без этого герой проходит сквозь инструмент.
-    this.colliders.push({ kind: 'circle', x: (gx + dx) / 2, z: porchZ + 0.15, r: 1.15 });
+    // Это реквизит у входа, а не препятствие: жёсткий круг здесь перекрывал
+    // диагональный подход к правому полотнищу и оставлял ребёнка перед юртой.
 
     // ── Маркер двери ────────────────────────────────────────────────
     // Кольцо на пороге — тот же язык, которым фонари и колышки уже говорят
@@ -1500,6 +1513,8 @@ export class Level0Scene extends BaseLevelScene {
     } else if (p === 'crossing') {
       line = wet
         ? this.copy('Бр-р! Вода холодная. Ничего, вылезаю и пробую снова.', 'Бр-р! Су суық. Ештеңе етпейді, шығып тағы көремін.')
+        : this.furthestStoneIdx >= this.stones.length - 1
+          ? this.copy('Последний камень! Иди прямо к сухому берегу.', 'Соңғы тас! Құрғақ жағалауға тура жүр.')
         : this.copy(
             'Ручей поднялся за ночь. По камням — прыжками.',
             'Бұлақ түнде көтеріліпті. Тастармен — секіріп өт.',
@@ -1638,7 +1653,11 @@ export class Level0Scene extends BaseLevelScene {
       // Следующий камень за самым дальним достигнутым, а не всегда первый —
       // см. `furthestStoneIdx` (BUG-013).
       const s = this.stones[this.furthestStoneIdx + 1];
-      return s ? new THREE.Vector3(s.position.x, 0, s.position.z) : null;
+      if (s) return new THREE.Vector3(s.position.x, 0, s.position.z);
+      // После последнего камня цель не исчезает: ребёнок должен видеть сухой
+      // берег, иначе герой останавливается на финальной площадке без следующего
+      // действия и принимает это за конец или поломку уровня.
+      return new THREE.Vector3(routeX(CROSSING_TO - 2), 0, CROSSING_TO - 2);
     }
     if (this.phase === 'mend') {
       const next = this.panels.find((p) => !p.userData.done);

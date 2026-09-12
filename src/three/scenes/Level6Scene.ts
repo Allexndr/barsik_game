@@ -676,11 +676,18 @@ export class Level6Scene extends BaseLevelScene {
     } else if (p.startsWith('riddle')) {
       speaker = this.copy('Пенёк', 'Түпкі');
       if (this.mustReturnToStump) {
-        line = this.copy(
-          'Не то дерево! Вернись ко мне — загадаю ещё раз.',
-          'Ол ағаш емес! Маған қайт — тағы бір айтамын.',
-        );
-        objective = this.copy('↩️ Вернись к пеньку', '↩️ Түпкіге қайт');
+        line = this.isMobile
+          ? this.copy(
+              'Не то дерево. Вернись к светящемуся пеньку и нажми лапку — загадка повторится.',
+              'Ол ағаш емес. Жарқыраған түпкіге қайтып, табанды бас — жұмбақ қайталанады.',
+            )
+          : this.copy(
+              'Не то дерево. Вернись к светящемуся пеньку и нажми E — загадка повторится.',
+              'Ол ағаш емес. Жарқыраған түпкіге қайтып, E бас — жұмбақ қайталанады.',
+            );
+        objective = this.isMobile
+          ? this.copy('↩️ К светящемуся пеньку · нажми лапку', '↩️ Жарқыраған түпкіге · табанды бас')
+          : this.copy('↩️ К светящемуся пеньку · нажми E', '↩️ Жарқыраған түпкіге · E бас');
       } else {
         line = this.lang === 'kk' ? riddle.question.kk : riddle.question.ru;
         objective = this.isMobile
@@ -845,7 +852,10 @@ export class Level6Scene extends BaseLevelScene {
     if (this.stump) {
       const glow = this.stump.userData.glow as THREE.Mesh | undefined;
       if (glow?.material) {
-        (glow.material as THREE.MeshBasicMaterial).opacity = 0.3 + Math.sin(now * 0.003) * 0.15;
+        const recovery = this.mustReturnToStump;
+        (glow.material as THREE.MeshBasicMaterial).opacity = recovery
+          ? 0.65 + Math.sin(now * 0.006) * 0.2
+          : 0.3 + Math.sin(now * 0.003) * 0.15;
       }
       const eyes = (this.stump.userData.eyes as THREE.Mesh[] | undefined) ?? [];
       const blink = Math.sin(now * 0.001) > 0.95 ? 0.1 : 1;

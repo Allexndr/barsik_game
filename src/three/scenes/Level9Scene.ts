@@ -773,13 +773,12 @@ export class Level9Scene extends BaseLevelScene {
             'Замок показывает порядок. Нажимай столбы так же!',
             'Құлып кезекті көрсетеді. Бағаналарды солай бас!',
           );
-      objective =
-        this.lockFailures > 0 && shrine
-          ? this.copy(
-              `🔒 ${this.lockDone}/3 — сейчас знак ${this.copy(shrine.name.ru, shrine.name.kk)}`,
-              `🔒 ${this.lockDone}/3 — қазір ${this.copy(shrine.name.ru, shrine.name.kk)} белгісі`,
-            )
-          : this.copy(`🔒 Печати: ${this.lockDone}/3`, `🔒 Мөрлер: ${this.lockDone}/3`);
+      objective = shrine
+        ? this.copy(
+            `🔒 ${this.lockDone}/3 — сейчас знак ${this.copy(shrine.name.ru, shrine.name.kk)}`,
+            `🔒 ${this.lockDone}/3 — қазір ${this.copy(shrine.name.ru, shrine.name.kk)} белгісі`,
+          )
+        : this.copy(`🔒 Печати: ${this.lockDone}/3`, `🔒 Мөрлер: ${this.lockDone}/3`);
     } else if (p === 'unlock') {
       speaker = this.copy('Белочка', 'Тиін');
       line = this.copy('Мой жёлудь открыл сундук! Ура!', 'Менің жаңғағым сандықты ашты! Ура!');
@@ -849,8 +848,12 @@ export class Level9Scene extends BaseLevelScene {
     if (this.phase === 'lock') {
       let best: THREE.Object3D | null = null;
       let bestD = 2.0;
+      const expected = LOCK_ORDER[this.lockDone];
       for (const p of this.pillars) {
-        if (!p.userData.armed || p.userData.set) continue;
+        // Замок показывает текущий знак на сундуке. Неправильный соседний
+        // столб не должен перехватывать кнопку действия, когда ребёнок стоит
+        // между двумя столбами: визуальная цель и действие должны совпадать.
+        if (!p.userData.armed || p.userData.set || p.userData.sigil !== expected) continue;
         const d = flat(p);
         if (d < bestD) { bestD = d; best = p; }
       }
@@ -874,14 +877,11 @@ export class Level9Scene extends BaseLevelScene {
       return this.nearestOf(this.seals)?.position.clone() ?? null;
     }
     if (this.phase === 'lock') {
-      // Молчит до первой ошибки: получить ответ, не попробовав, — не задача, а
-      // не получить его никогда — стена.
-      if (this.lockFailures > 0) {
-        const want = LOCK_ORDER[this.lockDone];
-        const p = this.pillars.find((q) => q.userData.sigil === want && !q.userData.set);
-        if (p) return p.position.clone();
-      }
-      return this.chest?.position.clone() ?? null;
+      // Текущий знак подсвечивается в HUD сразу. Ребёнку не нужно сначала
+      // ошибиться, чтобы узнать, какой из трёх столбов является целью.
+      const want = LOCK_ORDER[this.lockDone];
+      const pillar = this.pillars.find((p) => p.userData.sigil === want && !p.userData.set);
+      return pillar?.position.clone() ?? this.chest?.position.clone() ?? null;
     }
     if (this.chest && this.phase === 'intro') return this.chest.position.clone();
     return null;

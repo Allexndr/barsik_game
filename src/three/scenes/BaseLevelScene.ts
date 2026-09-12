@@ -1622,7 +1622,10 @@ export abstract class BaseLevelScene {
       const z = centerZ + (Math.floor(i / 2) - count / 4) * 5.2 + Math.random() * 2.4;
       if (this.isReserved(x, z, 1.8)) continue;
       const height = ring === 0 ? 5.6 + Math.random() * 1.6 : ring === 1 ? 4.0 + Math.random() * 1.2 : 2.3 + Math.random() * 0.8;
-      const camZ = z - CAMERA_TRAIL_Z;
+      // Камера следует за героем со стороны старта: её z примерно на девять
+      // метров больше z героя. Проверка с `z - 9` смотрела на противоположную
+      // сторону и пропускала дерево ровно в будущую позицию камеры.
+      const camZ = z + CAMERA_TRAIL_Z;
       const margin = height * 0.4 + 2.0;
       const clamped = this.clampToPlayArea(x, camZ);
       if (Math.hypot(clamped.x - x, clamped.z - camZ) < margin) continue;
@@ -2624,7 +2627,7 @@ export abstract class BaseLevelScene {
     const CAMERA_TRAIL_Z = 9;
 
     const placements: Array<{ names: string[]; x: number; z: number; height: number }> = [];
-      for (let i = 0; i < count; i++) {
+    for (let i = 0; i < count; i++) {
       const ang = (i / count) * Math.PI * 2;
       if (ang > 1.1 && ang < 2.0) continue;
       const ring = i % 3;
@@ -2638,7 +2641,9 @@ export abstract class BaseLevelScene {
         : ring === 1
           ? heightBase + Math.random() * TREE_RING.midSpan
           : heightBase * TREE_RING.smallMul + Math.random() * TREE_RING.smallSpan;
-      const camZ = z - CAMERA_TRAIL_Z;
+      // Проверяем будущую позицию камеры со стороны старта, а не дальний лес
+      // за деревом. Иначе крона проходит фильтр и закрывает обзор на тропе.
+      const camZ = z + CAMERA_TRAIL_Z;
       const margin = height * 0.4 + 2.0;
       const clamped = this.clampToPlayArea(x, camZ);
       if (Math.hypot(clamped.x - x, clamped.z - camZ) < margin) continue;

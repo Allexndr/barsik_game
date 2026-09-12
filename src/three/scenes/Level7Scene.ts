@@ -33,7 +33,7 @@ const HIDES: Array<{ x: number; z: number }> = [
 /** Отсюда он уже смотрит: побежишь внутри этого круга — спрячется. */
 const NOTICE = 10;
 /** Доверие растёт только на такой дистанции: он должен видеть, что ты спокоен. */
-const CLOSE = 4.5;
+const CLOSE = 5.2;
 
 /**
  * Цикл наблюдения — «море волнуется раз», только с фотоаппаратом.
@@ -55,7 +55,7 @@ const SHOOTING_MS: [number, number] = [2600, 4200];
 const LIFTING_MS = 700;
 const WATCHING_MS: [number, number] = [1500, 2400];
 /** Ниже этой скорости герой считается стоящим на месте, пока Путало смотрит. */
-const STILL_SPEED = 0.35;
+const STILL_SPEED = 0.5;
 
 function routeX(z: number) {
   return Math.sin((z - SPAWN_Z) * 0.06) * 3.2;
@@ -332,7 +332,7 @@ export class Level7Scene extends BaseLevelScene {
         this.reserve(
           corridorX + (h.x - corridorX) * t,
           SPAWN_Z + (h.z - SPAWN_Z) * t,
-          3.6,
+          5.2,
         );
       }
     }
@@ -347,7 +347,7 @@ export class Level7Scene extends BaseLevelScene {
         this.reserve(
           corridorX + (spot.x - corridorX) * t,
           SPAWN_Z + (spot.z - SPAWN_Z) * t,
-          3.6,
+          5.2,
         );
       }
     }
@@ -816,8 +816,10 @@ export class Level7Scene extends BaseLevelScene {
 
       if (isRunningStealth && distToPutalo < NOTICE) {
         if (this.trust > 0 || this.putaloState !== 'hiding') {
-          this.trust = 0;
-          this.spookedUntil = now + 1400;
+          // Рывок должен обучать, а не стирать уже заработанный прогресс:
+          // после ошибки остаётся часть доверия и короткое окно на остановку.
+          this.trust = Math.max(0, this.trust - 0.2);
+          this.spookedUntil = now + 1000;
           this.putaloState = 'hiding';
           this.phase = 'hiding';
           // Прячется за свой камень, а не телепортируется: камень стоит на
