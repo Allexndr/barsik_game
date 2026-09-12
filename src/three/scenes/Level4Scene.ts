@@ -754,13 +754,14 @@ export class Level4Scene extends BaseLevelScene {
     }
 
     // Правило трёх: первые два пролёта учат ритму в мягком темпе, три после
-    // островка идут быстрее.
+    // островка идут быстрее. Зелёное окно достаточно длинное, чтобы ребёнок
+    // успел увидеть сигнал и спокойно дойти до следующей секции.
     const sectionConfigs = [
-      { safeDuration: 3.2, unsafeDuration: 1.4, swaySpeed: 1.0 },
-      { safeDuration: 2.6, unsafeDuration: 1.6, swaySpeed: 1.2 },
-      { safeDuration: 2.2, unsafeDuration: 1.9, swaySpeed: 1.5 },
-      { safeDuration: 2.0, unsafeDuration: 2.0, swaySpeed: 1.8 },
-      { safeDuration: 1.6, unsafeDuration: 2.0, swaySpeed: 2.0 },
+      { safeDuration: 3.6, unsafeDuration: 0.9, swaySpeed: 1.0 },
+      { safeDuration: 3.4, unsafeDuration: 0.9, swaySpeed: 1.1 },
+      { safeDuration: 3.2, unsafeDuration: 0.8, swaySpeed: 1.2 },
+      { safeDuration: 3.0, unsafeDuration: 0.8, swaySpeed: 1.3 },
+      { safeDuration: 2.8, unsafeDuration: 0.8, swaySpeed: 1.4 },
     ];
 
     for (let i = 0; i < this.totalSections; i++) {

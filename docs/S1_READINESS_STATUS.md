@@ -1,7 +1,7 @@
 # Season 1 — статус готовности (закрепление)
 
-> **Дата среза:** 2026-08-31 (обновлено после deploy)  
-> **Вердикт:** **soft-launch на xi — ДА** · **полный release-ready — нет** (device QA, KK, cloud gates)  
+> **Дата среза:** 2026-09-12 (локальная перепроверка после правок сложности)
+> **Вердикт:** **локальная демонстрация — ДА** · **полный release-ready — нет** (prod smoke, device QA, KK, cloud gates)
 > **Prod xi:** https://barsik-game-xi.vercel.app · bundle `index-DtRe_WMh.js` (2026-08-31)  
 > **Источники DoD:** `S1_COMPLETION_PLAN.md` §0, `SEASON_1_FULL_SPEC.md` §15–16, `S1_REMAINING_SPEC.md`
 
@@ -9,7 +9,16 @@
 
 ## Вердикт одной строкой
 
-**17 уровней и мета в коде собраны и локально зелёные; до «Season 1 готов» не хватает prod-deploy, живого device QA, KK-вычитки, server/cloud gates и sign-off — не кода уровней.**
+**17 уровней и мета в коде собраны и локально зелёные; до «Season 1 готов» не хватает актуального prod-deploy, живого device QA, KK-вычитки, server/cloud gates и sign-off — не подтверждённой непроходимости уровней.**
+
+### Перепроверка 2026-09-12
+
+- `npm run build` — PASS.
+- `npm run test:perf` — 4/4 PASS; headless-замеры не считаются доказательством FPS на телефоне.
+- Gameplay smoke по четырём чистым блокам — **17/17 PASS**: L0–4 (5/5), L5–9 (5/5), L10–13 (4/4), L14–16 (3/3).
+- `npm run test:device` — **18/18 PASS**; `npm test -- --run` — **25/25 PASS**; `npm run voice:check` — 716/716.
+- Последние UX/сложностные правки: маяк цели L0, фактический счётчик пяти секторов L3, более длинные безопасные окна L4, выделение правильной корзины L2.
+- Полный human golden path, настоящий телефон, актуальный production smoke и native KK review остаются открытыми.
 
 ---
 
