@@ -88,7 +88,7 @@ function buildLattice(group: THREE.Group, radius: number, height: number) {
 }
 
 /**
- * Уыќ — жерди крыши и шанырак, в котором они сходятся.
+ * Стропила — жерди крыши и шанырак, в котором они сходятся.
  *
  * Шанырак — это и дымовое отверстие, и родовой символ, поэтому основной дневной
  * свет в комнате идёт именно оттуда. Остальное смягчает тёплая заливка.
@@ -139,17 +139,9 @@ function buildRoof(group: THREE.Group, radius: number, wallH: number, apex: numb
     group.add(s);
   }
 
-  // Свет, падающий сквозь него. Конус светлого воздуха, а не лампа: это
-  // единственная связь комнаты с улицей, и читаться она должна дневным светом.
-  const shaft = new THREE.Mesh(
-    new THREE.CylinderGeometry(ringR * 0.9, ringR * 2.6, apex - 0.2, 24, 1, true),
-    new THREE.MeshBasicMaterial({
-      color: 0xfff6de, transparent: true, opacity: 0.13,
-      side: THREE.DoubleSide, depthWrite: false,
-    }),
-  );
-  shaft.position.y = apex / 2;
-  group.add(shaft);
+  // Свет через шанырак дают отверстие в крыше, тёплая лампа и лёгкие частицы.
+  // Объёмный прозрачный конус здесь не нужен: на близкой камере он перекрывает
+  // ковры и площадки большой молочной полосой.
 }
 
 /** Текемет — войлочные ковры, плоскими полосами узора по полу. */
