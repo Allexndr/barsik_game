@@ -2015,7 +2015,16 @@ export class Level2Scene extends BaseLevelScene {
 
     // Пульсация лучей над корзинами.
     for (const b of this.baskets) {
-      ((b.beam as THREE.Mesh).material as THREE.Material).opacity = 0.15 + Math.sin(now * 0.003 + b.x) * 0.1;
+      const beamMaterial = (b.beam as THREE.Mesh).material as THREE.MeshBasicMaterial;
+      const isTargetBasket = this.phase === 'sort' && this.carryingColor === b.color;
+      const pulse = Math.sin(now * (isTargetBasket ? 0.006 : 0.003) + b.x);
+      // Пока яблоко в лапах, правильная корзина становится заметнее, а две
+      // остальные приглушаются. Ребёнку не нужно держать в памяти цвет и
+      // рисунок одновременно: достаточно идти к самому яркому лучу.
+      beamMaterial.opacity = isTargetBasket
+        ? 0.46 + pulse * 0.12
+        : 0.09 + pulse * 0.04;
+      b.beam.scale.setScalar(isTargetBasket ? 1.12 + pulse * 0.06 : 1);
       const bounceUntil = (b.group.userData.bounceUntil as number | undefined) ?? 0;
       const shakeUntil = (b.group.userData.shakeUntil as number | undefined) ?? 0;
       b.group.position.y = now < bounceUntil ? Math.sin((bounceUntil - now) * 0.035) * 0.12 : 0;

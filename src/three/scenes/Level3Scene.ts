@@ -711,7 +711,7 @@ export class Level3Scene extends BaseLevelScene {
       line,
       objective,
       sectorsChecked: this.sectors.filter((s) => s.checked).length,
-      totalSectors: 3,
+      totalSectors: this.sectors.length,
       foundHedgehog: this.hedgehogFound,
       stars: this.stars,
       canInteract: Boolean(this.interactTarget),

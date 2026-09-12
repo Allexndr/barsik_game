@@ -1623,13 +1623,13 @@ export class Level0Scene extends BaseLevelScene {
   }
 
   private objectiveWorldPos(): THREE.Vector3 | null {
-    if (this.phase === 'follow' || this.phase === 'intro') {
-      // Первые секунды намеренно молчит: навигация здесь — звук, а стрелка,
-      // предложенная сразу, научила бы ребёнка смотреть на стрелку вместо мира
-      // до конца сезона. Появляется, когда он сделал шаг и успел прислушаться.
-      if (!this.hasTakenFirstStep || this.nearness < 0.08) return null;
+    if (this.phase === 'follow') {
+      // Звук остаётся главным уроком, но видимый маяк не даёт потеряться ребёнку
+      // без звука или с выключенным звуком браузера. После первого шага он
+      // появляется сразу, чтобы цель была понятна даже до первого перезвона.
       return new THREE.Vector3(YURT.x, 0, YURT.z);
     }
+    if (this.phase === 'intro') return new THREE.Vector3(YURT.x, 0, YURT.z);
     if (this.phase === 'lanterns') {
       const next = this.lanterns.find((l) => !l.userData.done);
       return next?.position.clone() ?? null;
