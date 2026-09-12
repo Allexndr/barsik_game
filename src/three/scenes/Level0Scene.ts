@@ -167,7 +167,7 @@ const STONES: Array<{ x: number; z: number; sink?: boolean }> = [
 
 /** Отошедшие войлочные полотнища вокруг юрты. Три штуки, разнесены так, чтобы
  *  починка была кругом. Держатся в стороне от коврика у двери (порог на
- *  z ≈ YURT.z+3.1), иначе колышки прячутся за красным кругом. */
+ *  z ≈ YURT.z+3.1), иначе колышки прячутся за ковриком. */
 const PEGS: Array<{ x: number; z: number }> = [
   { x: YURT.x - 3.4, z: YURT.z + 0.4 },
   { x: YURT.x + 3.4, z: YURT.z + 0.6 },
@@ -765,6 +765,27 @@ export class Level0Scene extends BaseLevelScene {
     if (p.y > ceiling) p.y = Math.max(2.0, ceiling);
   }
 
+  /** Камера внутри юрты сразу получает допустимую цель без борьбы с ограничителем. */
+  private insideCameraTarget() {
+    const cx = YURT_INSIDE.x + (this.hero.position.x - YURT_INSIDE.x) * 0.6;
+    let targetX = cx;
+    let targetZ = this.hero.position.z + 7.4;
+    const offsetX = targetX - YURT_INSIDE.x;
+    const offsetZ = targetZ - YURT_INSIDE.z;
+    const distance = Math.hypot(offsetX, offsetZ);
+    const maxR = INSIDE_R - 3.5;
+
+    if (distance > maxR) {
+      const scale = maxR / distance;
+      targetX = YURT_INSIDE.x + offsetX * scale;
+      targetZ = YURT_INSIDE.z + offsetZ * scale;
+    }
+
+    const targetDistance = Math.hypot(targetX - YURT_INSIDE.x, targetZ - YURT_INSIDE.z);
+    const targetY = Math.min(this.hero.position.y + 4.2, roofHeightAt(targetDistance) - 1.25);
+    return new THREE.Vector3(targetX, Math.max(2.0, targetY), targetZ);
+  }
+
   /**
    * `withCameraOrbit()` поворачивает камеру вокруг героя только на время
    * отрисовки, а потом возвращает сохранённое положение камеры следования.
@@ -786,7 +807,9 @@ export class Level0Scene extends BaseLevelScene {
     this.yaw = Math.PI;
     this.airborne = false;
     this.jumpVelocity = 0;
-    this.camera.position.set(YURT_INSIDE.x, 4.2, YURT_INSIDE.z + 12.4);
+    // Начальная точка уже находится внутри допустимого радиуса. Иначе первый
+    // кадр после телепорта каждый раз спорит с keepCameraInsideYurt().
+    this.camera.position.set(YURT_INSIDE.x, 4.2, YURT_INSIDE.z + 9.2);
     // Прицел переставляется мгновенно, а не едет плавно двести метров.
     this.resetCameraAim();
     this.kuiRound = 0;
@@ -1144,7 +1167,7 @@ export class Level0Scene extends BaseLevelScene {
     for (const s of YURT_STAKES) {
       const x = YURT.x + Math.cos(s.angle) * stakeR;
       const z = YURT.z + Math.sin(s.angle) * stakeR;
-      // Дуга у входа пропускается, чтобы колья не стояли на красном коврике.
+      // Дуга у входа пропускается, чтобы колья не стояли на приветственном коврике.
       const doorAng = Math.PI / 2; // вход со стороны +z
       const dAng = Math.abs(Math.atan2(Math.sin(s.angle - doorAng), Math.cos(s.angle - doorAng)));
       if (dAng < 0.55) continue;
@@ -1170,19 +1193,32 @@ export class Level0Scene extends BaseLevelScene {
     // Садовник и домбра стояли на YURT.z + 4.6 — в метре от того места, где
     // переправа выпускает игрока, и это читалось как «брошено у воды», а не
     // «ждут у двери». Теперь оба поставлены к стене, по обе стороны от проёма,
-    // который и так использует телепорт (YURT.z + 3.6), на коврике, который
-    // объявляет это место местом, а не пятачком травы, куда что-то уронили.
+    // который и так использует телепорт (YURT.z + 3.6), на приветственном
+    // коврике, который объявляет это место входом, а не пятачком травы.
     const doorFront = YURT.z + 3.6;
     const porchZ = YURT.z + 3.1;
-    const dx = YURT.x - 0.9;
+    const dombraX = YURT.x - 2.05;
+    const dombraZ = porchZ + 0.15;
 
-    const mat = new THREE.Mesh(
-      new THREE.CircleGeometry(1.75, 22),
-      new THREE.MeshStandardMaterial({ color: 0xac3c28, roughness: 0.92 }),
+    const rug = new THREE.Mesh(
+      new THREE.CircleGeometry(1.3, 28),
+      new THREE.MeshStandardMaterial({ color: 0xd3a64a, roughness: 0.95 }),
     );
-    mat.rotation.x = -Math.PI / 2;
-    mat.position.set(YURT.x - 1.1, this.groundHeightAt(YURT.x - 1.1, porchZ) + 0.02, porchZ);
-    this.scene.add(mat);
+    rug.rotation.x = -Math.PI / 2;
+    rug.position.set(YURT.x, this.groundHeightAt(YURT.x, doorFront) + 0.02, doorFront);
+    this.scene.add(rug);
+
+    const rugBorder = new THREE.Mesh(
+      new THREE.RingGeometry(1.08, 1.25, 28),
+      new THREE.MeshStandardMaterial({
+        color: 0x2f6f7a,
+        roughness: 0.9,
+        side: THREE.DoubleSide,
+      }),
+    );
+    rugBorder.rotation.x = -Math.PI / 2;
+    rugBorder.position.set(YURT.x, this.groundHeightAt(YURT.x, doorFront) + 0.035, doorFront);
+    this.scene.add(rugBorder);
 
     // NPC на пороге нет: друзья Meshy `*_rigged` здесь читаются гигантской
     // куклой рядом с юртой. Дверь и диалог работают; искры уходят к герою.
@@ -1207,8 +1243,8 @@ export class Level0Scene extends BaseLevelScene {
       this.dombra = makeDombra();
       this.dombra.userData.groundLift = 0.55;
     }
-    this.dombra.position.set(dx, this.groundHeightAt(dx, porchZ + 0.3), porchZ + 0.3);
-    this.dombra.rotation.set(0.22, 0.55, -0.08);
+    this.dombra.position.set(dombraX, this.groundHeightAt(dombraX, dombraZ), dombraZ);
+    this.dombra.rotation.set(0.16, 0.35, -0.06);
     this.scene.add(this.dombra);
     // Это реквизит у входа, а не препятствие: жёсткий круг здесь перекрывал
     // диагональный подход к правому полотнищу и оставлял ребёнка перед юртой.
@@ -1929,9 +1965,10 @@ export class Level0Scene extends BaseLevelScene {
       );
     } else if (this.insideYurt) {
       // Подтянута и приподнята: уличная схема провела бы камеру сквозь войлок.
-      const cx = YURT_INSIDE.x + (this.hero.position.x - YURT_INSIDE.x) * 0.6;
+      const target = this.insideCameraTarget();
+      const cx = target.x;
       this.updateCamera(
-        new THREE.Vector3(cx, this.hero.position.y + 4.2, this.hero.position.z + 7.4),
+        target,
         new THREE.Vector3(cx, this.hero.position.y + 1.4, this.hero.position.z - 3.2),
         0.0015,
         dt,
