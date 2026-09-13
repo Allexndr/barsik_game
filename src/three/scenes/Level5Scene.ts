@@ -20,7 +20,6 @@ import { createPlushSquirrel, updatePlushAnimal } from '../PlushAnimals';
 import { groundY } from '../modelUtils';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { CAST_PROP_GLB, KEY_ACORN, writeFlag } from '../castModels';
-import { placeS1Prop } from '../s1Place';
 
 /**
  * Уровень 5 «Корзина для белочки» — уровень 5 главы 1 по GDD.
@@ -137,24 +136,40 @@ interface Blockage {
   marker: THREE.Group;
 }
 
-/** Тяжёлая корзина. Сделана отдельным объектом, чтобы менять хозяина. */
+/** Корзина остаётся отдельным объектом, чтобы менять хозяина без пересборки. */
 function makeNutBasket(): THREE.Group {
   const g = new THREE.Group();
-  const weave = new THREE.MeshStandardMaterial({ color: 0xb98a52, roughness: 0.95 });
-  const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.17, 10), weave);
+  const weave = new THREE.MeshStandardMaterial({ color: 0xc48645, roughness: 0.9 });
+  const edge = new THREE.MeshStandardMaterial({ color: 0x7a431f, roughness: 0.88 });
+  const lining = new THREE.MeshStandardMaterial({ color: 0xf1c27d, roughness: 0.95 });
+
+  // Размер рассчитан на камеру уровня: корзина должна читаться как предмет,
+  // а не превращаться в красную плоскость за моделью белочки.
+  const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.27, 0.28, 16), weave);
+  basket.position.y = 0.14;
   basket.castShadow = true;
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.018, 6, 14), weave);
-  rim.rotation.x = Math.PI / 2;
-  rim.position.y = 0.085;
-  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.014, 6, 14, Math.PI), weave);
-  handle.position.y = 0.085;
-  g.add(basket, rim, handle);
-  for (let i = 0; i < 4; i++) {
+  const inside = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.24, 0.025, 16), lining);
+  inside.position.y = 0.285;
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.035, 8, 20), edge);
+  rim.position.y = 0.3;
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.29, 0.028, 8, 20, Math.PI), edge);
+  handle.position.y = 0.19;
+
+  // Две стойки связывают ручку с краем и помогают узнать корзинку даже сбоку.
+  const postGeometry = new THREE.CylinderGeometry(0.025, 0.025, 0.16, 8);
+  const leftPost = new THREE.Mesh(postGeometry, edge);
+  leftPost.position.set(-0.27, 0.27, 0);
+  const rightPost = new THREE.Mesh(postGeometry, edge);
+  rightPost.position.set(0.27, 0.27, 0);
+  g.add(basket, inside, rim, handle, leftPost, rightPost);
+
+  for (let i = 0; i < 5; i++) {
     const nut = new THREE.Mesh(
-      new THREE.SphereGeometry(0.045, 8, 6),
+      new THREE.SphereGeometry(0.065, 10, 8),
       new THREE.MeshStandardMaterial({ color: 0x9c6b43, roughness: 0.8 }),
     );
-    nut.position.set((i % 2 ? 1 : -1) * 0.06, 0.1, i < 2 ? 0.05 : -0.05);
+    const angle = (i / 5) * Math.PI * 2;
+    nut.position.set(Math.cos(angle) * 0.17, 0.35, Math.sin(angle) * 0.17);
     g.add(nut);
   }
   return g;
@@ -592,18 +607,10 @@ export class Level5Scene extends BaseLevelScene {
     this.squirrel.position.copy(this.squirrelPos);
     this.scene.add(this.squirrel);
 
-    // Корзина остаётся в сцене и просто ставится на того, кто её несёт, а не
-    // делается его потомком. GLB масштабируется под нужную высоту, и всё, что
-    // добавлено ему в дети, наследует этот масштаб; коэффициент зависит от того,
-    // в каких единицах вообще сделана модель, поэтому корзина получалась
-    // произвольного размера, который нельзя предсказать.
-    //
-    // Модель из общего набора, а не процедурная, и 0.6 м: это предмет, по
-    // которому назван уровень, и то, что ребёнок несёт в лапах. Самодельная
-    // версия была фигуркой в 32 см и с обычной дистанции камеры пропадала за
-    // белочкой.
-    this.basket = (await placeS1Prop(loader, 'basket_red', { x: 0, z: 0, maxSize: 0.6 }))
-      ?? makeNutBasket();
+    // Используем проверенную сценическую корзинку. Файл `basket_red.glb`
+    // загружается без ошибки, но визуально является плоским красным пропом и
+    // поэтому раньше выдавал ребёнку неправильный образ уровня.
+    this.basket = makeNutBasket();
     this.scene.add(this.basket);
 
     this.escortRing = new THREE.Mesh(
@@ -1124,11 +1131,14 @@ export class Level5Scene extends BaseLevelScene {
     const carrier = this.carrying ? this.hero : this.squirrel;
     if (!carrier) return;
     const yaw = carrier.rotation.y;
-    const back = this.carrying ? 0.34 : 0.22;
+    const front = this.carrying ? 0.18 : 0.14;
+    const side = this.carrying ? 0.58 : 0.5;
+    const sideX = Math.cos(yaw) * side;
+    const sideZ = -Math.sin(yaw) * side;
     b.position.set(
-      carrier.position.x - Math.sin(yaw) * back,
-      (this.carrying ? 0.74 : 0.55) + Math.sin(now * 0.012) * 0.02,
-      carrier.position.z - Math.cos(yaw) * back,
+      carrier.position.x + Math.sin(yaw) * front + sideX,
+      (this.carrying ? 0.72 : 0.62) + Math.sin(now * 0.012) * 0.02,
+      carrier.position.z + Math.cos(yaw) * front + sideZ,
     );
     b.rotation.y = yaw;
     // Это груз, а не украшение: корзина слегка раскачивается на ходу.
