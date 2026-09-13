@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   BaseLevelScene,
   type BaseHud,
+  type Collider,
   zoneDisc,
   spawnPad,
   questMarker,
@@ -125,6 +126,8 @@ interface Obstacle {
   awayX: number;
   awayZ: number;
   clearedAt: number;
+  /** Физический круг предмета, пока завал не расчищен. */
+  collider: Extract<Collider, { kind: 'circle' }>;
 }
 
 interface Blockage {
@@ -296,6 +299,8 @@ export class Level5Scene extends BaseLevelScene {
       if (item && !item.cleared) {
         item.cleared = true;
         item.clearedAt = now;
+        const colliderIndex = this.colliders.indexOf(item.collider);
+        if (colliderIndex >= 0) this.colliders.splice(colliderIndex, 1);
         this.stars += 1;
         this.spawnSparks(item.mesh.position, 10, [0xf1c40f, 0xffeaa7]);
         AudioManager.sfx('success');
@@ -470,11 +475,21 @@ export class Level5Scene extends BaseLevelScene {
             new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.95, flatShading: true }),
           );
           if (!stone) mesh.position.set(cx + offset, 0.45, z);
+          this.snapToGround(mesh);
           this.scene.add(mesh);
+          const stoneSize = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
+          const collider: Extract<Collider, { kind: 'circle' }> = {
+            kind: 'circle',
+            x: mesh.position.x,
+            z: mesh.position.z,
+            r: Math.max(stoneSize.x, stoneSize.z) * 0.42,
+          };
+          this.colliders.push(collider);
           items.push({
             mesh,
             cleared: false,
             clearedAt: 0,
+            collider,
             // Камень откатывается с тропы, а не исчезает: ребёнок должен
             // видеть, куда он делся, иначе расчистка читается как пропажа.
             awayX: cx + offset * 2.6 + (offset === 0 ? -3.4 : offset * 1.8),
@@ -484,11 +499,21 @@ export class Level5Scene extends BaseLevelScene {
       } else {
         for (const [i, offset] of [-1.0, 1.0].entries()) {
           const arch = makeRootArch(cx + offset, z, i === 0 ? 0.25 : -0.3);
+          this.snapToGround(arch);
           this.scene.add(arch);
+          const rootSize = new THREE.Box3().setFromObject(arch).getSize(new THREE.Vector3());
+          const collider: Extract<Collider, { kind: 'circle' }> = {
+            kind: 'circle',
+            x: arch.position.x,
+            z: arch.position.z,
+            r: Math.max(rootSize.x, rootSize.z) * 0.42,
+          };
+          this.colliders.push(collider);
           items.push({
             mesh: arch,
             cleared: false,
             clearedAt: 0,
+            collider,
             awayX: cx + offset * 3.2,
             awayZ: z + 1.6,
           });
