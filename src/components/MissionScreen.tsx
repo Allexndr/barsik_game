@@ -210,14 +210,10 @@ export function MissionScreen({
       if (knob) {
         const travel = radius * 0.55;
         knob.style.transform = `translate(${x * travel}px, ${y * travel}px)`;
-        // Бег включается отклонением стика больше 0.75 — и до сих пор об этом
-        // нигде не говорилось. На уровне с Путало на этом пороге держится вся
-        // механика: ребёнок жмёт стик до упора (естественный жест), Путало
-        // считает это бегом и убегает, а почему — не сказано ни разу.
-        // «Прошёл, но не понял как» — это отсюда.
-        //
-        // Порог тот же, что в Level7Scene: `|x| > 0.75 || |y| > 0.75`.
-        knob.classList.toggle('is-running', Math.abs(x) > 0.75 || Math.abs(y) > 0.75);
+        // В L7 полное отклонение стика остаётся обычным шагом: на сенсорном
+        // экране это естественный жест, а отдельной кнопки бега нет.
+        const touchSprint = levelId !== 7 && (Math.abs(x) > 0.75 || Math.abs(y) > 0.75);
+        knob.classList.toggle('is-running', touchSprint);
       }
     };
 
@@ -272,7 +268,7 @@ export function MissionScreen({
       zone.removeEventListener('pointerup', onEnd);
       zone.removeEventListener('pointercancel', onEnd);
     };
-  }, []);
+  }, [levelId]);
 
   // Синхронизируем отключение звука с хранилищем интерфейса.
   const muted = useUIStore((s) => s.muted);
