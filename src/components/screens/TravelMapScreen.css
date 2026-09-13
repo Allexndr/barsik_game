@@ -44,7 +44,7 @@
 
 .screen-travel.is-wide .travel-chrome.travel-legend {
   position: absolute;
-  bottom: 5.2rem;
+  bottom: 6.5rem;
   left: 50%;
   transform: translateX(-50%);
   z-index: 4;
@@ -66,7 +66,10 @@
 
 .screen-travel.is-wide .map-stage {
   position: absolute;
-  inset: 0;
+  /* Нижняя кнопка теперь занимает собственную полосу и не закрывает узлы
+     текущей главы. Раньше последние уровни оказывались под CTA и выглядели
+     как будто их нет. */
+  inset: 0 0 7.5rem;
   flex: none;
   min-height: 0;
 }
@@ -79,6 +82,22 @@
   box-shadow: none;
   /* Match forest edge so a 1px crop never flashes void */
   background: #6db36a;
+}
+
+/* У вертикальных обложек оставлены мягкие поля, чтобы на desktop были видны
+   все уровни, а не только центральная часть изображения. */
+.screen-travel.is-wide .map-container.map-container--chapter-1,
+.screen-travel.is-wide .map-container.map-container--chapter-2,
+.screen-travel.is-wide .map-container.map-container--chapter-3,
+.screen-travel.is-wide .map-container.map-container--chapter-4,
+.screen-travel.is-wide .map-container.map-container--chapter-5 {
+  background: #cfe8f7;
+}
+
+.screen-travel.is-wide .travel-chrome.travel-cta-dock {
+  min-height: 5.1rem;
+  align-items: center;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.92) 30%);
 }
 
 .travel-header {
@@ -356,5 +375,38 @@
 
   .travel-cta-dock {
     padding: 0.35rem 0 var(--spacing-sm);
+  }
+
+  .map-stage--phone {
+    min-height: 0;
+  }
+
+  .map-stage--phone .map-container {
+    height: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .screen-travel {
+    padding-inline: 0.6rem;
+  }
+
+  .travel-controls {
+    gap: 0.35rem;
+  }
+
+  .travel-icon-btn {
+    min-width: 42px;
+    min-height: 42px;
+    padding-inline: 0.7rem;
+  }
+
+  .travel-icon-btn-wide {
+    padding-inline: 0.95rem;
+  }
+
+  .travel-legend {
+    gap: 0.65rem;
+    font-size: 0.7rem;
   }
 }
