@@ -556,7 +556,9 @@ export class Level3Scene extends BaseLevelScene {
         // а `nearestInteract` меряет в 3D при радиусе 2.0 м — один только
         // перепад по высоте его почти исчерпывал. Ёжика находили, но не могли
         // погладить: уровню не хватало одного нажатия до собственного финала.
-        hedgehog.position.set(sd.x, this.groundHeightAt(sd.x, sd.z), sd.z);
+        const hedgehogBaseY = this.groundHeightAt(sd.x, sd.z);
+        hedgehog.position.set(sd.x, hedgehogBaseY, sd.z);
+        hedgehog.userData.baseY = hedgehogBaseY;
         hedgehog.visible = false;
         this.scene.add(hedgehog);
         this.hedgehogMesh = hedgehog;
@@ -576,7 +578,7 @@ export class Level3Scene extends BaseLevelScene {
       });
     }
 
-    // Маркер квеста над ёжиком, появляется, когда его нашли.
+    // Маркер квеста над ёжиком становится подсказкой на последнем секторе.
     this.hedgehogMarker = questMarker(0xa29bfe, 0x6c5ce7);
     this.hedgehogMarker.visible = false;
     if (this.hedgehogMesh) {
@@ -814,6 +816,16 @@ export class Level3Scene extends BaseLevelScene {
       b.rotation.y += dt * 1.5;
     }
 
+    // На последнем секторе ёжик виден заранее: ребёнку не приходится нажимать
+    // на пустое место, чтобы понять, кого именно он нашёл.
+    const finalSearch = !this.hedgehogFound
+      && this.phase === 'tracking'
+      && this.trailIndex === this.sectors.length - 1;
+    if (finalSearch && this.hedgehogMesh) {
+      this.hedgehogMesh.visible = true;
+      if (this.hedgehogMarker) this.hedgehogMarker.visible = true;
+    }
+
     // Ёжик в покое.
     if (this.hedgehogMesh && this.hedgehogMesh.visible) {
       if (this.revealStartedAt > 0) {
@@ -825,7 +837,9 @@ export class Level3Scene extends BaseLevelScene {
           this.revealStartedAt = 0;
         }
       }
-      this.hedgehogMesh.position.y = Math.sin(now * 0.005) * 0.05;
+      const baseY = (this.hedgehogMesh.userData.baseY as number | undefined)
+        ?? this.groundHeightAt(this.hedgehogMesh.position.x, this.hedgehogMesh.position.z);
+      this.hedgehogMesh.position.y = baseY + Math.sin(now * 0.005) * 0.05;
       this.hedgehogMesh.rotation.y = Math.sin(now * 0.001) * 0.2;
       const character = this.hedgehogMesh.userData.character as THREE.Object3D | undefined;
       if (character) updatePlushAnimal(character, false, now * 0.001);
