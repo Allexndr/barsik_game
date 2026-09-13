@@ -171,7 +171,11 @@ function makePhoto(x: number, y: number, z: number, rotY: number): THREE.Group {
   );
   const photo = new THREE.Mesh(
     new THREE.PlaneGeometry(0.35, 0.25),
-    new THREE.MeshStandardMaterial({ color: [0x81c784, 0xfff176, 0x81d4fa][Math.floor(Math.random() * 3)], roughness: 0.8 }),
+    new THREE.MeshStandardMaterial({
+      color: [0x81c784, 0xfff176, 0x81d4fa][Math.floor(Math.random() * 3)],
+      roughness: 0.8,
+      side: THREE.DoubleSide,
+    }),
   );
   photo.position.z = 0.02;
   g.add(frame, photo);
@@ -419,14 +423,20 @@ export class Level7Scene extends BaseLevelScene {
       this.scene.add(s);
     }
 
-    // Снимки на деревьях — его след в лесу: маршрут читается как чья-то
-    // территория, а не как пустая земля между двумя маркерами.
-    for (let i = 0; i < 12; i++) {
-      const x = (Math.random() - 0.5) * 28;
-      const z = 4 - Math.random() * 42;
-      const p = makePhoto(x, 1.5 + Math.random() * 1.5, z, Math.random() * Math.PI * 2);
-      this.photos.push(p);
-      this.scene.add(p);
+    // Декоративные карточки лежат у четырёх укрытий небольшими выставочными
+    // группами. Раньше случайные x/z и y 1.5–3 м оставляли их висеть в воздухе
+    // и превращали лес в набор серых прямоугольников без понятного назначения.
+    for (const [hideIndex, hide] of HIDES.entries()) {
+      for (let cardIndex = 0; cardIndex < 3; cardIndex++) {
+        const angle = hideIndex * 0.55 + cardIndex * (Math.PI * 2 / 3) + 0.25;
+        const x = hide.x + Math.cos(angle) * 2.8;
+        const z = hide.z + Math.sin(angle) * 2.8;
+        const y = this.groundHeightAt(x, z) + 0.2;
+        const p = makePhoto(x, y, z, angle + Math.PI / 2);
+        p.userData.isDecorativePhoto = true;
+        this.photos.push(p);
+        this.scene.add(p);
+      }
     }
 
     // HIDES[2] — то место, которое он называет вслух: «Здесь моё самое тихое
@@ -459,7 +469,8 @@ export class Level7Scene extends BaseLevelScene {
         const a = (i / 4) * Math.PI * 2 + 0.4;
         const px = HIDES[2].x + Math.cos(a) * 1.9;
         const pz = HIDES[2].z + Math.sin(a) * 1.9;
-        const p = makePhoto(px, this.groundHeightAt(px, pz) + 1.35, pz, a + Math.PI);
+        const p = makePhoto(px, this.groundHeightAt(px, pz) + 0.2, pz, a + Math.PI);
+        p.userData.isDecorativePhoto = true;
         this.photos.push(p);
         this.scene.add(p);
       }
