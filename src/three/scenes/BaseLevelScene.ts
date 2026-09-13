@@ -1652,6 +1652,10 @@ export abstract class BaseLevelScene {
     for (const drift of await kit.scatter('holiday', ['snow-pile', 'rocks-small', 'rocks-medium', 'snow-flat'], drifts)) {
       this.snapToGround(drift);
       this.scene.add(drift);
+      // Камни зимнего декора стоят в общей арене, поэтому герой может подойти к
+      // ним вплотную. Сугробы и плоский снег оставляем мягкими, а камни делаем
+      // такими же физическими, как летние валуны.
+      if (/rock|stone/i.test(drift.name)) this.blockProps([drift], 0.28);
     }
   }
 
