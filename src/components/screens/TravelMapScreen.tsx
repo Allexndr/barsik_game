@@ -151,6 +151,25 @@ function coverFit(imgW: number, imgH: number, boxW: number, boxH: number) {
   };
 }
 
+/** Вписывает вертикальную иллюстрацию целиком, не обрезая узлы маршрута. */
+function containFit(imgW: number, imgH: number, boxW: number, boxH: number) {
+  const scale = Math.min(boxW / imgW, boxH / imgH);
+  const renderW = imgW * scale;
+  const renderH = imgH * scale;
+  const offsetX = (boxW - renderW) / 2;
+  const offsetY = (boxH - renderH) / 2;
+  return {
+    renderW,
+    renderH,
+    offsetX,
+    offsetY,
+    toBox: (point: PathPoint): PathPoint => ({
+      x: offsetX + point.x * renderW,
+      y: offsetY + point.y * renderH,
+    }),
+  };
+}
+
 const CHAPTER_COVERS = CHAPTERS.map((ch) =>
   coverFit(BG_W, BG_H, BAND_WIDTH, ch.levels * V_STEP)
 );
@@ -238,7 +257,7 @@ function buildPortraitPins(currentLevel: number): {
   return { pins, bands, totalHeight: TOP_PAD + (globalIndex - 1) * V_STEP + BOTTOM_PAD };
 }
 
-/** Десктоп и планшет: текущая глава во весь кадр, пины на горизонтальном (или обрезанном вертикальном) маршруте. */
+/** Десктоп и планшет: текущая глава во весь кадр, все её пины остаются видимыми. */
 function buildWidePins(currentLevel: number): { pins: Pin[]; chapterIdx: number } {
   const chapterIdx = chapterOfLevel(currentLevel);
   const ch = CHAPTERS[chapterIdx];
@@ -256,12 +275,13 @@ function buildWidePins(currentLevel: number): { pins: Pin[]; chapterIdx: number 
       x = p.x * DESKTOP_W;
       y = p.y * DESKTOP_H;
     } else {
-      // Вертикальный рисунок вписан в горизонтальный кадр с обрезкой: выбираем
-      // вертикальный маршрут на центральную полосу.
+      // Вертикальные иллюстрации вписываются целиком: при обрезке верхние и
+      // нижние уровни исчезали за пределами desktop-кадра.
       const p = samplePathProgress(CHAPTER_PATHS[chapterIdx], s);
-      const cover = coverFit(BG_W, BG_H, DESKTOP_W, DESKTOP_H);
-      x = p.x * cover.renderW - cover.offsetX;
-      y = p.y * cover.renderH - cover.offsetY;
+      const contain = containFit(BG_W, BG_H, DESKTOP_W, DESKTOP_H);
+      const point = contain.toBox(p);
+      x = point.x;
+      y = point.y;
     }
     pins.push({
       id: globalId,
@@ -498,11 +518,7 @@ export function TravelMapScreen() {
           if (DESKTOP_PATHS[wideChapterIdx]) {
             return { x: p.x * DESKTOP_W, y: p.y * DESKTOP_H };
           }
-          const cover = coverFit(BG_W, BG_H, DESKTOP_W, DESKTOP_H);
-          return {
-            x: p.x * cover.renderW - cover.offsetX,
-            y: p.y * cover.renderH - cover.offsetY,
-          };
+          return containFit(BG_W, BG_H, DESKTOP_W, DESKTOP_H).toBox(p);
         };
         return [
           routePathD(norm, localPins.length, 0, splitIdx, toSvg),
@@ -520,8 +536,6 @@ export function TravelMapScreen() {
 
   const wideCh = CHAPTERS[wideChapterIdx];
   const wideBg = wideCh.bgDesktop ?? wideCh.bg;
-  const wideCover = coverFit(BG_W, BG_H, DESKTOP_W, DESKTOP_H);
-
   // Значок-лапка «ты здесь» висит в 44 пикселях над пином. Камера никогда не
   // уходит выше верхнего края рисунка (clampCenter), поэтому на первом уровне —
   // самом первом пине, ближайшем к этому краю — пузырь значка выходил за него и
@@ -591,7 +605,7 @@ export function TravelMapScreen() {
 
       <div className={`map-stage map-stage--${tier}`}>
         <div
-          className="map-container"
+          className={`map-container map-container--chapter-${wideChapterIdx}`}
           ref={containerRef}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -607,11 +621,11 @@ export function TravelMapScreen() {
                 ) : (
                   <image
                     href={wideCh.bg}
-                    x={-wideCover.offsetX}
-                    y={-wideCover.offsetY}
-                    width={wideCover.renderW}
-                    height={wideCover.renderH}
-                    preserveAspectRatio="none"
+                    x={0}
+                    y={0}
+                    width={DESKTOP_W}
+                    height={DESKTOP_H}
+                    preserveAspectRatio="xMidYMid meet"
                   />
                 )}
               </>
