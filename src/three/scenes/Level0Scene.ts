@@ -121,9 +121,9 @@ const LANTERNS: Array<{ x: number; z: number; rotZ: number }> = [
  * медлить, и контрольной точкой на ближнем берегу.
  *
  * `sink` помечает камень, который начинает уходить под воду, едва примет вес.
- * Это единственное давление на уровне, и оно мягкое: даётся примерно полторы
- * секунды, а сойдёшь — камень всплывает обратно. Ребёнок, который замер, теряет
- * только сам прыжок.
+ * Это единственное давление на уровне, и оно мягкое: даётся четыре секунды,
+ * а сойдёшь — камень всплывает обратно. Ребёнок, который замер, теряет только
+ * сам прыжок.
  */
 const CROSSING_FROM = -14;
 // Заканчивается заметно раньше юрты. На −44 дальний берег выходил в метре от
@@ -136,7 +136,8 @@ const RIVER_HALF_WIDTH = 26;
 const RIVER_BANK_CLEAR = 4;
 
 /** Радиус площадки. Намеренно широкий: пятилетний целится в камень, а не в точку. */
-const STONE_R = 1.55;
+const STONE_R = 1.75;
+const STONE_SINK_SECONDS = 4;
 
 /**
  * Камни зигзагом по расширенному руслу. Прыжки от центра к центру около 3.7 м,
@@ -646,7 +647,7 @@ export class Level0Scene extends BaseLevelScene {
     const inWater = bed < this.waterY + 0.06 || h.y < this.waterY + 0.1;
     if (!inWater || now <= this.wetUntil) return;
 
-    this.wetUntil = now + 1500;
+    this.wetUntil = now + 2200;
     this.noteMistake();
     AudioManager.sfx('stumble');
     this.spawnSparks(h.clone(), 18, [0x2aa8d8, 0xffffff]);
@@ -1102,7 +1103,7 @@ export class Level0Scene extends BaseLevelScene {
       // реки, проваливаясь сквозь каждый камень.
       // Радиус чуть шире площадки: ребёнок, целящийся в край, получает камень, а
       // не воду.
-      this.addPlatform(stone, STONE_R + 0.45, h / 2);
+      this.addPlatform(stone, STONE_R + 0.55, h / 2);
     }
     this.assertCrossingIsJumpable(waterY);
 
@@ -1808,7 +1809,9 @@ export class Level0Scene extends BaseLevelScene {
       for (const s of this.stones) {
         if (!s.userData.sink) continue;
         const loaded = s === standing && !this.airborne;
-        const target = loaded ? Math.min(1, (s.userData.sunk as number) + dt / 1.5) : 0;
+        const target = loaded
+          ? Math.min(1, (s.userData.sunk as number) + dt / STONE_SINK_SECONDS)
+          : 0;
         s.userData.sunk = loaded ? target : Math.max(0, (s.userData.sunk as number) - dt * 1.6);
         s.position.y = (s.userData.restY as number) - (s.userData.sunk as number) * 0.75;
       }
