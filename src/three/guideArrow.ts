@@ -5,12 +5,15 @@ import { HERO_HEIGHT } from './worldScale';
 export const GUIDE_ARROW_HEIGHT = HERO_HEIGHT * 3.15;
 
 const ARROW_COLOR = 0xffc857;
-const ARROW_HEAD = 0.55;
-const ARROW_HEAD_WIDTH = 0.38;
-const ARROW_SHAFT = 0.42;
+const ARROW_EDGE = 0x9a5c00;
+const ARROW_HEAD = 0.6;
+const ARROW_HEAD_WIDTH = 0.48;
+const ARROW_LENGTH = 0.95;
 
 /**
- * Путевая стрелка в мировых координатах: золотая галочка и мягкий шарик.
+ * Путевая стрелка в мировых координатах: контрастная золотая стрелка и мягкий
+ * шарик. Тёмная копия под стрелкой работает как обводка — тонкая линия без неё
+ * теряется на траве, снегу и светлых дорожках.
  * Подвешена к сцене, а не к мешу героя, поэтому всегда указывает на цель в мировом
  * пространстве.
  */
@@ -21,7 +24,24 @@ export function createGuideArrow(): THREE.Group {
 
   const dir = new THREE.Vector3(0, 0, 1);
   const origin = new THREE.Vector3(0, 0, 0);
-  const arrow = new THREE.ArrowHelper(dir, origin, ARROW_SHAFT, ARROW_COLOR, ARROW_HEAD, ARROW_HEAD_WIDTH);
+  const outline = new THREE.ArrowHelper(
+    dir,
+    origin,
+    ARROW_LENGTH + 0.1,
+    ARROW_EDGE,
+    ARROW_HEAD + 0.08,
+    ARROW_HEAD_WIDTH + 0.08,
+  );
+  outline.userData.isGuideArrow = true;
+  outline.line.material = new THREE.LineBasicMaterial({
+    color: ARROW_EDGE,
+    transparent: true,
+    opacity: 0.95,
+    depthTest: false,
+  });
+  (outline.cone.material as THREE.MeshBasicMaterial).depthTest = false;
+
+  const arrow = new THREE.ArrowHelper(dir, origin, ARROW_LENGTH, ARROW_COLOR, ARROW_HEAD, ARROW_HEAD_WIDTH);
   arrow.line.material = new THREE.LineBasicMaterial({
     color: ARROW_COLOR,
     transparent: true,
@@ -32,8 +52,20 @@ export function createGuideArrow(): THREE.Group {
   (arrow.cone.material as THREE.MeshBasicMaterial).depthTest = false;
   arrow.userData.isGuideArrow = true;
 
+  const orbGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.29, 16, 16),
+    new THREE.MeshBasicMaterial({
+      color: 0xffb300,
+      transparent: true,
+      opacity: 0.2,
+      depthTest: false,
+    }),
+  );
+  orbGlow.position.y = 0.45;
+  orbGlow.userData.isGuideArrow = true;
+
   const orb = new THREE.Mesh(
-    new THREE.SphereGeometry(0.14, 16, 16),
+    new THREE.SphereGeometry(0.2, 16, 16),
     new THREE.MeshBasicMaterial({
       color: 0xfff3bf,
       transparent: true,
@@ -41,15 +73,15 @@ export function createGuideArrow(): THREE.Group {
       depthTest: false,
     }),
   );
-  orb.position.y = 0.32;
+  orb.position.y = 0.45;
   orb.userData.isGuideArrow = true;
 
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.2, 0.3, 32),
+    new THREE.RingGeometry(0.34, 0.5, 32),
     new THREE.MeshBasicMaterial({
-      color: 0xf1c40f,
+      color: ARROW_EDGE,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.7,
       side: THREE.DoubleSide,
       depthTest: false,
     }),
@@ -58,7 +90,7 @@ export function createGuideArrow(): THREE.Group {
   ring.position.y = -0.05;
   ring.userData.isGuideArrow = true;
 
-  g.add(arrow, orb, ring);
+  g.add(outline, arrow, orbGlow, orb, ring);
   g.visible = false;
   return g;
 }
@@ -70,9 +102,11 @@ export function aimGuideArrow(
   target: THREE.Vector3,
   now: number,
 ) {
-  const bob = Math.sin(now * 0.005) * 0.1;
+  const pulse = 1 + Math.sin(now * 0.007) * 0.06;
+  const bob = Math.sin(now * 0.005) * 0.14;
   const y = hero.position.y + GUIDE_ARROW_HEIGHT + bob;
   group.position.set(hero.position.x, y, hero.position.z);
+  group.scale.setScalar(pulse);
 
   const dir = target.clone().sub(hero.position);
   dir.y = 0;
@@ -85,5 +119,7 @@ export function aimGuideArrow(
   if (arrow) arrow.setDirection(new THREE.Vector3(0, 0, 1));
 
   const orb = group.children.find((c) => c instanceof THREE.Mesh && c.geometry.type === 'SphereGeometry') as THREE.Mesh | undefined;
-  if (orb) orb.position.y = 0.32 + Math.sin(now * 0.008) * 0.04;
+  if (orb) orb.position.y = 0.45 + Math.sin(now * 0.008) * 0.05;
+  const glow = group.children.find((c) => c instanceof THREE.Mesh && c.geometry.type === 'SphereGeometry' && c !== orb) as THREE.Mesh | undefined;
+  if (glow) glow.position.y = 0.45 + Math.sin(now * 0.008) * 0.05;
 }
