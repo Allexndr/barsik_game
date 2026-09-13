@@ -34,6 +34,10 @@ const HIDES: Array<{ x: number; z: number }> = [
 const NOTICE = 10;
 /** Доверие растёт только на такой дистанции: он должен видеть, что ты спокоен. */
 const CLOSE = 5.2;
+/** Путало идёт заметно, но не уезжает рывком между укрытиями. */
+const PUTALO_WALK_SPEED = 2.6;
+/** Путало — ровесник Барсика по росту, а не двухметровый взрослый персонаж. */
+const PUTALO_HEIGHT = 1.1;
 
 /**
  * Цикл наблюдения — «море волнуется раз», только с фотоаппаратом.
@@ -128,6 +132,7 @@ export function makePutalo(x: number, z: number): THREE.Group {
   cam.position.set(0.3, 0.9, 0.2);
 
   g.add(body, head, eyeL, eyeR, hat, cam);
+  g.scale.setScalar(0.6);
   g.position.set(x, 0, z);
   g.userData.eyes = [eyeL, eyeR];
   g.userData.body = body;
@@ -204,12 +209,34 @@ export class Level7Scene extends BaseLevelScene {
   private heroSpeed = 0;
   private lastHeroPos = new THREE.Vector3();
   private caughtUntil = 0;
+  private putaloWalking = false;
   /** Три унесённых снимка и сколько из них уже вернулось к нему в лапы. */
   private lostPhotos: THREE.Group[] = [];
   private photosFound = 0;
   private readonly photosTotal = LOST_PHOTOS.length;
 
   protected currentPhase() { return this.phase; }
+
+  private isRunningInput() {
+    // На телефоне полное отклонение стика — естественное движение, а не просьба
+    // включить бег. Бег остаётся отдельным осознанным действием с Shift на
+    // клавиатуре, иначе ребёнка на сенсорном экране наказывало само управление.
+    return this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
+  }
+
+  private setPutaloWalking(moving: boolean) {
+    if (moving === this.putaloWalking) return;
+    this.putaloWalking = moving;
+    const walk = this.putalo?.userData.walkAction as THREE.AnimationAction | undefined;
+    const idle = this.putalo?.userData.idleAction as THREE.AnimationAction | undefined;
+    if (moving && walk) {
+      idle?.fadeOut(0.12);
+      walk.reset().fadeIn(0.12).play();
+    } else {
+      walk?.fadeOut(0.15);
+      idle?.reset().fadeIn(0.15).play();
+    }
+  }
 
   protected onMovementHintDismiss() {
     this.pushHud();
@@ -375,7 +402,7 @@ export class Level7Scene extends BaseLevelScene {
     }
 
     // Путало за первым камнем: GLB из Meshy, если он есть, иначе процедурный.
-    const putaloGlb = await loadCharModel(loader, 'putalo.glb', 1.35);
+    const putaloGlb = await loadCharModel(loader, 'putalo.glb', PUTALO_HEIGHT);
     this.putalo = putaloGlb ?? makePutalo(HIDES[0].x, HIDES[0].z);
     this.putalo.position.set(HIDES[0].x, this.groundHeightAt(HIDES[0].x, HIDES[0].z), HIDES[0].z);
     this.putaloTargetX = HIDES[0].x;
@@ -510,6 +537,10 @@ export class Level7Scene extends BaseLevelScene {
       this.setupGuideArrow();
       this.setupQuality();
       this.bindKeys();
+      // У уровня свой обработчик клавиш, поэтому общая привязка камеры сюда не
+      // попадает автоматически.
+      this.bindCameraOrbitDrag();
+      this.bindOrientationChange();
       this.resize();
       addEventListener('resize', this.resize);
 
@@ -662,20 +693,12 @@ export class Level7Scene extends BaseLevelScene {
     }
 
     // Определяем скорость ходьбы.
-    const isRunningHud = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
-      || (Math.abs(this.joy.x) > 0.75 || Math.abs(this.joy.y) > 0.75);
+    const isRunningHud = this.isRunningInput();
     const walkSpeed: 'slow' | 'fast' = isRunningHud ? 'fast' : 'slow';
 
-    // Предупредить до наказания, а не после.
-    //
-    // Весь уровень держится на пороге «стик отклонён больше чем на 0.75 —
-    // это бег», и раньше игра сообщала об этом единственным способом: Путало
-    // убегал. Ребёнок, который держит стик до упора — а это естественный жест,
-    // — терял доверие снова и снова, не понимая причины. Один тестировщик
-    // сказал прямо: «Павик как-то прошёл, но я не понял как он прошёл».
-    //
-    // Подсказка появляется, пока ещё не поздно: игрок бежит, Путало уже
-    // близко, но за границей NOTICE, где бег его пугает.
+    // Предупредить до наказания, а не после. На клавиатуре бег включается
+    // только осознанным Shift; сенсорный стик всегда даёт обычный шаг, поэтому
+    // естественное движение большим пальцем больше не пугает Путало.
     const approaching = p === 'approach' || p === 'slow' || p === 'hiding';
     const hudDist = this.putalo ? this.hero.position.distanceTo(this.putalo.position) : 99;
     if (approaching && isRunningHud && hudDist < NOTICE * 1.6 && hudDist >= NOTICE) {
@@ -770,8 +793,7 @@ export class Level7Scene extends BaseLevelScene {
   private updateStealth(dt: number, now: number) {
     // Проверяем, бежит ли герой.
     const distToPutalo = this.putalo ? this.hero.position.distanceTo(this.putalo.position) : 99;
-    const isRunningStealth = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
-      || (Math.abs(this.joy.x) > 0.75 || Math.abs(this.joy.y) > 0.75);
+    const isRunningStealth = this.isRunningInput();
 
     // Скрытность — это доверие, а не растяжка.
     //
@@ -936,20 +958,29 @@ export class Level7Scene extends BaseLevelScene {
     }
 
     const canMove = !['intro', 'outro'].includes(this.phase) && !(this.phase === 'dialogue' && this.dialogueStep === 2);
-    const inStealth = this.phase === 'approach' || this.phase === 'slow' || this.phase === 'hiding';
-    const isRunning = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
-      || (Math.abs(this.joy.x) > 0.75 || Math.abs(this.joy.y) > 0.75);
-    const moveSpeed = inStealth && !isRunning ? this.baseSpeed * 0.55 : (isRunning ? this.runSpeed : this.baseSpeed);
+    const isRunning = this.isRunningInput();
+    const moveSpeed = isRunning ? this.runSpeed : this.baseSpeed;
     this.updateMovement(dt, canMove, moveSpeed, -24, 24, -46, SPAWN_Z + 3);
 
-    // Движение Путало — плавная интерполяция к цели.
+    // Движение Путало — обычный шаг с ограниченной скоростью. Интерполяция по
+    // доле расстояния давала огромную первую скорость: при смене укрытия он
+    // почти исчезал из старого места и появлялся у нового вместо прогулки.
     if (this.putalo) {
-      // Между укрытиями быстрее, чтобы он не полз через лес со скоростью
-      // прячущегося.
-      const rate = this.phase === 'approach' && this.putaloState === 'peeking' ? 1.1 : 2.4;
-      this.putalo.position.x += (this.putaloTargetX - this.putalo.position.x) * dt * rate;
-      this.putalo.position.z += (this.putaloTargetZ - this.putalo.position.z) * dt * rate;
-      this.putalo.position.y = this.groundHeightAt(this.putalo.position.x, this.putalo.position.z);
+      const dx = this.putaloTargetX - this.putalo.position.x;
+      const dz = this.putaloTargetZ - this.putalo.position.z;
+      const distance = Math.hypot(dx, dz);
+      const moving = distance > 0.02;
+      if (moving) {
+        const step = Math.min(distance, PUTALO_WALK_SPEED * dt);
+        this.putalo.position.x += (dx / distance) * step;
+        this.putalo.position.z += (dz / distance) * step;
+        if (this.putaloState !== 'out' && this.putaloState !== 'talking') {
+          this.putalo.rotation.y = Math.atan2(dx, dz);
+        }
+      }
+      this.setPutaloWalking(moving);
+      this.putalo.position.y = this.groundHeightAt(this.putalo.position.x, this.putalo.position.z)
+        + Math.sin(now * 0.002) * 0.03;
 
       // Когда Путало вышел, он повёрнут к герою.
       if (this.putaloState === 'out' || this.putaloState === 'talking') {
@@ -959,9 +990,6 @@ export class Level7Scene extends BaseLevelScene {
       } else {
         this.putalo.rotation.y = 0;
       }
-
-      // Покачивание Путало.
-      this.putalo.position.y = Math.sin(now * 0.002) * 0.03;
 
       // Глаза. visibility based on state (procedural Putalo only)
       const eyes = this.putalo.userData.eyes as THREE.Mesh[] | undefined;
