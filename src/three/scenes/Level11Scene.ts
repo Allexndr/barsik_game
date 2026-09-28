@@ -7,6 +7,7 @@ import { createGameGltfLoader } from '../createGameGltfLoader';
 import { placeAmbientCritters } from '../s1Place';
 import { AudioManager } from '@/audio/AudioManager';
 import { NPC_PEER_HEIGHT } from '../worldScale';
+import { createSnowflakeMesh } from '../snowflakeMesh';
 
 /**
  * Уровень 11 «Первые снежинки» — уровень 11 по GDD.
@@ -32,7 +33,7 @@ export interface L11Hud extends BaseHud {
 }
 
 interface Snowflake {
-  mesh: THREE.Mesh;
+  mesh: THREE.Object3D;
   vy: number;
   grounded: boolean;
   groundedAt: number;
@@ -240,47 +241,8 @@ export class Level11Scene extends BaseLevelScene {
     const x = THREE.MathUtils.clamp(cx + (Math.random() - 0.5) * spread, -20, 20);
     const z = THREE.MathUtils.clamp(cz + (Math.random() - 0.5) * spread, -26, 6);
 
-    const mesh = new THREE.Mesh(
-      // Снежинку надо успеть поймать в воздухе — значит, её надо сначала
-      // увидеть. Радиус 0.2 на фоне снега это точка.
-      new THREE.OctahedronGeometry(gold ? 0.44 : 0.42),
-      new THREE.MeshStandardMaterial({
-        // Обычная снежинка получает холодно-голубой цвет и свечение: белый
-        // объект на белой долине терялся даже при увеличенном размере.
-        color: gold ? 0xffe27a : 0x8edcff,
-        emissive: gold ? 0xf1c40f : 0x1976b8,
-        emissiveIntensity: gold ? 0.9 : 0.75,
-        transparent: true,
-        opacity: 0.95,
-      }),
-    );
-    const halo = new THREE.Mesh(
-      new THREE.OctahedronGeometry(gold ? 0.7 : 0.64),
-      new THREE.MeshBasicMaterial({
-        color: gold ? 0xffd54f : 0x29b6f6,
-        transparent: true,
-        opacity: gold ? 0.2 : 0.32,
-        wireframe: true,
-        depthWrite: false,
-      }),
-    );
-    mesh.add(halo);
-    const landingRing = new THREE.Mesh(
-      new THREE.RingGeometry(gold ? 0.58 : 0.7, gold ? 0.78 : 0.95, 18),
-      new THREE.MeshBasicMaterial({
-        color: gold ? 0xffd54f : 0x29b6f6,
-        transparent: true,
-        opacity: 0.75,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      }),
-    );
-    landingRing.rotation.x = -Math.PI / 2;
-    landingRing.visible = false;
-    mesh.add(landingRing);
-    mesh.userData.landingRing = landingRing;
+    const mesh = createSnowflakeMesh({ gold, radius: gold ? 0.48 : 0.44 });
     mesh.position.set(x, this.groundHeightAt(x, z) + 8.5 + Math.random() * 1.5, z);
-    mesh.castShadow = true;
     this.scene.add(mesh);
     this.snowflakes.push({
       mesh,
@@ -444,8 +406,9 @@ export class Level11Scene extends BaseLevelScene {
 
       if (!sf.grounded) {
         sf.mesh.position.y -= sf.vy * dt;
-        sf.mesh.rotation.x += dt * 1.8;
-        sf.mesh.rotation.y += dt * 1.2;
+        sf.mesh.rotation.y += dt * 1.6;
+        sf.mesh.rotation.z = Math.sin(now * 0.002 + sf.mesh.position.x) * 0.22;
+        sf.mesh.rotation.x = Math.cos(now * 0.002 + sf.mesh.position.z) * 0.18;
         sf.mesh.position.x += Math.sin(now * 0.001 + sf.mesh.position.z) * dt * 0.35;
 
         // Ловля в воздухе: голова героя должна до неё дотянуться. В этом весь смысл
@@ -463,11 +426,12 @@ export class Level11Scene extends BaseLevelScene {
         if (sf.mesh.position.y <= ground) {
           sf.grounded = true;
           sf.groundedAt = now;
-          sf.mesh.position.y = ground;
+          sf.mesh.position.y = ground + 0.32;
+          sf.mesh.rotation.x = 0;
+          sf.mesh.rotation.z = 0;
           const landingRing = sf.mesh.userData.landingRing as THREE.Mesh | undefined;
           if (landingRing) {
             landingRing.visible = true;
-            landingRing.position.y = 0.03;
           }
           // Упавшая золотая снежинка потрачена — в этом всё давление по времени.
           if (sf.gold) {
@@ -481,10 +445,12 @@ export class Level11Scene extends BaseLevelScene {
       }
 
       if (!this.isCatching) continue;
+      sf.mesh.position.y = ground + 0.32 + Math.sin(now * 0.003 + sf.mesh.position.x * 2) * 0.05;
+      sf.mesh.rotation.y += dt * 1.2;
       const landingRing = sf.mesh.userData.landingRing as THREE.Mesh | undefined;
       if (landingRing) {
         landingRing.visible = true;
-        landingRing.position.y = ground - sf.mesh.position.y + 0.03;
+        landingRing.position.y = (ground - sf.mesh.position.y) + 0.04;
       }
       if (this.hero.position.distanceTo(sf.mesh.position) < 1.6) {
         this.catchFlake(sf, false);
@@ -502,8 +468,7 @@ export class Level11Scene extends BaseLevelScene {
       this.baseSpeed * 0.95, -24, 24, -30, 8);
 
     if (this.aya) {
-      this.aya.position.y = this.groundHeightAt(this.aya.position.x, this.aya.position.z)
-        + Math.abs(Math.sin(now * 0.004)) * 0.06;
+      this.aya.position.y = this.groundHeightAt(this.aya.position.x, this.aya.position.z);
     }
     if (this.beatMsg && now > this.beatUntil) {
       this.beatMsg = null;
@@ -535,19 +500,17 @@ export class Level11Scene extends BaseLevelScene {
       this.camera.lookAt(introLook[idx]);
     } else {
       const f = this.cameraFraming();
-      // В золотом акте камера отходит и поднимается: чтобы вообще прицелиться
-      // прыжком, надо видеть снежинки над собой.
-      const lift = this.phase === 'golden' ? 1.1 : 0;
+      const lift = this.phase === 'golden' ? 0.35 : 0;
       const target = new THREE.Vector3(
         this.cameraLateral(this.hero.position.x) + f.lateral,
-        this.hero.position.y + (6 + lift) * f.heightMul,
-        this.hero.position.z + 10 + f.backAdd,
+        this.hero.position.y + (4.6 + lift) * f.heightMul,
+        this.hero.position.z + 7.6 + f.backAdd,
       );
       this.camera.position.lerp(target, 1 - Math.pow(0.0015, dt));
       this.camera.lookAt(
         this.cameraLateral(this.hero.position.x),
-        this.hero.position.y + 1.2 + lift + f.lookUp,
-        this.hero.position.z - 3 - f.lookAhead,
+        this.hero.position.y + 1.2 + lift * 0.4 + f.lookUp,
+        this.hero.position.z - 2.5 - f.lookAhead,
       );
     }
 

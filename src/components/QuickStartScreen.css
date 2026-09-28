@@ -67,6 +67,13 @@
   font-size: 1.05rem;
 }
 
+.quick-pin-hint {
+  margin: -8px 0 2px;
+  color: #718096;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
 .quick-input:focus {
   outline: none;
   border-color: var(--primary);

@@ -10,7 +10,6 @@ node_modules/
 dist/
 .env
 .env.local
-package-lock.json
 tmp/
 output/
 .codebase-memory/

@@ -637,7 +637,7 @@ export function createBarsikAvatar(
 
       // Цикличный слой. Ходьба и бег ведут конечности от фазы шага, а позы
       // покоя получают лёгкое дыхание, чтобы персонаж не был статуей.
-      const cadence = pose === 'run' ? 13 : pose === 'walk' ? 9 : 2.2;
+      const cadence = pose === 'run' ? 15 : pose === 'walk' ? 11 : 2.2;
       const phase = t * cadence * (CYCLIC.has(pose) ? speed : 1);
       const gait = pose === 'walk' || pose === 'run' ? Math.sin(phase) : 0;
       const amp = pose === 'run' ? 0.8 : 0.5;

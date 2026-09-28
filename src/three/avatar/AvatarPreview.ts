@@ -4,7 +4,6 @@ import { dressAvatar, undressAvatar } from './dressAvatar';
 import { getRenderQualityProfile, resolveRenderQualityTier } from '../renderQuality';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { CHARS, loadCharModel } from '../scenes/BaseLevelScene';
-import { groundY } from '../modelUtils';
 
 /**
  * Отрисовщик примерочной.
@@ -34,17 +33,19 @@ export interface AvatarPreview {
   dispose(): void;
 }
 
-const MESHY_SHOP_CANDIDATES = [
-  'barsik_meshy_static.glb',
-  'barsik_quality.glb',
+const SHOP_HERO_CANDIDATES = [
   'barsik_cool_rigged.glb',
   'barsik_rigged.glb',
+  'barsik.glb',
+  'barsik_quality.glb',
+  'barsik_meshy_static.glb',
 ];
 
 function wantsMeshyShopHero(): boolean {
-  if (typeof location === 'undefined') return false;
+  if (typeof location === 'undefined') return true;
   const v = new URLSearchParams(location.search).get('shopHero');
-  return v === 'meshy' || v === 'glb' || v === '1';
+  if (v === 'avatar' || v === 'capsule' || v === 'procedural') return false;
+  return true;
 }
 
 export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
@@ -67,10 +68,8 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
     : THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
-  // Кадр намеренно тесный. Панель широкая и низкая, и при более широком угле
-  // персонаж сидел маленьким посередине: примерочная, в которой не видно одежды,
-  // своей работы не делает.
-  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 40);
+  // Камера для примерочной
+  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 40);
   camera.position.set(0, 0.95, 3.15);
   camera.lookAt(0, 0.8, 0);
 
@@ -124,43 +123,51 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
     worn = [];
   }
 
+  function updateCameraFraming() {
+    const targetObj = meshyRoot ?? (turntable.children.length > 0 ? turntable : null);
+    if (!targetObj) return;
+    const box = new THREE.Box3().setFromObject(targetObj);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    // Полная высота модели с ушами/головным убором около 1.15м
+    const totalHeight = Math.max(size.y, 1.15);
+    const totalWidth = Math.max(size.x, size.z, 0.65);
+
+    const fovRad = (camera.fov * Math.PI) / 180;
+    const halfTan = Math.tan(fovRad / 2);
+    const aspect = camera.aspect > 0.1 ? camera.aspect : 1;
+
+    // Комфортное заполнение кадра примерочной без обрезки ушей и шапки на любых экранах
+    const distY = ((totalHeight / 2) / halfTan) * 2.5;
+    const distX = ((totalWidth / 2) / (halfTan * aspect)) * 2.1;
+    const dist = Math.max(5.0, distY, distX);
+
+    // Геометрический центр персонажа (от подошвы до верхушки шапки)
+    const centerY = totalHeight * 0.48;
+    camera.position.set(0, centerY, dist);
+    camera.lookAt(0, centerY, 0);
+    camera.updateProjectionMatrix();
+  }
+
   if (useMeshyGlb) {
     const loader = createGameGltfLoader();
     void (async () => {
-      for (const file of MESHY_SHOP_CANDIDATES) {
+      for (const file of SHOP_HERO_CANDIDATES) {
         if (disposed) return;
-        // Сначала статичные экспорты Meshy: preferStatic избавляет от запроса
-        // отсутствующего файла *_rigged.
         const preferStatic = /meshy_static|quality/i.test(file);
         const model = await loadCharModel(loader, file, 1.05, { preferStatic });
         if (!model) continue;
         if (disposed) return;
-        groundY(model, 0);
         turntable.add(model);
         meshyRoot = model;
         avatar.root.visible = false;
         const hostMixer = model.userData.animMixer as THREE.AnimationMixer | undefined;
         if (hostMixer) mixers.push(hostMixer);
-        const box = new THREE.Box3().setFromObject(model);
-        const size = new THREE.Vector3();
-        const center = new THREE.Vector3();
-        box.getSize(size);
-        box.getCenter(center);
-        const tall = Math.max(size.y, 0.8);
-        // Панель магазина низкая: отходим и берём чуть более широкий угол, чтобы
-        // поместились и голова, и лапы.
-        camera.fov = 36;
-        camera.position.set(0, Math.max(0.85, center.y), Math.max(4.0, tall * 3.35));
-        camera.lookAt(0, Math.max(0.45, center.y * 0.65), 0);
-        camera.updateProjectionMatrix();
-        console.info(`[shop] Meshy hero GLB mounted: ${CHARS}${file}`);
+        updateCameraFraming();
+        console.info(`[shop] Hero GLB mounted: ${CHARS}${file}`);
         return;
       }
-      console.warn('[shop] Meshy GLB candidates failed; falling back to procedural avatar');
-      if (!disposed) {
-        turntable.add(avatar.root);
-        avatar.root.visible = true;
-      }
+      console.error('[shop] Canonical hero GLB could not be loaded');
     })();
   }
 
@@ -188,6 +195,7 @@ export function createAvatarPreview(canvas: HTMLCanvasElement): AvatarPreview {
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      updateCameraFraming();
     },
 
     start() {

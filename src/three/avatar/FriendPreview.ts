@@ -112,40 +112,68 @@ export function createFriendPreview(canvas: HTMLCanvasElement): FriendPreview {
     }
   }
 
+  function updateCameraFraming() {
+    if (!current) return;
+    const box = new THREE.Box3().setFromObject(current);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+
+    // Персонаж стоит на земле (y >= 0); если у меша был утопленный постамент,
+    // не включаем подземную часть в расчёт центра взгляда.
+    const minY = Math.max(box.min.y, 0);
+    const maxY = Math.max(box.max.y, minY + 0.6);
+    const targetY = (minY + maxY) / 2;
+    const modelHeight = maxY - minY;
+    const modelWidth = Math.max(size.x, size.z, 0.5);
+
+    // Рассчитываем дистанцию камеры так, чтобы модель занимала комфортные ~45-50% высоты
+    // кадра и полностью помещалась со всеми ушами, шляпами, реквизитом и анимацией.
+    const fovRad = (camera.fov * Math.PI) / 180;
+    const halfTan = Math.tan(fovRad / 2);
+    const aspect = camera.aspect > 0.1 ? camera.aspect : 1;
+
+    const distY = ((modelHeight / 2) / halfTan) * 2.0;
+    const distX = ((modelWidth / 2) / (halfTan * aspect)) * 1.9;
+    const dist = Math.max(3.3, distY, distX);
+
+    // Камера центрирована по высоте персонажа со свободным пространством сверху и снизу
+    camera.position.set(0, targetY + 0.1, dist);
+    camera.lookAt(0, targetY, 0);
+  }
+
   async function mount(id: string) {
     const token = ++loadToken;
     clearModel();
     const spec = friendModelSpec(id);
     let model: THREE.Object3D | null = null;
     if (spec?.kind === 'char') {
-      model = await loadCharModel(loader, spec.file, 1.15);
+      model = await loadCharModel(loader, spec.file, 0.78);
     } else if (spec?.kind === 'prop') {
       const gltf = await loadGlb(loader, spec.url);
       if (gltf) {
-        fitHeight(gltf.scene, 1.1);
+        fitHeight(gltf.scene, 0.75);
         groundY(gltf.scene, 0);
         model = gltf.scene;
       }
     }
     if (disposed || token !== loadToken) return;
-    if (!model) model = makeStandIn();
+    if (!model) {
+      model = makeStandIn();
+      fitHeight(model, 0.78);
+      groundY(model, 0);
+    }
 
     // Предпочитаем Idle, если у обёртки уже есть микшер от loadCharModel.
     const hostMixer = model.userData.animMixer as THREE.AnimationMixer | undefined;
     if (hostMixer) mixers.push(hostMixer);
 
-    groundY(model, 0);
+    if (spec?.kind !== 'char') {
+      groundY(model, 0);
+    }
+
     turntable.add(model);
     current = model;
-    // После масштабирования строим кадр по фигуре.
-    const box = new THREE.Box3().setFromObject(model);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-    const tall = Math.max(size.y, 0.8);
-    camera.position.set(0, center.y + tall * 0.08, Math.max(2.6, tall * 2.35));
-    camera.lookAt(0, center.y * 0.9, 0);
+    updateCameraFraming();
   }
 
   const preview: FriendPreview = {
@@ -161,6 +189,7 @@ export function createFriendPreview(canvas: HTMLCanvasElement): FriendPreview {
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      updateCameraFraming();
     },
 
     start() {

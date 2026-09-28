@@ -1,18 +1,4 @@
-/**
- * Подключение к Supabase.
- *
- * Анонимный ключ и должен быть публичным: его поставляет любое браузерное
- * приложение на Supabase, а таблицу защищает построчная безопасность, а не
- * сокрытие этой строки. При этом он был вшит в код, и его смена требовала правки
- * исходников и повторной выкладки вместо изменения окружения; литералы ниже — лишь
- * запасной вариант, чтобы копия без файла окружения всё-таки запускалась.
- */
-const SUPABASE_URL =
-  import.meta.env.VITE_SUPABASE_URL ?? 'https://vsuqaatpzyatzhmmdmug.supabase.co';
-const SUPABASE_ANON =
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-  ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdXFhYXRwenlhdHpobW1kbXVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwODYwNDUsImV4cCI6MjA5OTY2MjA0NX0.fA7_lyCIPUppg_DmgMuwKHaFR93jMLXD7T7tEfWsceo';
-
+import { SUPABASE_URL, getSupabaseHeaders as headers } from '@/net/supabaseConfig';
 import { POINTS_PER_FRIEND, POINTS_PER_LEVEL, POINTS_PER_STAR, maxSeasonScore } from './score';
 import { checkText } from './moderation';
 
@@ -22,13 +8,6 @@ export interface LeaderboardRow {
   total_stars: number;
   levels: number;
   friends: number;
-}
-
-function headers(): HeadersInit {
-  return {
-    apikey: SUPABASE_ANON,
-    Authorization: `Bearer ${SUPABASE_ANON}`,
-  };
 }
 
 /**

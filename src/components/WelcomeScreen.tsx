@@ -1,10 +1,12 @@
 import { useUIStore } from '@/store/useUIStore';
 import { useGameStore } from '@/store/useGameStore';
 import type { Lang } from '@/i18n';
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { SettingsModal } from '@/components/SettingsModal';
 import { hasFinishedIntro } from '@/three/inventory';
 import { ResponsivePicture } from '@/components/ui/ResponsivePicture';
+import { loginAccount, toPlayer } from '@/net/account';
+import { migrateProgress } from '@/utils/progressMigration';
 import './WelcomeScreen.css';
 
 const CompassIcon = () => (
@@ -43,6 +45,11 @@ export function WelcomeScreen() {
   const patchPlayer = useGameStore((s) => s.patchPlayer);
   const player = useGameStore((s) => s.player);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginNick, setLoginNick] = useState('');
+  const [loginPin, setLoginPin] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginBusy, setLoginBusy] = useState(false);
 
   const pickLang = (next: Lang) => {
     if (next === lang) return;
@@ -57,6 +64,40 @@ export function WelcomeScreen() {
       return;
     }
     setScreen(hasFinishedIntro() ? 'game' : 'mission0');
+  };
+
+  const login = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!loginNick.trim() || !/^\d{4,8}$/.test(loginPin)) {
+      setLoginError(lang === 'kk' ? 'Есім мен 4–8 сандық кодты енгіз' : 'Введи имя и код из 4–8 цифр');
+      return;
+    }
+    setLoginBusy(true);
+    setLoginError('');
+    try {
+      const account = await loginAccount(loginNick, loginPin);
+      const nextPlayer = toPlayer(account.user);
+      useGameStore.getState().resetProgress();
+      useGameStore.setState({
+        player: nextPlayer,
+        ...(account.progress ? migrateProgress(account.progress) : {}),
+      });
+      applyLoginLang(nextPlayer.lang);
+      setLoginOpen(false);
+      setScreen(hasFinishedIntro() ? 'game' : 'mission0');
+    } catch (cause) {
+      const code = cause instanceof Error ? cause.message : '';
+      setLoginError(code === 'invalid_credentials'
+        ? (lang === 'kk' ? 'Есім немесе код қате' : 'Неверное имя или код')
+        : (lang === 'kk' ? 'Серверге қосылу мүмкін болмады' : 'Не удалось войти в аккаунт'));
+    } finally {
+      setLoginBusy(false);
+    }
+  };
+
+  const applyLoginLang = (next: Lang) => {
+    setLang(next);
+    useGameStore.getState().patchPlayer({ lang: next });
   };
 
   const copy = lang === 'kk'
@@ -200,7 +241,33 @@ export function WelcomeScreen() {
                     {copy.continue} · {player.nick}
                   </button>
                 )}
+                <button type="button" className="welcome-secondary" onClick={() => setLoginOpen(true)}>
+                  {lang === 'kk' ? 'Аккаунтқа кіру' : 'Войти в аккаунт'}
+                </button>
               </div>
+              {loginOpen && (
+                <form className="welcome-login" onSubmit={login}>
+                  <strong>{lang === 'kk' ? 'Прогресті ашу' : 'Открыть свой прогресс'}</strong>
+                  <input
+                    value={loginNick}
+                    maxLength={16}
+                    placeholder={lang === 'kk' ? 'Есім' : 'Имя'}
+                    autoComplete="username"
+                    onChange={(event) => setLoginNick(event.target.value)}
+                  />
+                  <input
+                    value={loginPin}
+                    maxLength={8}
+                    inputMode="numeric"
+                    type="password"
+                    placeholder={lang === 'kk' ? '4–8 сандық код' : 'Код из 4–8 цифр'}
+                    autoComplete="current-password"
+                    onChange={(event) => setLoginPin(event.target.value.replace(/\D/g, ''))}
+                  />
+                  {loginError && <span role="alert">{loginError}</span>}
+                  <button type="submit" disabled={loginBusy}>{loginBusy ? '…' : (lang === 'kk' ? 'Кіру' : 'Войти')}</button>
+                </form>
+              )}
               <p className="welcome-hero-note"><span aria-hidden>✓</span>{copy.free}</p>
             </div>
           </div>

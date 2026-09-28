@@ -7,7 +7,7 @@ import { IconCheck, IconLock, IconMinus, IconPaw, IconPlus } from '@/components/
 import { useViewportTier } from '@/hooks/useViewportTier';
 import {
   CHAPTER_PATHS,
-  CHAPTER1_DESKTOP_PATH,
+  DESKTOP_PATHS,
   samplePathProgress,
   samplePathX,
   routePathD,
@@ -88,15 +88,6 @@ const DESKTOP_H = 1066;
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 2.75;
 
-/**
- * Держит камеру внутри рисунка: пустой SVG за пределами изображения показывать
- * нельзя.
- *
- * Берёт собственные границы содержимого (`mapX0…mapX1`, `mapY0…mapY1`), а не
- * предполагает, что оно начинается в начале координат: вертикальная полоса
- * начинается с `BAND_LEFT`, а не с нуля, и её верх — это отсечение первой главы,
- * а не ноль.
- */
 function clampCenter(
   cx: number,
   cy: number,
@@ -105,7 +96,7 @@ function clampCenter(
   mapX0: number,
   mapY0: number,
   mapX1: number,
-  mapY1: number
+  mapY1: number,
 ) {
   const halfW = vw / 2;
   const halfH = vh / 2;
@@ -120,7 +111,6 @@ function clampCenter(
 }
 
 function wideViewSize(aspect: number, zoom: number) {
-  // Заполнение кадра: по одной оси совпадает с рисунком, по другой обрезается, без полей.
   if (DESKTOP_W / DESKTOP_H > aspect) {
     const viewH = DESKTOP_H / zoom;
     return { viewW: viewH * aspect, viewH };
@@ -128,15 +118,6 @@ function wideViewSize(aspect: number, zoom: number) {
   const viewW = DESKTOP_W / zoom;
   return { viewW, viewH: viewW / aspect };
 }
-
-const DESKTOP_PATHS: (PathPoint[] | null)[] = [
-  CHAPTER1_DESKTOP_PATH,
-  null,
-  null,
-  null,
-  null,
-  null,
-];
 
 function coverFit(imgW: number, imgH: number, boxW: number, boxH: number) {
   const scale = Math.max(boxW / imgW, boxH / imgH);
@@ -151,27 +132,8 @@ function coverFit(imgW: number, imgH: number, boxW: number, boxH: number) {
   };
 }
 
-/** Вписывает вертикальную иллюстрацию целиком, не обрезая узлы маршрута. */
-function containFit(imgW: number, imgH: number, boxW: number, boxH: number) {
-  const scale = Math.min(boxW / imgW, boxH / imgH);
-  const renderW = imgW * scale;
-  const renderH = imgH * scale;
-  const offsetX = (boxW - renderW) / 2;
-  const offsetY = (boxH - renderH) / 2;
-  return {
-    renderW,
-    renderH,
-    offsetX,
-    offsetY,
-    toBox: (point: PathPoint): PathPoint => ({
-      x: offsetX + point.x * renderW,
-      y: offsetY + point.y * renderH,
-    }),
-  };
-}
-
 const CHAPTER_COVERS = CHAPTERS.map((ch) =>
-  coverFit(BG_W, BG_H, BAND_WIDTH, ch.levels * V_STEP)
+  coverFit(BG_W, BG_H, BAND_WIDTH, ch.levels * V_STEP),
 );
 
 type Status = 'completed' | 'current' | 'near' | 'fog';
@@ -257,45 +219,31 @@ function buildPortraitPins(currentLevel: number): {
   return { pins, bands, totalHeight: TOP_PAD + (globalIndex - 1) * V_STEP + BOTTOM_PAD };
 }
 
-/** Десктоп и планшет: текущая глава во весь кадр, все её пины остаются видимыми. */
-function buildWidePins(currentLevel: number): { pins: Pin[]; chapterIdx: number } {
-  const chapterIdx = chapterOfLevel(currentLevel);
-  const ch = CHAPTERS[chapterIdx];
-  const start = chapterStartIndex(chapterIdx);
-  const path = DESKTOP_PATHS[chapterIdx];
+/** Десктоп и планшет: выбранная глава во весь кадр со всеми пинами на тропе. */
+function buildWidePins(currentLevel: number, activeChapterIdx: number): { pins: Pin[]; chapterIdx: number } {
+  const ch = CHAPTERS[activeChapterIdx];
+  const start = chapterStartIndex(activeChapterIdx);
+  const path = DESKTOP_PATHS[activeChapterIdx] ?? DESKTOP_PATHS[0];
   const pins: Pin[] = [];
 
   for (let li = 0; li < ch.levels; li++) {
     const s = ch.levels > 1 ? li / (ch.levels - 1) : 0;
     const globalId = start + li;
-    let x: number;
-    let y: number;
-    if (path) {
-      const p = samplePathProgress(path, s);
-      x = p.x * DESKTOP_W;
-      y = p.y * DESKTOP_H;
-    } else {
-      // Вертикальные иллюстрации вписываются целиком: при обрезке верхние и
-      // нижние уровни исчезали за пределами desktop-кадра.
-      const p = samplePathProgress(CHAPTER_PATHS[chapterIdx], s);
-      const contain = containFit(BG_W, BG_H, DESKTOP_W, DESKTOP_H);
-      const point = contain.toBox(p);
-      x = point.x;
-      y = point.y;
-    }
+    const p = samplePathProgress(path, s);
+    const x = p.x * DESKTOP_W;
+    const y = p.y * DESKTOP_H;
     pins.push({
       id: globalId,
       x,
       y,
       status: statusFor(globalId, currentLevel),
-      chapterIdx,
+      chapterIdx: activeChapterIdx,
     });
   }
 
-  return { pins, chapterIdx };
+  return { pins, chapterIdx: activeChapterIdx };
 }
 
-/** Вертикальный маршрут: по X идём вдоль тропы каждой главы, по Y — от пина к пину. */
 function buildPortraitRouteD(
   portrait: { pins: Pin[] },
   fromPin: number,
@@ -311,7 +259,6 @@ function buildPortraitRouteD(
     if (!a || !b) continue;
 
     if (a.chapterIdx !== b.chapterIdx) {
-      // Стык глав — короткая прямая склейка между полосами.
       if (!pts.length) pts.push({ x: a.x, y: a.y });
       pts.push({ x: b.x, y: b.y });
       continue;
@@ -347,21 +294,28 @@ export function TravelMapScreen() {
   const lang = useUIStore((s) => s.lang);
   const tier = useViewportTier();
   const wide = tier === 'desktop' || tier === 'tablet';
-  // После финала currentLevel указывает на тизер следующей главы (17), но полезной
-  // точкой фокуса карты и целью для повтора остаётся последний играбельный уровень.
+
   const mapLevel = Math.min(Math.max(currentLevel, 0), SEASON1_LEVELS - 1);
+  const playerChapterIdx = chapterOfLevel(mapLevel);
+  const [selectedChapterIdx, setSelectedChapterIdx] = useState<number>(() => playerChapterIdx);
+
+  useEffect(() => {
+    setSelectedChapterIdx(chapterOfLevel(mapLevel));
+  }, [mapLevel]);
 
   const portrait = useMemo(() => buildPortraitPins(mapLevel), [mapLevel]);
-  const wideData = useMemo(() => buildWidePins(mapLevel), [mapLevel]);
+  const wideData = useMemo(() => buildWidePins(mapLevel, selectedChapterIdx), [mapLevel, selectedChapterIdx]);
 
   const pins = wide ? wideData.pins : portrait.pins;
   const bands = portrait.bands;
+
   const currentPin =
-    pins.find((p) => p.id === mapLevel) ?? pins[pins.length - 1] ?? portrait.pins[0];
-  const wideChapterIdx = wideData.chapterIdx;
-  // Собственные границы вертикальной полосы: рисунок главы отсекается по её
-  // [верх, низ], поэтому ничего не рисуется выше верха первой полосы и ниже низа
-  // последней, каким бы ни был размер вписанного с обрезкой изображения.
+    pins.find((p) => p.id === mapLevel) ??
+    pins.find((p) => p.status === 'current') ??
+    pins[0] ??
+    portrait.pins[0];
+
+  const wideChapterIdx = selectedChapterIdx;
   const portraitBounds = {
     x0: BAND_LEFT,
     y0: bands[0]?.top ?? TOP_PAD - V_STEP / 2,
@@ -373,7 +327,7 @@ export function TravelMapScreen() {
   const [center, setCenter] = useState(() =>
     wide
       ? { x: DESKTOP_W / 2, y: DESKTOP_H / 2 }
-      : { x: currentPin.x, y: currentPin.y }
+      : { x: currentPin.x, y: currentPin.y },
   );
   const [isDragging, setIsDragging] = useState(false);
   const [box, setBox] = useState({ w: 390, h: 520 });
@@ -383,13 +337,12 @@ export function TravelMapScreen() {
   useEffect(() => {
     setZoom(ZOOM_MIN);
     if (wide) {
-      // Рисунок целиком в кадре: не панорамируем к крайнему пину, иначе появлялась зелёная пустота.
       setCenter({ x: DESKTOP_W / 2, y: DESKTOP_H / 2 });
     } else {
       setCenter({ x: currentPin.x, y: currentPin.y });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- зависимости намеренно неполные
-  }, [currentLevel, wide]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChapterIdx, wide]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -419,7 +372,7 @@ export function TravelMapScreen() {
     ? clampCenter(center.x, center.y, viewW, viewH, 0, 0, DESKTOP_W, DESKTOP_H)
     : clampCenter(
         center.x, center.y, viewW, viewH,
-        portraitBounds.x0, portraitBounds.y0, portraitBounds.x1, portraitBounds.y1
+        portraitBounds.x0, portraitBounds.y0, portraitBounds.x1, portraitBounds.y1,
       );
   const viewBox = `${safeCenter.x - viewW / 2} ${safeCenter.y - viewH / 2} ${viewW} ${viewH}`;
 
@@ -428,10 +381,7 @@ export function TravelMapScreen() {
       const next = Math.min(z + 0.25, ZOOM_MAX);
       if (wide) {
         const { viewW: nw, viewH: nh } = wideViewSize(aspect, next);
-        // Приближаемся к текущему пину, оставаясь внутри рисунка.
-        setCenter(
-          clampCenter(currentPin.x, currentPin.y, nw, nh, 0, 0, DESKTOP_W, DESKTOP_H)
-        );
+        setCenter(clampCenter(currentPin.x, currentPin.y, nw, nh, 0, 0, DESKTOP_W, DESKTOP_H));
       }
       return next;
     });
@@ -447,6 +397,8 @@ export function TravelMapScreen() {
     });
 
   const handleRecenter = () => {
+    const myChapter = chapterOfLevel(mapLevel);
+    setSelectedChapterIdx(myChapter);
     setZoom(ZOOM_MIN);
     if (wide) {
       setCenter({ x: DESKTOP_W / 2, y: DESKTOP_H / 2 });
@@ -457,14 +409,10 @@ export function TravelMapScreen() {
 
   const seasonDone = currentLevel >= SEASON1_LEVELS;
   const levelLabel = mapLevel + 1;
-  // Считаются реально пройденные уровни, а не доступные. Раньше здесь считались
-  // открытые — при значке галочки, — и счётчик всегда завышал на единицу: стоя на
-  // непройденном шестом уровне, он показывал «6/17».
   const season1Done = Object.keys(levelStars)
     .filter((id) => Number(id) < SEASON1_LEVELS && levelStars[Number(id)] > 0).length;
 
   const handlePinClick = (level: number) => {
-    // Ведём только к настоящим миссиям первого сезона; пины второго — закрытые тизеры.
     if (level <= currentLevel && level < SEASON1_LEVELS) startEpisode(level);
   };
 
@@ -486,7 +434,7 @@ export function TravelMapScreen() {
         ? clampCenter(next.x, next.y, viewW, viewH, 0, 0, DESKTOP_W, DESKTOP_H)
         : clampCenter(
             next.x, next.y, viewW, viewH,
-            portraitBounds.x0, portraitBounds.y0, portraitBounds.x1, portraitBounds.y1
+            portraitBounds.x0, portraitBounds.y0, portraitBounds.x1, portraitBounds.y1,
           );
     });
   };
@@ -509,17 +457,10 @@ export function TravelMapScreen() {
   const splitLocal = localPins.findIndex((p) => p.id >= currentLevel);
   const splitIdx = splitLocal < 0 ? localPins.length - 1 : splitLocal;
 
-  // Линии маршрута идут по нарисованной тропе (частая выборка плюс Catmull-Rom), а
-  // не хордами от пина к пину, срезающими по траве между миссиями.
   const [pathDoneD, pathAheadD] = wide
     ? (() => {
-        const norm = DESKTOP_PATHS[wideChapterIdx] ?? CHAPTER_PATHS[wideChapterIdx];
-        const toSvg = (p: PathPoint): PathPoint => {
-          if (DESKTOP_PATHS[wideChapterIdx]) {
-            return { x: p.x * DESKTOP_W, y: p.y * DESKTOP_H };
-          }
-          return containFit(BG_W, BG_H, DESKTOP_W, DESKTOP_H).toBox(p);
-        };
+        const norm = DESKTOP_PATHS[selectedChapterIdx] ?? DESKTOP_PATHS[0];
+        const toSvg = (p: PathPoint): PathPoint => ({ x: p.x * DESKTOP_W, y: p.y * DESKTOP_H });
         return [
           routePathD(norm, localPins.length, 0, splitIdx, toSvg),
           routePathD(norm, localPins.length, splitIdx, localPins.length - 1, toSvg),
@@ -530,42 +471,53 @@ export function TravelMapScreen() {
         buildPortraitRouteD(portrait, splitIdx, portrait.pins.length - 1),
       ];
 
-  const chapterIdx = wide ? wideChapterIdx : currentPin.chapterIdx;
+  const activeChapterData = CHAPTERS[selectedChapterIdx];
   const currentChapterName =
-    lang === 'kk' ? CHAPTERS[chapterIdx].name.kk : CHAPTERS[chapterIdx].name.ru;
+    lang === 'kk' ? activeChapterData.name.kk : activeChapterData.name.ru;
 
   const wideCh = CHAPTERS[wideChapterIdx];
   const wideBg = wideCh.bgDesktop ?? wideCh.bg;
-  // Значок-лапка «ты здесь» висит в 44 пикселях над пином. Камера никогда не
-  // уходит выше верхнего края рисунка (clampCenter), поэтому на первом уровне —
-  // самом первом пине, ближайшем к этому краю — пузырь значка выходил за него и
-  // рисовался наполовину за экраном. Уменьшение с привязкой к кончику, который и
-  // так стоит прямо на пине, оставляет кончик на месте и ужимает только тот
-  // пузырь, который всё равно был бы обрезан.
-  const HERE_TIP_ABOVE_PIN = 14; // кончик значка стоит на 14 пикселей выше пина
-  const HERE_BUBBLE_SPAN = 42; // от кончика до верха пузыря при масштабе 1
-  const HERE_FLOAT_AMPLITUDE = 6; // `pin-here-float` поднимается на столько — запас нужен и на пике
+
+  const HERE_TIP_ABOVE_PIN = wide ? 20 : 14;
+  const HERE_BUBBLE_SPAN = wide ? 55 : 42;
+  const HERE_FLOAT_AMPLITUDE = 6;
   const hereTopBound = wide ? 0 : portraitBounds.y0;
   const hereScale = Math.min(
     1,
     Math.max(
       0.2,
-      (currentPin.y - HERE_TIP_ABOVE_PIN - HERE_FLOAT_AMPLITUDE - hereTopBound) / HERE_BUBBLE_SPAN
-    )
+      (currentPin.y - HERE_TIP_ABOVE_PIN - HERE_FLOAT_AMPLITUDE - hereTopBound) / HERE_BUBBLE_SPAN,
+    ),
   );
 
   return (
     <div className={`screen screen-travel screen-travel--${tier} ${wide ? 'is-wide' : ''}`}>
       <div className="travel-chrome travel-header">
-        <div>
+        <div className="travel-header-left">
           <h2>{lang === 'kk' ? 'Барсик саяхаты' : 'Путешествие Барсика'}</h2>
-          <p className="travel-chapter">{currentChapterName}</p>
+          <div className="travel-chapter-switcher">
+            <button
+              type="button"
+              className="chapter-nav-arrow"
+              disabled={selectedChapterIdx <= 0}
+              onClick={() => setSelectedChapterIdx((i) => Math.max(0, i - 1))}
+              aria-label={lang === 'kk' ? 'Алдыңғы биом' : 'Предыдущий биом'}
+            >
+              ◀
+            </button>
+            <span className="travel-chapter">{currentChapterName}</span>
+            <button
+              type="button"
+              className="chapter-nav-arrow"
+              disabled={selectedChapterIdx >= CHAPTERS.length - 1}
+              onClick={() => setSelectedChapterIdx((i) => Math.min(CHAPTERS.length - 1, i + 1))}
+              aria-label={lang === 'kk' ? 'Келесі биом' : 'Следующий биом'}
+            >
+              ▶
+            </button>
+          </div>
         </div>
-        {/*
-          One chip. The level number was here too, and the big green button at
-          the bottom of the same screen already says «Играть · Уровень 6» —
-          three sixes on one phone screen, two of them decorative.
-        */}
+
         <div className="travel-stats">
           <Chip icon={<IconCheck size={16} />} tone="success">
             {season1Done}/{SEASON1_LEVELS}
@@ -573,16 +525,45 @@ export function TravelMapScreen() {
         </div>
       </div>
 
+      {/* Горизонтальный навигатор биомов (все 6 миров с быстрым переходом) */}
+      <div className="travel-chrome travel-biome-bar">
+        {CHAPTERS.map((ch, idx) => {
+          const isSelected = idx === selectedChapterIdx;
+          const isPlayerBiome = idx === playerChapterIdx;
+          const isUnlocked = idx <= playerChapterIdx;
+          const chStart = chapterStartIndex(idx);
+          const chEnd = chStart + ch.levels;
+          const doneInChapter = Object.keys(levelStars)
+            .filter((id) => Number(id) >= chStart && Number(id) < chEnd && levelStars[Number(id)] > 0).length;
+          const emoji = idx === 0 ? '🍓' : idx === 1 ? '❄️' : idx === 2 ? '🏔️' : idx === 3 ? '🌲' : idx === 4 ? '🌷' : '🏰';
+
+          return (
+            <button
+              key={idx}
+              type="button"
+              className={`biome-pill ${isSelected ? 'is-selected' : ''} ${isPlayerBiome ? 'is-player-here' : ''} ${isUnlocked ? 'is-unlocked' : 'is-locked'}`}
+              onClick={() => setSelectedChapterIdx(idx)}
+            >
+              <span className="biome-pill-emoji">{emoji}</span>
+              <span className="biome-pill-name">{lang === 'kk' ? ch.name.kk : ch.name.ru}</span>
+              {idx < 2 ? (
+                <span className="biome-pill-badge">{doneInChapter}/{ch.levels}</span>
+              ) : (
+                <span className="biome-pill-badge is-teaser">🔒</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="travel-chrome travel-controls">
-        <button type="button" className="travel-icon-btn travel-icon-btn-wide" onClick={handleRecenter}>
+        <button
+          type="button"
+          className="travel-icon-btn travel-icon-btn-wide"
+          onClick={handleRecenter}
+        >
           {lang === 'kk' ? 'Орталықтандыру' : 'К себе'}
         </button>
-        {/*
-          Both directions. There was a + and no −, and the wheel handler
-          ignored deltaY > 0 after calling preventDefault, so on a phone the
-          only way back out of a zoom was «К себе» — a button that says it
-          recentres and does not say it also undoes the zoom.
-        */}
         <button
           type="button"
           className="travel-icon-btn"
@@ -615,20 +596,14 @@ export function TravelMapScreen() {
         >
           <svg className="map-svg" viewBox={viewBox} preserveAspectRatio="xMidYMid slice">
             {wide ? (
-              <>
-                {wideCh.bgDesktop ? (
-                  <image href={wideBg} x={0} y={0} width={DESKTOP_W} height={DESKTOP_H} preserveAspectRatio="none" />
-                ) : (
-                  <image
-                    href={wideCh.bg}
-                    x={0}
-                    y={0}
-                    width={DESKTOP_W}
-                    height={DESKTOP_H}
-                    preserveAspectRatio="xMidYMid meet"
-                  />
-                )}
-              </>
+              <image
+                href={wideBg}
+                x={0}
+                y={0}
+                width={DESKTOP_W}
+                height={DESKTOP_H}
+                preserveAspectRatio={wideCh.bgDesktop ? 'none' : 'xMidYMid slice'}
+              />
             ) : (
               <>
                 <defs>
@@ -643,7 +618,7 @@ export function TravelMapScreen() {
                   const cover = CHAPTER_COVERS[b.idx];
                   const labelW = Math.min(
                     BAND_WIDTH - 24,
-                    (lang === 'kk' ? ch.name.kk : b.name).length * 9 + 48
+                    (lang === 'kk' ? ch.name.kk : b.name).length * 9 + 48,
                   );
                   return (
                     <g key={b.idx}>
@@ -684,12 +659,12 @@ export function TravelMapScreen() {
               <path
                 d={pathAheadD}
                 fill="none"
-                stroke="#c9c2ff"
-                strokeWidth="5"
-                strokeDasharray="3,10"
+                stroke="#74b9ff"
+                strokeWidth={wide ? '8' : '5'}
+                strokeDasharray={wide ? '6,14' : '3,10'}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                opacity="0.6"
+                opacity="0.75"
               />
             )}
             {pathDoneD && (
@@ -697,7 +672,7 @@ export function TravelMapScreen() {
                 d={pathDoneD}
                 fill="none"
                 stroke="#00b894"
-                strokeWidth="6"
+                strokeWidth={wide ? '10' : '6'}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -707,11 +682,13 @@ export function TravelMapScreen() {
               const chapterColor = CHAPTERS[pin.chapterIdx].color;
               if (pin.status === 'fog') {
                 return (
-                  <circle key={pin.id} cx={pin.x} cy={pin.y} r="5" fill="#9bb8c9" opacity="0.4" />
+                  <circle key={pin.id} cx={pin.x} cy={pin.y} r={wide ? 8 : 5} fill="#9bb8c9" opacity="0.4" />
                 );
               }
 
-              const r = pin.status === 'current' ? 20 : 15;
+              const r = wide
+                ? (pin.status === 'current' ? 36 : 28)
+                : (pin.status === 'current' ? 20 : 15);
               const playable = pin.status === 'current' || pin.status === 'completed';
               const pinLabel = lang === 'kk'
                 ? `${pin.id + 1}-деңгей, ${pin.status === 'current' ? 'қазіргі' : 'өтілген'}`
@@ -733,11 +710,10 @@ export function TravelMapScreen() {
                   }}
                   style={{ cursor: pin.status !== 'near' ? 'pointer' : 'default' }}
                 >
-                  {/* Устойчивая зона нажатия: больше видимой и никогда не масштабируется */}
-                  <circle className="pin-hit" cx={pin.x} cy={pin.y} r={r + 10} />
+                  <circle className="pin-hit" cx={pin.x} cy={pin.y} r={r + (wide ? 16 : 10)} />
                   <g className="pin-visual">
                     {pin.status === 'current' && (
-                      <circle cx={pin.x} cy={pin.y} r="22" className="pin-pulse-ring" fill="none" />
+                      <circle cx={pin.x} cy={pin.y} r={wide ? '44' : '22'} className="pin-pulse-ring" fill="none" />
                     )}
                     <circle
                       cx={pin.x}
@@ -753,59 +729,46 @@ export function TravelMapScreen() {
                       r={r}
                       fill="none"
                       stroke={pin.status === 'current' ? chapterColor : '#fff'}
-                      strokeWidth={pin.status === 'current' ? 4 : 2}
+                      strokeWidth={pin.status === 'current' ? (wide ? 6 : 4) : (wide ? 3 : 2)}
                     />
                     {pin.status === 'completed' && (
-                      <g transform={`translate(${pin.x - 7}, ${pin.y - 7}) scale(0.6)`}>
+                      <g transform={`translate(${pin.x - (wide ? 12 : 7)}, ${pin.y - (wide ? 12 : 7)}) scale(${wide ? 1.0 : 0.6})`}>
                         <IconCheckPath />
                       </g>
                     )}
-                    {/*
-                      Сколько уровень принёс — прямо под уровнем.
-
-                      `levelStars` хранит лучший результат по каждому уровню с
-                      момента появления формата сохранения, и никто его не
-                      показывал: карта говорила только «пройден» или «не
-                      пройден», поэтому ребёнок, сыгравший хорошо, и ребёнок,
-                      еле дотянувший, видели одну и ту же галочку. Старшим
-                      тестировщикам неоткуда было увидеть, что они в чём-то
-                      становятся лучше.
-
-                      Плашка, а не голый текст на пине: пин 30 пикселей в
-                      поперечнике, и «★25» внутри него вылезало из круга
-                      нечитаемой кашей. Контраст несёт собственная подложка.
-                    */}
                     {pin.status === 'completed' && (levelStars[pin.id] ?? 0) > 0 && (
                       <g className="pin-score" pointerEvents="none">
                         <rect
-                          x={pin.x - 15}
-                          y={pin.y + r - 1}
-                          width={30}
-                          height={15}
-                          rx={7.5}
+                          x={pin.x - (wide ? 26 : 15)}
+                          y={pin.y + r - (wide ? 3 : 1)}
+                          width={wide ? 52 : 30}
+                          height={wide ? 24 : 15}
+                          rx={wide ? 12 : 7.5}
                           className="pin-score-plate"
                         />
                         <text
                           x={pin.x}
-                          y={pin.y + r + 10}
+                          y={pin.y + r + (wide ? 14 : 10)}
                           textAnchor="middle"
                           className={`pin-score-text${levelClean[pin.id] ? ' is-clean' : ''}`}
+                          style={{ fontSize: wide ? '15px' : '11px' }}
                         >
                           {levelClean[pin.id] ? `✦ ${levelStars[pin.id]}` : `★ ${levelStars[pin.id]}`}
                         </text>
                       </g>
                     )}
                     {pin.status === 'near' && (
-                      <g transform={`translate(${pin.x - 6}, ${pin.y - 6}) scale(0.5)`}>
+                      <g transform={`translate(${pin.x - (wide ? 10 : 6)}, ${pin.y - (wide ? 10 : 6)}) scale(${wide ? 0.8 : 0.5})`}>
                         <IconLockPath />
                       </g>
                     )}
                     {pin.status === 'current' && (
                       <text
                         x={pin.x}
-                        y={pin.y + 5}
+                        y={pin.y + (wide ? 8 : 5)}
                         textAnchor="middle"
                         className="pin-number-current"
+                        style={{ fontSize: wide ? '22px' : '13px' }}
                         fill={chapterColor}
                       >
                         {pin.id + 1}
@@ -816,28 +779,28 @@ export function TravelMapScreen() {
               );
             })}
 
-            <g transform={`translate(${currentPin.x}, ${currentPin.y - 44})`}>
-              {/* Группа масштабирования отделена от `.pin-here` ниже: у того класса
-                  есть CSS-анимация парения по `transform`, которая перебила бы
-                  (а не сложилась с) атрибутом transform, заданным здесь. */}
-              <g
-                transform={
-                  hereScale < 1 ? `translate(0,30) scale(${hereScale}) translate(0,-30)` : undefined
-                }
-              >
-                <g className="pin-here">
-                  <path
-                    d="M0 30 C-14 30 -18 16 -18 6 A18 18 0 1 1 18 6 C18 16 14 30 0 30 Z"
-                    fill="#2aa8d8"
-                    stroke="#fff"
-                    strokeWidth="3"
-                  />
-                  <g transform="translate(-9, -13) scale(0.75)" fill="#fff">
-                    <IconPawPath />
+            {/* Иконка "Ты здесь" над активным пином */}
+            {currentPin && currentPin.status === 'current' && (
+              <g transform={`translate(${currentPin.x}, ${currentPin.y - (wide ? 60 : 44)})`}>
+                <g
+                  transform={
+                    hereScale < 1 ? `translate(0,30) scale(${hereScale}) translate(0,-30)` : undefined
+                  }
+                >
+                  <g className="pin-here" transform={wide ? 'scale(1.2) translate(0,-5)' : undefined}>
+                    <path
+                      d="M0 30 C-14 30 -18 16 -18 6 A18 18 0 1 1 18 6 C18 16 14 30 0 30 Z"
+                      fill="#2aa8d8"
+                      stroke="#fff"
+                      strokeWidth="3"
+                    />
+                    <g transform="translate(-9, -13) scale(0.75)" fill="#fff">
+                      <IconPawPath />
+                    </g>
                   </g>
                 </g>
               </g>
-            </g>
+            )}
           </svg>
         </div>
       </div>

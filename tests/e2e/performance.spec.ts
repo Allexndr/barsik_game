@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './gamePage';
 
 const levels = [0, 1, 8, 16];
 

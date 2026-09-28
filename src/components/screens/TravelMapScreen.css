@@ -24,9 +24,9 @@
   top: 0;
   left: 0;
   right: 0;
-  z-index: 4;
-  padding: 0.85rem 1rem 0.5rem;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.55) 70%, transparent 100%);
+  z-index: 5;
+  padding: 0.75rem 1.25rem 0.4rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.82) 70%, transparent 100%);
   pointer-events: none;
 }
 
@@ -34,12 +34,155 @@
   pointer-events: auto;
 }
 
+.screen-travel.is-wide .travel-chrome.travel-biome-bar {
+  position: absolute;
+  top: 4.3rem;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem;
+  box-sizing: border-box;
+  border-radius: 0 0 1rem 1rem;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 4px 16px rgba(45, 27, 78, 0.12);
+  backdrop-filter: blur(8px);
+  max-width: none;
+  overflow-x: auto;
+}
+
+.travel-biome-bar {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding: 0.2rem 0.2rem 0.4rem;
+  scrollbar-width: none;
+}
+.travel-biome-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.biome-pill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  background: #f1f2f6;
+  color: var(--text-dark, #2d3436);
+  font-family: var(--font-display, inherit);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.biome-pill:hover {
+  background: #e4e7eb;
+  transform: translateY(-1px);
+}
+
+.biome-pill.is-selected {
+  background: var(--primary, #6c5ce7);
+  color: #fff;
+  border-color: var(--primary, #6c5ce7);
+  box-shadow: 0 3px 10px rgba(42, 168, 216, 0.3);
+}
+
+.biome-pill:focus-visible,
+.travel-icon-btn:focus-visible,
+.chapter-nav-arrow:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.biome-pill.is-player-here:not(.is-selected) {
+  border-color: #2aa8d8;
+  background: #e8f7fd;
+}
+
+.biome-pill.is-locked {
+  opacity: 0.65;
+}
+
+.biome-pill-emoji {
+  font-size: 1rem;
+}
+
+.biome-pill-badge {
+  font-size: 0.72rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  font-weight: 800;
+}
+
+.biome-pill.is-selected .biome-pill-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.biome-pill-badge.is-teaser {
+  background: transparent;
+  padding: 0;
+}
+
 .screen-travel.is-wide .travel-chrome.travel-controls {
   position: absolute;
-  top: 4.2rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 4;
+  top: 7.7rem;
+  right: 1.5rem;
+  left: auto;
+  transform: none;
+  z-index: 5;
+}
+
+.travel-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.travel-chapter-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.chapter-nav-arrow {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid #dcdde1;
+  background: #fff;
+  color: var(--primary, #6c5ce7);
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.chapter-nav-arrow:hover:not(:disabled) {
+  background: var(--primary, #6c5ce7);
+  color: #fff;
+  border-color: var(--primary, #6c5ce7);
+}
+
+.chapter-nav-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.travel-chapter {
+  margin: 0;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--primary, #6c5ce7);
 }
 
 .screen-travel.is-wide .travel-chrome.travel-legend {

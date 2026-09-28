@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './gamePage';
 
 const cases = [
   ...[0, 1, 8, 16].flatMap((levelId) => [

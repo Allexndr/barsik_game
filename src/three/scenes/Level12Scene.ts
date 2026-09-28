@@ -7,11 +7,13 @@ import {
   placeWoodSign,
   loadPropModel,
   loadCharModel,
+  mountain,
 } from './BaseLevelScene';
 import { createGameGltfLoader } from '../createGameGltfLoader';
 import { TrailPath } from '../TrailPath';
 import { CAST_PROP_GLB, CAST_CHAR_GLB } from '../castModels';
 import { AudioManager } from '@/audio/AudioManager';
+import { NPC_ADULT_HEIGHT } from '../worldScale';
 
 /**
  * Уровень 12 «Ледяная тропа» — уровень 12 по GDD.
@@ -121,10 +123,9 @@ export class Level12Scene extends BaseLevelScene {
    * (см. комментарий `Спуск` ниже).
    */
   private get inertia() {
-    if (this.phase === 'learn') return 0.02;
-    if (this.phase === 'turn') return 0.06;
-    // Спуск: лёд держит скорость дольше, поэтому поворот надо начинать раньше.
-    return this.phase === 'drop' ? 0.16 : 0.12;
+    if (this.phase === 'learn') return 0.65;
+    if (this.phase === 'turn') return 0.76;
+    return this.phase === 'drop' ? 0.88 : 0.82;
   }
 
   private static halfWidthAt(t: number) {
@@ -180,6 +181,7 @@ export class Level12Scene extends BaseLevelScene {
       ground: 'snow',
       decorCount: 26,
       decorCenterZ: -18,
+      backdrop: 'none',
       terrain: {
         relief: 1.15,
         rimHeight: 4.2,
@@ -196,6 +198,11 @@ export class Level12Scene extends BaseLevelScene {
         ],
       },
     });
+
+    // Дальний горный хребет за финишными воротами (z = -66), на горизонте
+    this.scene.add(mountain(-55, -115, 26, 22));
+    this.scene.add(mountain(0, -130, 32, 26));
+    this.scene.add(mountain(60, -118, 28, 22));
 
     // Рельеф уже построен — сажаем на него ленту и бортики.
     this.trail.setHeightSampler(this.groundHeightAt);
@@ -313,7 +320,7 @@ export class Level12Scene extends BaseLevelScene {
     }
 
     // За воротами ждёт ледяной мастер — финалу нужна цель, а не пустота.
-    const master = await loadCharModel(loader, CAST_CHAR_GLB.ice_master, 1.5);
+    const master = await loadCharModel(loader, CAST_CHAR_GLB.ice_master, NPC_ADULT_HEIGHT, { maxSize: 1.25 });
     if (master) {
       const spot = this.trail.offsetAt(1, 3.2);
       master.position.set(spot.x, 0, spot.z + 2.5);
@@ -481,9 +488,9 @@ export class Level12Scene extends BaseLevelScene {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const now = performance.now();
 
-    if (this.phase === 'intro' && (now > this.nextAt || this.introRushed(this.introI))) {
+    if (this.phase === 'intro' && (now > this.nextAt || this.dir().lengthSq() > 0.01)) {
       this.introI += 1;
-      if (this.introI >= 3) {
+      if (this.introI >= 3 || this.dir().lengthSq() > 0.01) {
         this.phase = 'learn';
       } else {
         this.nextAt = now + 2600;
@@ -499,23 +506,33 @@ export class Level12Scene extends BaseLevelScene {
       // Разгон и инерцию здесь считает лёд, а не `updateMovement`, но ввод
       // обязан подчиняться тому же контракту камеры, что и пешие уровни.
       const d = this.cameraRelativeDirection(this.dir());
-      const speed = this.baseSpeed * 0.8;
+      const speed = this.baseSpeed * 1.5; // Скоростное скольжение по льду (~7.2 м/с)
       const inertia = this.inertia;
-      this.velocity.x += d.x * speed * dt * 2.4;
-      this.velocity.z += d.y * speed * dt * 2.4;
-      // `inertia` — доля скорости, сохраняемая за *секунду*, поэтому её надо
-      // возводить в степень `dt`, а не применять покадрово. Покадрово она
-      // срабатывала 60 раз в секунду: скорость гасла за пару кадров после
-      // отпускания стика (никакого скольжения) и даже при зажатом вводе не
-      // поднималась выше ~12% от `maxV`. В отчёте это выглядело как «не
-      // скользит и еле ползёт».
+
+      // Отзывчивый импульс от стика/клавиш
+      const hasInput = d.lengthSq() > 0.01;
+      if (hasInput) {
+        this.velocity.x += d.x * speed * dt * 4.2;
+        this.velocity.z += d.y * speed * dt * 4.2;
+      }
+
+      // Естественное ускорение вдоль наклона ледяной трассы
+      const tan = this.trail.tangentAt(Math.min(projection.t, 1));
+      const slopeForward = this.phase === 'drop' ? 3.8 : (this.phase === 'turn' ? 2.4 : 1.6);
+      this.velocity.x += tan.x * slopeForward * dt;
+      this.velocity.z += tan.z * slopeForward * dt;
+
+      // Трение льда (дрифт с сохранением импульса)
       const decay = Math.pow(inertia, dt);
       this.velocity.x *= decay;
       this.velocity.z *= decay;
 
-      const maxV = speed * 1.15;
-      this.velocity.x = THREE.MathUtils.clamp(this.velocity.x, -maxV, maxV);
-      this.velocity.z = THREE.MathUtils.clamp(this.velocity.z, -maxV, maxV);
+      const maxV = speed * (this.phase === 'drop' ? 1.55 : 1.3);
+      const curV = Math.hypot(this.velocity.x, this.velocity.z);
+      if (curV > maxV) {
+        this.velocity.x = (this.velocity.x / curV) * maxV;
+        this.velocity.z = (this.velocity.z / curV) * maxV;
+      }
 
       this.hero.position.x += this.velocity.x * dt;
       this.hero.position.z += this.velocity.z * dt;
@@ -535,9 +552,26 @@ export class Level12Scene extends BaseLevelScene {
       }
 
       const glideSpeed = Math.hypot(this.velocity.x, this.velocity.z);
-      if (glideSpeed > 1.4 && now - this.lastSlideSfxAt > 620) {
+      this.running = glideSpeed > 2.8;
+      if (glideSpeed > 0.3) {
+        const angle = Math.atan2(this.velocity.x, this.velocity.z);
+        this.hero.rotation.y = THREE.MathUtils.lerp(this.hero.rotation.y, angle, Math.min(1, dt * 8));
+        this.yaw = this.hero.rotation.y;
+        if (!this.walking) {
+          this.walking = true;
+          this.idleAction?.fadeOut(0.1);
+          this.walkAction?.reset().fadeIn(0.1).play();
+        }
+      } else if (this.walking) {
+        this.walking = false;
+        this.walkAction?.fadeOut(0.15);
+        this.idleAction?.reset().fadeIn(0.15).play();
+      }
+
+      if (glideSpeed > 2.0 && now - this.lastSlideSfxAt > 420) {
         this.lastSlideSfxAt = now;
         AudioManager.sfx('whoosh');
+        this.spawnSparks(this.hero.position, 3, [0xffffff, 0xb3e5fc]);
       }
 
       // Контрольные ворота.

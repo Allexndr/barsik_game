@@ -1,30 +1,7 @@
 import { RealtimeClient, type RealtimeChannel } from '@supabase/realtime-js';
 import { isChatId } from '@/utils/safeChat';
 import { checkText } from '@/utils/moderation';
-
-/**
- * Сетевой слой хаба.
- *
- * Одна локация — один канал. Внутри канала два разных механизма, и разделены
- * они не случайно:
- *
- * - **presence** держит список тех, кто сейчас здесь, и их неизменные данные —
- *   имя и окрас. Supabase сам присылает уход игрока, даже если у того просто
- *   пропал интернет, поэтому «призраки» на площади не остаются.
- * - **broadcast** носит то, что меняется каждый кадр: координаты и реплики. Он
- *   ничего не хранит и не пишет в базу — это и нужно, потому что писать в базу
- *   десять раз в секунду на каждого ребёнка нельзя ни по деньгам, ни по смыслу.
- *
- * Сцена про Supabase ничего не знает: она получает список соседей и колбэки.
- * Если сети нет, хаб просто работает в одиночку — ребёнок этого не замечает,
- * кроме отсутствия соседей.
- */
-
-const SUPABASE_URL =
-  import.meta.env.VITE_SUPABASE_URL ?? 'https://vsuqaatpzyatzhmmdmug.supabase.co';
-const SUPABASE_ANON =
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-  ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdXFhYXRwenlhdHpobW1kbXVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwODYwNDUsImV4cCI6MjA5OTY2MjA0NX0.fA7_lyCIPUppg_DmgMuwKHaFR93jMLXD7T7tEfWsceo';
+import { SUPABASE_URL, SUPABASE_ANON_KEY as SUPABASE_ANON } from '@/net/supabaseConfig';
 
 /**
  * Многопользовательский режим реального времени остаётся выключенным, пока на

@@ -7,6 +7,8 @@ import { registerNick, validateNick } from '@/utils/nicks';
 import { hasFinishedIntro } from '@/three/inventory';
 import { PlushButton } from '@/components/ui/PlushButton';
 import { IconChevronLeft, IconCheck } from '@/components/ui/icons';
+import { registerAccount, toPlayer } from '@/net/account';
+import { migrateProgress } from '@/utils/progressMigration';
 import './QuickStartScreen.css';
 
 export function QuickStartScreen() {
@@ -14,12 +16,14 @@ export function QuickStartScreen() {
   const [gender, setGender] = useState<'boy' | 'girl'>('boy');
   const [error, setError] = useState('');
   const [suggestion, setSuggestion] = useState('');
+  const [pin, setPin] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const setPlayer = useGameStore((s) => s.setPlayer);
   const setScreen = useUIStore((s) => s.setScreen);
   const lang = useUIStore((s) => s.lang);
 
-  const start = (e: React.FormEvent) => {
+  const start = async (e: React.FormEvent) => {
     e.preventDefault();
     const check = validateNick(nick, lang);
     if (!check.ok) {
@@ -27,25 +31,29 @@ export function QuickStartScreen() {
       setSuggestion(check.suggestion || '');
       return;
     }
+    if (!/^\d{4,8}$/.test(pin)) {
+      setError(lang === 'kk' ? '4–8 саннан тұратын код енгіз' : 'Введи код из 4–8 цифр');
+      return;
+    }
 
     registerNick(nick);
-
-    const player: Player = {
-      id: `player_${Date.now()}`,
-      nick: nick.trim(),
-      gender,
-      ageCategory: '',
-      phone: '',
-      email: '',
-      lang,
-      level: 0,
-      stars: 0,
-      createdAt: new Date().toISOString(),
-      profileStage: 'guest_nick',
-      playStartedAt: new Date().toISOString(),
-    };
-
-    setPlayer(player);
+    setBusy(true);
+    try {
+      const account = await registerAccount({ nick: nick.trim(), pin, gender, lang });
+      const player = { ...toPlayer(account.user), playStartedAt: new Date().toISOString() } satisfies Player;
+      // Новый аккаунт никогда не наследует общий старый ключ браузера.
+      useGameStore.getState().resetProgress();
+      setPlayer(player);
+      if (account.progress) useGameStore.setState({ player, ...migrateProgress(account.progress) });
+    } catch (cause) {
+      const code = cause instanceof Error ? cause.message : '';
+      setError(code === 'nick_taken'
+        ? t(lang, 'nick.taken')
+        : lang === 'kk' ? 'Серверге қосылу мүмкін болмады' : 'Не удалось создать аккаунт. Попробуй ещё раз');
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
     useUIStore.setState({ sessionPlayMs: 0 });
     setScreen(hasFinishedIntro() ? 'game' : 'mission0');
   };
@@ -103,6 +111,27 @@ export function QuickStartScreen() {
             </p>
           )}
 
+          <label className="quick-label" htmlFor="quick-pin">
+            {lang === 'kk' ? 'Құпия код (4–8 сан)' : 'Код доступа (4–8 цифр)'}
+          </label>
+          <p className="quick-pin-hint">
+            {lang === 'kk'
+              ? 'Өзіңе оңай 4–8 сан ойлап тап та, есте сақта. Код прогресті басқа құрылғыда ашуға көмектеседі.'
+              : 'Придумай 4–8 цифр, которые легко запомнить. Код поможет открыть свой прогресс на другом устройстве.'}
+          </p>
+          <input
+            id="quick-pin"
+            className="quick-input"
+            value={pin}
+            minLength={4}
+            maxLength={8}
+            inputMode="numeric"
+            type="password"
+            autoComplete="new-password"
+            placeholder="••••"
+            onChange={(e) => { setPin(e.target.value.replace(/\D/g, '')); setError(''); }}
+          />
+
           <p className="quick-label">{t(lang, 'quick.gender')}</p>
           <div className="quick-gender">
             <button
@@ -139,8 +168,8 @@ export function QuickStartScreen() {
             </button>
           </div>
 
-          <PlushButton type="submit" variant="primary" size="lg" className="quick-go">
-            {t(lang, 'quick.go')}
+          <PlushButton type="submit" variant="primary" size="lg" className="quick-go" disabled={busy}>
+            {busy ? (lang === 'kk' ? 'Сақталуда…' : 'Сохраняем…') : t(lang, 'quick.go')}
           </PlushButton>
         </form>
       </div>

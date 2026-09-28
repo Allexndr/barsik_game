@@ -72,6 +72,7 @@ function makeLabel(text: string, bg: string, fg: string, maxWidth = 420): THREE.
     new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }),
   );
   sprite.scale.set((w / 84) * 0.62, 0.62, 1);
+  sprite.raycast = () => {};
   return sprite;
 }
 
@@ -129,6 +130,7 @@ export class HubScene extends BaseLevelScene {
   private place: HubLocation | null = null;
   private butterflies: THREE.Group[] = [];
   private friendNpcs: THREE.Object3D[] = [];
+  private cameraOccluders: THREE.Object3D[] = [];
   private myPose: HubPose = 'idle';
   private poseUntil = 0;
   private atPortal: HubHud['atPortal'] = null;
@@ -243,7 +245,9 @@ export class HubScene extends BaseLevelScene {
     this.footstepSurface = place.surface;
 
     const built = place.build();
-    this.scene.add(assemble(built.solid, `hub-${place.id}`));
+    const solidMesh = assemble(built.solid, `hub-${place.id}`);
+    this.scene.add(solidMesh);
+    this.cameraOccluders = [solidMesh];
     this.nightLights = assembleGlow(built.glow, `hub-${place.id}-lights`);
     this.scene.add(this.nightLights);
     for (const c of built.colliders) this.colliders.push(c);
@@ -336,6 +340,7 @@ export class HubScene extends BaseLevelScene {
       place.id,
       this.scene,
       this.colliders as Array<{ kind: 'circle'; x: number; z: number; r: number }>,
+      this.cameraOccluders,
     );
     await this.loadHero(loader);
     if (this.disposed) return;
@@ -533,97 +538,95 @@ export class HubScene extends BaseLevelScene {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
     if (this.renderPausedFrame()) return;
-    const dt = Math.min(this.clock.getDelta(), 0.05);
-    const now = performance.now();
-    const t = now * 0.001;
-    const b = this.place?.bounds ?? { xMin: -40, xMax: 40, zMin: -80, zMax: 20 };
+    try {
+      const dt = Math.min(this.clock.getDelta(), 0.05);
+      const now = performance.now();
+      const t = now * 0.001;
+      const b = this.place?.bounds ?? { xMin: -40, xMax: 40, zMin: -80, zMax: 20 };
 
-    // Аттракционы крутятся всегда, а не только когда на них сидят: пустая
-    // карусель, замершая намертво, читается сломанной.
-    for (const ride of this.rides) ride.update(dt, t);
-    for (const f of this.fountains) f.update(dt, t);
+      // Аттракционы крутятся всегда, а не только когда на них сидят: пустая
+      // карусель, замершая намертво, читается сломанной.
+      for (const ride of this.rides) ride.update(dt, t);
+      for (const f of this.fountains) f.update(dt, t);
 
-    this.beforePos.copy(this.hero.position);
-    const riding = this.ridingOn;
-    if (riding) {
-      // Сидя ребёнок не ходит: его везёт аттракцион. Координаты при этом
-      // уходят в сеть как обычно, поэтому соседи видят, что он катается,
-      // и синхронизировать сам аттракцион не нужно.
-      const ry = riding.seatAt(this.ridingSeat, this.seatPos);
-      this.hero.position.copy(this.seatPos);
-      this.hero.rotation.y = ry;
-    } else {
-      this.updateMovement(dt, true, this.runSpeed, b.xMin, b.xMax, b.zMin, b.zMax);
+      this.beforePos.copy(this.hero.position);
+      const riding = this.ridingOn;
+      if (riding) {
+        // Сидя ребёнок не ходит: его везёт аттракцион. Координаты при этом
+        // уходят в сеть как обычно, поэтому соседи видят, что он катается,
+        // и синхронизировать сам аттракцион не нужно.
+        const ry = riding.seatAt(this.ridingSeat, this.seatPos);
+        this.hero.position.copy(this.seatPos);
+        this.hero.rotation.y = ry;
+      } else {
+        this.updateMovement(dt, true, this.runSpeed, b.xMin, b.xMax, b.zMin, b.zMax);
+      }
+      const moved = !riding && this.hero.position.distanceTo(this.beforePos) > 0.004;
+
+      // Эмоция держится пару секунд и уступает ходьбе: ребёнок машет и идёт
+      // дальше, а не залипает в позе до следующего нажатия.
+      if (now > this.poseUntil) this.myPose = moved ? 'walk' : 'idle';
+      else if (moved && this.myPose !== 'wave') this.myPose = 'walk';
+
+      this.hub?.move(
+        this.hero.position.x,
+        this.hero.position.z,
+        this.hero.rotation.y,
+        this.myPose,
+      );
+
+      for (const bf of this.butterflies) {
+        const ph = (bf.userData.phase as number) + t;
+        bf.position.x = (bf.userData.ox as number) + Math.sin(ph) * 1.4;
+        bf.position.z = (bf.userData.oz as number) + Math.cos(ph * 0.8) * 1.4;
+        bf.position.y = 1.1 + Math.sin(ph * 1.6) * 0.4;
+        bf.rotation.y = ph;
+      }
+      // Крылья, трава на ветру и облака — общая для всей игры анимация:
+      // `updateAmbient` собирает всё, что помечено `isButterfly`, само.
+      this.updateAmbient(dt, now);
+
+      this.checkPortals();
+      this.checkRides();
+      this.syncRemotes(now);
+      this.driveRemotes(dt, t);
+
+      const f = this.cameraFraming();
+      // Сидя камера отходит и поднимается: иначе аттракцион, на котором едешь,
+      // не помещается в кадр и катание превращается в тряску экрана.
+      const back = riding ? 12.5 : 9.0;
+      const high = riding ? 7.6 : 6.4;
+      this.cameraTarget.set(
+        this.cameraLateral(riding ? riding.x : this.hero.position.x) + f.lateral,
+        high * f.heightMul,
+        (riding ? riding.z : this.hero.position.z) + back + f.backAdd,
+      );
+      this.pullCameraClear(riding ? { x: riding.x, z: riding.z } : this.hero.position);
+      this.camera.position.lerp(this.cameraTarget, 1 - Math.pow(0.0015, dt));
+      this.camera.lookAt(
+        (riding ? riding.x : this.hero.position.x) - f.lateral * 0.28,
+        1.5 + f.lookUp,
+        (riding ? riding.z : this.hero.position.z) - 0.8,
+      );
+
+      this.renderFrame();
+    } catch (err) {
+      console.error('[HubScene loop error]', err);
     }
-    const moved = !riding && this.hero.position.distanceTo(this.beforePos) > 0.004;
-
-    // Эмоция держится пару секунд и уступает ходьбе: ребёнок машет и идёт
-    // дальше, а не залипает в позе до следующего нажатия.
-    if (now > this.poseUntil) this.myPose = moved ? 'walk' : 'idle';
-    else if (moved && this.myPose !== 'wave') this.myPose = 'walk';
-
-    this.hub?.move(
-      this.hero.position.x,
-      this.hero.position.z,
-      this.hero.rotation.y,
-      this.myPose,
-    );
-
-    for (const bf of this.butterflies) {
-      const ph = (bf.userData.phase as number) + t;
-      bf.position.x = (bf.userData.ox as number) + Math.sin(ph) * 1.4;
-      bf.position.z = (bf.userData.oz as number) + Math.cos(ph * 0.8) * 1.4;
-      bf.position.y = 1.1 + Math.sin(ph * 1.6) * 0.4;
-      bf.rotation.y = ph;
-    }
-    // Крылья, трава на ветру и облака — общая для всей игры анимация:
-    // `updateAmbient` собирает всё, что помечено `isButterfly`, само.
-    this.updateAmbient(dt, now);
-
-    this.checkPortals();
-    this.checkRides();
-    this.syncRemotes(now);
-    this.driveRemotes(dt, t);
-
-    const f = this.cameraFraming();
-    // Сидя камера отходит и поднимается: иначе аттракцион, на котором едешь,
-    // не помещается в кадр и катание превращается в тряску экрана.
-    const back = riding ? 12.5 : 9.0;
-    const high = riding ? 7.6 : 6.4;
-    this.cameraTarget.set(
-      this.cameraLateral(riding ? riding.x : this.hero.position.x) + f.lateral,
-      high * f.heightMul,
-      (riding ? riding.z : this.hero.position.z) + back + f.backAdd,
-    );
-    this.pullCameraClear(riding ? { x: riding.x, z: riding.z } : this.hero.position);
-    this.camera.position.lerp(this.cameraTarget, 1 - Math.pow(0.0015, dt));
-    this.camera.lookAt(
-      (riding ? riding.x : this.hero.position.x) - f.lateral * 0.28,
-      1.5 + f.lookUp,
-      (riding ? riding.z : this.hero.position.z) - 0.8,
-    );
-
-    this.renderFrame();
   };
 
   /**
    * Не дать камере встать внутри дерева или дома.
    *
    * Камера хаба висит в девяти метрах позади героя на высоте 6.4 — а деревья
-   * здесь метров восемь, дома тринадцать. На трёх локациях из пяти точка
-   * появления оказалась такой, что камера стартовала внутри геометрии: в
-   * КБТУ экран был чёрным почти целиком (камера внутри здания), в сквере
-   * Иманова кадр занимала крона, в парке 28 панфиловцев треть экрана уходила
-   * за край земли. Ребёнок открывал «Город» и видел стену.
-   *
-   * Двигать точки появления по одной — лечить симптом: следующая добавленная
-   * локация сломается так же. Луч от героя к камере и подтягивание до первого
-   * препятствия — то, что делает любая игра с камерой от третьего лица, и
-   * оно закрывает все локации разом, включая будущие.
+   * здесь метров восемь, дома тринадцать.
+   * Проверяем исключительно крупные окклюдеры архитектуры (cameraOccluders),
+   * а не всю сцену с персонажами, SkinnedMesh и спрайтами, что вызывало сбой рейкаста.
    */
   private cameraRay = new THREE.Raycaster();
 
   private pullCameraClear(focus: { x: number; z: number }) {
+    if (!this.cameraOccluders.length) return;
     const from = new THREE.Vector3(focus.x, 1.5, focus.z);
     const to = this.cameraTarget;
     const dir = to.clone().sub(from);
@@ -633,17 +636,27 @@ export class HubScene extends BaseLevelScene {
 
     this.cameraRay.set(from, dir);
     this.cameraRay.far = full;
-    const hits = this.cameraRay.intersectObjects(this.scene.children, true);
-    for (const hit of hits) {
-      const o = hit.object as THREE.Mesh;
-      // Небо, земля и всё прозрачное камеру не держат: сквозь них видно.
-      if (!o.visible || o.name === 'skyDome') continue;
-      const mat = o.material as THREE.Material | undefined;
-      if (mat && (mat.transparent || mat.opacity < 1)) continue;
-      // Полметра перед препятствием, чтобы не смотреть в его же плоскость.
-      const d = Math.max(2.2, hit.distance - 0.5);
-      if (d < full) to.copy(from).addScaledVector(dir, d);
-      return;
+    try {
+      const hits = this.cameraRay.intersectObjects(this.cameraOccluders, true);
+      for (const hit of hits) {
+        const o = hit.object as THREE.Mesh;
+        // Небо, земля и всё прозрачное камеру не держат: сквозь них видно.
+        if (!o.visible || o.name === 'skyDome') continue;
+        const mat = o.material as THREE.Material | THREE.Material[] | undefined;
+        if (mat) {
+          if (Array.isArray(mat)) {
+            if (mat.some((m) => m && (m.transparent || m.opacity < 1))) continue;
+          } else if (mat.transparent || mat.opacity < 1) {
+            continue;
+          }
+        }
+        // Полметра перед препятствием, чтобы не смотреть в его же плоскость.
+        const d = Math.max(2.2, hit.distance - 0.5);
+        if (d < full) to.copy(from).addScaledVector(dir, d);
+        return;
+      }
+    } catch {
+      // Игнорируем сбой рейкаста окклюдеров, чтобы не нарушать игровой цикл
     }
   }
 
@@ -697,6 +710,7 @@ export class HubScene extends BaseLevelScene {
     this.fountains = [];
     for (const d of this.dressing) this.scene.remove(d);
     this.dressing = [];
+    this.cameraOccluders = [];
     for (const n of this.friendNpcs) this.scene.remove(n);
     this.friendNpcs = [];
     this.ridingOn = null;
