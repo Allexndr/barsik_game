@@ -99,6 +99,7 @@ const PROP_TRIANGLE_BUDGET = 20_000;
  */
 const PROP_SUBSTITUTE: Partial<Record<keyof typeof CAST_PROP_GLB, string>> = {
   pine_tree: '/assets/models/kits/nature/tree_pineTallA_detailed.glb',
+  snowflake: '/assets/models/kits/holiday/snowflake-a.glb',
 };
 
 /** Предпочитать перестроенные мягкие качественные предметы, если они есть на диске.

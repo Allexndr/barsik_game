@@ -246,8 +246,8 @@
   position: absolute;
   left: 0;
   bottom: 0;
-  width: 50%;
-  height: 66%;
+  width: 60%;
+  height: 72%;
   z-index: 5;
   touch-action: none;
 }
@@ -262,8 +262,8 @@
   transition: opacity 0.12s linear;
   /* Scales with the actual screen instead of jumping between fixed steps —
      a small phone and a tablet each get a stick sized to their own thumb. */
-  width: clamp(84px, 26vmin, 136px);
-  height: clamp(84px, 26vmin, 136px);
+  width: clamp(100px, 29vmin, 152px);
+  height: clamp(100px, 29vmin, 152px);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.35);
   border: 4px solid rgba(255, 255, 255, 0.85);
@@ -289,7 +289,7 @@
   transition: transform 0.05s linear;
 }
 
-/* Бег виден на самом стике: тот же порог 0.75, что и в коде уровня.
+/* Бег виден на самом стике: нажатие на край больше не требуется.
    Без этого «иду» и «бегу» отличались только поведением NPC. */
 .m0-knob.is-running {
   background: linear-gradient(180deg, #ffd166, #f0932b);
@@ -522,6 +522,12 @@
   width: 100%;
 }
 
+/* На финальном экране рядом стоят две кнопки. Воздух между ними нужен с учётом
+   нижней объёмной тени, иначе они визуально сливаются в одну высокую кнопку. */
+.m0-continue + .m0-continue {
+  margin-top: 0.9rem;
+}
+
 @keyframes m0-action-pulse {
   0%,
   100% {
@@ -657,8 +663,8 @@
      Sized off vh rather than a fixed step, so it keeps shrinking smoothly
      as the window gets shorter instead of jumping once at 380px. */
   .m0-stick {
-    width: clamp(56px, 20vh, 96px);
-    height: clamp(56px, 20vh, 96px);
+    width: clamp(64px, 22vh, 108px);
+    height: clamp(64px, 22vh, 108px);
     left: max(10px, env(safe-area-inset-left));
     bottom: max(10px, env(safe-area-inset-bottom));
   }

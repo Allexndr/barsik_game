@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { useGameStore, type Friend, GAME_SAVE_VERSION } from '@/store/useGameStore';
+import { useGameStore } from '@/store/useGameStore';
 import { useUIStore } from '@/store/useUIStore';
 import { WelcomeScreen } from '@/components/WelcomeScreen';
 import { QuickStartScreen } from '@/components/QuickStartScreen';
@@ -9,10 +9,9 @@ import { MissionRoute } from '@/components/MissionRoute';
 import { hasMission } from '@/components/missions';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { readStoredLang, t, type Lang } from '@/i18n';
-import type { Player } from '@/types';
 import { AudioManager } from '@/audio/AudioManager';
-import { LEVEL_CONFIGS } from '@/utils/levels';
-import { SEASON1_FRIENDS } from '@/utils/season1Friends';
+import { migratePlayer, migrateProgress, readPlayerProgress } from '@/utils/progressMigration';
+import { restoreAccount, toPlayer } from '@/net/account';
 import './App.css';
 
 const Mission0Screen = lazy(() => import('@/components/Mission0Screen').then(m => ({ default: m.Mission0Screen })));
@@ -24,147 +23,8 @@ function ScreenLoader() {
   return <LoadingOverlay />;
 }
 
-function migratePlayer(raw: Partial<Player> & { nick?: string }): Player {
-  return {
-    id: raw.id || `player_${Date.now()}`,
-    nick: raw.nick || 'Гость',
-    gender: raw.gender === 'girl' ? 'girl' : 'boy',
-    ageCategory: raw.ageCategory || '',
-    phone: raw.phone || '',
-    email: raw.email || '',
-    lang: raw.lang === 'kk' ? 'kk' : 'ru',
-    level: raw.level || 0,
-    stars: raw.stars || 0,
-    createdAt: raw.createdAt || new Date().toISOString(),
-    profileStage: raw.profileStage || (raw.phone ? 'phone' : 'guest_nick'),
-    phoneAskedAt: raw.phoneAskedAt,
-    emailAskedAt: raw.emailAskedAt,
-    playStartedAt: raw.playStartedAt,
-  };
-}
-
 function applyLang(lang: Lang) {
   useUIStore.getState().setLang(lang);
-}
-
-export function migrateProgress(raw: unknown) {
-  if (!raw || typeof raw !== 'object') throw new Error('invalid_progress');
-  const data = raw as Record<string, unknown>;
-  const unlockedLevels = Array.isArray(data.unlockedLevels)
-    ? [...new Set(
-        data.unlockedLevels.filter(
-          (value): value is number =>
-            Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 16,
-        ),
-      )]
-    : [];
-  const savedLevelStars =
-    data.levelStars && typeof data.levelStars === 'object'
-      ? Object.fromEntries(
-          Object.entries(data.levelStars as Record<string, unknown>)
-            .filter(([levelId, value]) => {
-              const id = Number(levelId);
-              return Number.isInteger(id) && id >= 0 && id <= 16 && typeof value === 'number' && Number.isFinite(value);
-            })
-            .map(([levelId, value]) => [Number(levelId), Math.max(0, Number(value))]),
-        )
-      : null;
-  const levelStars =
-    savedLevelStars ??
-    Object.fromEntries(
-      unlockedLevels.map((levelId) => [levelId, LEVEL_CONFIGS[levelId]?.reward.stars ?? 0]),
-    );
-  // Отметки о чистом прохождении. В старых сейвах их нет, и это читается как «ни
-   // один уровень пока не пройден чисто» — верно, и заполнится при повторных
-   // прохождениях.
-  const levelClean =
-    data.levelClean && typeof data.levelClean === 'object'
-      ? Object.fromEntries(
-          Object.entries(data.levelClean as Record<string, unknown>)
-            .filter(([levelId, value]) => {
-              const id = Number(levelId);
-              return Number.isInteger(id) && id >= 0 && id <= 16 && value === true;
-            })
-            .map(([levelId]) => [Number(levelId), true]),
-        )
-      : {};
-
-  const highestDone = Math.max(
-    -1,
-    ...unlockedLevels,
-    ...Object.entries(levelStars)
-      .filter(([, stars]) => Number(stars) > 0)
-      .map(([id]) => Number(id)),
-  );
-  const requestedLevel = Math.trunc(
-    Math.max(
-      0,
-      Math.min(17, Number.isFinite(data.currentLevel) ? Number(data.currentLevel) : 0),
-    ),
-  );
-  const migratedFriends = Array.isArray(data.friends)
-    ? data.friends
-        .filter(
-          (friend): friend is Record<string, unknown> =>
-            Boolean(friend) && typeof friend === 'object' && typeof (friend as Record<string, unknown>).id === 'string',
-        )
-        .map((friend) => {
-          const id = String(friend.id) === 'gardener_l1' ? 'gardener' : String(friend.id);
-          const catalogFriend = SEASON1_FRIENDS.find((entry) => entry.id === id);
-          return {
-            id,
-            name: catalogFriend?.name ?? (typeof friend.name === 'string' ? friend.name : id),
-            description: typeof friend.description === 'string' ? friend.description : '',
-            rarity: catalogFriend?.rarity ?? 'common',
-            chapter: catalogFriend?.chapter ?? 1,
-            unlocked: true,
-            asset: typeof friend.asset === 'string' ? friend.asset : '',
-          } satisfies Friend;
-        })
-    : [];
-  const friends = [...new Map(migratedFriends.map((friend) => [friend.id, friend])).values()];
-  return {
-    friends,
-    unlockedLevels,
-    // Указатель не доказывает прохождение. Ограничиваем его первым уровнем после
-    // подтверждённого прогресса, чтобы испорченное значение вроде 9999 не
-    // перескочило сезон и не заставило интерфейс заявить, что финал пройден.
-    currentLevel: highestDone >= 0
-      ? Math.min(requestedLevel, Math.min(17, highestDone + 1))
-      : 0,
-    levelStars,
-    levelClean,
-    stars: Math.max(0, Number.isFinite(data.stars) ? Number(data.stars) : 0),
-    cityObjects:
-      data.cityObjects && typeof data.cityObjects === 'object'
-        ? (data.cityObjects as Record<string, boolean>)
-        : {},
-    // В сейвах, написанных до появления гардероба, наряда нет; таким игрокам
-    // выдаётся стартовая кепка с очками, а не голый Барсик. Без этого наряд
-    // корректно сохранялся и выбрасывался при каждой перезагрузке: всё, что эта
-    // функция не перечислит, остаётся значением по умолчанию.
-    outfit: Array.isArray(data.outfit)
-      ? (() => {
-          const ids = data.outfit.filter((id): id is string => typeof id === 'string');
-          const cool = ['hoodie_green', 'jeans_blue', 'tubeteika_blue', 'glasses_yellow'];
-          // Снятый с производства красный набор (правка заказчика) — в зелёный cool.
-          const redPack = ['hoodie_red', 'jeans_blue', 'tubeteika_red', 'glasses_clear'];
-          if (
-            ids.length === redPack.length
-            && redPack.every((id) => ids.includes(id))
-          ) {
-            return cool;
-          }
-          if (ids.length === 2 && ids.includes('cap_green') && ids.includes('glasses_yellow')) {
-            return cool;
-          }
-          return ids.length ? ids : cool;
-        })()
-      : ['hoodie_green', 'jeans_blue', 'tubeteika_blue', 'glasses_yellow'],
-    // Завершение сезона выводится из канонического последнего уровня, а не из
-    // редактируемого пользователем указателя или устаревшего флага в localStorage.
-    season1Complete: unlockedLevels.includes(16),
-  };
 }
 
 export function App() {
@@ -195,7 +55,8 @@ export function App() {
     if (saved) {
       try {
         const player = migratePlayer(JSON.parse(saved));
-        useGameStore.setState({ player });
+        const progress = readPlayerProgress(player.id, localStorage);
+        useGameStore.setState({ player, ...(progress ?? {}) });
         applyLang(player.lang);
         useUIStore.setState({
           // Приветственная страница — парадный вход и для новых, и для
@@ -210,43 +71,21 @@ export function App() {
       }
     }
 
-    let progress: string | null = null;
-    try {
-      progress = localStorage.getItem('barsik_progress');
-    } catch (error) {
-      console.warn('[storage] progress_read_failed', { error });
-    }
-    if (progress) {
-      try {
-        const migrated = migrateProgress(JSON.parse(progress));
-        // Починка: currentLevel обязан быть хотя бы на единицу дальше самого
-        // высокого пройденного уровня. Старые сейвы и оборванные финалы могли
-        // оставить указатель на уже законченной миссии, и «Продолжить»
-        // перезапускало тот же самый уровень.
-        const highestDone = Math.max(
-          -1,
-          ...migrated.unlockedLevels,
-          ...Object.entries(migrated.levelStars)
-            .filter(([, stars]) => Number(stars) > 0)
-            .map(([id]) => Number(id)),
-        );
-        if (highestDone >= 0 && migrated.currentLevel <= highestDone) {
-          migrated.currentLevel = Math.min(17, highestDone + 1);
-        }
-        useGameStore.setState(migrated);
-        try {
-          localStorage.setItem(
-            'barsik_progress',
-            JSON.stringify({ version: GAME_SAVE_VERSION, ...migrated }),
-          );
-        } catch {
-          /* не важно */
-        }
-      } catch (e) {
-        console.error('Failed to load progress', e);
-        localStorage.removeItem('barsik_progress');
-      }
-    }
+    // Общий ключ `barsik_progress` больше не читается: раньше он принадлежал
+    // браузеру, а не игроку, поэтому новый ник видел чужой сейв.
+    void restoreAccount().then((account) => {
+      if (!account) return;
+      const player = toPlayer(account.user);
+      const migrated = account.progress
+        ? migrateProgress(account.progress)
+        : readPlayerProgress(player.id, localStorage);
+      useGameStore.getState().resetProgress();
+      useGameStore.setState({ player, ...(migrated ?? {}) });
+      applyLang(player.lang);
+      useUIStore.setState({ currentScreen: 'welcome', sessionPlayMs: 0 });
+    }).catch((error) => {
+      console.warn('[account] restore_failed', error);
+    });
 
     // Прямой запуск миссии только в отладочной сборке, для повторяемых проверок на
     // десктопе и телефоне: http://127.0.0.1:5174/?mission=4&lang=kk
@@ -297,23 +136,24 @@ export function App() {
         (window as unknown as { __level?: unknown }).__level = undefined;
         useUIStore.getState().startEpisode(n);
       };
+    }
 
-      // `?tab=shop` открывает страницу меню напрямую. Мета-экраны спрятаны за
-      // приветственным потоком, и проверить один из них иначе значит каждый раз
-      // прокликивать онбординг, — а на практике это значит, что их проверяют
-      // заметно реже, чем уровни.
-      const tab = params.get('tab');
-      const tabs = ['travel', 'friends', 'city', 'shop', 'leaderboard', 'qr'] as const;
-      type Tab = (typeof tabs)[number];
-      if (tab && (tabs as readonly string[]).includes(tab)) {
-        const existingPlayer = useGameStore.getState().player;
-        useGameStore.setState({
-          player:
-            existingPlayer ??
-            migratePlayer({ id: 'qa-player', nick: 'Тест', gender: 'boy', lang: 'ru' }),
-        });
-        useUIStore.setState({ currentScreen: 'game', activeTab: tab as Tab });
-      }
+    // `?tab=shop` открывает страницу меню напрямую. Мета-экраны спрятаны за
+    // приветственным потоком, и проверить один из них иначе значит каждый раз
+    // прокликивать онбординг, — а на практике это значит, что их проверяют
+    // заметно реже, чем уровни.
+    const allParams = new URLSearchParams(window.location.search);
+    const tab = allParams.get('tab');
+    const tabs = ['travel', 'friends', 'city', 'shop', 'leaderboard', 'qr'] as const;
+    type Tab = (typeof tabs)[number];
+    if (tab && (tabs as readonly string[]).includes(tab)) {
+      const existingPlayer = useGameStore.getState().player;
+      useGameStore.setState({
+        player:
+          existingPlayer ??
+          migratePlayer({ id: 'qa-player', nick: 'Тест', gender: 'boy', lang: 'ru' }),
+      });
+      useUIStore.setState({ currentScreen: 'game', activeTab: tab as Tab });
     }
   }, []);
 

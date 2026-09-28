@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './gamePage';
 
 const levels = Array.from({ length: 17 }, (_, id) => id);
 

@@ -1,8 +1,8 @@
 import { normalizeServerProgress } from './progressionContract';
 import { useGameStore } from '@/store/useGameStore';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseConfig';
+import { hasAccountSession, saveAccountProgress } from './account';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? '';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 const SESSION_KEY = 'barsik_auth_session';
 
 interface AuthSession {
@@ -81,6 +81,22 @@ async function refreshSession(refreshToken: string): Promise<AuthSession | null>
 
 /** Отправляет событие завершения; RPC возвращает каноническое состояние с сервера. */
 export async function syncCompletedLevel(levelId: number, stars: number, friendId?: string, retried = false): Promise<void> {
+  if (hasAccountSession()) {
+    const state = useGameStore.getState();
+    await saveAccountProgress({
+      version: 2,
+      friends: state.friends,
+      unlockedLevels: state.unlockedLevels,
+      currentLevel: state.currentLevel,
+      levelStars: state.levelStars,
+      levelClean: state.levelClean,
+      stars: state.stars,
+      cityObjects: state.cityObjects,
+      outfit: state.outfit,
+      season1Complete: state.season1Complete,
+    });
+    return;
+  }
   const auth = await ensureAnonymousSession();
   if (!auth) return;
   try {

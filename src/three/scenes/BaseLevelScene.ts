@@ -1,33 +1,10 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { QualityPipeline } from '../QualityPipeline';
 import { stylizeHeroGlb } from '../stylizeHeroGlb';
-import { updatePlushLocomotion } from '../PlushBarsik';
-import { createBarsikAvatar, DEFAULT_LOOK, type BarsikAvatar } from '../avatar/BarsikAvatar';
-import { dressAvatar } from '../avatar/dressAvatar';
-import { WARDROBE_BY_ID } from '../avatar/wardrobe';
-import { useGameStore } from '@/store/useGameStore';
-
-/** Канон упаковки: зелёное худи, синяя тюбетейка, жёлтые очки. */
-function outfitWithBrandCanon(outfit: string[]): string[] {
-  let ids = outfit.filter((id) => WARDROBE_BY_ID.has(id));
-  if (!ids.some((id) => WARDROBE_BY_ID.get(id)?.bodyWear?.hoodie)) {
-    ids = ['hoodie_green', ...ids];
-  }
-  if (!ids.some((id) => WARDROBE_BY_ID.get(id)?.bodyWear?.jeans)) {
-    ids = ['jeans_blue', ...ids];
-  }
-  const sockets = new Set(
-    ids.map((id) => WARDROBE_BY_ID.get(id)?.socket).filter(Boolean),
-  );
-  if (!sockets.has('head')) ids.push('tubeteika_blue');
-  if (!sockets.has('face')) ids.push('glasses_yellow');
-  const seen = new Set<string>();
-  return ids.filter((id) => (seen.has(id) ? false : (seen.add(id), true)));
-}
+import type { BarsikAvatar } from '../avatar/BarsikAvatar';
 import { isUsableHeroGlb } from '../heroQuality';
-import { updateStaticHeroLocomotion } from '../staticHeroLocomotion';
 import { AudioManager } from '@/audio/AudioManager';
 import { useUIStore } from '@/store/useUIStore';
 import { createFireflies, type Fireflies } from '../Fireflies';
@@ -55,23 +32,6 @@ const WORLD_UP = new THREE.Vector3(0, 1, 0);
  * Послойный гардероб работает только на процедурном пути `?hero=avatar`.
  * `?look=cool|nude|astronaut|…` меняет облик целиком.
  */
-function heroGlbCandidates(): string[] {
-  if (typeof location === 'undefined') {
-    return ['barsik_cool_rigged.glb', 'barsik_rigged.glb', 'barsik.glb'];
-  }
-  const params = new URLSearchParams(location.search);
-  // Облики pack, nude и костюмы из продукта убраны — остался только cool.
-  const look = params.get('look');
-  if (look && look !== 'cool' && look !== 'glb') {
-    console.warn(`[hero] look=${look} retired; using cool`);
-  }
-  return ['barsik_cool_rigged.glb', 'barsik_rigged.glb', 'barsik.glb'];
-}
-
-const USE_GLB_HERO =
-  typeof location === 'undefined'
-  || new URLSearchParams(location.search).get('hero') !== 'avatar';
-
 // ─── Общие типы ─────────────────────────────────────────────────
 export type Collider = 
   | { kind: 'aabb'; x: number; z: number; halfW: number; halfD: number }
@@ -100,10 +60,24 @@ export { fitHeight, groundY, disposeObject3DResources };
 
 export async function loadGlb(loader: GLTFLoader, url: string) {
   try {
-    const g = await Promise.race([
-      loader.loadAsync(url),
-      new Promise<never>((_, r) => setTimeout(() => r(new Error('timeout')), 12000)),
-    ]);
+    let g: GLTF | null = null;
+    const urlsToTry = [url];
+    const base = import.meta.env.BASE_URL || '/';
+    if (base !== '/' && url.startsWith('/') && !url.startsWith(base)) {
+      urlsToTry.push(base + url.slice(1));
+    }
+    for (const u of urlsToTry) {
+      try {
+        g = await Promise.race([
+          loader.loadAsync(u),
+          new Promise<never>((_, r) => setTimeout(() => r(new Error('timeout')), 12000)),
+        ]);
+        if (g) break;
+      } catch {
+        // try next fallback url
+      }
+    }
+    if (!g) return null;
     g.scene.traverse((o) => {
       const m = o as THREE.Mesh;
       if (m.isMesh) {
@@ -732,7 +706,7 @@ export function skyDome(top = '#66c8f5', mid = '#94d8ef', bot = '#e8faf3') {
   return mesh;
 }
 
-export type HeroAnimMode = 'rigged' | 'static' | 'plush' | 'avatar';
+export type HeroAnimMode = 'rigged';
 
 export interface HeroRig {
   model: THREE.Object3D;
@@ -744,9 +718,8 @@ export interface HeroRig {
   avatar: BarsikAvatar | null;
 }
 
-// Предпочитаем двуногий barsik.glb из Meshy. Четвероногие генерации Meshy и
-// TRELLIS читаются кошкой на четырёх лапах — пропускаем, пока нет прямоходящего
-// героя. Если файла нет — процедурный плюшевый.
+// Используем только утверждённые двуногие GLB. Если модель не загрузилась,
+// уровень должен явно сообщить об ошибке, а не незаметно подменять героя.
 /**
  * Сначала со скелетом, потом статуя.
  *
@@ -770,7 +743,7 @@ export async function loadCharModel(
   loader: GLTFLoader,
   file: string,
   height: number,
-  opts: { preferStatic?: boolean } = {},
+  opts: { preferStatic?: boolean; maxSize?: number } = {},
 ): Promise<THREE.Object3D | null> {
   const candidates =
     opts.preferStatic || file.endsWith('_rigged.glb') || file.includes('/')
@@ -788,7 +761,15 @@ export async function loadCharModel(
   }
   if (!gltf) return null;
   void used;
-  fitHeight(gltf.scene, height);
+
+  const rawBox = new THREE.Box3().setFromObject(gltf.scene);
+  const rawSize = rawBox.getSize(new THREE.Vector3());
+  const aspect = rawSize.y / Math.max(rawSize.x, rawSize.z, 0.001);
+  if (opts.maxSize !== undefined || aspect < 0.68) {
+    fitMaxSize(gltf.scene, opts.maxSize ?? (height * 1.05));
+  } else {
+    fitHeight(gltf.scene, height);
+  }
   // Утопить выставочный постамент под землю и увеличить модель обратно, чтобы
   // заданной высоты был сам персонаж, а не персонаж вместе с подставкой.
   // fitHeight уже сделал всю модель высотой `height`, поэтому постамент — это
@@ -841,16 +822,32 @@ export async function loadCharModel(
       walkAction.enabled = true;
       host.userData.walkAction = walkAction;
     }
+
+    let skinnedMesh: THREE.SkinnedMesh | null = null;
+    target.traverse((o) => {
+      if ((o as THREE.SkinnedMesh).isSkinnedMesh) skinnedMesh = o as THREE.SkinnedMesh;
+    });
+    if (skinnedMesh) {
+      mixer.update(0.05);
+      target.updateMatrixWorld(true);
+      let minBoneY = Infinity;
+      for (const b of (skinnedMesh as THREE.SkinnedMesh).skeleton.bones) {
+        const wp = new THREE.Vector3();
+        b.getWorldPosition(wp);
+        if (wp.y < minBoneY) {
+          minBoneY = wp.y;
+        }
+      }
+      if (Number.isFinite(minBoneY) && minBoneY > 0.04) {
+        target.position.y -= (minBoneY - 0.03);
+      }
+    }
   };
 
-  if (Math.abs(gltf.scene.position.y) > 1e-4) {
-    const feetAtOrigin = new THREE.Group();
-    feetAtOrigin.add(gltf.scene);
-    attachClips(feetAtOrigin, gltf.scene);
-    return feetAtOrigin;
-  }
-  attachClips(gltf.scene, gltf.scene);
-  return gltf.scene;
+  const feetAtOrigin = new THREE.Group();
+  feetAtOrigin.add(gltf.scene);
+  attachClips(feetAtOrigin, gltf.scene);
+  return feetAtOrigin;
 }
 
 /** Загружает GLB реквизита из /props. Для широких предметов — вывесок, сундуков — лучше maxSize. */
@@ -933,49 +930,34 @@ export async function placeWoodSign(
 }
 
 export async function loadBarsikHeroRig(loader: GLTFLoader, height = HERO_HEIGHT): Promise<HeroRig> {
-  // Необязательный путь к GLB (экспорт Tripo или будущее фото→3D). По умолчанию — одетый аватар.
-  if (USE_GLB_HERO) {
-    const files = heroGlbCandidates().length ? heroGlbCandidates() : [...HERO_CANDIDATES];
-    for (const file of files) {
-      const gltf = await loadGlb(loader, CHARS + file);
-      if (!gltf) {
-        console.warn(`[hero] failed to load ${file}`);
-        continue;
-      }
-
-      if (isUsableHeroGlb(gltf)) {
-        stylizeHeroGlb(gltf.scene);
-        fitHeight(gltf.scene, height);
-        const mixer = new THREE.AnimationMixer(gltf.scene);
-        const walk =
-          gltf.animations.find((c) => /walk|run/i.test(c.name)) || gltf.animations[0];
-        const idle =
-          gltf.animations.find((c) => /idle|survey|sit/i.test(c.name)) || gltf.animations[0];
-        const walkAction = mixer.clipAction(walk);
-        const idleAction = mixer.clipAction(idle);
-        idleAction.play();
-        console.info(`[hero] GLB ${file} clips=${gltf.animations.map((a) => a.name).join(',')}`);
-        return { model: gltf.scene, animMode: 'rigged', mixer, walkAction, idleAction, avatar: null };
-      }
-
-      console.warn(`[hero] ${file} loaded but not usable as rigged`, {
-        anims: gltf.animations.map((a) => a.name),
-      });
+  for (const file of HERO_CANDIDATES) {
+    const gltf = await loadGlb(loader, CHARS + file);
+    if (!gltf) {
+      console.warn(`[hero] failed to load ${file}`);
+      continue;
     }
+
+    if (isUsableHeroGlb(gltf)) {
+      stylizeHeroGlb(gltf.scene);
+      fitHeight(gltf.scene, height);
+      const mixer = new THREE.AnimationMixer(gltf.scene);
+      const walk =
+        gltf.animations.find((c) => /walk|run/i.test(c.name)) || gltf.animations[0];
+      const idle =
+        gltf.animations.find((c) => /idle|survey|sit/i.test(c.name)) || gltf.animations[0];
+      const walkAction = mixer.clipAction(walk);
+      const idleAction = mixer.clipAction(idle);
+      idleAction.play();
+      console.info(`[hero] GLB ${file} clips=${gltf.animations.map((a) => a.name).join(',')}`);
+      return { model: gltf.scene, animMode: 'rigged', mixer, walkAction, idleAction, avatar: null };
+    }
+
+    console.warn(`[hero] ${file} loaded but not usable as rigged`, {
+      anims: gltf.animations.map((a) => a.name),
+    });
   }
 
-  console.info('[hero] procedural Barsik (hoodie/jeans/glasses)');
-  const avatar = createBarsikAvatar({ height });
-  const outfit = outfitWithBrandCanon(useGameStore.getState().outfit);
-  dressAvatar(avatar, outfit, DEFAULT_LOOK);
-  return {
-    model: avatar.root,
-    animMode: 'avatar',
-    mixer: null,
-    walkAction: null,
-    idleAction: null,
-    avatar,
-  };
+  throw new Error('[hero] canonical GLB could not be loaded');
 }
 
 // ─── Базовый класс сцены ────────────────────────────────────────
@@ -1000,6 +982,9 @@ export abstract class BaseLevelScene {
   protected camYaw = 0;
   /** Куда орбита едет; camYaw плавно догоняет это значение. */
   protected camYawTarget = 0;
+  /** Дистанция / масштаб приближения камеры (1.0 = норма, 0.55 = в упор, 1.75 = общий план). */
+  protected camZoom = 1.0;
+  protected camZoomTarget = 1.0;
   protected orbitDragging = false;
   /** Указатель, который управляет обзором; второй палец при этом свободен для управления. */
   private orbitPointerId: number | null = null;
@@ -1009,7 +994,7 @@ export abstract class BaseLevelScene {
   protected raf = 0;
   protected yaw = 0;
   protected walking = false;
-  protected heroAnimMode: HeroAnimMode = 'plush';
+  protected heroAnimMode: HeroAnimMode = 'rigged';
   protected heroAvatar: BarsikAvatar | null = null;
   /** Истина, пока скорость движения равна беговой: по ней скелет выбирает походку. */
   protected running = false;
@@ -1046,6 +1031,16 @@ export abstract class BaseLevelScene {
     return this.mistakes;
   }
   protected colliders: Collider[] = [];
+  private readonly cameraOcclusionRay = new THREE.Raycaster();
+  private readonly cameraOcclusionTarget = new THREE.Vector3();
+  private readonly levelCameraOccluders: THREE.Object3D[] = [];
+  private readonly fadedOccluders = new Map<THREE.Mesh, {
+    original: THREE.Material | THREE.Material[];
+    faded: THREE.Material[];
+  }>();
+  private fadedOccluderRoot: THREE.Object3D | null = null;
+  private fadedOccluderInstanceId: number | null = null;
+  private lastOcclusionCheck = 0;
   protected sparks: THREE.Mesh[] = [];
   protected clouds: THREE.Group[] = [];
   protected pathArrows: THREE.Group[] = [];
@@ -1059,8 +1054,8 @@ export abstract class BaseLevelScene {
   protected interactTarget: THREE.Object3D | null = null;
   protected nick = '';
   protected lang: 'ru' | 'kk' = 'ru';
-  protected baseSpeed = 3.2;
-  protected runSpeed = 4.4;
+  protected baseSpeed = 4.8;
+  protected runSpeed = 6.6;
   protected praiseUntil = 0;
   protected lastStepAt = 0;
   protected footstepSurface: 'grass' | 'snow' | 'stone' = 'grass';
@@ -1466,6 +1461,7 @@ export abstract class BaseLevelScene {
     const size = new THREE.Vector3();
     for (const obj of objects) {
       new THREE.Box3().setFromObject(obj).getSize(size);
+      if (size.y >= 0.75) this.trackCameraOccluder(obj);
       if (size.y < minHeight) continue;
       // 0.38 от самого широкого габарита: достаточно тесно, чтобы не создавать
       // вокруг предмета невидимых стен, и достаточно широко, чтобы герой в него
@@ -1474,6 +1470,13 @@ export abstract class BaseLevelScene {
       if (r < 0.28) continue;
       this.colliders.push({ kind: 'circle', x: obj.position.x, z: obj.position.z, r });
     }
+  }
+
+  /** Добавляет отдельный высокий объект в проверку видимости из камеры. */
+  private trackCameraOccluder(root: THREE.Object3D) {
+    if (this.levelCameraOccluders.includes(root)) return;
+    this.levelCameraOccluders.push(root);
+    root.traverse((child) => { child.userData.cameraOcclusionRoot = root; });
   }
 
   /**
@@ -1871,7 +1874,7 @@ export abstract class BaseLevelScene {
    * делает орбиту чистым осмотром.
    */
   private withCameraOrbit(render: () => void) {
-    if (Math.abs(this.camYaw) < 0.0005) {
+    if (Math.abs(this.camYaw) < 0.0005 && Math.abs(this.camZoom - 1.0) < 0.0005) {
       this.beforeRenderCamera();
       render();
       return;
@@ -1879,7 +1882,7 @@ export abstract class BaseLevelScene {
     const pos = this.camera.position.clone();
     const quat = this.camera.quaternion.clone();
     const q = new THREE.Quaternion().setFromAxisAngle(WORLD_UP, this.camYaw);
-    const offset = pos.clone().sub(this.hero.position).applyQuaternion(q);
+    const offset = pos.clone().sub(this.hero.position).multiplyScalar(this.camZoom).applyQuaternion(q);
     this.camera.position.copy(this.hero.position).add(offset);
     this.camera.quaternion.premultiply(q);
     // Орбита — временное преобразование отрисовки. Замкнутый уровень может
@@ -1920,26 +1923,50 @@ export abstract class BaseLevelScene {
     // фиксированный шаг каждый кадр, что начинается и обрывается резко; теперь у
     // камеры есть вес: она разгоняется и мягко останавливается.
     this.camYaw += (this.camYawTarget - this.camYaw) * (1 - Math.pow(0.0005, dt));
+    this.camZoom += (this.camZoomTarget - this.camZoom) * (1 - Math.pow(0.0005, dt));
   }
 
   protected bindCameraOrbitDrag() {
     const canvas = this.canvas;
     let lastX = 0;
     let announcedLook = false;
+    const activePointers = new Map<number, { x: number; y: number }>();
+    let initialPinchDist = 0;
+    let initialPinchZoom = 1.0;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.12 : -0.12;
+      this.camZoomTarget = THREE.MathUtils.clamp(this.camZoomTarget + delta, 0.52, 1.85);
+    };
+
     const start = (e: PointerEvent) => {
+      activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (activePointers.size === 2) {
+        const [p1, p2] = Array.from(activePointers.values());
+        initialPinchDist = Math.max(10, Math.hypot(p1.x - p2.x, p1.y - p2.y));
+        initialPinchZoom = this.camZoomTarget;
+        return;
+      }
       if (this.orbitPointerId !== null) return;
-      // Мёртвой зоны слева больше нет. Она защищала виртуальный стик, пока
-      // тот был прибит к кружку в углу; теперь стик — это собственный слой на
-      // всю левую половину, и палец, попавший на него, до канваса просто не
-      // доходит. А та треть экрана, где стика нет, снова умеет крутить камеру:
-      // раньше касание там не делало ничего вообще.
       this.orbitDragging = true;
       this.orbitPointerId = e.pointerId;
       announcedLook = false;
       lastX = e.clientX;
       canvas.setPointerCapture?.(e.pointerId);
     };
+
     const move = (e: PointerEvent) => {
+      if (activePointers.has(e.pointerId)) {
+        activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      }
+      if (activePointers.size === 2) {
+        const [p1, p2] = Array.from(activePointers.values());
+        const dist = Math.max(10, Math.hypot(p1.x - p2.x, p1.y - p2.y));
+        const factor = initialPinchDist / dist;
+        this.camZoomTarget = THREE.MathUtils.clamp(initialPinchZoom * factor, 0.52, 1.85);
+        return;
+      }
       if (!this.orbitDragging || e.pointerId !== this.orbitPointerId) return;
       const dx = e.clientX - lastX;
       this.camYawTarget -= dx * 0.006;
@@ -1949,17 +1976,29 @@ export abstract class BaseLevelScene {
       }
       lastX = e.clientX;
     };
+
     const end = (e: PointerEvent) => {
+      activePointers.delete(e.pointerId);
+      if (activePointers.size === 1) {
+        // Reset single pointer drag
+        const [remainingId] = Array.from(activePointers.keys());
+        const p = activePointers.get(remainingId)!;
+        lastX = p.x;
+        this.orbitPointerId = remainingId;
+      }
       if (e.pointerId !== this.orbitPointerId) return;
       this.orbitDragging = false;
       this.orbitPointerId = null;
       canvas.releasePointerCapture?.(e.pointerId);
     };
+
+    canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('pointerdown', start);
     canvas.addEventListener('pointermove', move);
     canvas.addEventListener('pointerup', end);
     canvas.addEventListener('pointercancel', end);
     this.orbitCleanup = () => {
+      canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('pointerdown', start);
       canvas.removeEventListener('pointermove', move);
       canvas.removeEventListener('pointerup', end);
@@ -1970,9 +2009,116 @@ export abstract class BaseLevelScene {
   protected renderFrame() {
     this.tickDayCycle();
     this.withCameraOrbit(() => {
+      this.updateCameraOcclusion();
       if (this.quality) this.quality.render();
       else this.renderer.render(this.scene, this.camera);
     });
+  }
+
+  private updateCameraOcclusion() {
+    const now = performance.now();
+    if (now - this.lastOcclusionCheck < 100) return;
+    this.lastOcclusionCheck = now;
+
+    const from = this.camera.position;
+    this.cameraOcclusionTarget.copy(this.hero.position);
+    this.cameraOcclusionTarget.y += 0.9;
+    const direction = this.cameraOcclusionTarget.clone().sub(from);
+    const distance = direction.length();
+    if (distance < 0.5 || this.levelCameraOccluders.length === 0) {
+      this.restoreFadedOccluder();
+      return;
+    }
+
+    const rayDirection = direction.multiplyScalar(1 / distance);
+    this.cameraOcclusionRay.set(from, rayDirection);
+    this.cameraOcclusionRay.near = 0.2;
+    this.cameraOcclusionRay.far = distance - 0.35;
+    let hit = this.cameraOcclusionRay
+      .intersectObjects(this.levelCameraOccluders, true)
+      .find(({ object }) => {
+        if (!object.visible) return false;
+        const materials = Array.isArray((object as THREE.Mesh).material)
+          ? (object as THREE.Mesh).material as THREE.Material[]
+          : [(object as THREE.Mesh).material as THREE.Material];
+        return object.userData.cameraOcclusionTree === true
+          || materials.some((material) => material && !material.transparent);
+      });
+    // Если камера уже внутри кроны, прямой луч начинается внутри меша и не
+    // пересекает его переднюю грань. Луч от Барсика к камере находит такую крону;
+    // берём последнее пересечение — ближайшее к камере дерево.
+    if (!hit) {
+      this.cameraOcclusionRay.set(this.cameraOcclusionTarget, rayDirection.clone().negate());
+      this.cameraOcclusionRay.near = 0.2;
+      this.cameraOcclusionRay.far = distance - 0.2;
+      const reverseHits = this.cameraOcclusionRay
+        .intersectObjects(this.levelCameraOccluders, true)
+        .filter(({ object }) => {
+          if (!object.visible) return false;
+          const materials = Array.isArray((object as THREE.Mesh).material)
+            ? (object as THREE.Mesh).material as THREE.Material[]
+            : [(object as THREE.Mesh).material as THREE.Material];
+          return object.userData.cameraOcclusionTree === true
+            || materials.some((material) => material && !material.transparent);
+        });
+      hit = reverseHits[reverseHits.length - 1];
+    }
+    const root = hit?.object.userData.cameraOcclusionRoot as THREE.Object3D | undefined;
+    if (!root) {
+      this.restoreFadedOccluder();
+      return;
+    }
+    if (this.fadedOccluderRoot !== root) {
+      this.restoreFadedOccluder();
+      this.fadedOccluderRoot = root;
+      const instanceId = hit?.instanceId;
+      if (root.userData.cameraOcclusionTreeGroup && instanceId !== undefined) {
+        this.fadedOccluderInstanceId = instanceId;
+        this.setTreeInstanceOpacity(root, instanceId, 0.38);
+        return;
+      }
+      root.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (!mesh.isMesh || !mesh.material) return;
+        const original = mesh.material;
+        const originals = Array.isArray(original) ? original : [original];
+        const faded: THREE.Material[] = originals.map((material) => {
+          if (material.transparent) return material;
+          const copy = material.clone();
+          copy.transparent = true;
+          copy.opacity = 0.38;
+          copy.depthWrite = false;
+          copy.needsUpdate = true;
+          return copy;
+        });
+        if (faded.every((material, index) => material === originals[index])) return;
+        this.fadedOccluders.set(mesh, { original, faded: faded.filter((material, index) => material !== originals[index]) });
+        mesh.material = Array.isArray(original) ? faded : faded[0];
+      });
+    }
+  }
+
+  private restoreFadedOccluder() {
+    if (this.fadedOccluderRoot?.userData.cameraOcclusionTreeGroup && this.fadedOccluderInstanceId !== null) {
+      this.setTreeInstanceOpacity(this.fadedOccluderRoot, this.fadedOccluderInstanceId, 1);
+    }
+    for (const [mesh, materials] of this.fadedOccluders) {
+      for (const material of materials.faded) material.dispose();
+      mesh.material = materials.original;
+    }
+    this.fadedOccluders.clear();
+    this.fadedOccluderRoot = null;
+    this.fadedOccluderInstanceId = null;
+  }
+
+  private setTreeInstanceOpacity(root: THREE.Object3D, instanceId: number, opacity: number) {
+    const trees = root.userData.cameraOcclusionTreeMeshes as THREE.InstancedMesh[] | undefined;
+    for (const tree of trees ?? []) {
+      const alpha = tree.geometry.getAttribute('instanceCameraOpacity') as THREE.InstancedBufferAttribute | undefined;
+      if (!alpha || instanceId >= alpha.count) continue;
+      alpha.setX(instanceId, opacity);
+      alpha.needsUpdate = true;
+    }
   }
 
   setPaused(value: boolean) {
@@ -2024,7 +2170,7 @@ export abstract class BaseLevelScene {
   /** Световой столб над текущей целью. См. objectiveBeacon.ts. */
   protected objectiveBeacon: THREE.Group | null = null;
 
-  /** Текстурированный статичный герой с процедурной походкой; при сбое загрузки — плюшевый запасной. */
+  /** Загружает утверждённого героя; при сбое не подменяет его процедурным мешем. */
   protected async loadHero(loader: GLTFLoader, height = HERO_HEIGHT) {
     const rig = await loadBarsikHeroRig(loader, height);
     if (this.disposed) {
@@ -2579,10 +2725,38 @@ export abstract class BaseLevelScene {
 
       // `maxSize: 1` нормализовал шаблон, поэтому высота расстановки — это прямо
       // её масштаб.
+      const treeGroup = new THREE.Group();
+      treeGroup.userData.cameraOcclusionTreeGroup = true;
+      const treeMeshes: THREE.InstancedMesh[] = [];
+      treeGroup.userData.cameraOcclusionTreeMeshes = treeMeshes;
       for (const part of parts) {
-        const inst = new THREE.InstancedMesh(part.geo, part.mat, list.length);
+        const geometry = part.geo.clone();
+        geometry.setAttribute(
+          'instanceCameraOpacity',
+          new THREE.InstancedBufferAttribute(new Float32Array(list.length).fill(1), 1),
+        );
+        const material = part.mat.clone();
+        const previousOnBeforeCompile = material.onBeforeCompile;
+        material.onBeforeCompile = (shader, renderer) => {
+          previousOnBeforeCompile.call(material, shader, renderer);
+          shader.vertexShader = shader.vertexShader
+            .replace('#include <common>', '#include <common>\nattribute float instanceCameraOpacity;\nvarying float vInstanceCameraOpacity;')
+            .replace('#include <begin_vertex>', '#include <begin_vertex>\nvInstanceCameraOpacity = instanceCameraOpacity;');
+          shader.fragmentShader = shader.fragmentShader
+            .replace('#include <common>', '#include <common>\nvarying float vInstanceCameraOpacity;')
+            .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.a *= vInstanceCameraOpacity;');
+        };
+        const previousCacheKey = material.customProgramCacheKey.bind(material);
+        material.customProgramCacheKey = () => `${previousCacheKey()}|tree-camera-opacity`;
+        material.transparent = true;
+        material.depthWrite = false;
+        const inst = new THREE.InstancedMesh(geometry, material, list.length);
         inst.castShadow = false;      // кромка леса, затеняющая сама себя, стоит дороже,
         inst.receiveShadow = false;   // чем показывает на такой дистанции
+        inst.userData.cameraOcclusionTree = true;
+        inst.userData.cameraOcclusionRoot = treeGroup;
+        treeMeshes.push(inst);
+        this.levelCameraOccluders.push(inst);
         const m = new THREE.Matrix4();
         const place = new THREE.Matrix4();
         for (let i = 0; i < list.length; i++) {
@@ -2598,8 +2772,9 @@ export abstract class BaseLevelScene {
         }
         inst.instanceMatrix.needsUpdate = true;
         inst.frustumCulled = false;   // стена и так окружает игрока
-        this.scene.add(inst);
+        treeGroup.add(inst);
       }
+      this.scene.add(treeGroup);
       disposeObject3DResources(template);
     }
     // Без коллайдеров: ограничение движения и так останавливает игрока, не доходя
@@ -2662,6 +2837,7 @@ export abstract class BaseLevelScene {
         this.snapToGround(tree);
         this.markSwaying(tree);
         this.scene.add(tree);
+        this.trackCameraOccluder(tree);
         const bend = Math.sin((tree.position.z + 18) * -0.02) * 2.1;
         if (Math.abs(tree.position.x - bend) > 2.4) {
           this.colliders.push({ kind: 'circle', x: tree.position.x, z: tree.position.z, r: 1.5 });
@@ -2782,6 +2958,14 @@ export abstract class BaseLevelScene {
         e.preventDefault();
         if (this.interactTarget) this.tryInteract();
         else this.jump();
+      }
+      if (['Minus', 'NumpadSubtract', 'BracketLeft', 'PageDown'].includes(e.code)) {
+        e.preventDefault();
+        this.camZoomTarget = THREE.MathUtils.clamp(this.camZoomTarget + 0.15, 0.52, 1.85);
+      }
+      if (['Equal', 'NumpadAdd', 'BracketRight', 'PageUp'].includes(e.code)) {
+        e.preventDefault();
+        this.camZoomTarget = THREE.MathUtils.clamp(this.camZoomTarget - 0.15, 0.52, 1.85);
       }
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         e.preventDefault();
@@ -3026,10 +3210,10 @@ export abstract class BaseLevelScene {
     const isRunning = speed > this.baseSpeed + 0.2;
     this.running = isRunning;
     const cadenceMs = this.footstepSurface === 'snow'
-      ? (isRunning ? 300 : 390)
+      ? (isRunning ? 210 : 270)
       : this.footstepSurface === 'stone'
-        ? (isRunning ? 230 : 300)
-        : (isRunning ? 250 : 330);
+        ? (isRunning ? 160 : 210)
+        : (isRunning ? 175 : 230);
     if (moving && now - this.lastStepAt > cadenceMs) {
       this.lastStepAt = now;
       AudioManager.sfx(
@@ -3277,12 +3461,7 @@ export abstract class BaseLevelScene {
       );
       this.heroAvatar.update(dt, now * 0.001);
     } else {
-      const heroModel = this.hero.children.find((c) => !c.userData.isGuideArrow);
-      if (heroModel) {
-        const t = now * 0.001;
-        if (this.heroAnimMode === 'plush') updatePlushLocomotion(heroModel, this.walking, t);
-        else if (this.heroAnimMode === 'static') updateStaticHeroLocomotion(heroModel, this.walking, t);
-      }
+      // Все игровые кадры героя идут через AnimationMixer канонического GLB.
     }
   }
 
@@ -3783,6 +3962,7 @@ export abstract class BaseLevelScene {
 
   dispose() {
     this.disposed = true;
+    this.restoreFadedOccluder();
     cancelAnimationFrame(this.raf);
     removeEventListener('resize', this.resize);
     document.removeEventListener('visibilitychange', this.onVisibility);

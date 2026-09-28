@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './gamePage';
 
 test('mobile mission accepts touch-style input and pause recovery', async ({ page }) => {
   test.setTimeout(90_000);

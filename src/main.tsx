@@ -21,20 +21,24 @@ installQaConsoleCollector();
  */
 const AdminApp = lazy(() => import('./admin/AdminApp').then((m) => ({ default: m.AdminApp })));
 
-const params = new URLSearchParams(window.location.search);
-const isAdminEntry =
-  params.get('admin') === '1' || window.location.pathname.replace(/\/+$/, '') === '/admin';
+function Root() {
+  const params = new URLSearchParams(window.location.search);
+  const isAdminEntry =
+    params.get('admin') === '1' || window.location.pathname.replace(/\/+$/, '') === '/admin';
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <AppErrorBoundary>
-      {isAdminEntry ? (
-        <Suspense fallback={<div role="status">Загрузка…</div>}>
-          <AdminApp />
-        </Suspense>
-      ) : (
-        <App />
-      )}
-    </AppErrorBoundary>
-  </React.StrictMode>,
-);
+  return (
+    <React.StrictMode>
+      <AppErrorBoundary>
+        {isAdminEntry ? (
+          <Suspense fallback={<div role="status">Загрузка…</div>}>
+            <AdminApp />
+          </Suspense>
+        ) : (
+          <App />
+        )}
+      </AppErrorBoundary>
+    </React.StrictMode>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')!).render(<Root />);

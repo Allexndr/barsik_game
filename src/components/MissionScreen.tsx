@@ -212,7 +212,7 @@ export function MissionScreen({
         knob.style.transform = `translate(${x * travel}px, ${y * travel}px)`;
         // В L7 полное отклонение стика остаётся обычным шагом: на сенсорном
         // экране это естественный жест, а отдельной кнопки бега нет.
-        const touchSprint = levelId !== 7 && (Math.abs(x) > 0.75 || Math.abs(y) > 0.75);
+        const touchSprint = levelId !== 7 && (Math.abs(x) > 0.6 || Math.abs(y) > 0.6);
         knob.classList.toggle('is-running', touchSprint);
       }
     };
@@ -480,7 +480,7 @@ export function MissionScreen({
             </PlushButton>
             {(levelId === 9 || levelId === 16) && (
               <PlushButton
-                variant="secondary"
+                variant="ghost"
                 size="md"
                 className="m0-continue"
                 onClick={() => {

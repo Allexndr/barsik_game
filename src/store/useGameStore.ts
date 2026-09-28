@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Player, Friend } from '@/types';
 import { SEASON1_FRIENDS } from '@/utils/season1Friends';
 import type { ServerProgress } from '@/net/progressionContract';
+import { saveAccountProgress, logoutAccount } from '@/net/account';
 
 export type { Player, Friend };
 export const GAME_SAVE_VERSION = 2;
@@ -44,6 +45,7 @@ export interface GameState {
   setPlayer: (player: Player) => void;
   patchPlayer: (partial: Partial<Player>) => void;
   clearSession: () => void;
+  resetProgress: () => void;
   addFriend: (friend: Friend) => void;
   completeLevel: (levelId: number, reward: { stars: number; friendId?: string; clean?: boolean }) => void;
   buyCityObject: (objectId: string, cost: number) => void;
@@ -59,6 +61,18 @@ function savePlayer(player: Player) {
     /* не важно */
   }
 }
+
+const emptyProgress = () => ({
+  friends: [],
+  unlockedLevels: [],
+  currentLevel: 0,
+  levelStars: {},
+  levelClean: {},
+  stars: 0,
+  cityObjects: {},
+  outfit: ['hoodie_green', 'jeans_blue', 'tubeteika_blue', 'glasses_yellow'],
+  season1Complete: false,
+});
 
 export const useGameStore = create<GameState>((set) => ({
   player: null,
@@ -86,16 +100,23 @@ export const useGameStore = create<GameState>((set) => ({
     }),
 
   clearSession: () => {
+    void logoutAccount();
     try {
       localStorage.removeItem('barsik_player');
+      localStorage.removeItem('barsik_progress');
     } catch {
       /* не важно */
     }
     set({
       player: null,
-      // прогресс уровней оставляем на устройстве — можно продолжить после нового входа
+      ...emptyProgress(),
     });
   },
+
+  resetProgress: () => set((state) => {
+    try { localStorage.removeItem('barsik_progress'); } catch { /* не важно */ }
+    return { ...emptyProgress(), player: state.player };
+  }),
 
   addFriend: (friend: Friend) =>
     set((state: GameState) => {
@@ -284,12 +305,15 @@ function persistProgress(data: {
   outfit?: string[];
   season1Complete?: boolean;
 }) {
+  const payload = { version: GAME_SAVE_VERSION, ...data };
   try {
-    localStorage.setItem(
-      'barsik_progress',
-      JSON.stringify({ version: GAME_SAVE_VERSION, ...data }),
-    );
+    const playerId = useGameStore.getState().player?.id;
+    const key = playerId ? `barsik_progress:${playerId}` : 'barsik_progress';
+    localStorage.setItem(key, JSON.stringify(payload));
+    // Устаревший общий ключ больше не должен влиять на другой аккаунт.
+    localStorage.removeItem('barsik_progress');
   } catch {
     /* не важно */
   }
+  void saveAccountProgress(payload);
 }

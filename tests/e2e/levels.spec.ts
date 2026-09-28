@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './gamePage';
 
 const levels = Array.from({ length: 17 }, (_, id) => id);
 
@@ -45,6 +45,14 @@ test('completed season keeps a replay entry point on the last playable level', a
       stars: 30,
       friends: [],
     }));
+    localStorage.setItem('barsik_progress:qa-player', JSON.stringify({
+      version: 2,
+      currentLevel: 17,
+      unlockedLevels: Array.from({ length: 17 }, (_, id) => id),
+      levelStars: { 16: 30 },
+      stars: 30,
+      friends: [],
+    }));
   });
 
   await page.goto('/?tab=travel&lang=ru', { waitUntil: 'domcontentloaded' });
@@ -52,6 +60,39 @@ test('completed season keeps a replay entry point on the last playable level', a
   await expect(replay).toBeVisible();
   await expect(replay).toBeEnabled();
   await expect(replay).toContainText('Пройти уровень');
+});
+
+test('restoring another account cannot inherit the previous local player progress', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('barsik_player', JSON.stringify({
+      id: 'previous-player', nick: 'Старый профиль', gender: 'boy', lang: 'ru',
+    }));
+    localStorage.setItem('barsik_progress:previous-player', JSON.stringify({
+      version: 2,
+      currentLevel: 8,
+      unlockedLevels: Array.from({ length: 8 }, (_, id) => id),
+      levelStars: { 7: 30 },
+      stars: 30,
+      friends: [{ id: 'aya' }],
+    }));
+  });
+  await page.route('**/api/auth/me', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      user: { id: 'current-player', nick: 'Новый профиль', gender: 'girl', lang: 'kk', createdAt: '2026-09-28' },
+      progress: null,
+    }),
+  }));
+
+  await page.goto('/?lang=ru', { waitUntil: 'domcontentloaded' });
+  await expect.poll(() => page.evaluate(() => (
+    window as typeof window & { __gameStore?: { getState: () => { player?: { id?: string } } } }
+  ).__gameStore?.getState().player?.id)).toBe('current-player');
+  const state = await page.evaluate(() => (
+    window as typeof window & { __gameStore?: { getState: () => { currentLevel: number; stars: number; unlockedLevels: number[]; friends: unknown[] } } }
+  ).__gameStore?.getState());
+  expect(state).toMatchObject({ currentLevel: 0, stars: 0, unlockedLevels: [], friends: [] });
 });
 
 test('playable map pins can be activated from the keyboard', async ({ page }) => {

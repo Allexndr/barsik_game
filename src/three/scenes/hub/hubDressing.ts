@@ -99,11 +99,13 @@ export async function loadHubDressing(
   locationId: LocationId,
   scene: THREE.Scene,
   colliders: Array<{ kind: 'circle'; x: number; z: number; r: number }>,
+  occluders?: THREE.Object3D[],
 ): Promise<THREE.Object3D[]> {
   const spots = HUB_DRESSING[locationId] ?? [];
   const placed: THREE.Object3D[] = [];
-  // Параллельно: на Арбате ~15 GLB по 5–9 МБ — подряд это минуты пустого экрана.
-  const results = await Promise.all(
+  // Параллельно подгружаем объекты и сразу добавляем в сцену по мере готовности,
+  // чтобы не вызывать резкий синхронный фриз при одновременной вставке 16 моделей.
+  await Promise.all(
     spots.map(async (spot) => {
       let gltf = null;
       for (const url of spot.urls) {
@@ -118,19 +120,21 @@ export async function loadHubDressing(
       if (spot.rotY !== undefined) node.rotation.y = spot.rotY;
       const box = new THREE.Box3().setFromObject(node);
       node.position.y = -box.min.y;
+
+      scene.add(node);
+      placed.push(node);
+      colliders.push({
+        kind: 'circle',
+        x: spot.x,
+        z: spot.z,
+        r: spot.kind === 'char' ? 0.55 : 1.35,
+      });
+      // Крупные здания-ориентиры (высотой от 4м) могут перекрывать камеру
+      if (spot.height && spot.height >= 4.0 && occluders) {
+        occluders.push(node);
+      }
       return { node, spot };
     }),
   );
-  for (const item of results) {
-    if (!item) continue;
-    scene.add(item.node);
-    placed.push(item.node);
-    colliders.push({
-      kind: 'circle',
-      x: item.spot.x,
-      z: item.spot.z,
-      r: item.spot.kind === 'char' ? 0.55 : 1.35,
-    });
-  }
   return placed;
 }
