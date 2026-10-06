@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
 /**
  * Общая часть админских функций.
  *
@@ -37,6 +39,9 @@ const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN ?? '';
 const ADMIN_ALLOW_LEGACY_TOKEN = process.env.ADMIN_ALLOW_LEGACY_TOKEN === 'true';
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? '';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? '';
+const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET ?? '';
 const ADMIN_EMAILS = new Set((process.env.SUPABASE_ADMIN_EMAILS ?? '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean));
 
 /** Что настроено, а что нет — чтобы интерфейс мог сказать это внятно. */
@@ -46,7 +51,12 @@ export function configState() {
     serviceKey: Boolean(SERVICE_KEY),
     adminToken: Boolean(ADMIN_TOKEN),
     identityAuth: Boolean(SUPABASE_URL && SERVICE_KEY),
+    passwordLogin: passwordLoginConfigured(),
   };
+}
+
+export function passwordLoginConfigured(): boolean {
+  return Boolean(ADMIN_USERNAME && ADMIN_PASSWORD.length >= 12 && ADMIN_SESSION_SECRET.length >= 32);
 }
 
 function headerValue(req: AdminRequest, name: string): string {
@@ -68,6 +78,40 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+function signSession(payload: string): string {
+  return createHmac('sha256', ADMIN_SESSION_SECRET).update(payload).digest('base64url');
+}
+
+export function issueAdminSession(actor: string): string {
+  const payload = Buffer.from(JSON.stringify({
+    actor,
+    exp: Math.floor(Date.now() / 1000) + 8 * 60 * 60,
+  })).toString('base64url');
+  return `${payload}.${signSession(payload)}`;
+}
+
+function sessionActor(token: string): string | null {
+  if (!ADMIN_SESSION_SECRET) return null;
+  const [payload, signature, extra] = token.split('.');
+  if (!payload || !signature || extra !== undefined) return null;
+  const expected = Buffer.from(signSession(payload));
+  const received = Buffer.from(signature);
+  if (expected.length !== received.length || !timingSafeEqual(expected, received)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { actor?: unknown; exp?: unknown };
+    if (typeof data.actor !== 'string' || typeof data.exp !== 'number' || data.exp <= Date.now() / 1000) return null;
+    return data.actor.slice(0, 64);
+  } catch {
+    return null;
+  }
+}
+
+export function authenticateAdmin(username: string, password: string): string | null {
+  if (!passwordLoginConfigured()) return null;
+  if (!safeEqual(username, ADMIN_USERNAME) || !safeEqual(password, ADMIN_PASSWORD)) return null;
+  return issueAdminSession(ADMIN_USERNAME);
+}
+
 export type Guard = { ok: true; actor: string } | { ok: false; status: number; error: string };
 
 /**
@@ -83,6 +127,8 @@ export async function guard(req: AdminRequest): Promise<Guard> {
   }
   const bearer = headerValue(req, 'authorization').match(/^Bearer\s+(.+)$/i)?.[1] ?? '';
   if (bearer) {
+    const actor = sessionActor(bearer);
+    if (actor) return { ok: true, actor };
     try {
       const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
         headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${bearer}` },

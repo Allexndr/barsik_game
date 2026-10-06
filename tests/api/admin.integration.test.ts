@@ -8,6 +8,9 @@ describe('admin identity authorization integration', () => {
     vi.stubEnv('SUPABASE_ADMIN_EMAILS', 'owner@example.com');
     vi.stubEnv('ADMIN_ALLOW_LEGACY_TOKEN', 'false');
     vi.stubEnv('ADMIN_TOKEN', 'legacy-test-token');
+    vi.stubEnv('ADMIN_USERNAME', 'owner');
+    vi.stubEnv('ADMIN_PASSWORD', 'a-long-test-password');
+    vi.stubEnv('ADMIN_SESSION_SECRET', 'a-test-only-signing-secret-with-enough-entropy');
   });
 
   afterEach(() => {
@@ -57,5 +60,47 @@ describe('admin identity authorization integration', () => {
     await expect(guard({ headers: { 'x-admin-token': 'legacy-test-token' } }))
       .resolves.toEqual({ ok: false, status: 401, error: 'Требуется авторизация администратора' });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('authenticates the configured username and password, then accepts the signed session', async () => {
+    const { default: login } = await import('../../api/admin/login');
+    const { guard } = await import('../../api/admin/_lib');
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+      setHeader: vi.fn(),
+      end: vi.fn(),
+    };
+
+    await login({
+      method: 'POST',
+      headers: {},
+      body: { username: 'owner', password: 'a-long-test-password' },
+    }, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const session = res.json.mock.calls[0][0] as { token: string; actor: string };
+    expect(session.actor).toBe('owner');
+    await expect(guard({ headers: { authorization: `Bearer ${session.token}` } }))
+      .resolves.toEqual({ ok: true, actor: 'owner' });
+  });
+
+  it('rejects an incorrect password without issuing a session', async () => {
+    const { default: login } = await import('../../api/admin/login');
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+      setHeader: vi.fn(),
+      end: vi.fn(),
+    };
+
+    await login({
+      method: 'POST',
+      headers: {},
+      body: { username: 'owner', password: 'wrong-password' },
+    }, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Неверный логин или пароль' });
   });
 });

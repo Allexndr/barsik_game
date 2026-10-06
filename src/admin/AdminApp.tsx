@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { AdminError, clearCredentials, getActor, getToken, setCredentials } from './api';
+import { AdminError, clearCredentials, getActor, getToken, loginAdmin, setCredentials } from './api';
 import { OverviewPanel } from './panels/OverviewPanel';
 import { PlayersPanel } from './panels/PlayersPanel';
 import { BoardPanel } from './panels/BoardPanel';
@@ -13,8 +13,8 @@ import './admin.css';
  * Живёт отдельным входом (`?admin=1`) и грузится лениво, поэтому в детский
  * бандл не попадает ни байта, пока панель не открыли.
  *
- * Вход — access token Supabase Auth. Сервер проверяет identity и admin claim;
- * браузер только пересылает токен и не принимает решение о правах.
+ * Вход по серверным логину и паролю; браузер получает короткоживущий токен,
+ * подписанный серверным секретом.
  */
 
 type Tab = 'overview' | 'players' | 'board' | 'content' | 'audit';
@@ -46,7 +46,11 @@ export function AdminApp() {
     setError(e instanceof Error ? e.message : String(e));
   }, []);
 
-  if (!authed) return <Login onDone={() => { setError(null); setAuthed(true); }} />;
+  if (!authed) return <Login onDone={(token, actor) => {
+    setCredentials(token, actor);
+    setError(null);
+    setAuthed(true);
+  }} />;
 
   return (
     <div className="adm">
@@ -99,46 +103,60 @@ export function AdminApp() {
   );
 }
 
-function Login({ onDone }: { onDone: () => void }) {
-  const [token, setToken] = useState('');
-  const [actor, setActor] = useState(getActor());
+function Login({ onDone }: { onDone: (token: string, actor: string) => void }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   return (
     <div className="adm">
       <div className="adm-shell">
         <form
           className="adm-card adm-login"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            if (!token.trim()) return;
-            setCredentials(token.trim(), actor.trim() || 'admin');
-            onDone();
+            if (busy || !username.trim() || !password) return;
+            setBusy(true);
+            setError('');
+            try {
+              const session = await loginAdmin(username.trim(), password);
+              onDone(session.token, session.actor);
+            } catch (cause) {
+              setError(cause instanceof Error ? cause.message : 'Не удалось войти');
+            } finally {
+              setBusy(false);
+            }
           }}
         >
           <h2>Вход в админку</h2>
-          <label htmlFor="adm-actor">Кто вы</label>
+          <label htmlFor="adm-username">Логин</label>
           <input
-            id="adm-actor"
+            id="adm-username"
             className="adm-input"
-            placeholder="имя — попадёт в журнал"
-            value={actor}
-            onChange={(e) => setActor(e.target.value)}
+            autoComplete="username"
+            required
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
           />
-          <label htmlFor="adm-token">Access token Supabase</label>
+          <label htmlFor="adm-password">Пароль</label>
           <input
-            id="adm-token"
+            id="adm-password"
             className="adm-input"
             type="password"
-            autoComplete="off"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
+          {error ? <div className="adm-error" role="alert">{error}</div> : null}
           <div style={{ marginTop: 16 }}>
-            <button className="adm-btn go" type="submit">Войти</button>
+            <button className="adm-btn go" type="submit" disabled={busy}>
+              {busy ? 'Проверяем…' : 'Войти'}
+            </button>
           </div>
           <p className="adm-note" style={{ marginTop: 16 }}>
-            Вставьте access token пользователя Supabase Auth с правами администратора.
-            Сервер проверит сессию и admin claim; токен хранится только до закрытия вкладки.
+            Введите выданные администратору логин и пароль. Сессия завершится после закрытия вкладки.
           </p>
         </form>
       </div>

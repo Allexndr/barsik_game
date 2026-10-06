@@ -56,6 +56,22 @@ export class AdminError extends Error {
   }
 }
 
+export async function loginAdmin(username: string, password: string): Promise<{ token: string; actor: string }> {
+  const res = await fetch('/api/admin/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  const payload = await res.json().catch(() => null) as { token?: string; actor?: string; error?: string } | null;
+  if (!res.ok || !payload?.token || !payload.actor) {
+    throw new AdminError(
+      payload?.error ?? `Не удалось войти (HTTP ${res.status})`,
+      res.status,
+    );
+  }
+  return { token: payload.token, actor: payload.actor };
+}
+
 async function call<T>(
   path: string,
   init: { method?: string; body?: unknown; query?: Record<string, string> } = {},
